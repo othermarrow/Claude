@@ -93,13 +93,34 @@ MODEL_PRESETS = {
 }
 
 # モデルが応答しなくなったときに代わりに使う順番(短い名前か 'ベンダー/モデル名')。
-# 判定の途中でモデルが「応答しない」と判定されたら、ここを上から順に見て、
-# まだ使えるモデルに切り替えて残りを続ける。並べ替えれば優先順位を変えられる。
-# 行を消せば候補から外れる。空の () にすると切り替えない(旧版と同じ動き)。
-#   ・再判定(ENSEMBLE)では、1本目の判定に使ったモデルは飛ばす
-#   ・ファセット抽出(PLANNING)は1回しか呼ばないので、失敗したらすぐ次へ移る
-#   ・どの文献をどのモデルで判定したかは、カタログと索引に記録される
-FALLBACK_ORDER = ("1", "2", "3", "4", "5", "7", "8")
+# 途中でモデルが「応答しない」と判定されたら、ここを上から順に見て、まだ
+# 使えるモデルに切り替えて残りを続ける。並べ替えれば優先順位を変えられる。
+# 消せば候補から外れる。空の () にすると切り替えない(旧版と同じ動き)。
+# どの文献をどのモデルで判定したかは、カタログと索引に記録される。
+#
+# 関連度判定・設計の抽出・ファセット抽出の代わり。1つのカタログの中で判定の
+# 付け方がなるべく揃うよう、本判定(1)と同じ系統を先にし、思考を止められない
+# モデル・性質を確かめていないモデルを後ろに置いている。
+FALLBACK_ORDER = (
+    "1",   # nemotron-3-super     本判定と同じ。ファセット抽出が失敗したときの第一候補
+    "2",   # nemotron-3.5-lightning  同じ系統で速い。判定の傾向が近い
+    "5",   # glm-5.3-flash        速い。別系統だが大量の判定に向く
+    "4",   # gemma-4-31b          安定しているが再判定用なので後ろに回す
+    "7",   # gpt-oss-20b          思考を完全には止められず遅くなりやすい
+    "3",   # muse-glimmer-30b     この用途での性質を確かめていない
+    "8",   # nemotron-nano-omni-reasoning  思考が長く、大量の判定には向かない
+)
+# 再判定(アンサンブル)の代わり。見落としが重ならないよう別系統を先にする。
+# 1本目の判定に使ったモデルは、ここに書いてあっても飛ばす。
+ENSEMBLE_FALLBACK_ORDER = (
+    "4",   # gemma-4-31b          既定の再判定モデル
+    "5",   # glm-5.3-flash
+    "7",   # gpt-oss-20b
+    "3",   # muse-glimmer-30b
+    "2",   # nemotron-3.5-lightning  本判定と同じ系統なので後ろ
+    "1",   # nemotron-3-super
+    "8",   # nemotron-nano-omni-reasoning
+)
 
 # ==========================================
 # 4. 通信
@@ -431,15 +452,19 @@ S2_API_KEY = os.environ.get("S2_API_KEY", "")
 CINII_APPID = os.environ.get("CINII_APPID", "")
 
 
-def fallback_models() -> list:
-    """FALLBACK_ORDER を正式なモデル名の並びにする(重複は除く)。"""
+def fallback_models(role: str = "judge") -> list:
+    """切り替えの順番を正式なモデル名の並びにする(重複は除く)。
+
+    role が "ensemble" なら ENSEMBLE_FALLBACK_ORDER、それ以外は FALLBACK_ORDER。
+    """
+    setting = "ENSEMBLE_FALLBACK_ORDER" if role == "ensemble" else "FALLBACK_ORDER"
     out = []
-    for name in FALLBACK_ORDER:
+    for name in globals()[setting]:
         key = str(name).strip()
         m = MODEL_PRESETS.get(key) or (key if "/" in key else "")
         if not m:
             raise SystemExit(
-                f"[エラー] config.py の FALLBACK_ORDER にある '{key}' が分かりません。\n"
+                f"[エラー] config.py の {setting} にある '{key}' が分かりません。\n"
                 "        短い名前: " + " / ".join(MODEL_PRESETS)
                 + " か、'ベンダー/モデル名' の形で書いてください。")
         if m not in out:

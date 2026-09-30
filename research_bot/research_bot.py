@@ -372,6 +372,8 @@ def read_topic() -> str:
 # 事後チェック
 # ==========================================
 def run_checks(theme_arg: str, ensemble_model: str = "", skip=()) -> None:
+    # ensemble_model は利用者が明示したときだけ渡す。空なら ENSEMBLE_MODEL を使い、
+    # それが本判定の途中の切り替えで使われていれば、再判定の順番で次のモデルにする。
     """アンサンブル判定・全文アクセス可否・差分を続けて実行する。
 
     旧版は bash の check() 関数を `bash -ic` で呼んでいた。.bashrc の
@@ -409,7 +411,8 @@ def cmd_search(args):
     llm.STOP.clear()
     if args.model:
         _filter_model_override = config.resolve_model(args.model)
-    ensemble_model = config.resolve_model(args.ensemble_model) or config.ENSEMBLE_MODEL
+    ensemble_choice = config.resolve_model(args.ensemble_model)   # 明示した場合だけ
+    ensemble_model = ensemble_choice or config.ENSEMBLE_MODEL
     do_check = config.RUN_CHECK_AFTER_SEARCH and not args.no_check
 
     topic = args.topic or read_topic()
@@ -662,7 +665,7 @@ def cmd_search(args):
     print("  python research_bot.py relink <レポート> で引用キーを検証する。")
 
     if do_check:
-        run_checks(paths["_folder"], ensemble_model)
+        run_checks(paths["_folder"], ensemble_choice)
     else:
         print(f"\n事後チェックは省略しました。あとで実行: "
               f"python research_bot.py check \"{theme_name}\"")
@@ -716,10 +719,11 @@ def cmd_check(args):
     skip = set()
     if args.no_ensemble:
         skip.add("ensemble")
-    ens = config.resolve_model(args.model) or config.ENSEMBLE_MODEL
+    choice = config.resolve_model(args.model)   # 明示した場合だけ
+    ens = choice or config.ENSEMBLE_MODEL
     if "ensemble" not in skip:
         llm.preflight([ens])
-    run_checks(t["dir"], ens, skip)
+    run_checks(t["dir"], choice, skip)
 
 
 def cmd_ensemble(args):

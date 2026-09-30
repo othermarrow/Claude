@@ -452,13 +452,15 @@ def _count_note(n: int) -> str:
             f"Your array must contain exactly {n} entries.")
 
 
-def judge_batch(batch, topic, definition, hom, model, max_tokens=None, avoid=()):
+def judge_batch(batch, topic, definition, hom, model, max_tokens=None, avoid=(),
+                order=None):
     """1バッチを判定し、batch と同じ長さのリストを返す。
 
     要素は判定結果の辞書(実際に判定したモデルを "model" に持つ)、または
     判定できなかった場合の {"error": 理由} 。items には書き込まない
     (書き込みは呼び出し側がメインスレッドで行う)。
-    model が応答しなくなっていれば、avoid 以外の代わりのモデルで判定する。
+    model が応答しなくなっていれば、order(省略時は FALLBACK_ORDER)の順で、
+    avoid 以外の代わりのモデルで判定する。
     """
     prompt = FILTER_PROMPT.format(topic=topic, definition=definition,
                                   homonym_note=hom, listing=_listing(batch))
@@ -467,8 +469,8 @@ def judge_batch(batch, topic, definition, hom, model, max_tokens=None, avoid=())
     schema = dict(FILTER_SCHEMA, minItems=len(batch), maxItems=len(batch))
     raw = ""
     for attempt in range(config.JUDGE_BATCH_RETRIES + 1):
-        raw, used = llm.ask_fallback(prompt, model, avoid=avoid, schema=schema,
-                                     max_tokens=max_tokens)
+        raw, used = llm.ask_fallback(prompt, model, avoid=avoid, order=order,
+                                     schema=schema, max_tokens=max_tokens)
         if llm.is_error(raw):
             # ask は内部で再試行を済ませている。ここで再送しても同じ失敗を
             # 重ねるだけなので打ち切る。
@@ -946,13 +948,23 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
     topic = idx.get("topic") or theme["name"]
     definition = idx.get("theme_definition") or f"{topic} に関する研究"
     homonyms = idx.get("homonyms") or []
+    explicit = bool(model)
     model = model or config.ENSEMBLE_MODEL
+    order = config.fallback_models("ensemble")
     # 1本目の判定に使ったモデル(途中で切り替わっていれば複数)。2本目が
     # 代わりのモデルへ切り替わるときも、これらは使わない。
     first_pass = Counter(e["model_a"] for e in entries if e["model_a"])
     if not first_pass and idx.get("filter_model"):
         first_pass[idx["filter_model"]] = len(entries)
     model_a = catalog.models_label(first_pass) or "(記録なし)"
+    if not explicit and model in first_pass:
+        # 本判定が途中で ENSEMBLE_MODEL に切り替わっていた回。同じモデルで
+        # 再判定しても意味がないので、再判定の順番で次のモデルにする。
+        alt = llm.pick_model(model, avoid=set(first_pass), order=order)
+        if alt:
+            print(f"[アンサンブル] {model} は1本目の判定にも使われたため、"
+                  f"{alt} で再判定します。")
+            model = alt
     avoid = set(first_pass) - {model}
 
     print(f"[アンサンブル] テーマ: {theme['name']}")
@@ -984,7 +996,8 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
 
     def work(batch):
         return judge_batch(batch, topic, definition, hom, model,
-                           max_tokens=config.ENSEMBLE_MAX_TOKENS, avoid=avoid)
+                           max_tokens=config.ENSEMBLE_MAX_TOKENS, avoid=avoid,
+                           order=order)
 
     def on_result(batch, results):
         for e, r in zip(batch, results or []):
