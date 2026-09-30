@@ -302,9 +302,19 @@ def fetch_pubmed(query: str, add) -> int:
 def fetch_europe_pmc(query: str, add) -> int:
     n = 0
     try:
-        res = _get("https://www.ebi.ac.uk/europepmc/webservices/rest/search", params={
-            "query": f"({query}) AND (HAS_ABSTRACT:y)", "format": "json",
-            "resultType": "core", "pageSize": FETCH_LIMIT})
+        for attempt in (1, 2):
+            try:
+                res = _get("https://www.ebi.ac.uk/europepmc/webservices/rest/search",
+                           params={"query": f"({query}) AND (HAS_ABSTRACT:y)",
+                                   "format": "json", "resultType": "core",
+                                   "pageSize": FETCH_LIMIT},
+                           timeout=config.EUROPEPMC_TIMEOUT)
+                break
+            except requests.exceptions.Timeout:
+                if attempt == 2:
+                    raise
+                tqdm.write(f"  [Europe PMC] {config.EUROPEPMC_TIMEOUT}秒以内に応答が"
+                           "無いため、もう一度送ります。")
         if res.status_code != 200:
             tqdm.write(f"  [Europe PMC] エラー {res.status_code}: {res.text[:150]}")
             return 0

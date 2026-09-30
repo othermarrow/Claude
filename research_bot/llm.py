@@ -43,6 +43,13 @@ ERROR_PREFIX = "【"
 
 # Ctrl-C 等で処理全体を止めるときに立てる。送信前・待機中・受信中に見る。
 STOP = threading.Event()
+# どのモデルも試し直しても応答しない状態が続いたときに立てる。並列処理は
+# Ctrl-C と同じくチェックポイントを残して止まる(--resume で続きから)。
+API_DOWN = threading.Event()
+
+
+class ApiUnavailable(KeyboardInterrupt):
+    """API がどのモデルでも使えない状態が続いた。Ctrl-C と同じ扱いで止める。"""
 
 _client = None
 _client_lock = threading.Lock()
@@ -50,6 +57,7 @@ _client_lock = threading.Lock()
 _rl_lock = threading.Lock()
 _next_slot = 0.0
 _rpm_now = None               # 今の送信上限(429 が返ると下げ、成功が続くと戻す)
+_rpm_shown = None             # 下げたと表示した最も低い上限(同じ表示を繰り返さない)
 _last_cut = 0.0               # 最後に送信上限を下げた時刻
 _busy_count = 0               # 429・混雑の応答を受けた回数(表示用)
 
@@ -68,6 +76,7 @@ _dead = set()                 # 応答していないとみなしたモデル(�
 _retry_at = {}                # 休ませているモデル → 試し直してよい時刻(monotonic)
 _trial = {}                   # 試し直し中のモデル → (試しているスレッド, 見切る時刻)
 _revived = set()              # 休ませたあと試し直したモデル(表示の言い分けに使う)
+_failed_trials = 0            # どのモデルも応答しないまま、試し直しが失敗した回数
 _switched = set()             # 切り替えを知らせた (元のモデル, 代わりのモデル)
 _switch_lock = threading.Lock()
 _runaway_noted = set()        # 「思考を止められない」と知らせたモデル
@@ -127,7 +136,7 @@ def _slow_down() -> None:
     なる。429 が返るたびに上限を3割下げ、成功が続けば少しずつ戻す。
     同時に返ってきた 429 で何段も下げないよう、10秒に1回までにする。
     """
-    global _rpm_now, _last_cut, _busy_count
+    global _rpm_now, _last_cut, _busy_count, _rpm_shown
     if not config.ADAPTIVE_RPM:
         return
     with _rl_lock:
@@ -139,18 +148,26 @@ def _slow_down() -> None:
         old = current_rpm()
         new = max(float(config.RPM_FLOOR), old * 0.7)
         _rpm_now = new
-    if round(new) < round(old):
+        # 実測: 下限近くで「8 → 6」「7 → 6」が数十行並んだ。少し戻しては
+        # 下げる往復なので、それまでに表示したより低くなったときだけ出す。
+        show = round(new) < round(old) and (_rpm_shown is None
+                                            or round(new) < _rpm_shown)
+        if show:
+            _rpm_shown = round(new)
+    if show:
         tqdm.write(f"  [送信間隔] 429・混雑の応答が返ったため、送信上限を"
                    f" {old:.0f} → {new:.0f} 回/分に下げます。")
 
 
 def _speed_up() -> None:
     """成功したら送信上限を少しずつ戻す(REQUESTS_PER_MINUTE まで)。"""
-    global _rpm_now
+    global _rpm_now, _rpm_shown
     if _rpm_now is None:
         return
     with _rl_lock:
         _rpm_now = min(float(config.REQUESTS_PER_MINUTE), _rpm_now + 0.5)
+        if _rpm_now >= config.REQUESTS_PER_MINUTE:
+            _rpm_shown = None
 
 
 def _sleep(sec: float) -> bool:
@@ -353,14 +370,17 @@ def _kill_stream(stream, info):
 
 
 def _responded(model: str) -> None:
+    global _failed_trials
     _giveups[model] = 0
     with _switch_lock:
+        _failed_trials = 0
         _trial.pop(model, None)
         _revived.discard(model)
     _speed_up()
 
 
-def _record_giveup(model: str) -> None:
+def _record_giveup(model: str, why: str = "応答しなかった") -> None:
+    global _failed_trials
     with _switch_lock:
         n = _giveups.get(model, 0) + 1
         _giveups[model] = n
@@ -370,15 +390,17 @@ def _record_giveup(model: str) -> None:
         _trial.pop(model, None)
         again = model in _revived
         _revived.discard(model)
+        if again:
+            _failed_trials += 1
         cool = config.DEAD_MODEL_COOLDOWN
         if cool > 0:
             _retry_at[model] = time.monotonic() + cool
     later = (f"{cool / 60:.0f}分後に1回だけ試し直します"
              if cool > 0 else "このモデルへの残りの問い合わせを打ち切ります")
     if again:
-        tqdm.write(f"  [!] {model} は試し直しても応答しなかったため、{later}。")
+        tqdm.write(f"  [!] {model} は試し直しても{why}ため、{later}。")
         return
-    tqdm.write(f"  [!] {model} が{n}バッチ続けて応答しなかったため、{later}。"
+    tqdm.write(f"  [!] {model} が{n}バッチ続けて{why}ため、{later}。"
                "NVIDIA 側で混雑しているか停止している可能性があります"
                "(config.FALLBACK_ORDER に代わりのモデルがあれば、そちらで続けます)。")
 
@@ -677,10 +699,16 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                 return f"{ERROR_PREFIX}通信エラー】context length exceeded"
 
             attempt += 1
-            if attempt >= config.MAX_RETRIES:
-                break
             is_rate = type(e).__name__ == "RateLimitError" or status == 429 or "429" in msg
             is_busy = "overloaded" in low or status in (502, 503)
+            if attempt >= config.MAX_RETRIES:
+                # 実測: 送信上限を最低(6回/分)まで下げても 429 が続き、再試行を
+                # 使い切ったバッチが未判定になっていった。混雑はモデルごとなので、
+                # 時間切れと同じく「諦めた」に数え、続けば別のモデルへ切り替える
+                # (DEAD_MODEL_COOLDOWN のあとで元のモデルを試し直す)。
+                if (is_rate or is_busy) and mark_dead:
+                    _record_giveup(model, "429・混雑で断られた")
+                break
             if is_rate or is_busy:
                 _slow_down()
             if is_rate:
@@ -747,6 +775,10 @@ def ask_fallback(prompt: str, model: str, *, avoid=(), order=None,
     while True:
         use = pick_model(model, skip, order)
         if use is None:
+            if _wait_for_revival(model, skip, order):
+                continue
+            if STOP.is_set():
+                return f"{ERROR_PREFIX}中断】", model
             return f"{ERROR_PREFIX}通信エラー】応答するモデルが残っていません", model
         raw = ask(prompt, use, **kw)
         if not is_error(raw) or "中断" in raw:
@@ -755,9 +787,44 @@ def ask_fallback(prompt: str, model: str, *, avoid=(), order=None,
             skip.add(use)
         elif use not in _dead:
             return raw, use
-        # 休ませたモデルは、この問い合わせの中では戻さない(時間が来て
-        # is_dead が戻しても、同じ問い合わせで同じモデルを待ち直さない)
-        skip.add(use)
+
+
+_waiting_shown = 0.0          # 「全部休んでいるので待つ」を最後に表示した時刻
+
+
+def _wait_for_revival(model, skip, order) -> bool:
+    """候補のモデルがすべて休んでいるとき、どれかを試し直せるまで待つ。
+
+    待つ意味が無い(候補が戻らない理由で止まっている)か、止める指示が
+    出たら False。実測: 混雑で候補を使い尽くすと、残りのバッチが一瞬で
+    すべて未判定になる。休ませたモデルが戻るのを待てば判定を続けられる。
+    """
+    global _waiting_shown
+    cands = [model] + (config.fallback_models() if order is None else list(order))
+    cands = [m for m in dict.fromkeys(cands) if m not in skip]
+    now = time.monotonic()
+    with _switch_lock:
+        until = [_retry_at[m] for m in cands if m in _retry_at]
+        until += [_trial[m][1] for m in cands if m in _trial]
+    if not until:
+        return False
+    # 候補のどれもが試し直しても応答しなかった(その間どのモデルも応答して
+    # いない)なら、NVIDIA 側が全体に止まっているとみて待つのをやめる。
+    # 待ち続けると、スリープ防止を掛けたまま何時間も止まってしまう。
+    if _failed_trials >= max(2, len(cands)):
+        if not API_DOWN.is_set():
+            API_DOWN.set()
+            STOP.set()
+            tqdm.write(f"\n  [!] どのモデルも、休ませてから試し直しても応答しません"
+                       f"(試し直し{_failed_trials}回)。ここで止めます。時間をおいて"
+                       " --resume を付けて続けてください。")
+        return False
+    wait = max(1.0, min(until) - now)
+    if now - _waiting_shown > 300:
+        _waiting_shown = now
+        tqdm.write(f"  [待機] 切り替え先のモデルがすべて休止中のため、試し直せるまで"
+                   f"待ちます(約{wait / 60:.0f}分)。")
+    return _sleep(min(wait, 30.0))
 
 
 def ask_ai(prompt: str, model_id: str) -> str:
@@ -784,6 +851,7 @@ def run_parallel(func, jobs, desc: str, on_result=None, concurrency: int = None,
     if not jobs:
         return 0
     STOP.clear()
+    API_DOWN.clear()
     ex = concurrent.futures.ThreadPoolExecutor(
         max_workers=concurrency or config.CONCURRENCY)
     done = 0
@@ -798,6 +866,10 @@ def run_parallel(func, jobs, desc: str, on_result=None, concurrency: int = None,
             finished, pending = concurrent.futures.wait(
                 pending, timeout=config.HEARTBEAT_SECONDS,
                 return_when=concurrent.futures.FIRST_COMPLETED)
+            if API_DOWN.is_set():
+                # 中断で返ってきた結果を「判定失敗」として書き込まないよう、
+                # 結果を渡す前に止める(書き込まなければ --resume で判定し直す)
+                raise ApiUnavailable()
             if not finished:
                 line = activity_summary()
                 if line:
