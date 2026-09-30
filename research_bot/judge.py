@@ -310,23 +310,26 @@ FILTER_PROMPT = """You are an expert in academic literature review.
 For each paper, judge both a relevance score (0-100) and measured (boolean).
 
 Guide to the relevance score:
-90-100: the paper's main subject is the exact target/method the theme's
+{core}-100: the paper's main subject is the exact target/method the theme's
         definition refers to
-60-89 : addresses the same broader concept or an adjacent area, but the
-        target itself is not the main subject
-21-59 : some relevance but weak, or the target is somewhat off
-0-20  : unrelated, or a same-name/same-spelling but different concept
+{keep}-{core_below}: adjacent evidence that a reader of this theme would want to
+        see: the same intervention or phenomenon in a broader or neighboring
+        population or setting, a close variant of the target, or a review
+        of it. The target itself is not the main subject.
+{off_above}-{keep_below}: shares a broad area or a keyword, but would not inform the
+        theme
+0-{off}: unrelated, or a same-name/same-spelling but different concept
 
 A theme is normally an intersection of conditions, not a single keyword.
 Read the definition and identify every condition it states — the
 phenomenon, the population, and the setting or context. A paper reaches
 90-100 only when its main subject covers that whole intersection. A paper
 about the phenomenon in general, or about it in a population the definition
-does not cover, belongs in 60-89 however central the phenomenon is to that
+does not cover, belongs in {keep}-{core_below} however central the phenomenon is to that
 paper, and however often the keyword appears in it. For a theme about
 transference between abused people with intellectual disabilities and their
 support workers, a general overview of transference-focused psychotherapy
-is 60-89, not 95. Score the intersection, not the keyword.
+is {keep}-{core_below}, not 95. Score the intersection, not the keyword.
 
 Judge measured on this single question only:
 "Did this study actually measure, evaluate, or apply the target that the
@@ -380,6 +383,21 @@ FILTER_SCHEMA = {
         "required": ["index", "score", "measured", "reason"],
     },
 }
+
+
+def _score_bands() -> dict:
+    """判定の手引きの点数帯。config の閾値と揃える。
+
+    実測: 手引きが「隣接領域は60-89」、採用の閾値が70で、隣接領域の帯の
+    真ん中で採否が分かれていた。同じ種類の文献が65点で除外、75点で採用と
+    なり(知的障害者への視覚的活動スケジュールのメタ分析が65点で除外)、
+    取り直すたびに採否が入れ替わった。隣接領域の帯を閾値から始めれば、
+    採否は「このテーマの読み手に役立つか」という一つの問いで決まる。
+    """
+    return {"core": config.CORE_SCORE, "core_below": config.CORE_SCORE - 1,
+            "keep": config.RELEVANCE_THRESHOLD,
+            "keep_below": config.RELEVANCE_THRESHOLD - 1,
+            "off": config.OFF_SCORE, "off_above": config.OFF_SCORE + 1}
 
 
 def homonym_note(homonyms) -> str:
@@ -485,7 +503,8 @@ def judge_batch(batch, topic, definition, hom, model, max_tokens=None, avoid=(),
     avoid 以外の代わりのモデルで判定する。
     """
     prompt = FILTER_PROMPT.format(topic=topic, definition=definition,
-                                  homonym_note=hom, listing=_listing(batch))
+                                  homonym_note=hom, listing=_listing(batch),
+                                  **_score_bands())
     prompt += _count_note(len(batch))
     # guided_json を使う場合にも件数を強制する(使わない場合は無害)
     schema = dict(FILTER_SCHEMA, minItems=len(batch), maxItems=len(batch))
@@ -929,6 +948,24 @@ def _bucket(cluster: str, score) -> str:
     return cluster
 
 
+def _bias_note(bias: float, mean_gap) -> str:
+    """スコアの差が一方向に偏っていれば、κ の読み方の注記を返す。
+
+    実測: 2本目が42件中40件を「除外相当」とし、κ=-0.07 になった回がある。
+    スコアの差は平均36点で、ほぼすべて2本目のほうが低かった。この場合の
+    不一致は判定の揺れではなく、テーマの定義(除外条件)の当てはめ方の
+    違いであり、見直すべきは個々の抄録より定義のほうになる。
+    """
+    if mean_gap is None or abs(bias) < config.ENSEMBLE_SCORE_GAP / 2 \
+            or abs(bias) < mean_gap * 0.7:
+        return ""
+    who = "2本目" if bias > 0 else "1本目"
+    return (f"スコアの差はほぼ一方向で、{who}のほうが一貫して厳しく付けています"
+            f"(平均 {abs(bias):.1f}点)。κ の低さは判定の揺れというより、テーマの"
+            "定義の当てはめ方の違いによる可能性があります。定義が文献の実態より"
+            "狭くないか(除外条件が近い研究まで外していないか)を確かめてください。")
+
+
 def cohen_kappa(pairs):
     """[(評定A, 評定B), ...] から Cohen の κ を返す。計算できなければ None。
 
@@ -1105,6 +1142,10 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
     kappa = cohen_kappa(pairs)
     gaps = [e["gap"] for e in entries if e.get("gap") is not None]
     mean_gap = sum(gaps) / len(gaps) if gaps else None
+    signed = [e["score_a"] - e["score_b"] for e in entries
+              if e.get("gap") is not None]
+    bias = sum(signed) / len(signed) if signed else 0.0
+    bias_note = _bias_note(bias, mean_gap)
 
     out_path = os.path.join(theme["dir"], f"_ensemble__{theme['name']}.md")
     with open(out_path, "w", encoding="utf-8") as f:
@@ -1126,11 +1167,15 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                          "応答欠落が多い回に起きやすい)")
             f.write(line + "\n")
         if mean_gap is not None:
-            f.write(f"- 関連度スコアの差: 平均 {mean_gap:.1f}点\n")
+            side = ("方向の偏りなし" if abs(bias) < 1 else
+                    f"2本目のほうが平均 {abs(bias):.1f}点{'低い' if bias > 0 else '高い'}")
+            f.write(f"- 関連度スコアの差: 平均 {mean_gap:.1f}点({side})\n")
         f.write(f"- 判定モデル: 1本目 {model_a} / 2本目 {model_b}\n")
         f.write(f"- 判定基準: 両モデルとも同じプロンプト(関連度{config.CORE_SCORE}以上"
                 "かつ実測あり→core、関連度"
                 f"{config.RELEVANCE_THRESHOLD}未満→除外相当)\n\n")
+        if bias_note:
+            f.write(f"> [!note] 判定の厳しさの違い\n> {bias_note}\n\n")
         f.write("> [!warning] 不一致は誤りの証拠ではなく、抄録を読み直すべき"
                 "箇所の手がかりです。どちらのモデルも「正解」ではありません。\n\n")
 
@@ -1172,6 +1217,8 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
     elif pairs:
         print(f"[アンサンブル] 一致率 {agree}/{len(pairs)} / κ は算出不可"
               "(どちらかの判定が1種類だけ)")
+    if bias_note:
+        print(f"[アンサンブル] {bias_note}")
     print(f"[アンサンブル] 除外候補(core→除外相当) {len(demote)}件 ← 最優先で確認 / "
           f"昇格候補 {len(promote)}件 / その他 {len(other)}件 / 欠落 {len(missing)}件")
     return out_path

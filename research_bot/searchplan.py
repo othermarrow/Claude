@@ -98,8 +98,18 @@ facets (clusters of concepts) for use in search.
    instrument itself; set intervention to true if it concerns the effect of
    a specific intervention. Both may be false.
 8. Define in 1-2 sentences, in Japanese, what this theme does and does not
-   refer to. If there are same-name/same-spelling concepts, state explicitly
-   which one this theme is about and which ones it excludes.
+   refer to. The definition is handed to the relevance judge, so describe
+   the center of the theme; do not write a list of exclusion rules. Under
+   "does not", put only what is a genuinely different topic: a same-name/
+   same-spelling concept, or a different field. Never exclude the nearest
+   evidence: a study of the same intervention or phenomenon in a broader or
+   neighboring population (e.g. intellectual disability in general, with no
+   separate data for the severe group), in another setting, or in a close
+   variant (e.g. a daily schedule when the theme asks about a weekly one).
+   When direct evidence is scarce, those studies are what the reader needs,
+   and the judge scores them as adjacent evidence. If there are same-name/
+   same-spelling concepts, state explicitly which one this theme is about
+   and which ones it excludes.
 
 [Output]
 Output only the following JSON. No explanatory text and no code-block
