@@ -88,7 +88,6 @@ MODEL_PRESETS = {
     "3": "meta/muse-glimmer-30b",
     "4": "google/gemma-4-31b-it",
     "5": "z-ai/glm-5.3-flash",
-    "6": "qwen2.5-72b-instruct",
     "7": "openai/gpt-oss-20b",
     "8": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
 }
