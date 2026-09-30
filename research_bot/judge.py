@@ -331,6 +331,14 @@ transference between abused people with intellectual disabilities and their
 support workers, a general overview of transference-focused psychotherapy
 is {keep}-{core_below}, not 95. Score the intersection, not the keyword.
 
+The definition may say that some kinds of studies are not included — a
+broader or narrower population, a different time unit or variant of the
+intervention, another setting. A study that is close to the theme but falls
+under such a clause is still adjacent evidence: score it {keep}-{core_below},
+not lower. Reserve 0-{off} for a same-name/same-spelling concept or a
+different field, and {off_above}-{keep_below} for a study that shares only a broad area or a
+keyword with the theme.
+
 Judge measured on this single question only:
 "Did this study actually measure, evaluate, or apply the target that the
 theme's definition refers to?"
@@ -668,6 +676,11 @@ def rebalance_clusters(kept) -> str:
     以降、交差が薄いテーマでは90点が空集合になりうる(実測で47件すべてが
     related になった)。core が CORE_MIN_ITEMS 件未満のときだけ、最高スコア
     から順に帯を広げる。基準を変えた事実は注記としてカタログに明記する。
+
+    広げるのは、実測を伴い(core の本来の条件の半分)、関連度が core と
+    採用の閾値の中間以上のものに限る。実測: 隣接する研究の帯を70〜89点に
+    してから、隣接する研究がほぼ一律に75点になり、帯を広げると75点の30件
+    (総説・本の章・対象の違う研究を含む)がまとめて core になった。
     """
     scored = [it for it in kept if it.get("relevance_score") is not None]
     if not scored:
@@ -675,22 +688,33 @@ def rebalance_clusters(kept) -> str:
     core_now = sum(1 for it in kept if it.get("cluster") == "core")
     if core_now >= config.CORE_MIN_ITEMS:
         return ""
-    levels = sorted({it["relevance_score"] for it in scored}, reverse=True)
+    floor = (config.CORE_SCORE + config.RELEVANCE_THRESHOLD) // 2
+    cands = [it for it in scored if it.get("cluster") != "core"
+             and it.get("measured") is True and it["relevance_score"] >= floor]
+    top = max(it["relevance_score"] for it in scored)
+    if not cands:
+        if core_now:
+            return ""
+        note = (f"関連度{config.CORE_SCORE}以上かつ実測ありの文献が無く、"
+                f"{floor}点以上で実測を伴う文献も無かったため、中心クラスタは"
+                f"空とした(最高は{top}点)。テーマの中核を直接扱った研究が"
+                "見当たらない可能性が高い。周辺クラスタの隣接する研究が主な材料になる。")
+        print(f"   → {note}")
+        return note
+    levels = sorted({it["relevance_score"] for it in cands}, reverse=True)
     cut, n = levels[0], 0
     for lv in levels:
-        n = sum(1 for it in scored if it["relevance_score"] >= lv)
+        n = sum(1 for it in cands if it["relevance_score"] >= lv)
         cut = lv
-        if n >= config.CORE_MIN_ITEMS:
+        if core_now + n >= config.CORE_MIN_ITEMS:
             break
-    if n <= core_now:
-        return ""
-    for it in scored:
+    for it in cands:
         if it["relevance_score"] >= cut:
             it["cluster"] = "core"
     reason = (f"関連度{config.CORE_SCORE}以上の文献が1件も無かった" if core_now == 0
               else f"本来の基準(関連度{config.CORE_SCORE}以上かつ実測あり)を満たす"
                    f"文献が{core_now}件しか無かった")
-    note = (f"{reason}ため、最高スコア帯({cut}点以上・{n}件)を"
+    note = (f"{reason}ため、実測を伴う最高スコア帯({cut}点以上・{n}件)を"
             "中心クラスタとして扱った。テーマの交差が薄く、全条件を満たす"
             "文献が存在しない可能性がある。中心クラスタの文献も、交差の"
             "一部しか満たしていないことがある。")

@@ -486,8 +486,16 @@ def cmd_search(args):
     else:
         reuse = (args.reuse_plan if args.reuse_plan is not None
                  else config.REUSE_SEARCH_PLAN)
-        prev_plan, prev_from = (catalog.find_previous_plan(topic, args.output_dir)
-                                if reuse else (None, ""))
+        if isinstance(reuse, str):
+            # --reuse-plan <フォルダ名>: その回の検索計画を使う
+            try:
+                prev_plan, prev_from = catalog.plan_of_theme(reuse, args.output_dir)
+            except FileNotFoundError as e:
+                raise SystemExit(f"[エラー] --reuse-plan: {e}\n"
+                                 "        テーマの一覧: python research_bot.py themes")
+        else:
+            prev_plan, prev_from = (catalog.find_previous_plan(topic, args.output_dir)
+                                    if reuse else (None, ""))
         if prev_plan:
             # 同じ計画で検索すれば、前回との差分が「新しく出た文献」になる
             print(f"[1/7] 前回の収集({prev_from})の検索計画を使います"
@@ -874,9 +882,10 @@ def main():
                     help="未判定の抄録を判定し直す処理を行わない")
     ps.add_argument("--resume", action="store_true",
                     help="前回の中断地点から再開する")
-    ps.add_argument("--reuse-plan", dest="reuse_plan", action="store_const",
-                    const=True, default=None,
-                    help="同じテーマ文の前回の検索計画を使う(差分を見たいとき)")
+    ps.add_argument("--reuse-plan", dest="reuse_plan", nargs="?", const=True,
+                    default=None, metavar="フォルダ名",
+                    help="同じテーマ文の前回の検索計画を使う(差分を見たいとき)。"
+                         "フォルダ名を続けると、その回の検索計画を使う")
     ps.add_argument("--replan", dest="reuse_plan", action="store_const", const=False,
                     help="検索計画を AI に作り直させる(config.REUSE_SEARCH_PLAN が"
                          " True でも)")

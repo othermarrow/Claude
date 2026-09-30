@@ -61,6 +61,12 @@ facets (clusters of concepts) for use in search.
    intellectual disabilities and their support workers", facet 1 is
    transference, not intellectual disability. Put the population later.
 3. For each facet, list 5-10 English synonyms/related terms.
+   - For facet 1, also include the broader parent concept and its close
+     variants, not only the exact narrow form the theme names. Direct
+     evidence on a narrow variant is usually scarce, and the reader needs
+     the nearest evidence. For a weekly visual schedule: visual schedule,
+     activity schedule, picture schedule, picture prompt. A search limited
+     to "weekly schedule" misses the whole activity-schedule literature.
    - Include both controlled-vocabulary terms (the kind you would expect in
      MeSH or the ERIC thesaurus) and free-text terms
    - Always give abbreviations together with their full spelled-out form
@@ -97,19 +103,16 @@ facets (clusters of concepts) for use in search.
 7. Set psychometric to true if the theme concerns a scale or assessment
    instrument itself; set intervention to true if it concerns the effect of
    a specific intervention. Both may be false.
-8. Define in 1-2 sentences, in Japanese, what this theme does and does not
-   refer to. The definition is handed to the relevance judge, so describe
-   the center of the theme; do not write a list of exclusion rules. Under
-   "does not", put only what is a genuinely different topic: a same-name/
-   same-spelling concept, or a different field. Never exclude the nearest
-   evidence: a study of the same intervention or phenomenon in a broader or
-   neighboring population (e.g. intellectual disability in general, with no
-   separate data for the severe group), in another setting, or in a close
-   variant (e.g. a daily schedule when the theme asks about a weekly one).
-   When direct evidence is scarce, those studies are what the reader needs,
-   and the judge scores them as adjacent evidence. If there are same-name/
-   same-spelling concepts, state explicitly which one this theme is about
-   and which ones it excludes.
+8. Define in 1-2 sentences, in Japanese, what this theme refers to: its
+   center. The definition is handed to the relevance judge. Do not add
+   exclusion rules — not for a broader or narrower population (e.g.
+   intellectual disability in general, with no separate data for the
+   severe group), another setting, or a close variant (e.g. a daily or
+   activity schedule when the theme names a weekly one). When direct
+   evidence is scarce those studies are what the reader needs, and the
+   judge scores them as adjacent evidence. The one exception: if there are
+   same-name/same-spelling concepts, state explicitly which one this theme
+   is about and which ones it is not.
 
 [Output]
 Output only the following JSON. No explanatory text and no code-block

@@ -247,6 +247,23 @@ def find_previous_plan(topic: str, root: str = None) -> tuple:
     return best[1], best[2]
 
 
+def plan_of_theme(arg: str, root: str = None) -> tuple:
+    """指定したテーマのフォルダの索引から検索計画を読む。(計画, フォルダ名)。
+
+    見つからない・検索計画が残っていなければ FileNotFoundError。
+    """
+    t = resolve_theme(arg, root)
+    try:
+        with open(t["index"] or "", encoding="utf-8") as f:
+            plan = json.load(f).get("search_plan")
+    except (OSError, ValueError):
+        plan = None
+    if not plan or not plan.get("facets"):
+        raise FileNotFoundError(f"{t['name']} の索引に検索計画が残っていません"
+                                "(検索計画を索引に残すようにした版より前の収集)")
+    return plan, t["name"]
+
+
 def read_catalog_abstracts(catalog_path: str) -> dict:
     """カタログ本文から {引用キー: 抄録} を読む。
 
