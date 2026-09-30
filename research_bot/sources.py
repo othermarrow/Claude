@@ -1213,8 +1213,7 @@ def _retraction_title_hit(title: str) -> str:
 def annotate_retractions(items: list) -> dict:
     """採用文献に撤回・取り下げの疑いを付ける。除外はしない。
 
-    OpenAlexへDOIを50件ずつまとめて問い合わせる。引用連鎖で既に使って
-    いる呼び出し方と同じなので、追加の負荷はほとんどない。
+    OpenAlexへDOIを25件ずつまとめて問い合わせる(504 なら半分に割る)。
     """
     for it in items:
         it.setdefault("retracted", False)
@@ -1226,11 +1225,15 @@ def annotate_retractions(items: list) -> dict:
         if d:
             by_doi.setdefault(d, []).append(it)
 
+    # 1回に問い合わせる DOI の数。実測: 50件ずつでは OpenAlex が
+    # 504 "Your query took too long"(OR が多すぎる)を返し、5束すべてが失敗して
+    # 撤回確認が実質行われていなかった。25件にし、504 なら半分に割って送り直す。
     dois = list(by_doi)
-    api_flagged = 0
-    for i in tqdm(range(0, len(dois), 50), desc="撤回の有無を確認",
-                  dynamic_ncols=True):
-        chunk = dois[i:i + 50]
+    queue = [dois[i:i + 25] for i in range(0, len(dois), 25)]
+    api_flagged = failed = 0
+    bar = tqdm(total=len(dois), desc="撤回の有無を確認", dynamic_ncols=True)
+    while queue:
+        chunk = queue.pop(0)
         for use_select in (True, False):
             try:
                 extra = {"filter": "doi:" + "|".join(chunk), "per-page": 50}
@@ -1243,9 +1246,15 @@ def annotate_retractions(items: list) -> dict:
                     tqdm.write("  [撤回確認] selectが拒否されました。"
                                "全項目を取得して再試行します。")
                     continue
+                if res.status_code == 504 and len(chunk) > 1:
+                    half = len(chunk) // 2
+                    queue[:0] = [chunk[:half], chunk[half:]]
+                    chunk = []
+                    break
                 if res.status_code != 200:
                     tqdm.write(f"  [撤回確認] エラー {res.status_code}: "
                                f"{res.text[:150]}")
+                    failed += len(chunk)
                     break
                 for w in res.json().get("results", []):
                     d = (w.get("doi") or "").lower().replace("https://doi.org/", "")
@@ -1263,8 +1272,14 @@ def annotate_retractions(items: list) -> dict:
                 break
             except Exception as e:
                 tqdm.write(f"  [撤回確認] 通信エラー: {type(e).__name__}: {e}")
+                failed += len(chunk)
                 break
+        bar.update(len(chunk))
         time.sleep(REQUEST_PAUSE)
+    bar.close()
+    if failed:
+        print(f"   → [!] {failed}件は OpenAlex で撤回を確認できませんでした"
+              "(タイトル表記のみで確認)。")
 
     title_flagged = 0
     for it in items:

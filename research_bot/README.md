@@ -144,12 +144,12 @@ python research_bot.py bench                # 1段目の候補モデルを同じ
 | `CATALOG_ROOT` | …/Vault/Abstract/catalog | カタログの保存先 |
 | `FILTER_MODEL` | nemotron-3-super-120b-a12b | 関連度判定・抽出のモデル |
 | `ENSEMBLE_MODEL` | gpt-oss-20b | 再判定のモデル(判定モデルとは別系統にする) |
-| `PREFILTER_MODE` | dryrun | 1段目の粗選別。on で除外、off で使わない |
+| `PREFILTER_MODE` | off | 1段目の粗選別。dryrun で試す、on で除外(取りこぼしが出たため既定は off) |
 | `FALLBACK_ORDER` | 1〜7 | 応答しなくなったときの切り替えの順番 |
 | `RELEVANCE_THRESHOLD` | 70 | これ未満は除外 |
 | `CORE_SCORE` | 90 | core とする関連度 |
 | `MIN_ABSTRACT_LENGTH` | 400(日本語 150) | 抄録の下限 |
-| `REQUESTS_PER_MINUTE` | 35 | 1分あたりの送信上限。429 が続けば下げる |
+| `REQUESTS_PER_MINUTE` | 35 | 1分あたりの送信上限。429 が返ると自動で下げ、成功が続くと戻す(`ADAPTIVE_RPM`) |
 | `TEMPERATURE` | 0.0 | 判定の揺れを抑える |
 
 同じ名前の環境変数で一時的に変えられる(モデル名を除く)。
