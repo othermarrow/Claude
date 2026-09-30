@@ -49,6 +49,9 @@ _client_lock = threading.Lock()
 
 _rl_lock = threading.Lock()
 _next_slot = 0.0
+_rpm_now = None               # 今の送信上限(429 が返ると下げ、成功が続くと戻す)
+_last_cut = 0.0               # 最後に送信上限を下げた時刻
+_busy_count = 0               # 429・混雑の応答を受けた回数(表示用)
 
 # 実行中の問い合わせ(応答待ちの表示に使う)。id → 状況
 _active = {}
@@ -94,17 +97,57 @@ def get_client() -> OpenAI:
 # ==========================================
 # 送信間隔
 # ==========================================
+def current_rpm() -> float:
+    """今の送信上限(回/分)。"""
+    return float(config.REQUESTS_PER_MINUTE) if _rpm_now is None else _rpm_now
+
+
 def _throttle() -> bool:
     """次の送信枠まで待つ。止める指示が出たら False を返す。"""
     global _next_slot
-    rpm = max(1, config.REQUESTS_PER_MINUTE)
     with _rl_lock:
+        rpm = max(1.0, current_rpm())
         now = time.monotonic()
         wait = _next_slot - now
         _next_slot = max(now, _next_slot) + 60.0 / rpm
     if wait > 0:
         return not STOP.wait(wait)
     return not STOP.is_set()
+
+
+def _slow_down() -> None:
+    """429・混雑が返ったとき、全スレッド共通の送信上限を下げる。
+
+    実測: 35回/分のまま送り続け、429 と "Service temporarily overloaded" が
+    数百回返り、バッチの多くが再試行を使い切って未判定になった(判定に1時間
+    20分、未判定126件)。上限を固定したまま待つだけでは、再試行もまた 429 に
+    なる。429 が返るたびに上限を3割下げ、成功が続けば少しずつ戻す。
+    同時に返ってきた 429 で何段も下げないよう、10秒に1回までにする。
+    """
+    global _rpm_now, _last_cut, _busy_count
+    if not config.ADAPTIVE_RPM:
+        return
+    with _rl_lock:
+        _busy_count += 1
+        now = time.monotonic()
+        if now - _last_cut < 10:
+            return
+        _last_cut = now
+        old = current_rpm()
+        new = max(float(config.RPM_FLOOR), old * 0.7)
+        _rpm_now = new
+    if round(new) < round(old):
+        tqdm.write(f"  [送信間隔] 429・混雑の応答が返ったため、送信上限を"
+                   f" {old:.0f} → {new:.0f} 回/分に下げます。")
+
+
+def _speed_up() -> None:
+    """成功したら送信上限を少しずつ戻す(REQUESTS_PER_MINUTE まで)。"""
+    global _rpm_now
+    if _rpm_now is None:
+        return
+    with _rl_lock:
+        _rpm_now = min(float(config.REQUESTS_PER_MINUTE), _rpm_now + 0.5)
 
 
 def _sleep(sec: float) -> bool:
@@ -325,9 +368,19 @@ def activity_summary() -> str:
     """応答待ちの状況を1行で返す(待っている問い合わせが無ければ空文字)。"""
     now = time.monotonic()
     with _active_lock:
-        rows = list(_active.values())
-    if not rows:
+        all_rows = list(_active.values())
+    if not all_rows:
         return ""
+    # 429・混雑のあと再試行を待っているものは、応答待ちと分けて数える
+    # (以前は待ち時間まで「サーバーから何も届いていません」に数えていた)
+    retrying = [r for r in all_rows if r.get("retry_until")]
+    rows = [r for r in all_rows if not r.get("retry_until")]
+    rpm_note = ""
+    if _rpm_now is not None and round(_rpm_now) < config.REQUESTS_PER_MINUTE:
+        rpm_note = f" / 送信上限 {_rpm_now:.0f}回/分(429 のため下げ中)"
+    if not rows:
+        return f"  … 429・混雑のため再試行待ち {len(retrying)}本{rpm_note}"
+    tail = (f" / 再試行待ち {len(retrying)}本" if retrying else "") + rpm_note
     batch_mode = any(not r.get("stream", True) for r in rows)
     longest = max(now - r["start"] for r in rows)
     limit = max(r["limit"] for r in rows)
@@ -343,7 +396,7 @@ def activity_summary() -> str:
     else:
         what = f"本文 {content:,}字・思考 {reasoning:,}字を受信"
     return (f"  … 応答待ち {len(rows)}本 / 最長 {longest:.0f}秒経過"
-            f"(上限 {limit:.0f}秒) / {what}")
+            f"(上限 {limit:.0f}秒) / {what}" + tail)
 
 
 def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
@@ -419,6 +472,7 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                     tqdm.write(f"    [!] max_tokens({max_tokens})に達し、応答が途中で"
                                "打ち切られました。")
                 _giveups[model] = 0
+                _speed_up()
                 return text
             stream = client.chat.completions.create(
                 model=model, messages=messages, timeout=read_timeout,
@@ -475,6 +529,7 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                         pass
             text = "".join(parts)
             _giveups[model] = 0
+            _speed_up()
             if finish == "length":
                 tqdm.write(f"    [!] max_tokens({max_tokens})に達し、応答が途中で"
                            "打ち切られました。")
@@ -575,15 +630,27 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
             if attempt >= config.MAX_RETRIES:
                 break
             is_rate = type(e).__name__ == "RateLimitError" or status == 429 or "429" in msg
+            is_busy = "overloaded" in low or status in (502, 503)
+            if is_rate or is_busy:
+                _slow_down()
             if is_rate:
                 # 429 は短い間隔で送り直すほど長引くので、倍々で待つ
                 wait = config.RATE_LIMIT_WAIT_BASE * (2 ** (attempt - 1))
-                tqdm.write(f"    [!] レート制限(429)。{wait}秒後に再試行 "
-                           f"({attempt}/{config.MAX_RETRIES})")
+                # 1〜2回目は表示しない(数百行並んで他の表示が読めなくなった)。
+                # 待っている本数は応答待ちの表示にまとめて出る。
+                if attempt >= 3:
+                    tqdm.write(f"    [!] レート制限(429)が続いています。{wait}秒後に再試行 "
+                               f"({attempt}/{config.MAX_RETRIES})")
+            elif is_busy:
+                wait = config.RETRY_WAIT * attempt
+                if attempt >= 3:
+                    tqdm.write(f"    [!] サーバーの混雑が続いています。{wait}秒後に再試行 "
+                               f"({attempt}/{config.MAX_RETRIES})")
             else:
                 wait = config.RETRY_WAIT * attempt
                 tqdm.write(f"    [!] 通信エラー({type(e).__name__}): {msg[:200]}")
                 tqdm.write(f"        {wait}秒後に再試行 ({attempt}/{config.MAX_RETRIES})")
+            info["retry_until"] = time.monotonic() + wait
             if not _sleep(wait):
                 return f"{ERROR_PREFIX}中断】"
         finally:
@@ -733,10 +800,19 @@ _FENCE_RE = re.compile(r"```(?:json)?", re.IGNORECASE)
 
 
 def _as_records(value) -> list:
-    """JSON値をレコードの配列にそろえる。単一オブジェクトも1件の配列とみなす。"""
+    """JSON値をレコードの配列にそろえる。単一オブジェクトも1件の配列とみなす。
+
+    {"results": [{...}, {...}]} のように配列を1つのキーで包んだ応答は、
+    中の配列を取り出す。
+    """
     if isinstance(value, list):
         return [v for v in value if isinstance(v, dict)]
     if isinstance(value, dict):
+        if "index" not in value:
+            lists = [v for v in value.values()
+                     if isinstance(v, list) and v and all(isinstance(x, dict) for x in v)]
+            if len(lists) == 1:
+                return lists[0]
         return [value]
     return []
 
@@ -811,6 +887,12 @@ def parse_json_array(raw: str):
         recs = _as_records(value)
         if not recs:
             continue
+        if isinstance(value, dict) and len(recs) == 1:
+            # 外側の [ ] を付けずに {…}, {…} と並べた応答。先頭の1件で打ち切ると
+            # 残りを取りこぼす(実測: 6件中1件しか読めない、が繰り返し出た)。
+            salvaged = _salvage_objects(s)
+            if len(salvaged) > 1:
+                return salvaged, "salvage"
         if not truncated_array:
             return recs, "prefix"
         # 途中で切れた配列では、先頭の {…} を1件読んで打ち切ると、その後ろに

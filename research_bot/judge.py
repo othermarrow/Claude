@@ -448,7 +448,7 @@ def _count_note(n: int) -> str:
     書かずに配列を閉じた(毎回 index 0〜4)。再送しても同じで、全バッチの
     6件目が未判定になっていた。この一文で6件そろうことを確かめてある。
     """
-    return (f"\n\nThere are exactly {n} candidate papers (index 0 to {n - 1}). "
+    return (f"\n\nThere are exactly {n} papers (index 0 to {n - 1}). "
             f"Your array must contain exactly {n} entries.")
 
 
@@ -805,9 +805,13 @@ def extract_records(papers, topic, definition, model, retries=2) -> dict:
                         for i, (t, label, body) in enumerate(papers))
     prompt = EXTRACT_PROMPT.format(topic=topic, definition=definition,
                                    listing=listing)
+    # 実測: 判定と同じく、件数を明示しないと最後の1件を書かずに配列を閉じる
+    # (5件中4件、が再送しても続いた)。判定と同じ一文を付ける。
+    prompt += _count_note(len(papers))
+    schema = dict(EXTRACT_SCHEMA, minItems=len(papers), maxItems=len(papers))
     m = {}
     for attempt in range(retries + 1):
-        raw, _used = llm.ask_fallback(prompt, model, schema=EXTRACT_SCHEMA)
+        raw, _used = llm.ask_fallback(prompt, model, schema=schema)
         if llm.is_error(raw):
             if "中断" not in raw:
                 tqdm.write(f"  [!] 抽出の問い合わせが失敗: {raw[:160]}")
