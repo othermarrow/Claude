@@ -484,27 +484,41 @@ def cmd_search(args):
         plan.setdefault("definition", f"{topic} に関する研究")
         print("[1-3] 検索と引用連鎖はチェックポイントから復元しました。")
     else:
-        # --- 1. ファセット抽出 ---
-        print("[1/7] テーマを検索のファセットへ分解しています...")
-        # 1回しか呼ばないので、失敗したらすぐ代わりのモデルへ移る
-        facet_raw, _used = llm.ask_fallback(searchplan.facet_prompt(topic),
-                                            active_planning_model(), any_error=True)
-        if llm.is_error(facet_raw):
-            print(f"[警告] ファセット抽出に失敗しました: {facet_raw}")
-            print("       テーマ文をそのまま検索語として使う縮退動作になります。")
-        plan = searchplan.parse_facet_response(facet_raw, topic)
-        facets = plan.get("facets") or []
-        if (not llm.is_error(facet_raw) and len(facets) == 1
-                and facets[0].get("name") == "topic"
-                and topic in (facets[0].get("en") or [])):
-            print(f"[警告] ファセット抽出の応答がJSONとして解釈できず、単一"
-                  f"ファセットへ縮退しました。AIの生応答(先頭300字): "
-                  f"{facet_raw[:300]!r}")
-        mesh_cand = [m for f in facets for m in (f.get("mesh") or [])]
-        if mesh_cand:
-            kept_mesh = searchplan.apply_validated_mesh(
-                plan, sources.validate_mesh_terms(mesh_cand))
-            print(f"[統制語] MeSH候補 {len(mesh_cand)}件のうち {kept_mesh}件を採用しました。")
+        reuse = (args.reuse_plan if args.reuse_plan is not None
+                 else config.REUSE_SEARCH_PLAN)
+        prev_plan, prev_from = (catalog.find_previous_plan(topic, args.output_dir)
+                                if reuse else (None, ""))
+        if prev_plan:
+            # 同じ計画で検索すれば、前回との差分が「新しく出た文献」になる
+            print(f"[1/7] 前回の収集({prev_from})の検索計画を使います"
+                  "(作り直すには --replan)。")
+            plan = prev_plan
+            search_log.append(f"検索計画: 前回の収集({prev_from})のものを使用")
+        else:
+            if reuse:
+                print("[情報] このテーマ文で前に収集した検索計画が見つからないため、"
+                      "新しく作ります。")
+            # --- 1. ファセット抽出 ---
+            print("[1/7] テーマを検索のファセットへ分解しています...")
+            # 1回しか呼ばないので、失敗したらすぐ代わりのモデルへ移る
+            facet_raw, _used = llm.ask_fallback(searchplan.facet_prompt(topic),
+                                                active_planning_model(), any_error=True)
+            if llm.is_error(facet_raw):
+                print(f"[警告] ファセット抽出に失敗しました: {facet_raw}")
+                print("       テーマ文をそのまま検索語として使う縮退動作になります。")
+            plan = searchplan.parse_facet_response(facet_raw, topic)
+            facets = plan.get("facets") or []
+            if (not llm.is_error(facet_raw) and len(facets) == 1
+                    and facets[0].get("name") == "topic"
+                    and topic in (facets[0].get("en") or [])):
+                print(f"[警告] ファセット抽出の応答がJSONとして解釈できず、単一"
+                      f"ファセットへ縮退しました。AIの生応答(先頭300字): "
+                      f"{facet_raw[:300]!r}")
+            mesh_cand = [m for f in facets for m in (f.get("mesh") or [])]
+            if mesh_cand:
+                kept_mesh = searchplan.apply_validated_mesh(
+                    plan, sources.validate_mesh_terms(mesh_cand))
+                print(f"[統制語] MeSH候補 {len(mesh_cand)}件のうち {kept_mesh}件を採用しました。")
 
         passes = searchplan.build_query_passes(plan)
         plan_text = searchplan.describe_plan(plan, passes[0][1])
@@ -635,7 +649,7 @@ def cmd_search(args):
     stats = catalog.build_catalog(kept, {
         "topic": topic, "definition": plan["definition"],
         "homonyms": plan.get("homonyms") or [],
-        "filter_model": active_filter_model(),
+        "filter_model": active_filter_model(), "plan": plan,
         "plan_text": plan_text, "search_log": search_log,
         "cluster_note": cluster_note, "core_score": config.CORE_SCORE,
         "counts": {"collected": collected_count, "excluded": len(excluded),
@@ -818,8 +832,10 @@ def cmd_models(args):
         m = getattr(config, name)
         print(f"  {'✓' if m in avail else '✗ 見つからない'}  {name:15} {m}")
     print("\n■ --model の短い名前")
+    in_order = set(config.fallback_models()) | set(config.fallback_models("ensemble"))
     for k, m in config.MODEL_PRESETS.items():
-        print(f"  {'✓' if m in avail else '✗'}  {k}  {m}")
+        note = "" if m in in_order else "  (自動の切り替え先には入れていない)"
+        print(f"  {'✓' if m in avail else '✗'}  {k}  {m}{note}")
     if args.all or args.grep:
         pat = (args.grep or "").lower()
         rows = sorted(m for m in avail if pat in m.lower())
@@ -858,6 +874,12 @@ def main():
                     help="未判定の抄録を判定し直す処理を行わない")
     ps.add_argument("--resume", action="store_true",
                     help="前回の中断地点から再開する")
+    ps.add_argument("--reuse-plan", dest="reuse_plan", action="store_const",
+                    const=True, default=None,
+                    help="同じテーマ文の前回の検索計画を使う(差分を見たいとき)")
+    ps.add_argument("--replan", dest="reuse_plan", action="store_const", const=False,
+                    help="検索計画を AI に作り直させる(config.REUSE_SEARCH_PLAN が"
+                         " True でも)")
     ps.add_argument("--model", default="", metavar="名前",
                     help="判定モデルを差し替える(短い名前: "
                          + " / ".join(config.MODEL_PRESETS)

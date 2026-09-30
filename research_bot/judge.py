@@ -353,12 +353,18 @@ form "同名異義語: 〇〇". Any paper whose content falls outside psychology
 welfare, medicine, and education scores 20 or below.
 
 [Output]
-Output only the following JSON array. You must output exactly one entry for
-every paper, with no omissions. Write the reason field in Japanese, briefly
-(under 40 characters). Leave it empty when there is nothing to note.
+Output only a JSON array in the following format. You must output exactly one
+entry for every paper, with no omissions. Write the reason field in Japanese,
+briefly (under 40 characters). Leave it empty when there is nothing to note.
+The example below shows the format only. Judge each paper from its own
+abstract and write your own reason; never copy the example scores or reasons.
+"〇〇" is a slot to fill in, never output it as is.
 [{{"index": 0, "score": 95, "measured": true, "reason": ""}},
  {{"index": 1, "score": 85, "measured": false, "reason": "導入で言及するのみ"}},
- {{"index": 2, "score": 10, "measured": false, "reason": "同名異義語: 運動機能評価尺度"}}]"""
+ {{"index": 2, "score": 10, "measured": false, "reason": "同名異義語: 〇〇"}}]"""
+
+# 例の枠("〇〇")。これが残った理由は、抄録を読まずに例を写したとみなす。
+EXAMPLE_SLOT = "〇〇"
 
 # guided_json(config.USE_GUIDED_JSON)を使うときのスキーマ
 FILTER_SCHEMA = {
@@ -452,6 +458,22 @@ def _count_note(n: int) -> str:
             f"Your array must contain exactly {n} entries.")
 
 
+def _drop_copied(m: dict) -> set:
+    """例の枠("〇〇")が残った判定を m から取り除き、その index を返す。
+
+    実測: 同名異義語の概念が無いテーマで、nemotron-nano-omni-reasoning が
+    明らかに関連する文献(問題行動の機能分析など)にも、プロンプトの例の
+    「score 10 / 同名異義語: 運動機能評価尺度」をそのまま写した(再判定
+    321件中45件、本判定の除外にも36件)。例を枠にしておけば写したことが
+    分かるので、その判定は使わずに判定し直す。
+    """
+    copied = {i for i, r in m.items()
+              if EXAMPLE_SLOT in str((r or {}).get("reason") or "")}
+    for i in copied:
+        del m[i]
+    return copied
+
+
 def judge_batch(batch, topic, definition, hom, model, max_tokens=None, avoid=(),
                 order=None):
     """1バッチを判定し、batch と同じ長さのリストを返す。
@@ -480,16 +502,26 @@ def judge_batch(batch, topic, definition, hom, model, max_tokens=None, avoid=(),
             return [{"error": "判定失敗(AIへの問い合わせが失敗)"}] * len(batch)
         recs, mode = llm.parse_json_array(raw)
         m = llm.index_records(recs, len(batch))
-        if m and (len(m) >= len(batch) or attempt >= config.JUDGE_BATCH_RETRIES):
+        # 例文を写した分は送り直さない(温度0では同じ応答が返りやすい)。
+        # 未判定として、あとで1件ずつ判定し直す。
+        copied = _drop_copied(m)
+        if m and (len(m) + len(copied) >= len(batch)
+                  or attempt >= config.JUDGE_BATCH_RETRIES):
             if mode != "strict":
                 tqdm.write(f"  [i] 応答に余分な出力があったため先頭のJSONだけ"
                            f"使いました(mode={mode} / {len(m)}件)")
+            if copied:
+                tqdm.write(f"  [!] {used} が{len(copied)}件で例文を写したため、"
+                           "その分は未判定として後で判定し直します。")
             return [(dict(_coerce(m[i]), model=used) if i in m
-                     else {"error": "判定失敗(応答に該当indexなし)"})
+                     else {"error": "判定失敗(例文の写し)" if i in copied
+                           else "判定失敗(応答に該当indexなし)"})
                     for i in range(len(batch))]
         if attempt < config.JUDGE_BATCH_RETRIES:
             why = (f"{len(batch)}件中{len(m)}件しか読めない" if m
                    else "JSONとして読める部分が無い")
+            if copied:
+                why += f"、{len(copied)}件は例文の写し"
             tqdm.write(f"  [!] 判定応答の解析に失敗({why}, mode={mode})。"
                        f"再送します ({attempt + 1}/{config.JUDGE_BATCH_RETRIES})")
     _diagnose(raw, len(batch))
@@ -1020,13 +1052,20 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
 
     llm.run_parallel(work, batches, "再判定中", on_result=on_result)
 
-    # 途中でモデルが切り替わった回は、切り替わる前に失敗したバッチが欠落の
-    # まま残る(実測: 52件中24件)。切り替え先のモデルで一度だけやり直す。
+    # 欠落を一度だけやり直す。途中でモデルが切り替わった回は、切り替わる
+    # 前に失敗したバッチが欠落のまま残る(実測: 52件中24件)ので切り替え先で。
+    # 切り替わっていなければ、例文の写し・読めない応答で欠けた分なので、
+    # 本判定の未判定の拾い直しと同じく少数ずつ送る。
     left = [e for e in entries if "cluster_b" not in e]
     now = llm.pick_model(model, avoid, order) if left else None
-    if left and now and now != model:
-        print(f"\n[アンサンブル] 切り替え前に判定できなかった {len(left)}件を、"
-              f"{now} で判定し直します。")
+    if left and now:
+        if now != model:
+            print(f"\n[アンサンブル] 切り替え前に判定できなかった {len(left)}件を、"
+                  f"{now} で判定し直します。")
+        else:
+            size = config.RESCUE_BATCH_SIZE
+            print(f"\n[アンサンブル] 判定できなかった {len(left)}件を、"
+                  f"{size}件ずつ判定し直します。")
         retry = [left[i:i + size] for i in range(0, len(left), size)]
         llm.run_parallel(work, retry, "再判定(やり直し)", on_result=on_result)
 

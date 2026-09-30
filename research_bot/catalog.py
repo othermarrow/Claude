@@ -217,6 +217,36 @@ def list_themes(root: str = None) -> list:
     return out
 
 
+def find_previous_plan(topic: str, root: str = None) -> tuple:
+    """同じテーマ文を前に収集したときの検索計画。(計画, フォルダ名) を返す。
+
+    フォルダ名は「テーマ」「テーマ_1」…と変わるので、索引の topic で照合し、
+    最も新しいものを使う。見つからなければ (None, "")。
+    """
+    want = (topic or "").strip()
+    if not want:
+        return None, ""
+    core = _sanitize_core(want.splitlines()[0])
+    same = re.compile(re.escape(core) + r"(_\d+)?")
+    best = ("", None, "")
+    for name in list_themes(root):
+        if not same.fullmatch(name):
+            continue
+        path = _find_kind(os.path.join(root or config.CATALOG_ROOT, name), "index", name)
+        try:
+            with open(path, encoding="utf-8") as f:
+                d = json.load(f)
+        except (OSError, TypeError, ValueError):
+            continue
+        plan = d.get("search_plan")
+        if (d.get("topic") or "").strip() != want or not plan or not plan.get("facets"):
+            continue
+        stamp = d.get("generated_at") or ""
+        if stamp >= best[0]:
+            best = (stamp, plan, name)
+    return best[1], best[2]
+
+
 def read_catalog_abstracts(catalog_path: str) -> dict:
     """カタログ本文から {引用キー: 抄録} を読む。
 
@@ -1049,6 +1079,8 @@ def _write_index(path, catalog_path, meta, entries):
             "filter_model": meta.get("filter_model", ""),
             "judge_models": meta.get("judge_models") or {},
             "homonyms": meta.get("homonyms") or [],
+            # 次回の収集で同じ検索計画を使えるように(config.REUSE_SEARCH_PLAN)
+            "search_plan": meta.get("plan") or {},
             "core_score": meta.get("core_score"),
             "cluster_note": meta.get("cluster_note", ""),
             "counts": meta.get("counts", {}),

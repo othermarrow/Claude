@@ -65,6 +65,9 @@ _no_thinking_param = set()    # 思考制御パラメータを拒否した (モ�
 _no_stream = set()            # ストリーミングで何も返ってこなかったモデル(以後まとめて受け取る)
 _giveups = {}                 # モデル → 続けて諦めたバッチ数
 _dead = set()                 # 応答していないとみなしたモデル(以後は問い合わせない)
+_retry_at = {}                # 休ませているモデル → 試し直してよい時刻(monotonic)
+_trial = {}                   # 試し直し中のモデル → (試しているスレッド, 見切る時刻)
+_revived = set()              # 休ませたあと試し直したモデル(表示の言い分けに使う)
 _switched = set()             # 切り替えを知らせた (元のモデル, 代わりのモデル)
 _switch_lock = threading.Lock()
 _runaway_noted = set()        # 「思考を止められない」と知らせたモデル
@@ -349,19 +352,68 @@ def _kill_stream(stream, info):
             pass
 
 
+def _responded(model: str) -> None:
+    _giveups[model] = 0
+    with _switch_lock:
+        _trial.pop(model, None)
+        _revived.discard(model)
+    _speed_up()
+
+
 def _record_giveup(model: str) -> None:
-    n = _giveups.get(model, 0) + 1
-    _giveups[model] = n
-    if n >= config.DEAD_MODEL_AFTER and model not in _dead:
+    with _switch_lock:
+        n = _giveups.get(model, 0) + 1
+        _giveups[model] = n
+        if n < config.DEAD_MODEL_AFTER or model in _dead:
+            return
         _dead.add(model)
-        tqdm.write(f"  [!] {model} が{n}バッチ続けて応答しなかったため、このモデルへの"
-                   "残りの問い合わせを打ち切ります。NVIDIA 側で混雑しているか停止して"
-                   "いる可能性があります(config.FALLBACK_ORDER に代わりのモデルが"
-                   "あれば、そちらで続けます)。")
+        _trial.pop(model, None)
+        again = model in _revived
+        _revived.discard(model)
+        cool = config.DEAD_MODEL_COOLDOWN
+        if cool > 0:
+            _retry_at[model] = time.monotonic() + cool
+    later = (f"{cool / 60:.0f}分後に1回だけ試し直します"
+             if cool > 0 else "このモデルへの残りの問い合わせを打ち切ります")
+    if again:
+        tqdm.write(f"  [!] {model} は試し直しても応答しなかったため、{later}。")
+        return
+    tqdm.write(f"  [!] {model} が{n}バッチ続けて応答しなかったため、{later}。"
+               "NVIDIA 側で混雑しているか停止している可能性があります"
+               "(config.FALLBACK_ORDER に代わりのモデルがあれば、そちらで続けます)。")
 
 
 def is_dead(model: str) -> bool:
-    return model in _dead
+    """model を今は呼ばないか。休ませたモデルは、時間が来たら1回だけ戻す。
+
+    戻したモデルは「あと1バッチ諦めたら再び休ませる」状態にしておく。
+    応答しないままのモデルで、待ち時間を何度も重ねないため。試し直しの
+    1件が応答するまで、他の並列の問い合わせは代わりのモデルで続ける
+    (まだ止まっていたときに、並列の全部が時間切れを待たないように)。
+    """
+    now = time.monotonic()
+    me = threading.get_ident()
+    with _switch_lock:
+        t = _trial.get(model)
+        if t:
+            owner, until = t
+            if now >= until:
+                del _trial[model]
+            elif owner != me:
+                return True
+        if model not in _dead:
+            return False
+        at = _retry_at.get(model)
+        if at is None or now < at:
+            return True
+        _dead.discard(model)
+        del _retry_at[model]
+        _giveups[model] = max(0, config.DEAD_MODEL_AFTER - 1)
+        _trial[model] = (me, now + config.REQUEST_TIMEOUT * config.MAX_TIMEOUTS)
+        _revived.add(model)
+    tqdm.write(f"  [復帰] {model} を試し直します(休ませてから"
+               f"{config.DEAD_MODEL_COOLDOWN / 60:.0f}分経ったため)。")
+    return False
 
 
 def activity_summary() -> str:
@@ -417,7 +469,7 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
     """
     if not have_api_key():
         return f"{ERROR_PREFIX}エラー】{KEY_NAME} が設定されていません。"
-    if model in _dead:
+    if is_dead(model):
         return f"{ERROR_PREFIX}通信エラー】{model} は応答していないため省略"
     client = get_client()
     messages = ([{"role": "system", "content": system}] if system else []) + \
@@ -471,8 +523,7 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                 if ch and getattr(ch, "finish_reason", None) == "length":
                     tqdm.write(f"    [!] max_tokens({max_tokens})に達し、応答が途中で"
                                "打ち切られました。")
-                _giveups[model] = 0
-                _speed_up()
+                _responded(model)
                 return text
             stream = client.chat.completions.create(
                 model=model, messages=messages, timeout=read_timeout,
@@ -528,8 +579,7 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                     except Exception:
                         pass
             text = "".join(parts)
-            _giveups[model] = 0
-            _speed_up()
+            _responded(model)
             if finish == "length":
                 tqdm.write(f"    [!] max_tokens({max_tokens})に達し、応答が途中で"
                            "打ち切られました。")
@@ -669,7 +719,7 @@ def pick_model(model: str, avoid=(), order=None):
     候補が尽きたら None。
     """
     for m in [model] + (config.fallback_models() if order is None else list(order)):
-        if m in _dead or m in avoid:
+        if m in avoid or is_dead(m):
             continue
         if m != model:
             with _switch_lock:
@@ -705,6 +755,9 @@ def ask_fallback(prompt: str, model: str, *, avoid=(), order=None,
             skip.add(use)
         elif use not in _dead:
             return raw, use
+        # 休ませたモデルは、この問い合わせの中では戻さない(時間が来て
+        # is_dead が戻しても、同じ問い合わせで同じモデルを待ち直さない)
+        skip.add(use)
 
 
 def ask_ai(prompt: str, model_id: str) -> str:
