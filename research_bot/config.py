@@ -81,10 +81,10 @@ RUN_CHECK_AFTER_SEARCH = True
 MODEL_PRESETS = {
     "1": "nvidia/nemotron-3-super-120b-a12b",
     "2": "nvidia/nemotron-3.5-lightning-30b-a3b",
-    "3": "z-ai/glm-5.3-flash",
+    "3": "openai/gpt-oss-20b",
     "4": "google/gemma-4-31b-it",
-    "5": "openai/gpt-oss-20b",
-    "6": "meta/muse-glimmer-30b",
+    "5": "meta/muse-glimmer-30b",
+    "6": "z-ai/glm-5.3-flash",
     "7": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
 }
 
@@ -97,22 +97,23 @@ MODEL_PRESETS = {
 # 関連度判定・設計の抽出・ファセット抽出の代わり。1つのカタログの中で判定の
 # 付け方がなるべく揃うよう、本判定と同じ系統を先にし、思考を止められない
 # モデル・性質を確かめていないモデルを後ろに置いている。
+# (2026-09 の実測を反映。glm は思考を止める指定が効かず、毎回時間切れになった)
 FALLBACK_ORDER = (
     "1",   # nemotron-3-super     本判定と同じ。ファセット抽出が失敗したときの第一候補
     "2",   # nemotron-3.5-lightning  同じ系統で速い。判定の傾向が近い
-    "3",   # glm-5.3-flash        速い。別系統だが大量の判定に向く
-    "4",   # gemma-4-31b          安定しているが再判定用なので後ろに回す
-    "5",   # gpt-oss-20b          思考を完全には止められず遅くなりやすい
-    "6",   # muse-glimmer-30b     この用途での性質を確かめていない
+    "3",   # gpt-oss-20b          思考を少量(low)に抑えて動く。実測で判定できた
+    "4",   # gemma-4-31b          再判定用なので後ろ。応答しない時間帯があった
+    "5",   # muse-glimmer-30b     この用途での性質を確かめていない
+    "6",   # glm-5.3-flash        思考を止められず、1バッチに4分以上かかった
     "7",   # nemotron-nano-omni-reasoning  思考が長く、大量の判定には向かない
 )
 # 再判定(アンサンブル)の代わり。見落としが重ならないよう別系統を先にする。
 # 1本目の判定に使ったモデルは、ここに書いてあっても飛ばす。
 ENSEMBLE_FALLBACK_ORDER = (
     "4",   # gemma-4-31b          既定の再判定モデル
-    "3",   # glm-5.3-flash
-    "5",   # gpt-oss-20b
-    "6",   # muse-glimmer-30b
+    "3",   # gpt-oss-20b          実測で再判定できた
+    "5",   # muse-glimmer-30b
+    "6",   # glm-5.3-flash        思考を止められない(下の THINKING_RUNAWAY_CHARS で早めに見切る)
     "2",   # nemotron-3.5-lightning  本判定と同じ系統なので後ろ
     "1",   # nemotron-3-super
     "7",   # nemotron-nano-omni-reasoning
@@ -234,6 +235,10 @@ RATE_LIMIT_WAIT_BASE = 20     # 秒。429(指数的に延ばす)
 # 続けて諦めたバッチがこの数に達したモデルは「応答しない」とみなし、以後は
 # 呼ばない(切り替えの順番に代わりのモデルがあれば、そちらで続ける)
 DEAD_MODEL_AFTER = 3
+# 思考を止める指定をしたのに、本文を書く前の思考がこの字数を超えたモデルは
+# 「思考を止められない」とみなし、その場で以後使わない。時間切れを3回待つより
+# ずっと早く代わりのモデルへ移れる。指定が効くモデルの思考は0字。0で無効
+THINKING_RUNAWAY_CHARS = 4000
 HEARTBEAT_SECONDS = 60        # 応答待ちの状況を表示する間隔(秒)
 # NVIDIA NIM の構造化出力(nvext.guided_json)で、JSONの形をAPI側で強制
 # する。対応していないモデルでは自動的に外して従来の方法に戻る。

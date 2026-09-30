@@ -64,6 +64,8 @@ _giveups = {}                 # モデル → 続けて諦めたバッチ数
 _dead = set()                 # 応答していないとみなしたモデル(以後は問い合わせない)
 _switched = set()             # 切り替えを知らせた (元のモデル, 代わりのモデル)
 _switch_lock = threading.Lock()
+_runaway_noted = set()        # 「思考を止められない」と知らせたモデル
+_fallbacks_shown = False      # 切り替え先の一覧を表示したか(1回だけ出す)
 
 
 def is_error(text: str) -> bool:
@@ -177,6 +179,10 @@ def preflight(models, fallbacks=None) -> None:
     if fallbacks is None:
         fallbacks = list(dict.fromkeys(config.fallback_models()
                                        + config.fallback_models("ensemble")))
+    global _fallbacks_shown
+    if _fallbacks_shown:
+        return
+    _fallbacks_shown = True
     if available:
         missing = [m for m in fallbacks if m not in available and m not in _verified_models]
         for m in missing:
@@ -257,6 +263,10 @@ def _thinking_body(model: str, effort) -> dict:
 
 class ResponseTooLong(Exception):
     """応答全体が上限時間を超えた。"""
+
+
+class ThinkingRunaway(Exception):
+    """思考を止める指定をしたのに、本文を書かずに思考だけが続いている。"""
 
 
 def _with_deadline(fn, seconds: float):
@@ -381,8 +391,13 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
         if not _throttle():
             return f"{ERROR_PREFIX}中断】"
         extra_body = {}
+        # 思考を止める指定(enable_thinking=false)を送ったか。送ったのに思考が
+        # 大量に届くなら、そのモデルは指定を無視している(下の THINKING_RUNAWAY_CHARS)。
+        expect_no_thinking = False
         if use_think:
-            extra_body.update(_thinking_body(model, reasoning_effort))
+            body = _thinking_body(model, reasoning_effort)
+            extra_body.update(body)
+            expect_no_thinking = "chat_template_kwargs" in body
         if use_guided:
             extra_body["nvext"] = {"guided_json": schema}
         use_stream = model not in _no_stream
@@ -433,6 +448,14 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                     r = getattr(delta, "reasoning_content", None)
                     if r:
                         info["reasoning"] += len(r)
+                        # 実測: glm-5.3-flash は思考を止める指定を無視し、本文を1字も
+                        # 書かないまま思考だけで1〜5万字に達して毎回時間切れになった
+                        # (1バッチ最大8分)。早めに見切って代わりのモデルへ回す。
+                        if (expect_no_thinking and config.THINKING_RUNAWAY_CHARS
+                                and info["content"] == 0
+                                and info["reasoning"] > config.THINKING_RUNAWAY_CHARS):
+                            raise ThinkingRunaway(
+                                f"思考だけで{info['reasoning']:,}字(本文 0字)")
                         continue
                     piece = getattr(delta, "content", None)
                     if piece:
@@ -469,6 +492,19 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
             msg = str(e)
             low = msg.lower()
             status = getattr(e, "status_code", None)
+
+            # 思考を止められないモデル。何度送っても同じなので以後は使わない。
+            if isinstance(e, ThinkingRunaway):
+                with _switch_lock:
+                    first = model not in _runaway_noted
+                    _runaway_noted.add(model)
+                if first:
+                    tqdm.write(f"    [!] {model} は思考を止める指定が効かず、{msg}に"
+                               "達しました。判定に時間がかかりすぎるため、このモデルは"
+                               "以後使いません(代わりのモデルがあればそちらで続けます)。")
+                if mark_dead:
+                    _dead.add(model)
+                return f"{ERROR_PREFIX}通信エラー】thinking runaway: {model}"
 
             # 時間切れ(応答全体が長すぎる/何も届かない)。同じ条件で何度
             # 送っても同じになりやすいので、MAX_TIMEOUTS 回で諦める。

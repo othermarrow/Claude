@@ -894,9 +894,17 @@ def _bucket(cluster: str, score) -> str:
 
 
 def cohen_kappa(pairs):
-    """[(評定A, 評定B), ...] から Cohen の κ を返す。計算できなければ None。"""
+    """[(評定A, 評定B), ...] から Cohen の κ を返す。計算できなければ None。
+
+    どちらかの評定が1種類しかないとき(例: 判定できた抄録の1本目がすべて
+    related)、κ は一致の多少にかかわらず 0 に張り付き、「一致していない」と
+    誤読される。実測で、core の抄録がすべて応答欠落になった回に κ=0.00 と
+    出た。その場合は算出しない。
+    """
     n = len(pairs)
     if not n:
+        return None
+    if len({a for a, _ in pairs}) < 2 or len({b for _, b in pairs}) < 2:
         return None
     cats = sorted({c for p in pairs for c in p})
     po = sum(1 for a, b in pairs if a == b) / n
@@ -1008,6 +1016,16 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
 
     llm.run_parallel(work, batches, "再判定中", on_result=on_result)
 
+    # 途中でモデルが切り替わった回は、切り替わる前に失敗したバッチが欠落の
+    # まま残る(実測: 52件中24件)。切り替え先のモデルで一度だけやり直す。
+    left = [e for e in entries if "cluster_b" not in e]
+    now = llm.pick_model(model, avoid, order) if left else None
+    if left and now and now != model:
+        print(f"\n[アンサンブル] 切り替え前に判定できなかった {len(left)}件を、"
+              f"{now} で判定し直します。")
+        retry = [left[i:i + size] for i in range(0, len(left), size)]
+        llm.run_parallel(work, retry, "再判定(やり直し)", on_result=on_result)
+
     got = sum(1 for e in entries if "cluster_b" in e)
     if got == 0:
         # 以前の結果ファイルを空の報告で上書きしないよう、何も書かずに終える
@@ -1060,6 +1078,9 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
             line = f"- 分類の一致: {agree}/{len(pairs)}件({agree / len(pairs):.1%})"
             if kappa is not None:
                 line += f" / Cohen の κ = {kappa:.2f}({kappa_label(kappa)})"
+            else:
+                line += (" / κ は算出不可(どちらかの判定が1種類だけ。"
+                         "応答欠落が多い回に起きやすい)")
             f.write(line + "\n")
         if mean_gap is not None:
             f.write(f"- 関連度スコアの差: 平均 {mean_gap:.1f}点\n")
@@ -1105,6 +1126,9 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
     if kappa is not None:
         print(f"[アンサンブル] 一致率 {agree}/{len(pairs)} / κ={kappa:.2f}"
               f"({kappa_label(kappa)})")
+    elif pairs:
+        print(f"[アンサンブル] 一致率 {agree}/{len(pairs)} / κ は算出不可"
+              "(どちらかの判定が1種類だけ)")
     print(f"[アンサンブル] 除外候補(core→除外相当) {len(demote)}件 ← 最優先で確認 / "
           f"昇格候補 {len(promote)}件 / その他 {len(other)}件 / 欠落 {len(missing)}件")
     return out_path

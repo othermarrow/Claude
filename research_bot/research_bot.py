@@ -382,7 +382,8 @@ def run_checks(theme_arg: str, ensemble_model: str = "", skip=()) -> None:
     """
     steps = [
         ("ensemble", "アンサンブル判定",
-         lambda: judge.run_ensemble(theme_arg, ensemble_model)),
+         # モデルの確認は呼び出し元(search / check)で済ませてある
+         lambda: judge.run_ensemble(theme_arg, ensemble_model, preflight=False)),
         ("fulltext", "全文アクセス可否",
          lambda: fulltext.check_access(theme_arg)),
         ("diff", "前回との差分", lambda: catalog.run_diff(theme_arg)),

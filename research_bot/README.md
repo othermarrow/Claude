@@ -99,10 +99,10 @@ python research_bot.py bench                # 1段目の候補モデルを同じ
 |---|---|
 | 1 | nvidia/nemotron-3-super-120b-a12b |
 | 2 | nvidia/nemotron-3.5-lightning-30b-a3b |
-| 3 | z-ai/glm-5.3-flash |
+| 3 | openai/gpt-oss-20b |
 | 4 | google/gemma-4-31b-it |
-| 5 | openai/gpt-oss-20b |
-| 6 | meta/muse-glimmer-30b |
+| 5 | meta/muse-glimmer-30b |
+| 6 | z-ai/glm-5.3-flash |
 | 7 | nvidia/nemotron-3-nano-omni-30b-a3b-reasoning |
 
 判定の途中でモデルが応答しなくなると、`config.py` の切り替えの順番に従って
@@ -111,6 +111,9 @@ python research_bot.py bench                # 1段目の候補モデルを同じ
 - 関連度判定・抽出(`FALLBACK_ORDER`): 1 → 2 → 3 → 4 → 5 → 6 → 7(同じ系統を先に)
 - 再判定(`ENSEMBLE_FALLBACK_ORDER`): 4 → 3 → 5 → 6 → 2 → 1 → 7(別系統を先に。1本目に使ったモデルは飛ばす)
 - 空の `()` にすると切り替えない
+- 思考を止める指定が効かないモデル(実測では glm-5.3-flash)は、思考が
+  `THINKING_RUNAWAY_CHARS`(4000字)を超えた時点で見切って次へ移る
+- 再判定で、切り替え前に失敗した分は、切り替え先のモデルで一度やり直す
 
 切り替えが起きた回は、カタログ冒頭・各抄録・索引・レポート生成プロンプトに
 どのモデルで判定したかが記録される。
