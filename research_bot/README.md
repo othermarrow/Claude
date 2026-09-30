@@ -108,8 +108,9 @@ python research_bot.py bench                # 1段目の候補モデルを同じ
 判定の途中でモデルが応答しなくなると、`config.py` の切り替えの順番に従って
 次のモデルへ自動で切り替え、残りを続ける。
 
-- 関連度判定・抽出(`FALLBACK_ORDER`): 1 → 2 → 3 → 4 → 5 → 6 → 7(同じ系統を先に)
-- 再判定(`ENSEMBLE_FALLBACK_ORDER`): 4 → 3 → 5 → 6 → 2 → 1 → 7(別系統を先に。1本目に使ったモデルは飛ばす)
+- 関連度判定・抽出(`FALLBACK_ORDER`): 1 → 2 → 3 → 5 → 4 → 6 → 7(同じ系統を先に)
+- 再判定(`ENSEMBLE_FALLBACK_ORDER`): 3 → 5 → 4 → 6 → 2 → 1 → 7(別系統を先に。1本目に使ったモデルは飛ばす)
+- gemma(4)は 2026-09 に応答しない状態が続いたため、どちらの順番でも後ろにしてある
 - 空の `()` にすると切り替えない
 - 思考を止める指定が効かないモデル(実測では glm-5.3-flash)は、思考が
   `THINKING_RUNAWAY_CHARS`(4000字)を超えた時点で見切って次へ移る
@@ -142,7 +143,7 @@ python research_bot.py bench                # 1段目の候補モデルを同じ
 |---|---|---|
 | `CATALOG_ROOT` | …/Vault/Abstract/catalog | カタログの保存先 |
 | `FILTER_MODEL` | nemotron-3-super-120b-a12b | 関連度判定・抽出のモデル |
-| `ENSEMBLE_MODEL` | gemma-4-31b-it | 再判定のモデル(判定モデルとは別系統にする) |
+| `ENSEMBLE_MODEL` | gpt-oss-20b | 再判定のモデル(判定モデルとは別系統にする) |
 | `PREFILTER_MODE` | dryrun | 1段目の粗選別。on で除外、off で使わない |
 | `FALLBACK_ORDER` | 1〜7 | 応答しなくなったときの切り替えの順番 |
 | `RELEVANCE_THRESHOLD` | 70 | これ未満は除外 |

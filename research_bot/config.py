@@ -55,10 +55,12 @@ QUERY_FILE = "/storage/emulated/0/query.js"
 #   FILTER   : 関連度判定と設計抽出。数百回呼ぶので速度重視。
 #   ENSEMBLE : 判定の再確認用。FILTERと別系統のモデルにすること
 #              (同じモデルに同じ問いを2回聞いても、見落としは重ならない)。
+#              以前は gemma-4-31b だったが、2026-09 に NVIDIA 側で全く応答しなく
+#              なったため、実測で再判定をやり遂げた gpt-oss-20b にした。
 #   PREFILTER: 1段目の粗選別。「明らかに無関係」だけを弾く。
 PLANNING_MODEL = "nvidia/nemotron-3-ultra-550b-a55b"
 FILTER_MODEL = "nvidia/nemotron-3-super-120b-a12b"
-ENSEMBLE_MODEL = "google/gemma-4-31b-it"
+ENSEMBLE_MODEL = "openai/gpt-oss-20b"
 PREFILTER_MODEL = "nvidia/nemotron-3-super-120b-a12b"
 
 # 1段目の粗選別。軽い問い合わせで「明らかに無関係」だけを先に弾き、
@@ -97,22 +99,23 @@ MODEL_PRESETS = {
 # 関連度判定・設計の抽出・ファセット抽出の代わり。1つのカタログの中で判定の
 # 付け方がなるべく揃うよう、本判定と同じ系統を先にし、思考を止められない
 # モデル・性質を確かめていないモデルを後ろに置いている。
-# (2026-09 の実測を反映。glm は思考を止める指定が効かず、毎回時間切れになった)
+# (2026-09 の実測を反映。glm は思考を止める指定が効かず毎回時間切れ、
+#  gemma は全く応答しなかった。番号は据え置き、ここの順番だけで調整している)
 FALLBACK_ORDER = (
     "1",   # nemotron-3-super     本判定と同じ。ファセット抽出が失敗したときの第一候補
     "2",   # nemotron-3.5-lightning  同じ系統で速い。判定の傾向が近い
     "3",   # gpt-oss-20b          思考を少量(low)に抑えて動く。実測で判定できた
-    "4",   # gemma-4-31b          再判定用なので後ろ。応答しない時間帯があった
-    "5",   # muse-glimmer-30b     この用途での性質を確かめていない
+    "5",   # muse-glimmer-30b     応答は速い(約5秒)。判定の質はまだ確かめていない
+    "4",   # gemma-4-31b          応答しない状態が続いたので後ろ。戻れば前に出す
     "6",   # glm-5.3-flash        思考を止められず、1バッチに4分以上かかった
     "7",   # nemotron-nano-omni-reasoning  思考が長く、大量の判定には向かない
 )
 # 再判定(アンサンブル)の代わり。見落としが重ならないよう別系統を先にする。
 # 1本目の判定に使ったモデルは、ここに書いてあっても飛ばす。
 ENSEMBLE_FALLBACK_ORDER = (
-    "4",   # gemma-4-31b          既定の再判定モデル
-    "3",   # gpt-oss-20b          実測で再判定できた
-    "5",   # muse-glimmer-30b
+    "3",   # gpt-oss-20b          既定の再判定モデル。実測で再判定できた
+    "5",   # muse-glimmer-30b     応答は速い。別系統
+    "4",   # gemma-4-31b          応答しない状態が続いたので後ろ
     "6",   # glm-5.3-flash        思考を止められない(下の THINKING_RUNAWAY_CHARS で早めに見切る)
     "2",   # nemotron-3.5-lightning  本判定と同じ系統なので後ろ
     "1",   # nemotron-3-super
