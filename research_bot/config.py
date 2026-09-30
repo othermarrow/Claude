@@ -1,12 +1,21 @@
 """全スクリプト共通の設定。利用者が変えてよい値は、すべてここにまとめてある。
 
-以前は同じ値(保存先のパス、モデル名、閾値)が各スクリプトに別々に
-書かれていて、片方だけ直すと食い違った。実例:
-  - research_bot.py の REPORT_DIR が「抄録集/Report」、generate_report.py の
-    保存先が「Abstract/report」で、案内と実際の保存先が違っていた
-  - research_bot.py が check() に CATALOG_ROOT を渡していたが、
-    受け取る側の3本は環境変数を読まず自前の定数を使っていた
+よく変える設定・大事な設定ほど上に置いてある。
+   1. よく変える設定 ……… 保存先・役割ごとのモデル・1段目のモード・事後チェック
+   2. モデルの短い名前と切り替えの順番
+   3. 判定の基準 …………… 採用・core・off の閾値、再判定と差分の感度
+   4. 収集の範囲 …………… 抄録の下限・引用連鎖・検索件数
+   5. レポート生成プロンプトとカタログの警告
+   6. 送信の速さ ………… 429(レート制限)が続くときに見る
+   7. 細かい調整 ………… 1段目・判定・抽出・本文確認のバッチ数や文字数
+   8. 通信の待ち時間と再試行
+   9. 初回だけ設定するもの … 連絡先・APIキー・記録の置き場所
+  10. 語の一覧と同義語辞書
+
 設定はここにだけ書き、各スクリプトはここから読む。数値を他のファイルに書かない。
+以前は同じ値(保存先のパス、モデル名、閾値)が各スクリプトに別々に書かれて
+いて、片方だけ直すと食い違った(REPORT_DIR が research_bot.py では
+「抄録集/Report」、generate_report.py では「Abstract/report」だった等)。
 
 【一時的に値を変える】
 同じ名前の環境変数があれば、そちらが優先される。
@@ -32,7 +41,7 @@ Termux のウィジェットや cron のように .bashrc を読まない起動�
 import os
 
 # ==========================================
-# 1. 保存先
+# 1. よく変える設定
 # ==========================================
 # カタログ一式(テーマごとのフォルダ)と引用キーレジストリの置き場所
 CATALOG_ROOT = "/storage/emulated/0/Vault/Abstract/catalog"
@@ -40,36 +49,8 @@ CATALOG_ROOT = "/storage/emulated/0/Vault/Abstract/catalog"
 REPORT_DIR = "/storage/emulated/0/Vault/Abstract/report"
 # テーマを書いておくファイル
 QUERY_FILE = "/storage/emulated/0/query.js"
-# 差分(diff)が前回分の索引を保存しておく場所(Vaultの外)
-SNAP_DIR = "~/.local/share/research_snapshots"
-# 1段目(prefilter)の除外ログ(Vaultの外)
-PREFILTER_LOG_DIR = "~/.local/share/research_prefilter"
-# APIキーを書いておくファイル
-KEYS_FILE = "~/.config/research_bot/keys.env"
-# 中断復帰用の途中経過(CATALOG_ROOT の下に作る)
-CHECKPOINT_DIRNAME = ".checkpoint"
 
-# ==========================================
-# 2. 連絡先とAPIキー
-# ==========================================
-# Crossref・Unpaywall・PubMed の利用規約で求められる連絡先。ここを空にしておくと
-# 環境変数 ACADEMIC_CONTACT_EMAIL(無ければ UNPAYWALL_EMAIL・NCBI_EMAIL)を使う。
-# 空のままだと Unpaywall(OA全文の所在)は使われない。
-ACADEMIC_EMAIL = ""
-
-# APIキー(値は KEYS_FILE か環境変数から読む。ここには書かない)
-#   NVIDIA_API_KEY    判定に使うLLM(NVIDIA API)
-#   OPENALEX_API_KEY  OpenAlex。2026年2月から必須。無いと検索・引用連鎖が0件になる
-#   NCBI_API_KEY      PubMed(無くても動くが遅い)
-#   S2_API_KEY        Semantic Scholar(無いとほぼ拒否される)
-#   CINII_APPID       CiNii Research(無ければCiNiiは検索しない)
-
-# ==========================================
-# 3. モデル(NVIDIA API)
-# ==========================================
-NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
-
-# 役割ごとのモデル。
+# 役割ごとのモデル(NVIDIA API)。
 #   PLANNING : テーマ→ファセット分解。1回しか呼ばないので精度重視。
 #   FILTER   : 関連度判定と設計抽出。数百回呼ぶので速度重視。
 #   ENSEMBLE : 判定の再確認用。FILTERと別系統のモデルにすること
@@ -80,16 +61,31 @@ FILTER_MODEL = "nvidia/nemotron-3-super-120b-a12b"
 ENSEMBLE_MODEL = "google/gemma-4-31b-it"
 PREFILTER_MODEL = "nvidia/nemotron-3-super-120b-a12b"
 
-# --model に渡せる短い名前。一覧に無いモデルは "ベンダー/モデル名" で直接渡せる。
-# `python research_bot.py models` で、どれが今使えるかを確認できる。
+# 1段目の粗選別。軽い問い合わせで「明らかに無関係」だけを先に弾き、
+# 2段目の判定件数を減らす。
+#   dryrun … 判定だけして除外しない。2段目のあとに取りこぼし監査を表示する
+#   on     … off と判定したものを除外する(off率が上限を超えたら中止)
+#   off    … 使わない
+PREFILTER_MODE = "dryrun"
+
+# 収集完了後に check(アンサンブル判定・全文アクセス・差分)を続けて走らせるか。
+# 走らせたくない回だけ --no-check を付ける。
+RUN_CHECK_AFTER_SEARCH = True
+
+# ==========================================
+# 2. モデルの短い名前と切り替えの順番
+# ==========================================
+# --model に渡せる短い名前。番号は有用な順(1が最も有用)。一覧に無いモデルは
+# "ベンダー/モデル名" で直接渡せる。`python research_bot.py models` で、
+# どれが今使えるかを確認できる。
 MODEL_PRESETS = {
     "1": "nvidia/nemotron-3-super-120b-a12b",
     "2": "nvidia/nemotron-3.5-lightning-30b-a3b",
-    "3": "meta/muse-glimmer-30b",
+    "3": "z-ai/glm-5.3-flash",
     "4": "google/gemma-4-31b-it",
-    "5": "z-ai/glm-5.3-flash",
-    "7": "openai/gpt-oss-20b",
-    "8": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+    "5": "openai/gpt-oss-20b",
+    "6": "meta/muse-glimmer-30b",
+    "7": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
 }
 
 # モデルが応答しなくなったときに代わりに使う順番(短い名前か 'ベンダー/モデル名')。
@@ -99,31 +95,83 @@ MODEL_PRESETS = {
 # どの文献をどのモデルで判定したかは、カタログと索引に記録される。
 #
 # 関連度判定・設計の抽出・ファセット抽出の代わり。1つのカタログの中で判定の
-# 付け方がなるべく揃うよう、本判定(1)と同じ系統を先にし、思考を止められない
+# 付け方がなるべく揃うよう、本判定と同じ系統を先にし、思考を止められない
 # モデル・性質を確かめていないモデルを後ろに置いている。
 FALLBACK_ORDER = (
     "1",   # nemotron-3-super     本判定と同じ。ファセット抽出が失敗したときの第一候補
     "2",   # nemotron-3.5-lightning  同じ系統で速い。判定の傾向が近い
-    "5",   # glm-5.3-flash        速い。別系統だが大量の判定に向く
+    "3",   # glm-5.3-flash        速い。別系統だが大量の判定に向く
     "4",   # gemma-4-31b          安定しているが再判定用なので後ろに回す
-    "7",   # gpt-oss-20b          思考を完全には止められず遅くなりやすい
-    "3",   # muse-glimmer-30b     この用途での性質を確かめていない
-    "8",   # nemotron-nano-omni-reasoning  思考が長く、大量の判定には向かない
+    "5",   # gpt-oss-20b          思考を完全には止められず遅くなりやすい
+    "6",   # muse-glimmer-30b     この用途での性質を確かめていない
+    "7",   # nemotron-nano-omni-reasoning  思考が長く、大量の判定には向かない
 )
 # 再判定(アンサンブル)の代わり。見落としが重ならないよう別系統を先にする。
 # 1本目の判定に使ったモデルは、ここに書いてあっても飛ばす。
 ENSEMBLE_FALLBACK_ORDER = (
     "4",   # gemma-4-31b          既定の再判定モデル
-    "5",   # glm-5.3-flash
-    "7",   # gpt-oss-20b
-    "3",   # muse-glimmer-30b
+    "3",   # glm-5.3-flash
+    "5",   # gpt-oss-20b
+    "6",   # muse-glimmer-30b
     "2",   # nemotron-3.5-lightning  本判定と同じ系統なので後ろ
     "1",   # nemotron-3-super
-    "8",   # nemotron-nano-omni-reasoning
+    "7",   # nemotron-nano-omni-reasoning
 )
 
 # ==========================================
-# 4. 通信
+# 3. 判定の基準
+# ==========================================
+RELEVANCE_THRESHOLD = 70      # 関連度がこれ未満は除外
+CORE_SCORE = 90               # これ以上かつ実測あり → core(中心クラスタ)
+OFF_SCORE = 20                # これ以下は off(同名異義語・対象外分野)
+CORE_MIN_ITEMS = 5            # core がこれ未満なら最高スコア帯を core として扱う
+# アンサンブル: 2つのモデルのスコア差がこれ以上なら不一致として挙げる
+ENSEMBLE_SCORE_GAP = 20
+# 差分: 前回とのスコア差がこれ以上なら「スコア変動」として挙げる
+DIFF_SCORE_GAP = 10
+
+# ==========================================
+# 4. 収集の範囲
+# ==========================================
+# 抄録の下限。日本語は1文字の情報量が多いので別に持つ。
+MIN_ABSTRACT_LENGTH = 400
+MIN_ABSTRACT_LENGTH_JA = 150
+# 引用連鎖
+SNOWBALL_HOPS = 2                 # 世代数。0で無効
+SNOWBALL_SEEDS = 16               # シード数(被引用数の多い順)
+# 中核ファセット単独のパスを省略する件数。0で常に実行。
+CORE_PASS_SKIP_AT = 300
+# 1回の検索で取る件数(ページングはしない。上限に張り付いたら警告が出る)
+FETCH_LIMIT = 100
+ERIC_LIMIT = 200                  # ERICは1回200件まで
+NDL_LIMIT = 200                   # NDLサーチは1回500件まで
+# 検索式に使うファセットの数(LLMは4つ以上出すことがあるが、ANDが増えるほど件数が枯れる)
+MAX_FACETS = 3
+# 日本語DB(J-STAGE・CiNii・NDL)の検索回数の上限。1語(1組)ごとに1回のリクエストになる。
+JA_PAIR_LIMIT = 4                 # 「中核語 × 別ファセットの語」の組
+JA_SINGLE_LIMIT = 2               # 中核語だけの検索
+# 引用連鎖で、新規獲得がシード数のこの割合を下回ったら打ち切る
+SNOWBALL_MIN_GAIN = 0.05
+# 「閾値をここまで下げたら何件拾えたか」を数えるための参照値(動作には影響しない)
+SHORT_REFERENCE_LENGTH = 250
+SHORT_REFERENCE_LENGTH_JA = 150
+
+# ==========================================
+# 5. レポート生成プロンプトとカタログの警告
+# ==========================================
+# レポート生成プロンプトに書く専門領域と、「実践への示唆」の2つの観点
+PROMPT_DOMAIN = "心理学(特に発達障害・行動障害領域)"
+PROMPT_SUB_DOMAIN = "福祉"
+PROMPT_PERSPECTIVE_A = "心理学的支援"
+PROMPT_PERSPECTIVE_B = "福祉制度・サービス提供体制"
+# 抄録がこれより短いものは「内容を判断できない」とカタログで警告する
+THIN_ABSTRACT_CHARS = 200
+THIN_ABSTRACT_CHARS_JA = 100
+# relink: 生成元を宣言していないレポートを、引用キーの一致率で推定するときの足切り
+RELINK_MIN_RATE = 0.5
+
+# ==========================================
+# 6. 送信の速さ(429 が続くときに見る)
 # ==========================================
 # 1分あたりの送信回数の上限(全スレッド合計。1段目も含む)。NVIDIAの無料枠は
 # おおむね40回/分とされるため、少し下に置く。429が続くなら下げる。
@@ -136,55 +184,12 @@ CONCURRENCY = 4
 # 差分(diff)の「スコア変動」が実際の変化ではなく揺らぎを拾ってしまう。
 TEMPERATURE = 0.0
 MAX_TOKENS = 24576
-REQUEST_TIMEOUT = 240         # 秒。応答全体の上限
-MAX_RETRIES = 5
-RETRY_WAIT = 10               # 秒。429以外の一時的エラー(線形に延ばす)
-RATE_LIMIT_WAIT_BASE = 20     # 秒。429(指数的に延ばす)
-# NVIDIA NIM の構造化出力(nvext.guided_json)で、JSONの形をAPI側で強制
-# する。対応していないモデルでは自動的に外して従来の方法に戻る。
-# 手元で効果を確かめてから True にすること。
-USE_GUIDED_JSON = False
-# ※ 次の4つは旧 config.py に無かった値(llm.py の既定)
-READ_TIMEOUT = 120            # 秒。ストリーミングでこの間何も届かなければ時間切れ
-MAX_TIMEOUTS = 2              # 時間切れがこの回数続いたらそのバッチを諦める
-DEAD_MODEL_AFTER = 3          # 続けて諦めたバッチがこの数に達したモデルは以後呼ばない
-HEARTBEAT_SECONDS = 60        # 応答待ちの状況を表示する間隔(秒)
+ENSEMBLE_MAX_TOKENS = 0       # 再判定の max_tokens。0 なら MAX_TOKENS と同じ
 
 # ==========================================
-# 5. 収集
+# 7. 細かい調整
 # ==========================================
-# 1回の検索で取る件数(ページングはしない。上限に張り付いたら警告が出る)
-FETCH_LIMIT = 100
-ERIC_LIMIT = 200              # ERICは1回200件まで
-NDL_LIMIT = 200               # NDLサーチは1回500件まで
-REQUEST_PAUSE = 1.0           # 秒。DBへの問い合わせの間隔(相手への礼儀)
-DB_TIMEOUT = 20               # 秒。DBへの1回の問い合わせの上限
-# 抄録の下限。日本語は1文字の情報量が多いので別に持つ。
-MIN_ABSTRACT_LENGTH = 400
-MIN_ABSTRACT_LENGTH_JA = 150
-# 「閾値をここまで下げたら何件拾えたか」を数えるための参照値(動作には影響しない)
-SHORT_REFERENCE_LENGTH = 250
-SHORT_REFERENCE_LENGTH_JA = 150
-# 引用連鎖
-SNOWBALL_HOPS = 2                 # 世代数。0で無効
-SNOWBALL_SEEDS = 16               # シード数(被引用数の多い順)
-SNOWBALL_MIN_GAIN = 0.05          # 新規獲得がシード数のこの割合を下回ったら打ち切る
-# 中核ファセット単独のパスを省略する件数。0で常に実行。
-CORE_PASS_SKIP_AT = 300
-# 検索式に使うファセットの数(LLMは4つ以上出すことがあるが、ANDが増えるほど件数が枯れる)
-MAX_FACETS = 3
-# 日本語DB(J-STAGE・CiNii・NDL)の検索回数の上限。1語(1組)ごとに1回のリクエストになる。
-JA_PAIR_LIMIT = 4                 # 「中核語 × 別ファセットの語」の組
-JA_SINGLE_LIMIT = 2               # 中核語だけの検索
-
-# ==========================================
-# 6. 1段目: 粗選別(prefilter)
-# ==========================================
-# 軽い問い合わせで「明らかに無関係」だけを先に弾き、2段目の判定件数を減らす。
-#   dryrun … 判定だけして除外しない。2段目のあとに取りこぼし監査を表示する
-#   on     … off と判定したものを除外する(off率が上限を超えたら中止)
-#   off    … 使わない
-PREFILTER_MODE = "dryrun"
+# --- 1段目(prefilter) ---
 PREFILTER_EFFORT = "low"          # 思考の量。空文字にすると指定しない(モデル任せ)
 PREFILTER_BATCH_SIZE = 15
 PREFILTER_CONCURRENCY = 3
@@ -199,23 +204,13 @@ PREFILTER_BENCH_MODELS = (
     "meta/llama-3.3-70b-instruct",
     "nvidia/nemotron-3-super-120b-a12b",
 )
-
-# ==========================================
-# 7. 2段目: 関連度判定
-# ==========================================
-RELEVANCE_THRESHOLD = 70      # これ未満は除外
-CORE_SCORE = 90               # これ以上かつ実測あり → core(中心クラスタ)
-OFF_SCORE = 20                # これ以下は off(同名異義語・対象外分野)
-CORE_MIN_ITEMS = 5            # core がこれ未満なら最高スコア帯を core として扱う
+# --- 2段目(関連度判定) ---
 FILTER_BATCH_SIZE = 6         # 1回の問い合わせで判定する件数
 FILTER_EXCERPT_CHARS = 900    # 抄録を先頭から何字渡すか
 JUDGE_BATCH_RETRIES = 2       # 応答を読めなかったバッチを送り直す回数
 JUDGE_CHECKPOINT_EVERY = 20   # 何バッチごとに途中経過を保存するか
 RESCUE_BATCH_SIZE = 1         # 未判定を判定し直すときの件数(少ないほど壊れにくい)
-
-# ==========================================
-# 8. 研究設計の抽出・本文での確認
-# ==========================================
+# --- 研究設計の抽出・本文での確認 ---
 EXTRACT_BATCH_SIZE = 5
 EXTRACT_EXCERPT_CHARS = 1200  # 設計・参加者は方法と結果に書かれるので判定より広く渡す
 OA_LOOKUP_LIMIT = 40          # Unpaywallで所在を調べる件数(スコア上位から)
@@ -227,31 +222,52 @@ FULLTEXT_TIMEOUT = 30         # 秒
 FULLTEXT_CONCURRENCY = 3      # 全文の取得・照会の同時接続数(相手のサーバーに配慮して少なめ)
 
 # ==========================================
-# 9. 事後チェック(check)
+# 8. 通信の待ち時間と再試行
 # ==========================================
-# 収集完了後に check(アンサンブル判定・全文アクセス・差分)を続けて走らせるか。
-# 走らせたくない回だけ --no-check を付ける。
-RUN_CHECK_AFTER_SEARCH = True
-ENSEMBLE_MAX_TOKENS = 0       # 再判定の max_tokens。0 なら MAX_TOKENS と同じ
-# アンサンブル: スコア差がこれ以上なら不一致として挙げる
-ENSEMBLE_SCORE_GAP = 20
-# 差分: スコア差がこれ以上なら「スコア変動」として挙げる
-DIFF_SCORE_GAP = 10
+NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
+REQUEST_TIMEOUT = 240         # 秒。応答全体の上限
+READ_TIMEOUT = 120            # 秒。ストリーミングでこの間何も届かなければ時間切れ
+MAX_RETRIES = 5
+MAX_TIMEOUTS = 2              # 時間切れがこの回数続いたらそのバッチを諦める
+RETRY_WAIT = 10               # 秒。429以外の一時的エラー(線形に延ばす)
+RATE_LIMIT_WAIT_BASE = 20     # 秒。429(指数的に延ばす)
+# 続けて諦めたバッチがこの数に達したモデルは「応答しない」とみなし、以後は
+# 呼ばない(切り替えの順番に代わりのモデルがあれば、そちらで続ける)
+DEAD_MODEL_AFTER = 3
+HEARTBEAT_SECONDS = 60        # 応答待ちの状況を表示する間隔(秒)
+# NVIDIA NIM の構造化出力(nvext.guided_json)で、JSONの形をAPI側で強制
+# する。対応していないモデルでは自動的に外して従来の方法に戻る。
+# 手元で効果を確かめてから True にすること。
+USE_GUIDED_JSON = False
+# 文献データベースへの問い合わせ
+REQUEST_PAUSE = 1.0           # 秒。DBへの問い合わせの間隔(相手への礼儀)
+DB_TIMEOUT = 20               # 秒。DBへの1回の問い合わせの上限
 
 # ==========================================
-# 10. カタログとレポート用プロンプト
+# 9. 初回だけ設定するもの
 # ==========================================
-# 抄録がこれより短いものは「内容を判断できない」と警告する
-THIN_ABSTRACT_CHARS = 200
-THIN_ABSTRACT_CHARS_JA = 100
-# レポート生成プロンプトに書く専門領域と、「実践への示唆」の2つの観点
-PROMPT_DOMAIN = "心理学(特に発達障害・行動障害領域)"
-PROMPT_SUB_DOMAIN = "福祉"
-PROMPT_PERSPECTIVE_A = "心理学的支援"
-PROMPT_PERSPECTIVE_B = "福祉制度・サービス提供体制"
-# relink: 生成元を宣言していないレポートを、引用キーの一致率で推定するときの足切り
-RELINK_MIN_RATE = 0.5
+# Crossref・Unpaywall・PubMed の利用規約で求められる連絡先。ここを空にしておくと
+# 環境変数 ACADEMIC_CONTACT_EMAIL(無ければ UNPAYWALL_EMAIL・NCBI_EMAIL)を使う。
+# 空のままだと Unpaywall(OA全文の所在)は使われない。
+ACADEMIC_EMAIL = ""
 
+# APIキー(値は KEYS_FILE か環境変数から読む。ここには書かない)
+#   NVIDIA_API_KEY    判定に使うLLM(NVIDIA API)
+#   OPENALEX_API_KEY  OpenAlex。2026年2月から必須。無いと検索・引用連鎖が0件になる
+#   NCBI_API_KEY      PubMed(無くても動くが遅い)
+#   S2_API_KEY        Semantic Scholar(無いとほぼ拒否される)
+#   CINII_APPID       CiNii Research(無ければCiNiiは検索しない)
+KEYS_FILE = "~/.config/research_bot/keys.env"
+
+# 記録の置き場所(Vaultの外)
+SNAP_DIR = "~/.local/share/research_snapshots"        # 差分(diff)用の前回分の索引
+PREFILTER_LOG_DIR = "~/.local/share/research_prefilter"  # 1段目の除外ログ
+# 中断復帰用の途中経過(CATALOG_ROOT の下に作る)
+CHECKPOINT_DIRNAME = ".checkpoint"
+
+# ==========================================
+# 10. 語の一覧と同義語辞書
+# ==========================================
 # 心理学・福祉・医療・教育のいずれとも無関係な分野を示す語。タイトルか抄録に
 # 含まれていたらカタログで警告する(除外はしない。判断は人が行う)。
 # 略語の衝突で紛れ込んだ実例: 代謝工学の flux balance analysis、外国語教育の
@@ -288,9 +304,7 @@ NOISE_TITLE_EXACT = (
     "訂正", "正誤表", "お知らせ", "編集後記", "巻頭言",
 )
 
-# ==========================================
-# 11. 同義語辞書
-# ==========================================
+# --- 同義語辞書 ---
 # テーマ文にキー(日本語)が含まれていると、対応するファセットへ同義語を足す。
 # LLMの同義語展開が薄いときの下支え。新しい概念を扱うときはここに足す。
 #

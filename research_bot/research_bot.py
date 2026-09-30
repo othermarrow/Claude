@@ -3,7 +3,7 @@
   python research_bot.py                     query.js のテーマで収集
   python research_bot.py "テーマを文章で"     テーマを直接指定して収集
   python research_bot.py --resume            中断したところから再開
-  python research_bot.py --model 4           判定モデルを差し替えて収集
+  python research_bot.py --model 2           判定モデルを差し替えて収集
 
   python research_bot.py check <テーマ>       事後チェック3種をまとめて実行
   python research_bot.py ensemble <テーマ>    別モデルで判定を再確認
