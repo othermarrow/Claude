@@ -92,6 +92,15 @@ MODEL_PRESETS = {
     "8": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
 }
 
+# モデルが応答しなくなったときに代わりに使う順番(短い名前か 'ベンダー/モデル名')。
+# 判定の途中でモデルが「応答しない」と判定されたら、ここを上から順に見て、
+# まだ使えるモデルに切り替えて残りを続ける。並べ替えれば優先順位を変えられる。
+# 行を消せば候補から外れる。空の () にすると切り替えない(旧版と同じ動き)。
+#   ・再判定(ENSEMBLE)では、1本目の判定に使ったモデルは飛ばす
+#   ・ファセット抽出(PLANNING)は1回しか呼ばないので、失敗したらすぐ次へ移る
+#   ・どの文献をどのモデルで判定したかは、カタログと索引に記録される
+FALLBACK_ORDER = ("1", "2", "3", "4", "5", "7", "8")
+
 # ==========================================
 # 4. 通信
 # ==========================================
@@ -420,6 +429,22 @@ OPENALEX_API_KEY = os.environ.get("OPENALEX_API_KEY", "")
 NCBI_API_KEY = os.environ.get("NCBI_API_KEY", "")
 S2_API_KEY = os.environ.get("S2_API_KEY", "")
 CINII_APPID = os.environ.get("CINII_APPID", "")
+
+
+def fallback_models() -> list:
+    """FALLBACK_ORDER を正式なモデル名の並びにする(重複は除く)。"""
+    out = []
+    for name in FALLBACK_ORDER:
+        key = str(name).strip()
+        m = MODEL_PRESETS.get(key) or (key if "/" in key else "")
+        if not m:
+            raise SystemExit(
+                f"[エラー] config.py の FALLBACK_ORDER にある '{key}' が分かりません。\n"
+                "        短い名前: " + " / ".join(MODEL_PRESETS)
+                + " か、'ベンダー/モデル名' の形で書いてください。")
+        if m not in out:
+            out.append(m)
+    return out
 
 
 def resolve_model(name: str) -> str:

@@ -688,6 +688,15 @@ def _evidence_summary(entries) -> list:
     return lines
 
 
+def models_label(counts) -> str:
+    """{モデル: 件数} を表示用の1行にする。1つだけならモデル名だけ。"""
+    counts = {m: n for m, n in (counts or {}).items() if m}
+    if len(counts) <= 1:
+        return next(iter(counts), "")
+    return " / ".join(f"{m} {n}件" for m, n in
+                      sorted(counts.items(), key=lambda x: -x[1]))
+
+
 def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) -> dict:
     """カタログ・索引・URLリスト・レポートプロンプトを書き出す。
 
@@ -765,6 +774,7 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
             "fulltext_source": it.get("fulltext_source") or "",
             "pmcid": it.get("pmcid") or "",
             "measured": it.get("measured"),
+            "judge_model": it.get("judge_model") or "",
             "reason": (it.get("exclusion_reason") or "").strip(),
             "abstract": clean_abstract(it.get("content", "")),
         })
@@ -844,6 +854,14 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
                    and e.get("design") in ("総説・解説", "理論・概念",
                                            "ガイドライン・行政資料")]
     evidence_lines = _evidence_summary(entries)
+    # 判定の途中でモデルが応答しなくなり、代わりのモデルへ切り替えた回は
+    # 内訳を残す(config.FALLBACK_ORDER)。モデルによって判定の傾向は違う。
+    judge_models = {}
+    for e in entries:
+        if e["judge_model"]:
+            judge_models[e["judge_model"]] = judge_models.get(e["judge_model"], 0) + 1
+    meta["judge_models"] = judge_models
+    main_model = meta.get("filter_model") or ""
     # 系統的レビュー・メタ分析は自ら測定を行わないため、measured による
     # 機械判定では related に回る。中心的な根拠になりうるので拾い上げる。
     review_in_related = [e["ref_key"] for e in entries
@@ -879,6 +897,12 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
                   "レポートから引用することはできません。", ""]
     if meta.get("cluster_note"):
         lines += [f"**⚠️ 中心クラスタの基準について** {meta['cluster_note']}", ""]
+    if len(judge_models) > 1:
+        lines += [f"**⚠️ 判定モデルが途中で切り替わっている**: {models_label(judge_models)}。"
+                  f"{main_model or '本来のモデル'} が応答しなくなったため、代わりのモデルで"
+                  "判定を続けた。モデルによって関連度の付け方に傾向の違いがあるため、"
+                  "代わりのモデルで判定した抄録(各項目の「判定モデル」欄)は分類を"
+                  "自分でも確かめること。", ""]
     if retracted:
         lines += [f"**🛑 撤回・取り下げの疑い: {len(retracted)}件** "
                   "撤回された研究は分析の根拠に使わないこと(撤回されたという"
@@ -967,6 +991,8 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
                if e["fulltext_used"] else ""))
         if e["reason"]:
             lines.append(f"- **判定メモ**: {e['reason']}")
+        if e["judge_model"] and main_model and e["judge_model"] != main_model:
+            lines.append(f"- **判定モデル**: {e['judge_model']}(代わりのモデル)")
         if e["markers"]:
             lines.append("- **抄録に明記された質指標**: " + " / ".join(e["markers"]))
         lines.append(f"- **DOI**: {e['doi']}")
@@ -1021,6 +1047,7 @@ def _write_index(path, catalog_path, meta, entries):
             # アンサンブル判定と差分が使う。判定モデル・同名異義語・基準を
             # 残しておけば、後から同じ条件で再判定・比較できる。
             "filter_model": meta.get("filter_model", ""),
+            "judge_models": meta.get("judge_models") or {},
             "homonyms": meta.get("homonyms") or [],
             "core_score": meta.get("core_score"),
             "cluster_note": meta.get("cluster_note", ""),
@@ -1038,7 +1065,8 @@ def _write_index(path, catalog_path, meta, entries):
                                      "fulltext_source": e["fulltext_source"],
                                      "pmcid": e["pmcid"],
                                      "url": e["url"], "oa_url": e["oa_url"],
-                                     "cited_by": e["cited_by"]}
+                                     "cited_by": e["cited_by"],
+                                     "judge_model": e["judge_model"]}
                       for e in entries},
         }, f, ensure_ascii=False, indent=1)
 
@@ -1438,6 +1466,9 @@ def _write_prompt(path, catalog_file, meta, cluster_counts, dups,
         ).format(s=core_score, t=core_score - 1)
 
     extra = []
+    if len(meta.get("judge_models") or {}) > 1:
+        extra.append(f"判定モデル: {models_label(meta['judge_models'])}"
+                     "(途中で代わりのモデルへ切り替え。カタログ冒頭の注記を参照)")
     unknown_year = sum(1 for e in entries if str(e["ref_key"]).endswith("0000"))
     if unknown_year:
         extra.append(f"発行年不明(引用キー末尾0000): {unknown_year}件")

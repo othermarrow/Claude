@@ -17,7 +17,9 @@
   4. Ctrl-C で並列処理を即座に止める(run_parallel)
      ThreadPoolExecutor を with で使うと、Ctrl-C を押しても残り全バッチの
      完了を待ってしまい、中断処理(チェックポイント保存)に届かなかった。
-  5. 応答からJSONのレコード配列を取り出す(parse_json_array)
+  5. 応答しなくなったモデルを、config.FALLBACK_ORDER の順に代わりのモデルへ
+     切り替える(ask_fallback)
+  6. 応答からJSONのレコード配列を取り出す(parse_json_array)
 
 戻り値の約束: ask() は失敗時に例外を投げず、ERROR_PREFIX で始まる文字列を
 返す。呼び出し側は is_error() で見分ける。
@@ -60,6 +62,8 @@ _no_thinking_param = set()    # 思考制御パラメータを拒否した (モ�
 _no_stream = set()            # ストリーミングで何も返ってこなかったモデル(以後まとめて受け取る)
 _giveups = {}                 # モデル → 続けて諦めたバッチ数
 _dead = set()                 # 応答していないとみなしたモデル(以後は問い合わせない)
+_switched = set()             # 切り替えを知らせた (元のモデル, 代わりのモデル)
+_switch_lock = threading.Lock()
 
 
 def is_error(text: str) -> bool:
@@ -135,12 +139,15 @@ def _probe_one(model: str) -> str:
         return f"{type(e).__name__}: {str(e)[:200]}"
 
 
-def preflight(models) -> None:
+def preflight(models, fallbacks=None) -> None:
     """使う予定のモデルが実在するか確かめ、無ければ処理を始める前に止める。
 
     一覧(/v1/models)に載っていれば合格。載っていない場合は、一覧に
     出ないだけで呼べるモデルもありうるため、1トークンだけ試しに呼ぶ。
     それも 404 なら打ち間違いとみなして止める。
+
+    fallbacks(代わりのモデル。省略時は config.FALLBACK_ORDER)は止める理由に
+    しない。一覧に無いものは切り替え先から外すだけにする。
     """
     if not have_api_key():
         raise SystemExit(f"[エラー] {KEY_NAME} が設定されていません。\n"
@@ -167,6 +174,17 @@ def preflight(models) -> None:
             "指定してください。\n"
             "        使えるモデルの一覧: python research_bot.py models")
     tqdm.write("[モデル確認] OK — " + " / ".join(dict.fromkeys(x for x in models if x)))
+    fallbacks = config.fallback_models() if fallbacks is None else fallbacks
+    if available:
+        missing = [m for m in fallbacks if m not in available and m not in _verified_models]
+        for m in missing:
+            _dead.add(m)
+        if missing:
+            tqdm.write("[モデル確認] 一覧に無いため切り替え先から外しました: "
+                       + " / ".join(missing))
+    usable = [m for m in fallbacks if m not in _dead]
+    if usable:
+        tqdm.write("[モデル確認] 応答しなくなったときの切り替え先: " + " → ".join(usable))
 
 
 def probe(models, limit: int = 60) -> None:
@@ -281,8 +299,8 @@ def _record_giveup(model: str) -> None:
         _dead.add(model)
         tqdm.write(f"  [!] {model} が{n}バッチ続けて応答しなかったため、このモデルへの"
                    "残りの問い合わせを打ち切ります。NVIDIA 側で混雑しているか停止して"
-                   "いる可能性があります。時間をおいて再実行するか、"
-                   "python research_bot.py probe で応答するモデルを確かめてください。")
+                   "いる可能性があります(config.FALLBACK_ORDER に代わりのモデルが"
+                   "あれば、そちらで続けます)。")
 
 
 def is_dead(model: str) -> bool:
@@ -498,10 +516,13 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                 use_think = False
                 continue
 
-            # パラメータを外しても 404 → モデル名の誤り。待っても直らない。
+            # パラメータを外しても 404 → モデル名の誤りか提供終了。待っても直らない
+            # ので、以後は呼ばない(代わりのモデルがあればそちらへ切り替わる)。
             if status == 404 or "404" in msg:
                 tqdm.write(f"    [!] 404: モデル '{model}' が見つかりません。"
                            "モデル名を確認してください(python research_bot.py models)。")
+                if mark_dead:
+                    _dead.add(model)
                 return f"{ERROR_PREFIX}通信エラー】404 model not found: {model}"
 
             # コンテキスト長超過も待っても直らない
@@ -529,6 +550,54 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
             with _active_lock:
                 _active.pop(rid, None)
     return f"{ERROR_PREFIX}通信エラー】{last}"
+
+
+# ==========================================
+# 代わりのモデルへの切り替え
+# ==========================================
+def pick_model(model: str, avoid=()):
+    """今使うモデル。model が使えなければ FALLBACK_ORDER の順で次の候補。
+
+    応答しないと判定したモデルと avoid に入っているモデルは飛ばす。
+    候補が尽きたら None。
+    """
+    for m in [model] + config.fallback_models():
+        if m in _dead or m in avoid:
+            continue
+        if m != model:
+            with _switch_lock:
+                first = (model, m) not in _switched
+                _switched.add((model, m))
+            if first:
+                tqdm.write(f"  [切替] {model} が使えないため、以後は {m} で続けます"
+                           "(config.FALLBACK_ORDER の順)。")
+        return m
+    return None
+
+
+def ask_fallback(prompt: str, model: str, *, avoid=(), any_error: bool = False,
+                 **kw) -> tuple:
+    """ask() と同じだが、model が使えなくなったら代わりのモデルで送り直す。
+
+    戻り値は (本文, 実際に使ったモデル)。
+    any_error=False(既定): モデルが「応答しない」と判定されたときだけ切り替える。
+        数百回呼ぶ判定・抽出向け。1回の失敗で切り替えると、判定するモデルが
+        頻繁に入れ替わり、カタログの中で判定の基準が揺れる。
+    any_error=True: 失敗したら即座に次のモデルへ。1回しか呼ばないファセット
+        抽出向け。
+    """
+    skip = set(avoid)
+    while True:
+        use = pick_model(model, skip)
+        if use is None:
+            return f"{ERROR_PREFIX}通信エラー】応答するモデルが残っていません", model
+        raw = ask(prompt, use, **kw)
+        if not is_error(raw) or "中断" in raw:
+            return raw, use
+        if any_error:
+            skip.add(use)
+        elif use not in _dead:
+            return raw, use
 
 
 def ask_ai(prompt: str, model_id: str) -> str:

@@ -482,7 +482,9 @@ def cmd_search(args):
     else:
         # --- 1. ファセット抽出 ---
         print("[1/7] テーマを検索のファセットへ分解しています...")
-        facet_raw = llm.ask(searchplan.facet_prompt(topic), active_planning_model())
+        # 1回しか呼ばないので、失敗したらすぐ代わりのモデルへ移る
+        facet_raw, _used = llm.ask_fallback(searchplan.facet_prompt(topic),
+                                            active_planning_model(), any_error=True)
         if llm.is_error(facet_raw):
             print(f"[警告] ファセット抽出に失敗しました: {facet_raw}")
             print("       テーマ文をそのまま検索語として使う縮退動作になります。")
@@ -567,6 +569,13 @@ def cmd_search(args):
                                       plan.get("homonyms"), active_filter_model(),
                                       save=lambda: _save("judging"))
             kept, excluded = judge.split_by_threshold(collected)
+            used = {}
+            for it in collected:
+                if it.get("judge_model"):
+                    used[it["judge_model"]] = used.get(it["judge_model"], 0) + 1
+            if len(used) > 1:
+                print(f"   → 判定に使ったモデル: {catalog.models_label(used)}"
+                      "(途中で代わりのモデルへ切り替えました)")
             judge.prefilter_audit(collected, time.time() - t_judge, len(to_judge))
             if not kept:
                 print("\n【終了】判定の結果、論文が残りませんでした。")

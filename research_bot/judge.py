@@ -5,7 +5,10 @@
   3. annotate_features()  採用した抄録から研究設計・参加者・場面・質指標を抽出する
   4. run_ensemble()       生成済みカタログを別のモデルで再判定し、割れた抄録を報告する
 
-問い合わせはすべて llm.ask() を通す。設定値は config.py にある。
+問い合わせはすべて llm.py を通す。判定・抽出・再判定は、モデルが応答しなく
+なったら config.FALLBACK_ORDER の順に代わりのモデルへ切り替えて続ける。
+どの文献をどのモデルで判定したかは it["judge_model"] に残す。
+設定値は config.py にある。
 """
 
 import datetime
@@ -449,12 +452,13 @@ def _count_note(n: int) -> str:
             f"Your array must contain exactly {n} entries.")
 
 
-def judge_batch(batch, topic, definition, hom, model, max_tokens=None):
+def judge_batch(batch, topic, definition, hom, model, max_tokens=None, avoid=()):
     """1バッチを判定し、batch と同じ長さのリストを返す。
 
-    要素は判定結果の辞書、または判定できなかった場合の
-    {"error": 理由} 。items には書き込まない(書き込みは呼び出し側が
-    メインスレッドで行う)。
+    要素は判定結果の辞書(実際に判定したモデルを "model" に持つ)、または
+    判定できなかった場合の {"error": 理由} 。items には書き込まない
+    (書き込みは呼び出し側がメインスレッドで行う)。
+    model が応答しなくなっていれば、avoid 以外の代わりのモデルで判定する。
     """
     prompt = FILTER_PROMPT.format(topic=topic, definition=definition,
                                   homonym_note=hom, listing=_listing(batch))
@@ -463,7 +467,8 @@ def judge_batch(batch, topic, definition, hom, model, max_tokens=None):
     schema = dict(FILTER_SCHEMA, minItems=len(batch), maxItems=len(batch))
     raw = ""
     for attempt in range(config.JUDGE_BATCH_RETRIES + 1):
-        raw = llm.ask(prompt, model, schema=schema, max_tokens=max_tokens)
+        raw, used = llm.ask_fallback(prompt, model, avoid=avoid, schema=schema,
+                                     max_tokens=max_tokens)
         if llm.is_error(raw):
             # ask は内部で再試行を済ませている。ここで再送しても同じ失敗を
             # 重ねるだけなので打ち切る。
@@ -477,7 +482,7 @@ def judge_batch(batch, topic, definition, hom, model, max_tokens=None):
             if mode != "strict":
                 tqdm.write(f"  [i] 応答に余分な出力があったため先頭のJSONだけ"
                            f"使いました(mode={mode} / {len(m)}件)")
-            return [(_coerce(m[i]) if i in m
+            return [(dict(_coerce(m[i]), model=used) if i in m
                      else {"error": "判定失敗(応答に該当indexなし)"})
                     for i in range(len(batch))]
         if attempt < config.JUDGE_BATCH_RETRIES:
@@ -496,7 +501,8 @@ def apply_result(item: dict, res: dict) -> None:
                     exclusion_reason=(res or {}).get("error", "判定失敗"))
         return
     item.update(relevance_score=res["score"], cluster=res["cluster"],
-                measured=res["measured"], exclusion_reason=res["reason"])
+                measured=res["measured"], exclusion_reason=res["reason"],
+                judge_model=res.get("model", ""))
 
 
 def split_by_threshold(items) -> tuple:
@@ -799,7 +805,7 @@ def extract_records(papers, topic, definition, model, retries=2) -> dict:
                                    listing=listing)
     m = {}
     for attempt in range(retries + 1):
-        raw = llm.ask(prompt, model, schema=EXTRACT_SCHEMA)
+        raw, _used = llm.ask_fallback(prompt, model, schema=EXTRACT_SCHEMA)
         if llm.is_error(raw):
             if "中断" not in raw:
                 tqdm.write(f"  [!] 抽出の問い合わせが失敗: {raw[:160]}")
@@ -925,6 +931,7 @@ def _ensemble_entries(theme: dict) -> tuple:
             "score_a": rec.get("score") if isinstance(rec.get("score"), int) else None,
             "cluster_a": (rec.get("cluster") or UNJUDGED).strip(),
             "reason_a": rec.get("reason") or "",
+            "model_a": rec.get("judge_model") or "",
         })
     return idx, entries
 
@@ -940,7 +947,13 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
     definition = idx.get("theme_definition") or f"{topic} に関する研究"
     homonyms = idx.get("homonyms") or []
     model = model or config.ENSEMBLE_MODEL
-    model_a = idx.get("filter_model") or "(記録なし)"
+    # 1本目の判定に使ったモデル(途中で切り替わっていれば複数)。2本目が
+    # 代わりのモデルへ切り替わるときも、これらは使わない。
+    first_pass = Counter(e["model_a"] for e in entries if e["model_a"])
+    if not first_pass and idx.get("filter_model"):
+        first_pass[idx["filter_model"]] = len(entries)
+    model_a = catalog.models_label(first_pass) or "(記録なし)"
+    avoid = set(first_pass) - {model}
 
     print(f"[アンサンブル] テーマ: {theme['name']}")
     print(f"[アンサンブル] 対象 {len(entries)}件 / 1本目: {model_a} / 2本目: {model}")
@@ -948,7 +961,7 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
     if no_abs:
         print(f"[警告] カタログ本文から抄録を読めなかった項目: {no_abs}件"
               "(タイトルだけで判定されます)")
-    if model == model_a:
+    if model in first_pass:
         print("[警告] 1本目と同じモデルです。再判定の意味が薄れます。"
               "--model で別系統のモデルを指定してください。")
     if dry_run:
@@ -971,13 +984,14 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
 
     def work(batch):
         return judge_batch(batch, topic, definition, hom, model,
-                           max_tokens=config.ENSEMBLE_MAX_TOKENS)
+                           max_tokens=config.ENSEMBLE_MAX_TOKENS, avoid=avoid)
 
     def on_result(batch, results):
         for e, r in zip(batch, results or []):
             if r and "error" not in r:
                 e.update(score_b=r["score"], cluster_b=r["cluster"],
-                         reason_b=r["reason"], measured_b=r["measured"])
+                         reason_b=r["reason"], measured_b=r["measured"],
+                         model_b=r.get("model") or model)
 
     llm.run_parallel(work, batches, "再判定中", on_result=on_result)
 
@@ -1011,6 +1025,8 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                                     and e["gap"] >= config.ENSEMBLE_SCORE_GAP):
             other.append(e)
 
+    model_b = catalog.models_label(Counter(e["model_b"] for e in entries
+                                           if e.get("model_b")))
     agree = sum(1 for a, b in pairs if a == b)
     kappa = cohen_kappa(pairs)
     gaps = [e["gap"] for e in entries if e.get("gap") is not None]
@@ -1020,7 +1036,7 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("---\n")
         f.write(f"catalog_source: \"{os.path.basename(theme['catalog'] or '')}\"\n")
-        f.write(f"model_a: \"{model_a}\"\nmodel_b: \"{model}\"\n")
+        f.write(f"model_a: \"{model_a}\"\nmodel_b: \"{model_b}\"\n")
         f.write(f"checked_at: {datetime.datetime.now().isoformat(timespec='seconds')}\n")
         f.write(f"kappa: {round(kappa, 3) if kappa is not None else 'null'}\n")
         f.write("---\n\n")
@@ -1034,6 +1050,7 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
             f.write(line + "\n")
         if mean_gap is not None:
             f.write(f"- 関連度スコアの差: 平均 {mean_gap:.1f}点\n")
+        f.write(f"- 判定モデル: 1本目 {model_a} / 2本目 {model_b}\n")
         f.write(f"- 判定基準: 両モデルとも同じプロンプト(関連度{config.CORE_SCORE}以上"
                 "かつ実測あり→core、関連度"
                 f"{config.RELEVANCE_THRESHOLD}未満→除外相当)\n\n")
