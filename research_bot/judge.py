@@ -476,6 +476,36 @@ def _count_note(n: int) -> str:
             f"Your array must contain exactly {n} entries.")
 
 
+_extra_shown = set()          # JSON 以外の出力を知らせたモデル
+
+
+def _note_extra(raw: str, model: str) -> None:
+    """JSON の前後に余分な出力が付いた応答を、モデルごとに1回だけ知らせる。
+
+    実測: 判定の応答の全バッチで JSON の前後に何かが付き、毎回
+    「余分な出力があった」と表示されて、他の表示が読めなくなった。読み取り
+    には影響しない(先頭の JSON だけを使う)ので、何が付いているかの例を
+    1回見せて、以後は表示しない。
+    """
+    if model in _extra_shown:
+        return
+    _extra_shown.add(model)
+    s = (raw or "").strip()
+    lead, tail = "", ""
+    i = s.find("[")
+    if i >= 0:
+        try:
+            _, end = json.JSONDecoder().raw_decode(s, i)
+            lead, tail = s[:i].strip(), s[end:].strip()
+        except ValueError:
+            pass
+    parts = ([f"前 {lead[:60]!r}"] if lead else []) + \
+            ([f"後ろ {tail[:80]!r}"] if tail else [])
+    tqdm.write(f"  [i] {model} の応答に JSON 以外の出力が付いています。先頭の JSON "
+               "だけを使うので判定には影響しません(以後この表示は省略)。"
+               + (f"\n      例: {' / '.join(parts)}" if parts else ""))
+
+
 def _drop_copied(m: dict) -> set:
     """例の枠("〇〇")が残った判定を m から取り除き、その index を返す。
 
@@ -526,9 +556,11 @@ def judge_batch(batch, topic, definition, hom, model, max_tokens=None, avoid=(),
         copied = _drop_copied(m)
         if m and (len(m) + len(copied) >= len(batch)
                   or attempt >= config.JUDGE_BATCH_RETRIES):
-            if mode != "strict":
-                tqdm.write(f"  [i] 応答に余分な出力があったため先頭のJSONだけ"
-                           f"使いました(mode={mode} / {len(m)}件)")
+            if mode == "prefix":
+                _note_extra(raw, used)
+            elif mode != "strict":
+                tqdm.write(f"  [i] 応答の形が崩れていたため、読める{len(m)}件を"
+                           f"拾いました(mode={mode})")
             if copied:
                 tqdm.write(f"  [!] {used} が{len(copied)}件で例文を写したため、"
                            "その分は未判定として後で判定し直します。")
