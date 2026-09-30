@@ -1,4 +1,4 @@
-"""心理学領域の文献収集からレポート用カタログ生成まで(NVIDIA直接API版)。
+"""心理学領域の文献収集からレポート用カタログ生成まで。
 
   python research_bot.py                     query.js のテーマで収集
   python research_bot.py "テーマを文章で"     テーマを直接指定して収集
@@ -10,24 +10,35 @@
   python research_bot.py fulltext <テーマ>    core 文献の全文アクセス可否
   python research_bot.py diff <テーマ>        前回のカタログとの差分
   python research_bot.py relink <レポート>    生成済みレポートの引用キーを検証
+  python research_bot.py unwikilink <パス>   フロントマターの[[リンク]]を文字列に
   python research_bot.py themes              テーマ一覧と各チェックの有無
   python research_bot.py models              使えるモデルの一覧(名前の確認)
+  python research_bot.py probe               モデルが今応答するかを確かめる
+  python research_bot.py bench               1段目(prefilter)の候補モデルを比べる
 
 <テーマ> はフォルダ名・フォルダのパス・カタログのパスのどれでもよい。
 
 テーマはキーワードの羅列ではなく文章で書いてよい。文章から検索のファセットを
 取り出し、同義語を展開し、データベース別の検索式を組み立てる。
 
-設定(保存先・モデル・閾値)は config.py にまとめてある。
+【ファイルの役割】
+  config.py        設定(保存先・モデル・閾値・同義語辞書など)。値はここだけで変える
+  research_bot.py  入口(このファイル)。収集の流れと各コマンド
+  searchplan.py    テーマ文 → ファセット → データベース別の検索式
+  sources.py       各データベースの検索・引用連鎖・撤回確認・OAの所在
+  judge.py         抄録をLLMに読ませる処理(1段目の粗選別・関連度判定・設計の抽出・再判定)
+  fulltext.py      本文(Methods章)での確認と、全文アクセス可否の一覧
+  catalog.py       カタログ・索引・レポート生成プロンプトの書き出し、差分、relink
+  llm.py           LLMへの問い合わせ(再試行・送信間隔・応答のJSON読み取り)
 
 【処理の流れ】
   1 ファセット抽出 → MeSH照合 → 検索式
   2 各DBを検索(精度重視→感度重視の2〜3段)
   3 引用連鎖
-  4 関連度判定 → 未判定の再判定 → 中心クラスタの調整
+  4 1段目の粗選別 → 関連度判定 → 未判定の再判定 → 中心クラスタの調整
   5 研究設計・参加者・場面の抽出
   6 撤回の確認・OA全文の所在 → 本文(Methods章)で設計を確かめ直す
-  7 カタログ出力
+  7 カタログ出力(レポート生成プロンプトも)
   8 check(アンサンブル判定・全文アクセス可否・前回との差分)
 
 【中断復帰】
@@ -47,21 +58,21 @@ import re
 import subprocess
 import sys
 
+import time
+
 from tqdm import tqdm
 
 import catalog
-import catalog_diff
 import config
-import ensemble_check
-import extract
 import fulltext
 import judge
 import llm
 import searchplan
 import sources
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+
 collected = []
-seen_keys = set()
 _by_key = {}          # 重複判定のキー → collected の要素
 
 # 抄録が短くて捨てた件の集計。DB名 → 内訳。
@@ -146,7 +157,6 @@ def load_checkpoint(output_dir, topic):
 def restore_checkpoint(state) -> int:
     """チェックポイントの内容を収集リストへ戻す。戻り値は件数。"""
     collected.clear()
-    seen_keys.clear()
     _by_key.clear()
     for it in state.get("items") or []:
         collected.append(it)
@@ -192,25 +202,13 @@ def release_wake_lock():
 # ==========================================
 # 収集
 # ==========================================
-_CJK_RE = re.compile(r"[぀-ヿ一-鿿]")
-
-
-def _is_cjk(text: str) -> bool:
-    """日本語(中国語を含む)の文章かどうかを、文字数と比率の両方で大まかに見る。"""
-    if not text:
-        return False
-    n = len(_CJK_RE.findall(text))
-    return n >= 20 and n / len(text) >= 0.2
-
-
 def _record_short(src, title, text):
     """抄録が短くて捨てた件を記録する。同一タイトルは二重に数えない。"""
-    nt = re.sub(r"[^a-z0-9ぁ-んァ-ン一-龥]", "",
-                catalog.clean_abstract(str(title or "")).lower())
-    if nt:
-        if nt in short_seen:
+    tk = catalog.title_key(str(title or ""))
+    if tk:
+        if tk in short_seen:
             return
-        short_seen.add(nt)
+        short_seen.add(tk)
     s = short_stats.setdefault(src, {"empty": 0, "short": 0, "would_keep": 0,
                                      "lengths": [], "samples": []})
     if not text:
@@ -218,7 +216,7 @@ def _record_short(src, title, text):
         return
     s["short"] += 1
     s["lengths"].append(len(text))
-    ref = (config.SHORT_REFERENCE_LENGTH_JA if _is_cjk(text)
+    ref = (config.SHORT_REFERENCE_LENGTH_JA if catalog.is_cjk(text)
            else config.SHORT_REFERENCE_LENGTH)
     if len(text) >= ref:
         s["would_keep"] += 1
@@ -253,32 +251,30 @@ def report_short_abstracts() -> list:
     if would:
         note = (f"参照閾値(EN {config.SHORT_REFERENCE_LENGTH}字 / "
                 f"JA {config.SHORT_REFERENCE_LENGTH_JA}字)まで下げると計 {would}件が"
-                "加わる。環境変数 MIN_ABSTRACT_LENGTH / MIN_ABSTRACT_LENGTH_JA で"
-                "変更できる。")
+                "加わる。config.py の MIN_ABSTRACT_LENGTH / MIN_ABSTRACT_LENGTH_JA"
+                "(または同名の環境変数)で変更できる。")
         print(f"[収集] {note}")
         lines.append(note)
     return lines
 
 
 def _dedupe_keys(title, doi) -> tuple:
-    """重複排除に使う (正規化DOI, タイトルハッシュ) を返す。
+    """重複排除に使う (正規化DOI, タイトルの指紋) を返す。
 
     add_item とチェックポイントからの復元で同じ規則を使う必要があるため
     切り出してある。ずれると、再開後に同じ論文を二重に集めてしまう。
+    タイトルの指紋はカタログの引用キーレジストリと同じもの(catalog.title_key)。
     """
     doi_norm = ""
     if doi:
         doi_norm = re.sub(r"^https?://(dx\.)?doi\.org/", "", str(doi).strip().lower())
         doi_norm = re.sub(r"^doi:\s*", "", doi_norm).strip("/ ")
-    nt = re.sub(r"[^a-zA-Z0-9ぁ-んァ-ン一-龥]", "", str(title or "").lower())
-    title_key = f"t:{hashlib.md5(nt.encode()).hexdigest()}" if nt else None
-    return doi_norm, title_key
+    return doi_norm, catalog.title_key(str(title or "")) or None
 
 
 def _register(item, doi_norm, title_key):
     for k in (f"d:{doi_norm}" if doi_norm else None, title_key):
         if k:
-            seen_keys.add(k)
             _by_key.setdefault(k, item)
 
 
@@ -302,7 +298,8 @@ def add_item(src, title, year, content, url=None, doi=None, authors=None,
              peer_reviewed=None) -> bool:
     """収集リストに1件加える。重複していれば既存の記録を補ってFalseを返す。"""
     text = catalog.clean_abstract(content)
-    limit = config.MIN_ABSTRACT_LENGTH_JA if _is_cjk(text) else config.MIN_ABSTRACT_LENGTH
+    limit = (config.MIN_ABSTRACT_LENGTH_JA if catalog.is_cjk(text)
+             else config.MIN_ABSTRACT_LENGTH)
     if len(text) < limit:
         _record_short(src, title, text)
         return False
@@ -383,10 +380,10 @@ def run_checks(theme_arg: str, ensemble_model: str = "", skip=()) -> None:
     """
     steps = [
         ("ensemble", "アンサンブル判定",
-         lambda: ensemble_check.run(theme_arg, ensemble_model)),
+         lambda: judge.run_ensemble(theme_arg, ensemble_model)),
         ("fulltext", "全文アクセス可否",
          lambda: fulltext.check_access(theme_arg)),
-        ("diff", "前回との差分", lambda: catalog_diff.run(theme_arg)),
+        ("diff", "前回との差分", lambda: catalog.run_diff(theme_arg)),
     ]
     for key, label, fn in steps:
         if key in skip:
@@ -430,10 +427,15 @@ def cmd_search(args):
     print(f"[設定] CORE_SCORE={config.CORE_SCORE} / "
           f"RELEVANCE_THRESHOLD={config.RELEVANCE_THRESHOLD} / "
           f"MIN_ABSTRACT_LENGTH={config.MIN_ABSTRACT_LENGTH}(EN)/"
-          f"{config.MIN_ABSTRACT_LENGTH_JA}(JA)\n")
+          f"{config.MIN_ABSTRACT_LENGTH_JA}(JA)")
+    use_prefilter = config.PREFILTER_MODE != "off"
+    print(f"[設定] PREFILTER_MODE={config.PREFILTER_MODE}"
+          + (f" / PREFILTER={config.backend_model('prefilter')}" if use_prefilter else "")
+          + "\n")
 
     # 数時間の処理を始める前に、モデル名の誤りをここで止める
     llm.preflight([active_planning_model(), active_filter_model()]
+                  + ([config.backend_model("prefilter")] if use_prefilter else [])
                   + ([ensemble_model] if do_check else []))
 
     acquire_wake_lock()
@@ -482,8 +484,7 @@ def cmd_search(args):
     else:
         # --- 1. ファセット抽出 ---
         print("[1/7] テーマを検索のファセットへ分解しています...")
-        facet_raw = llm.ask(searchplan.FACET_PROMPT.format(topic=topic),
-                            active_planning_model())
+        facet_raw = llm.ask(searchplan.facet_prompt(topic), active_planning_model())
         if llm.is_error(facet_raw):
             print(f"[警告] ファセット抽出に失敗しました: {facet_raw}")
             print("       テーマ文をそのまま検索語として使う縮退動作になります。")
@@ -557,11 +558,9 @@ def cmd_search(args):
             kept, excluded = judge.split_by_threshold(collected)
         else:
             print("\n[4/7] 関連度とクラスタを判定しています...")
-            import time as _pf_time, config as _pf_config, prefilter as _pf
-            to_judge = _pf.annotate(
-                collected, f"{topic}\n{plan['definition']}", tag=topic,
-                off_cluster=judge.classify(0, False))
-            _t2 = _pf_time.time()
+            to_judge = judge.prefilter(collected, f"{topic}\n{plan['definition']}",
+                                       tag=topic)
+            t_judge = time.time()
             judge.judge_relevance(
                 to_judge, topic, plan["definition"], plan.get("homonyms"),
                 active_filter_model(), save=lambda: _save("judging"))
@@ -570,8 +569,7 @@ def cmd_search(args):
                                       plan.get("homonyms"), active_filter_model(),
                                       save=lambda: _save("judging"))
             kept, excluded = judge.split_by_threshold(collected)
-            _pf.audit(collected, _pf_config.RELEVANCE_THRESHOLD,
-                      _pf_time.time() - _t2, len(to_judge))
+            judge.prefilter_audit(collected, time.time() - t_judge, len(to_judge))
             if not kept:
                 print("\n【終了】判定の結果、論文が残りませんでした。")
                 return
@@ -585,9 +583,9 @@ def cmd_search(args):
             print("\n[5/7] 研究設計の抽出はチェックポイントから復元しました。")
         else:
             print("\n[5/7] 研究設計・参加者・場面を抽出しています...")
-            extract.annotate_features(kept, topic, plan["definition"],
-                                      active_filter_model(),
-                                      checkpoint=lambda: _save("judged"))
+            judge.annotate_features(kept, topic, plan["definition"],
+                                    active_filter_model(),
+                                    checkpoint=lambda: _save("judged"))
             _save("extracted")
         current = "extracted"
 
@@ -647,8 +645,13 @@ def cmd_search(args):
     print(f"■ 検索の記録:                     {os.path.basename(paths['searchlog'])}")
     print(f"■ 引用キー索引:                   {os.path.basename(paths['index'])}")
     print(f"■ 除外ログ:                       {os.path.basename(paths['excluded'])}")
-    print(f"\n次の手順: python generate_report.py \"{paths['_folder']}\"")
-    print(f"  レポートは {config.REPORT_DIR} に保存される。生成後は")
+    print("\n次の手順:")
+    if os.path.exists(os.path.join(HERE, "generate_report.py")):
+        print(f"  python generate_report.py \"{paths['_folder']}\"")
+    else:
+        print(f"  {os.path.basename(stats['prompt_path'])} の手順どおり、カタログと"
+              "プロンプトを Claude か Gemini に貼ってレポートを書かせる。")
+    print(f"  レポートを {config.REPORT_DIR} に保存したら、")
     print("  python research_bot.py relink <レポート> で引用キーを検証する。")
 
     if do_check:
@@ -715,7 +718,7 @@ def cmd_check(args):
 def cmd_ensemble(args):
     t = _theme_or_exit(args.theme)
     try:
-        ensemble_check.run(t["dir"], config.resolve_model(args.model), args.dry_run)
+        judge.run_ensemble(t["dir"], config.resolve_model(args.model), args.dry_run)
     except KeyboardInterrupt:
         print("\n[中断] 再判定を中止しました。")
 
@@ -730,7 +733,14 @@ def cmd_fulltext(args):
 
 def cmd_diff(args):
     t = _theme_or_exit(args.theme)
-    catalog_diff.run(t["dir"], args.save_only)
+    catalog.run_diff(t["dir"], args.save_only)
+
+
+def cmd_unwikilink(args):
+    if not os.path.exists(args.path):
+        print(f"[エラー] 見つかりません: {args.path}")
+        sys.exit(1)
+    catalog.unwikilink(args.path, args.apply)
 
 
 def cmd_themes(args):
@@ -752,7 +762,7 @@ def cmd_themes(args):
                 cnt = len(items)
                 core = sum(1 for v in items.values() if v.get("cluster") == "core")
                 date = (d.get("generated_at") or "-")[:10]
-                snap = os.path.exists(catalog_diff.snapshot_path_for(t["name"], d))
+                snap = catalog.has_snapshot(t["name"], d)
             except (OSError, ValueError):
                 pass
         mark = lambda p: "✓" if os.path.exists(os.path.join(t["dir"], p)) else "-"
@@ -764,73 +774,36 @@ def cmd_themes(args):
     print("\n  E=アンサンブル判定 F=全文アクセス D=差分(記=記録のみ)")
 
 
-def cmd_probe(args):
-    """モデルが今応答するかを、短い問い合わせで確かめる。
-
-    無料枠のモデルは時間帯によって全く応答しないことがある。長い処理を
-    始める前に、1分ほどで確かめられるようにする。
-    """
-    import time
+def _require_key():
     if not llm.have_api_key():
         print(f"[エラー] {llm.key_name()} が設定されていません。")
         sys.exit(1)
+
+
+def cmd_probe(args):
+    _require_key()
     models = [config.resolve_model(m) for m in (args.model or [])] or \
         list(dict.fromkeys([config.backend_model("filter"),
                             config.backend_model("ensemble")]))
-    client = llm.get_client()
-    limit = args.timeout
-    print(f"短い問い合わせで応答を確かめます(1回あたり最大{limit}秒)\n")
-    for m in models:
-        body = llm._thinking_off_body(m)
-        msgs = [{"role": "user", "content": "Reply with the single word OK."}]
-        row = [m]
-        # まとめて受け取る方式
-        t0 = time.monotonic()
-        try:
-            r = llm._with_deadline(lambda: client.chat.completions.create(
-                model=m, messages=msgs, max_tokens=64, temperature=0,
-                stream=False, timeout=float(limit), extra_body=body), limit)
-            txt = ((r.choices[0].message.content or "").strip()
-                   if r.choices else "")
-            row.append(f"まとめて: {time.monotonic() - t0:.1f}秒 "
-                       f"({txt[:12]!r})")
-        except Exception as e:
-            row.append(f"まとめて: 失敗 {time.monotonic() - t0:.0f}秒 "
-                       f"({type(e).__name__}: {str(e)[:60]})")
-        # ストリーミング
-        t0, first = time.monotonic(), None
-        try:
-            def run_stream():
-                nonlocal first
-                s = client.chat.completions.create(
-                    model=m, messages=msgs, max_tokens=64, temperature=0,
-                    stream=True, timeout=float(limit), extra_body=body)
-                for ch in s:
-                    if first is None:
-                        first = time.monotonic() - t0
-                return True
-            llm._with_deadline(run_stream, limit)
-            row.append(f"ストリーミング: 最初の応答 {first or 0:.1f}秒 / "
-                       f"完了 {time.monotonic() - t0:.1f}秒")
-        except Exception as e:
-            row.append(f"ストリーミング: 失敗 {time.monotonic() - t0:.0f}秒 "
-                       f"({type(e).__name__})")
-        print(f"■ {row[0]}\n    {row[1]}\n    {row[2]}")
-    print("\n両方失敗するモデルは、今は使えません。時間をおくか別のモデルを"
-          "選んでください(一覧: python research_bot.py models)。")
+    llm.probe(models, args.timeout)
+
+
+def cmd_bench(args):
+    _require_key()
+    models = ([config.resolve_model(m) for m in (args.model or [])]
+              or list(config.PREFILTER_BENCH_MODELS))
+    judge.bench_prefilter(models, args.timeout)
 
 
 def cmd_models(args):
-    if not llm.have_api_key():
-        print(f"[エラー] {llm.key_name()} が設定されていません。")
-        sys.exit(1)
+    _require_key()
     avail = llm.list_models()
     if avail is None:
         print("[エラー] モデル一覧を取得できませんでした。")
         sys.exit(1)
     print(f"[{config.API_BACKEND}] 利用できるモデル: {len(avail)}件\n")
     print("■ config.py の設定")
-    for role in ("planning", "filter", "ensemble"):
+    for role in ("planning", "filter", "ensemble", "prefilter"):
         m = config.backend_model(role)
         print(f"  {'✓' if m in avail else '✗ 見つからない'}  {role:9} {m}")
     print("\n■ --model の短い名前")
@@ -850,7 +823,7 @@ def cmd_models(args):
 # エントリポイント
 # ==========================================
 SUBCOMMANDS = ("search", "relink", "check", "ensemble", "fulltext", "diff",
-               "themes", "models", "probe")
+               "unwikilink", "themes", "models", "probe", "bench")
 
 
 def main():
@@ -877,9 +850,11 @@ def main():
     ps.add_argument("--model", default="", metavar="名前",
                     help="判定モデルを差し替える(短い名前: "
                          + " / ".join(config.MODEL_PRESETS)
-                         + f"、または 'ベンダー/モデル名')。既定は {config.FILTER_MODEL}")
+                         + "、または 'ベンダー/モデル名')。既定は "
+                         + config.backend_model("filter"))
     ps.add_argument("--ensemble-model", default="", metavar="名前",
-                    help=f"事後チェックの再判定モデル。既定は {config.ENSEMBLE_MODEL}")
+                    help="事後チェックの再判定モデル。既定は "
+                         + config.backend_model("ensemble"))
     ps.add_argument("--no-check", action="store_true",
                     help="完了後の事後チェック(アンサンブル・全文・差分)を行わない")
     ps.set_defaults(func=cmd_search)
@@ -887,7 +862,8 @@ def main():
     pr = sub.add_parser("relink", help="生成済みレポートの引用キーを検証する")
     pr.add_argument("reports", nargs="+")
     pr.add_argument("--catalog-dir", default=config.CATALOG_ROOT)
-    pr.add_argument("--min-rate", type=float, default=0.5)
+    pr.add_argument("--min-rate", type=float, default=config.RELINK_MIN_RATE,
+                    help="生成元を宣言していないレポートの推定に使う照合率の足切り")
     pr.add_argument("--apply", action="store_true")
     pr.set_defaults(func=cmd_relink)
 
@@ -912,8 +888,16 @@ def main():
 
     pd = sub.add_parser("diff", help="前回のカタログとの差分")
     pd.add_argument("theme")
-    pd.add_argument("--save-only", action="store_true")
+    pd.add_argument("--save-only", action="store_true",
+                    help="比較せず記録(スナップショット)だけ更新する")
     pd.set_defaults(func=cmd_diff)
+
+    pw = sub.add_parser("unwikilink",
+                        help="フロントマターの[[ウィキリンク]]を文字列にする")
+    pw.add_argument("path", help=".md ファイル、またはフォルダ(下位も含む)")
+    pw.add_argument("--apply", action="store_true",
+                    help="実際に書き換える(元の内容は .bak に残す)")
+    pw.set_defaults(func=cmd_unwikilink)
 
     pt = sub.add_parser("themes", help="テーマ一覧")
     pt.add_argument("--output-dir", default=config.CATALOG_ROOT)
@@ -929,6 +913,12 @@ def main():
                     help="確かめるモデル(複数回指定可)。省略時は判定用と再判定用")
     pp.add_argument("--timeout", type=int, default=60, help="1回あたりの上限秒数")
     pp.set_defaults(func=cmd_probe)
+
+    pb = sub.add_parser("bench", help="1段目(prefilter)の候補モデルを同じ問題で比べる")
+    pb.add_argument("--model", action="append", metavar="名前",
+                    help="比べるモデル(複数回指定可)。省略時は config の PREFILTER_BENCH_MODELS")
+    pb.add_argument("--timeout", type=float, default=300, help="1回あたりの上限秒数")
+    pb.set_defaults(func=cmd_bench)
 
     argv = sys.argv[1:]
     # サブコマンド名が無ければ search として扱う(テーマ文の直接指定に対応)

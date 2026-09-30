@@ -1,22 +1,300 @@
-"""関連度とクラスタの判定。
+"""抄録をLLMに読ませる処理(旧 prefilter.py・judge.py・extract.py・ensemble_check.py)。
 
-research_bot.py(本判定)と ensemble_check.py(別モデルでの再判定)の
-両方がここを使う。以前の ensemble_check.py は独自のプロンプトで
-core/related/off を直接選ばせていたが、それは本判定側で「core が9割に
-膨らんだ」ためにやめた方式だった。プロンプトが違うと、不一致の多くが
-モデルの差ではなくプロンプトの差から生じ、再判定の意味が薄れる。
-同じプロンプト・同じ分類規則で判定させ、違いをモデルだけにする。
+  1. prefilter()          1段目。軽い問い合わせで「明らかに無関係」だけを弾く
+  2. judge_relevance()    2段目。関連度(0-100)と実測の有無を判定し、クラスタを決める
+  3. annotate_features()  採用した抄録から研究設計・参加者・場面・質指標を抽出する
+  4. run_ensemble()       生成済みカタログを別のモデルで再判定し、割れた抄録を報告する
 
-判定結果の形(1件ぶん):
-  {"score": 0-100, "measured": True/False/None, "reason": str, "cluster": str}
-cluster は score と measured から classify() で機械的に決める。
+問い合わせはすべて llm.ask() を通す。設定値は config.py にある。
 """
 
-import config
-import jsonparse
-import llm
+import datetime
+import json
+import os
+import re
+import time
+from collections import Counter
+
 from tqdm import tqdm
 
+import catalog
+import config
+import llm
+
+UNJUDGED = "未判定"
+
+
+# ==========================================================================
+# 1. 1段目: 粗選別(prefilter)
+# ==========================================================================
+# 目的は「明らかに無関係な文献だけ」を取り除いて2段目の件数を減らすこと。
+# 取りこぼしのほうが重大なので、失敗したバッチは全件通過させる。
+# PREFILTER_MODE = "dryrun" では除外せず、2段目のあとで「on にしていたら
+# 何を取りこぼしたか」を監査する。on にしてよいかはテーマごとにこれで確かめる。
+PREFILTER_SYSTEM_PROMPT = """あなたは系統的文献検索の一次スクリーニング担当です。
+目的は「明らかに無関係な文献だけ」を取り除くことで、精密な判定は後段の別モデルが担います。
+取りこぼし(関連文献を誤ってoffにすること)は、無関係文献が残ることよりはるかに重大な失敗です。
+
+各文献に次のいずれかを付けてください。
+- "off": 研究分野そのものが違う、または対象者・支援方法・測定している行動のどれもテーマと重ならない
+- "maybe": 関連が弱い、部分的、または判断がつかない
+- "in": 明らかに関連する
+
+絶対ルール:
+- 少しでも迷ったら必ず"maybe"にする。"off"は確信がある場合だけ。
+- 抄録が短い・欠けている文献は"off"にしない。
+- 対象者の年齢・診断名・障害種別の違いだけでは"off"にしない(例: 成人と子ども、知的障害と自閉スペクトラム症・ダウン症・発達障害全般)。
+- 支援方法の別名・下位形態・提示手段の違い(紙とタブレット等)、場面(学校・家庭・施設・地域)の違い、支援者(保護者・教員・職員)を介した介入は"off"の理由にしない。
+- 全ての文献に1つずつ判定を付ける。
+- 出力はJSONのみ。説明文・前置き・コードブロック記法は書かない。
+形式: {"r":[{"i":1,"v":"off"},{"i":2,"v":"maybe"}]}"""
+
+# JSONとして壊れていても i と v の組だけ拾えれば使えるので、正規表現で読む
+_PAIR_RE = re.compile(r'"i"\s*:\s*(\d+)\s*,\s*"v"\s*:\s*"(off|maybe|in)"')
+_PAIR_RE_REV = re.compile(r'"v"\s*:\s*"(off|maybe|in)"\s*,\s*"i"\s*:\s*(\d+)')
+_ABSTRACT_KEYS = ("content", "abstract", "abs", "summary")
+
+_prefilter_seconds = 0.0
+
+
+def _text(it: dict, *keys) -> str:
+    for k in keys:
+        v = it.get(k)
+        if v:
+            return str(v)
+    return ""
+
+
+def _prefilter_prompt(theme: str, papers) -> str:
+    """papers は (タイトル, 抄録) の並び。"""
+    parts = [f"【テーマ】\n{theme}\n\n【文献】"]
+    for n, (title, abstract) in enumerate(papers, 1):
+        ab = (abstract or "")[:config.PREFILTER_EXCERPT_CHARS]
+        parts.append(f"[{n}] {title}\n{ab or '(抄録なし)'}")
+    return "\n\n".join(parts)
+
+
+def _parse_verdicts(text: str) -> dict:
+    out = {int(i): v for i, v in _PAIR_RE.findall(text or "")}
+    for v, i in _PAIR_RE_REV.findall(text or ""):
+        out.setdefault(int(i), v)
+    return out
+
+
+def _prefilter_batch(batch, theme: str, model: str) -> list:
+    """1バッチを粗選別し、batch と同じ長さの判定(in/maybe/off/unjudged)を返す。"""
+    prompt = _prefilter_prompt(
+        theme, [(_text(it, "title"), _text(it, *_ABSTRACT_KEYS)) for it in batch])
+    raw = llm.ask(prompt, model, system=PREFILTER_SYSTEM_PROMPT, temperature=0,
+                  max_tokens=config.PREFILTER_MAX_TOKENS, disable_thinking=False,
+                  reasoning_effort=config.PREFILTER_EFFORT or None,
+                  timeout=config.PREFILTER_TIMEOUT, mark_dead=False)
+    if llm.is_error(raw):
+        if "中断" not in raw:
+            tqdm.write(f"  [prefilter] 失敗 → この束の{len(batch)}件は全件通過扱い: "
+                       f"{raw[:160]}")
+        return ["unjudged"] * len(batch)
+    got = _parse_verdicts(raw)
+    return [got.get(n, "unjudged") for n in range(1, len(batch) + 1)]
+
+
+def _write_prefilter_log(off, counts, tag, theme, model, guard) -> str:
+    os.makedirs(config.PREFILTER_LOG_DIR, exist_ok=True)
+    safe = re.sub(r'[\\/:*?"<>|\s]+', "_", tag)[:60]
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
+    md = os.path.join(config.PREFILTER_LOG_DIR, f"_prefilter__{safe}__{stamp}.md")
+    lines = [f"# prefilter: {tag}", "",
+             f"- model: {model} / mode: {config.PREFILTER_MODE}",
+             f"- in={counts['in']} maybe={counts['maybe']} "
+             f"off={counts['off']} 未判定={counts['unjudged']}",
+             f"- 除外率ガード発動: {'はい(除外中止)' if guard else 'いいえ'}",
+             "", "## テーマ", "", theme, "", "## off判定", ""]
+    rec = []
+    for it in off:
+        title, doi, url = _text(it, "title"), _text(it, "doi"), _text(it, "url")
+        ab = _text(it, *_ABSTRACT_KEYS)[:200].replace("\n", " ")
+        lines += [f"- **{title}**", f"  {doi or url or '(識別子なし)'}",
+                  f"  > {ab or '(抄録なし)'}", ""]
+        rec.append({"title": title, "doi": doi, "url": url})
+    with open(md, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    with open(os.path.splitext(md)[0] + ".json", "w", encoding="utf-8") as f:
+        json.dump(rec, f, ensure_ascii=False, indent=1)
+    return md
+
+
+def prefilter(items, theme: str, tag: str = "theme") -> list:
+    """1段目。まだ判定していない文献に it["prefilter"] を書き込む。
+
+    PREFILTER_MODE が on で、off率が上限以下なら、off に関連度0とクラスタ off を
+    付けて判定済み扱いにする。戻り値は2段目に渡す文献(除外したもの以外)。
+    """
+    global _prefilter_seconds
+    mode = config.PREFILTER_MODE
+    if mode not in ("on", "off", "dryrun"):
+        print(f"[prefilter] PREFILTER_MODE={mode!r} は不明な値です。dryrun として扱います。")
+        mode = "dryrun"
+    if mode == "off":
+        return list(items)
+    if not llm.have_api_key():
+        print(f"[prefilter] {llm.key_name()} が未設定のためスキップ")
+        return list(items)
+    model = config.backend_model("prefilter")
+    cands = [it for it in items
+             if it.get("relevance_score") is None and "prefilter" not in it]
+    if cands:
+        t0 = time.time()
+        print(f"[prefilter] 1段目: {len(cands)}件 model={model} mode={mode} "
+              f"batch={config.PREFILTER_BATCH_SIZE} 並列={config.PREFILTER_CONCURRENCY}")
+        empty = sum(1 for it in cands if len(_text(it, *_ABSTRACT_KEYS)) < 50)
+        if empty > 0.8 * len(cands):
+            print(f"[prefilter] ⚠ {empty}件で抄録を読めていません"
+                  "(キー名の不一致を疑ってください)")
+        size = config.PREFILTER_BATCH_SIZE
+        batches = [cands[i:i + size] for i in range(0, len(cands), size)]
+
+        def on_result(batch, verdicts):
+            for it, v in zip(batch, verdicts or ["unjudged"] * len(batch)):
+                it["prefilter"] = v
+
+        llm.run_parallel(lambda b: _prefilter_batch(b, theme, model), batches,
+                         "1段目の粗選別", on_result=on_result,
+                         concurrency=config.PREFILTER_CONCURRENCY)
+        counts = Counter(it.get("prefilter", "unjudged") for it in cands)
+        for k in ("in", "maybe", "off", "unjudged"):
+            counts.setdefault(k, 0)
+        off = [it for it in cands if it.get("prefilter") == "off"]
+        _prefilter_seconds = time.time() - t0
+        print(f"[prefilter] in={counts['in']} maybe={counts['maybe']} "
+              f"off={counts['off']} 未判定={counts['unjudged']} "
+              f"({_prefilter_seconds:.0f}秒)")
+        guard = len(off) / len(cands) > config.PREFILTER_MAX_DROP_RATIO
+        if guard:
+            print(f"[prefilter] ⚠ off率が{config.PREFILTER_MAX_DROP_RATIO:.0%}超 → "
+                  "テーマ文やモデル応答の異常を疑い、除外を中止します")
+        print(f"[prefilter] ログ: "
+              f"{_write_prefilter_log(off, counts, tag, theme, model, guard)}")
+        if mode == "on" and not guard:
+            for it in off:
+                it["relevance_score"] = 0
+                it["cluster"] = classify(0, False)
+                it["prefilter_dropped"] = True
+            print(f"[prefilter] {len(off)}件を除外 → 2段目へ{len(cands) - len(off)}件")
+        elif mode != "on":
+            print("[prefilter] dryrunのため除外していません"
+                  "(判定後に取りこぼし監査を表示します)")
+    return [it for it in items if not it.get("prefilter_dropped")]
+
+
+def prefilter_audit(items, stage2_seconds=None, n_judged=None) -> None:
+    """dryrun時: 1段目で off とされた文献が2段目でどう判定されたかを集計する。"""
+    threshold = config.RELEVANCE_THRESHOLD
+    dropped = sum(1 for it in items if it.get("prefilter_dropped"))
+    if dropped:
+        print(f"\n[prefilter] 1段目で{dropped}件を除外済み(除外一覧にスコア0で載ります)")
+    off = [it for it in items
+           if it.get("prefilter") == "off" and not it.get("prefilter_dropped")]
+    if not off:
+        return
+    passed = [it for it in off if it.get("relevance_score") is not None
+              and it["relevance_score"] >= threshold]
+    dist = Counter(str(it.get("cluster")) for it in off)
+    print(f"\n[prefilter 監査] 1段目でoffの{len(off)}件 → 2段目の判定: {dict(dist)}")
+    for cat in ("maybe", "in"):
+        grp = [it for it in items if it.get("prefilter") == cat]
+        if grp:
+            ok = sum(1 for it in grp if it.get("relevance_score") is not None
+                     and it["relevance_score"] >= threshold)
+            print(f"  参考: 1段目{cat}の{len(grp)}件 → 2段目で採用{ok}件"
+                  f"({ok / len(grp):.1%})")
+    if passed:
+        print(f"  ⚠ うち{len(passed)}件が2段目で採用(スコア{threshold}以上)。"
+              "onにすると取りこぼす論文です:")
+        for it in sorted(passed, key=lambda x: -x["relevance_score"])[:15]:
+            print(f"    - [{it['relevance_score']}] {_text(it, 'title')[:70]}")
+    else:
+        print("  ✓ 2段目で採用された論文はゼロ。このテーマではonにしても取りこぼしなし")
+    if stage2_seconds and n_judged:
+        est = stage2_seconds * len(off) / n_judged - _prefilter_seconds
+        print(f"  時間の目安: 2段目{stage2_seconds:.0f}秒・1段目{_prefilter_seconds:.0f}秒"
+              f" → onなら約{est:.0f}秒短縮" if est > 0 else
+              "  時間の目安: このテーマでは短縮効果はほぼありません")
+
+
+# 1段目の候補モデルを同じ条件で比べる(旧 prefilter_bench.py)
+_BENCH_THEME = "強度行動障害のある成人に対する構造化支援の効果"
+_BENCH_PAPERS = [
+    ("Structured teaching for adults with autism and severe challenging "
+     "behavior in residential settings",
+     "We examined the effects of structured teaching on aggression and "
+     "self-injury among adults living in a residential facility."),
+    ("視覚的スケジュールが知的障害者の行動問題に与える影響",
+     "入所施設で暮らす成人の知的障害者を対象に、視覚的スケジュールの"
+     "導入前後で行動問題の頻度を比較した。"),
+    ("Corrosion resistance of stainless steel welds in marine environments",
+     "Weld samples were exposed to seawater for 12 months."),
+    ("Nitrogen fertilization and rice yield in paddy fields",
+     "Field trials were conducted across three seasons."),
+    ("Sleep problems in adults with autism", ""),
+]
+_BENCH_EXPECT = "in in off off maybe/in"
+
+
+def bench_prefilter(models, timeout: float = 300) -> None:
+    """5件の固定問題で、1段目の候補モデルの速度・思考量・判定を比べる。
+
+    思考の量は low と指定なしの両方を試す(low を拒否されたら指定なしだけ)。
+    再試行を挟むと時間が測れないので、llm.ask を使わず1回だけ呼ぶ。
+    """
+    client = llm.get_client()
+    prompt = _prefilter_prompt(_BENCH_THEME, _BENCH_PAPERS)
+    for model in models:
+        print(f"\n=== {model}")
+        for effort in ("low", None):
+            label = f"effort={effort or 'なし'}"
+            t0 = time.monotonic()
+            try:
+                res = client.chat.completions.create(
+                    model=model, temperature=0,
+                    max_tokens=config.PREFILTER_MAX_TOKENS, timeout=timeout,
+                    messages=[{"role": "system", "content": PREFILTER_SYSTEM_PROMPT},
+                              {"role": "user", "content": prompt}],
+                    extra_body=llm._thinking_body(model, effort) if effort else None)
+            except Exception as e:
+                status = getattr(e, "status_code", None)
+                body = getattr(e, "body", None) or e
+                print(f"  {label}: 失敗 {time.monotonic() - t0:.0f}秒 status={status} "
+                      f"{str(body)[:200]}")
+                if status == 400 and effort:
+                    continue   # パラメータ拒否 → 付けずに再測定
+                break
+            ch, u = res.choices[0], res.usage
+            det = getattr(u, "completion_tokens_details", None) if u else None
+            rt = getattr(det, "reasoning_tokens", None)
+            got = _parse_verdicts(ch.message.content)
+            v = " ".join(got.get(i, "-") for i in range(1, len(_BENCH_PAPERS) + 1))
+            print(f"  {label}: {time.monotonic() - t0:.1f}秒 "
+                  f"出力{u.completion_tokens if u else '?'}tok"
+                  f"(うち思考{rt if rt is not None else '?'}) "
+                  f"finish={ch.finish_reason}")
+            print(f"    判定: {v}   (期待: {_BENCH_EXPECT})")
+            if not got:
+                print(f"    本文先頭: {(ch.message.content or '')[:200]!r}")
+            break
+
+
+# ==========================================================================
+# 2. 2段目: 関連度とクラスタの判定
+# ==========================================================================
+# 本判定と run_ensemble(別モデルでの再判定)の両方がここを使う。以前の
+# ensemble_check.py は独自のプロンプトで core/related/off を直接選ばせていたが、
+# それは本判定側で「core が9割に膨らんだ」ためにやめた方式だった。プロンプトが
+# 違うと、不一致の多くがモデルの差ではなくプロンプトの差から生じる。
+# 同じプロンプト・同じ分類規則で判定させ、違いをモデルだけにする。
+#
+# 判定結果の形(1件ぶん):
+#   {"score": 0-100, "measured": True/False/None, "reason": str, "cluster": str}
+# cluster は score と measured から classify() で機械的に決める。
 FILTER_PROMPT = """You are an expert in academic literature review.
 
 [Research theme] {topic}
@@ -93,8 +371,6 @@ FILTER_SCHEMA = {
         "required": ["index", "score", "measured", "reason"],
     },
 }
-
-UNJUDGED = "未判定"
 
 
 def homonym_note(homonyms) -> str:
@@ -195,8 +471,8 @@ def judge_batch(batch, topic, definition, hom, model, max_tokens=None):
                 tqdm.write(f"  [!] AIへの問い合わせ自体が失敗しました"
                            f"(このバッチ{len(batch)}件は未判定): {raw[:160]}")
             return [{"error": "判定失敗(AIへの問い合わせが失敗)"}] * len(batch)
-        recs, mode = jsonparse.parse_json_array(raw)
-        m = jsonparse.index_records(recs, len(batch))
+        recs, mode = llm.parse_json_array(raw)
+        m = llm.index_records(recs, len(batch))
         if m and (len(m) >= len(batch) or attempt >= config.JUDGE_BATCH_RETRIES):
             if mode != "strict":
                 tqdm.write(f"  [i] 応答に余分な出力があったため先頭のJSONだけ"
@@ -342,3 +618,463 @@ def write_reject_log(path, items, header):
             line = f"[{'判定失敗' if s is None else s}] {it.get('title', 'Untitled')}"
             r = (it.get("exclusion_reason") or "").strip()
             f.write(line + (f" — {r}" if r else "") + "\n")
+
+
+# ==========================================================================
+# 3. 研究設計・参加者・場面・質指標の抽出
+# ==========================================================================
+# 関連度判定とは別のパスにしている。判定側に項目を足すと1応答あたりのJSONが
+# 長くなり、苦労して抑えた「正しい形式のJSONが途中で切れる」問題が再発する。
+# 抽出は関連度判定を通った抄録だけが対象なので件数が数分の一に減り、失敗
+# しても欄が空になるだけで文献そのものは失われない。
+#
+# 抽出する項目は、心理・福祉領域で「その知見をどれだけ強く受け取って
+# よいか」を決めるものに絞っている。
+#   design  研究設計。応用行動分析では単一事例実験が主流で、群間比較と
+#           同列には扱えない。設計が分からないとレビューの重みづけが
+#           できず、「core 41件」の中身が読めない。
+#   n       参加者数。単一事例では1〜5名が普通で、一般化の限界に直結する。
+#   setting 場面。入所施設で得られた知見か、学校か、研究室か。日本の
+#           生活施設に移せるかどうかを判断する材料になる。
+#   markers 質指標(WWCの単一事例基準の考え方)。「実施したか」ではなく
+#           「抄録に明記されているか」だけを記録する。抄録は紙幅の都合で
+#           省略されることが多く、記載が無いことは実施していないことを
+#           意味しないため。
+#
+# モデルには英語コードを書かせ、日本語ラベルはコード側(catalog.DESIGN_LABELS
+# 等)で与える。自由記述の日本語ラベルを書かせると表記が揺れて集計できない。
+EXTRACT_PROMPT = """You are a systematic reviewer extracting study characteristics
+from abstracts.
+
+[Research theme] {topic}
+[Definition of the theme] {definition}
+
+[Papers]
+{listing}
+
+[Rules]
+Extract ONLY what the abstract itself states in words. Never infer from the
+title alone, from your knowledge of the field, or from what a study of this
+kind usually does. When the abstract does not say, use the unknown value.
+
+design - choose exactly one code:
+  SR    systematic review, scoping review, or meta-analysis
+  RCT   randomized controlled trial / randomized group comparison
+  QE    non-randomized group comparison, quasi-experiment, or cohort study
+  SCED  single-case experimental design with experimental control
+        (reversal/ABAB, multiple baseline, alternating treatments,
+        changing criterion)
+  PP    single-group pre-post or AB design with no experimental control
+  OBS   cross-sectional, correlational, survey, epidemiological, or
+        descriptive observational study
+  PSY   psychometric study: scale development, reliability, validity,
+        or factor structure
+  QUAL  qualitative study (interviews, focus groups, thematic analysis)
+  CASE  case report or case series with no experimental control
+  REV   narrative review, commentary, or overview that is not systematic
+  THEO  theoretical or conceptual paper
+  GUIDE guideline, position statement, policy or administrative document
+  NA    cannot be determined from the abstract
+
+detail - for SCED, name the specific design in Japanese (多層ベースライン,
+  反転法, 交代処遇法, 基準変更法). For SR write 系統的レビュー or メタ分析.
+  Otherwise "". Keep it under 15 characters.
+
+n - number of participants, as an integer. For SR the number of included
+  studies is NOT n; use null. Use null if the abstract states no number.
+
+setting - where the study took place. One code only:
+  RESIDENTIAL residential/institutional living setting
+  DAY         day service or day activity setting
+  SCHOOL      school, classroom, or educational institution
+  HOME        the participant's home
+  CLINIC      hospital, outpatient clinic, or medical setting
+  LAB         a laboratory or analogue setting arranged for research
+  COMMUNITY   community or other everyday setting
+  NA          the abstract does not say
+  Do not guess the setting from the authors' affiliation.
+
+pop - the participants, in Japanese, 25 characters or less. Give the
+  disability or diagnosis and the age band as the abstract states them
+  (e.g. 重度知的障害のある成人, 自閉症児(3〜6歳), 施設職員).
+  Empty string if the abstract does not say.
+
+markers - an array of codes for methodological details EXPLICITLY stated in
+  the abstract. Include a code only when the abstract says so in words.
+  Never add a code because that design normally involves it.
+  baseline       a baseline phase or baseline measurement is described
+  ioa            interobserver agreement or interrater reliability reported
+  fidelity       treatment/procedural fidelity or integrity reported
+  generalization generalization across settings, people, or materials
+  maintenance    follow-up or maintenance data
+  social         social validity or acceptability data
+  random         random assignment is stated
+  effect         an effect size is reported
+  Empty array if none are stated.
+
+[Output]
+Output only the following JSON array. Exactly one entry per paper, no
+omissions, no explanatory text, no code fences.
+[{{"index": 0, "design": "SCED", "detail": "多層ベースライン", "n": 3,
+  "setting": "SCHOOL", "pop": "自閉症児(5〜8歳)",
+  "markers": ["baseline", "ioa", "maintenance"]}},
+ {{"index": 1, "design": "SR", "detail": "メタ分析", "n": null,
+  "setting": "NA", "pop": "", "markers": ["effect"]}}]"""
+
+EXTRACT_SCHEMA = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "index": {"type": "integer"},
+            "design": {"type": "string", "enum": list(catalog.DESIGN_LABELS)},
+            "detail": {"type": "string"},
+            "n": {"type": ["integer", "null"]},
+            "setting": {"type": "string", "enum": list(catalog.SETTING_LABELS)},
+            "pop": {"type": "string"},
+            "markers": {"type": "array",
+                        "items": {"type": "string",
+                                  "enum": list(catalog.MARKER_LABELS)}},
+        },
+        "required": ["index", "design", "n", "setting", "markers"],
+    },
+}
+
+
+def _blank(item):
+    """抽出できなかった項目に入れる既定値。欄が空になるだけで内容は失わない。"""
+    item.setdefault("design_code", "NA")
+    item.setdefault("design", catalog.DESIGN_LABELS["NA"])
+    item.setdefault("design_detail", "")
+    item.setdefault("participants_n", None)
+    item.setdefault("setting", catalog.SETTING_LABELS["NA"])
+    item.setdefault("population", "")
+    item.setdefault("quality_markers", [])
+
+
+def apply_extraction(item, rec):
+    """モデルの1件分の抽出結果を正規化して item に書き込む。"""
+    code = str(rec.get("design") or "NA").strip().upper()
+    if code not in catalog.DESIGN_LABELS:
+        code = "NA"
+    setting = str(rec.get("setting") or "NA").strip().upper()
+    if setting not in catalog.SETTING_LABELS:
+        setting = "NA"
+
+    n = rec.get("n")
+    try:
+        n = int(n) if n is not None and str(n).strip() != "" else None
+    except (TypeError, ValueError):
+        n = None
+    # 参加者数として現実的でない値は捨てる。抄録中の別の数値(年・件数)を
+    # 拾ってしまう誤りが起きうるため。
+    if n is not None and not (0 < n < 100000):
+        n = None
+
+    markers = []
+    for m in (rec.get("markers") or []):
+        k = str(m).strip().lower()
+        label = catalog.MARKER_LABELS.get(k)
+        if label and label not in markers:
+            markers.append(label)
+
+    item["design_code"] = code
+    item["design"] = catalog.DESIGN_LABELS[code]
+    item["design_detail"] = str(rec.get("detail") or "").strip()[:20]
+    item["participants_n"] = n
+    item["setting"] = catalog.SETTING_LABELS[setting]
+    item["population"] = str(rec.get("pop") or "").strip()[:30]
+    item["quality_markers"] = markers
+
+
+def extract_records(papers, topic, definition, model, retries=2) -> dict:
+    """papers は (タイトル, 本文ラベル, 本文) の並び。{index: レコード} を返す。
+
+    本文ラベルは抄録なら "Abstract"、全文由来なら Methods の抜粋である旨を
+    書く(fulltext.py が使う)。読めなかった分は含まれない。items には書き込まない。
+    """
+    listing = "\n".join(f"{i}. {t}\n   {label}: {body}"
+                        for i, (t, label, body) in enumerate(papers))
+    prompt = EXTRACT_PROMPT.format(topic=topic, definition=definition,
+                                   listing=listing)
+    m = {}
+    for attempt in range(retries + 1):
+        raw = llm.ask(prompt, model, schema=EXTRACT_SCHEMA)
+        if llm.is_error(raw):
+            if "中断" not in raw:
+                tqdm.write(f"  [!] 抽出の問い合わせが失敗: {raw[:160]}")
+            return {}
+        recs, mode = llm.parse_json_array(raw)
+        m = llm.index_records(recs, len(papers))
+        if len(m) >= len(papers):
+            return m
+        if attempt < retries:
+            tqdm.write(f"  [!] 抽出応答が{len(papers)}件中{len(m)}件しか読めない"
+                       f"(mode={mode})。再送します ({attempt + 1}/{retries})")
+        else:
+            tqdm.write(f"  [!] 抽出に失敗(再送{retries}回も不完全): {raw[:200]!r}")
+    return m
+
+
+def _by_design(items) -> dict:
+    return dict(Counter(it.get("design_code") or "NA" for it in items))
+
+
+def annotate_features(items, topic, definition, model, checkpoint=None) -> dict:
+    """items に design / participants_n / setting / population 等を書き込む。
+
+    既に design_code が入っているものは飛ばす(--resume で再開できる)。
+    戻り値は集計用の辞書。
+    """
+    size = config.EXTRACT_BATCH_SIZE
+    pending = [it for it in items if not it.get("design_code")]
+    if not pending:
+        for it in items:
+            _blank(it)
+        return {"done": 0, "failed": 0, "by_design": _by_design(items)}
+
+    batches = [pending[i:i + size] for i in range(0, len(pending), size)]
+    done = 0
+
+    def work(batch):
+        papers = [(it.get("title", "Untitled"), "Abstract",
+                   (it.get("content") or "")[:config.EXTRACT_EXCERPT_CHARS])
+                  for it in batch]
+        return extract_records(papers, topic, definition, model)
+
+    def on_result(batch, m):
+        nonlocal done
+        for i, it in enumerate(batch):
+            if m and i in m:
+                apply_extraction(it, m[i])
+                done += 1
+            else:
+                _blank(it)
+
+    llm.run_parallel(work, batches, "設計を抽出中", on_result=on_result,
+                     checkpoint=checkpoint,
+                     checkpoint_every=config.JUDGE_CHECKPOINT_EVERY)
+
+    for it in items:
+        _blank(it)
+    by_design = _by_design(items)
+    failed = len(pending) - done
+    print(f"   → 抽出 {done}件 / 失敗・不明 {failed}件")
+    shown = " / ".join(f"{catalog.DESIGN_LABELS[c]} {by_design[c]}件"
+                       for c in catalog.DESIGN_ORDER if by_design.get(c))
+    if shown:
+        print(f"   → 設計の内訳: {shown}")
+    return {"done": done, "failed": failed, "by_design": by_design}
+
+
+# ==========================================================================
+# 4. 別モデルでの再判定(アンサンブル)
+# ==========================================================================
+# 本判定と同じプロンプト・分類規則で2本目のモデルに判定させ、分類が割れた
+# 抄録を報告する。一致率と Cohen の κ(core / related / 除外相当 の3区分)も
+# 出すので、2人の評定者の一致度と同じ読み方ができる。表にはタイトルと
+# 両モデルの判定メモを載せ、読み直すべきかをその場で判断できるようにする。
+EXCLUDED = "除外相当"     # 2本目のスコアが RELEVANCE_THRESHOLD 未満
+
+
+def _bucket(cluster: str, score) -> str:
+    """κの計算に使う3区分。off と閾値未満はまとめて「除外相当」。"""
+    if cluster == "off" or (isinstance(score, int)
+                            and score < config.RELEVANCE_THRESHOLD):
+        return EXCLUDED
+    return cluster
+
+
+def cohen_kappa(pairs):
+    """[(評定A, 評定B), ...] から Cohen の κ を返す。計算できなければ None。"""
+    n = len(pairs)
+    if not n:
+        return None
+    cats = sorted({c for p in pairs for c in p})
+    po = sum(1 for a, b in pairs if a == b) / n
+    pe = sum((sum(1 for a, _ in pairs if a == c) / n)
+             * (sum(1 for _, b in pairs if b == c) / n) for c in cats)
+    if pe >= 1.0:
+        return None
+    return (po - pe) / (1 - pe)
+
+
+def kappa_label(k) -> str:
+    """Landis & Koch (1977) の目安。"""
+    if k is None:
+        return "算出不可"
+    for lim, lab in ((0.0, "一致していない"), (0.20, "わずかに一致"),
+                     (0.40, "まずまず一致"), (0.60, "中程度に一致"),
+                     (0.80, "かなり一致")):
+        if k <= lim:
+            return lab
+    return "ほぼ完全に一致"
+
+
+def _ensemble_entries(theme: dict) -> tuple:
+    """索引(JSON)とカタログ本文から判定対象を組み立てる。(索引, entries)"""
+    idx = catalog.load_index(theme["index"])
+    abstracts = (catalog.read_catalog_abstracts(theme["catalog"])
+                 if theme["catalog"] else {})
+    entries = []
+    for key, rec in idx["items"].items():
+        entries.append({
+            "key": key, "title": rec.get("title") or "",
+            "src": rec.get("src") or "",
+            "content": abstracts.get(key, ""),
+            "score_a": rec.get("score") if isinstance(rec.get("score"), int) else None,
+            "cluster_a": (rec.get("cluster") or UNJUDGED).strip(),
+            "reason_a": rec.get("reason") or "",
+        })
+    return idx, entries
+
+
+def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
+                 preflight: bool = True) -> str:
+    """アンサンブル判定を行い、報告ファイル(_ensemble__テーマ.md)のパスを返す。"""
+    theme = catalog.resolve_theme(theme_arg)
+    if not theme["index"]:
+        raise FileNotFoundError(f"[index] …json が見つかりません: {theme['dir']}")
+    idx, entries = _ensemble_entries(theme)
+    topic = idx.get("topic") or theme["name"]
+    definition = idx.get("theme_definition") or f"{topic} に関する研究"
+    homonyms = idx.get("homonyms") or []
+    model = model or config.backend_model("ensemble")
+    model_a = idx.get("filter_model") or "(記録なし)"
+
+    print(f"[アンサンブル] テーマ: {theme['name']}")
+    print(f"[アンサンブル] 対象 {len(entries)}件 / 1本目: {model_a} / 2本目: {model}")
+    no_abs = sum(1 for e in entries if not e["content"])
+    if no_abs:
+        print(f"[警告] カタログ本文から抄録を読めなかった項目: {no_abs}件"
+              "(タイトルだけで判定されます)")
+    if model == model_a:
+        print("[警告] 1本目と同じモデルです。再判定の意味が薄れます。"
+              "--model で別系統のモデルを指定してください。")
+    if dry_run:
+        for e in entries[:3]:
+            print("-" * 40)
+            print(f"key={e['key']} score={e['score_a']} cluster={e['cluster_a']}")
+            print(f"title={e['title'][:80]}")
+            print(e["content"][:200])
+        print("\n[dry-run] APIは呼んでいません。")
+        return ""
+    if not entries:
+        print("[アンサンブル] 対象がありません。")
+        return ""
+    if preflight:
+        llm.preflight([model])
+
+    hom = homonym_note(homonyms)
+    size = config.FILTER_BATCH_SIZE
+    batches = [entries[i:i + size] for i in range(0, len(entries), size)]
+
+    def work(batch):
+        return judge_batch(batch, topic, definition, hom, model,
+                           max_tokens=config.ENSEMBLE_MAX_TOKENS)
+
+    def on_result(batch, results):
+        for e, r in zip(batch, results or []):
+            if r and "error" not in r:
+                e.update(score_b=r["score"], cluster_b=r["cluster"],
+                         reason_b=r["reason"], measured_b=r["measured"])
+
+    llm.run_parallel(work, batches, "再判定中", on_result=on_result)
+
+    got = sum(1 for e in entries if "cluster_b" in e)
+    if got == 0:
+        # 以前の結果ファイルを空の報告で上書きしないよう、何も書かずに終える
+        print(f"[アンサンブル] {model} から1件も判定を得られませんでした。"
+              "報告ファイルは書き出していません(前回の結果はそのまま残ります)。")
+        print("    応答するモデルを確かめる: python research_bot.py probe")
+        return ""
+    if got < len(entries) / 2:
+        print(f"[警告] 判定を得られたのは {got}/{len(entries)}件だけです。"
+              "κ係数などは参考程度に見てください。")
+
+    demote, promote, other, missing, pairs = [], [], [], [], []
+    for e in entries:
+        if "cluster_b" not in e:
+            missing.append(e)
+            continue
+        a, b = e["cluster_a"], e["cluster_b"]
+        e["gap"] = (abs(e["score_a"] - e["score_b"])
+                    if e["score_a"] is not None else None)
+        e["bucket_b"] = _bucket(b, e["score_b"])
+        if a in ("core", "related"):
+            pairs.append((a, e["bucket_b"]))
+        if a == "core" and e["bucket_b"] == EXCLUDED:
+            demote.append(e)
+        elif a == "related" and b == "core":
+            promote.append(e)
+        elif a != e["bucket_b"] or (e["gap"] is not None
+                                    and e["gap"] >= config.ENSEMBLE_SCORE_GAP):
+            other.append(e)
+
+    agree = sum(1 for a, b in pairs if a == b)
+    kappa = cohen_kappa(pairs)
+    gaps = [e["gap"] for e in entries if e.get("gap") is not None]
+    mean_gap = sum(gaps) / len(gaps) if gaps else None
+
+    out_path = os.path.join(theme["dir"], f"_ensemble__{theme['name']}.md")
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write("---\n")
+        f.write(f"catalog_source: \"{os.path.basename(theme['catalog'] or '')}\"\n")
+        f.write(f"model_a: \"{model_a}\"\nmodel_b: \"{model}\"\n")
+        f.write(f"checked_at: {datetime.datetime.now().isoformat(timespec='seconds')}\n")
+        f.write(f"kappa: {round(kappa, 3) if kappa is not None else 'null'}\n")
+        f.write("---\n\n")
+        f.write(f"# 判定アンサンブル結果 — {theme['name']}\n\n")
+        f.write(f"- 対象抄録: {len(entries)}件 / 2本目の判定取得: "
+                f"{len(entries) - len(missing)}件 / 応答欠落: {len(missing)}件\n")
+        if pairs:
+            line = f"- 分類の一致: {agree}/{len(pairs)}件({agree / len(pairs):.1%})"
+            if kappa is not None:
+                line += f" / Cohen の κ = {kappa:.2f}({kappa_label(kappa)})"
+            f.write(line + "\n")
+        if mean_gap is not None:
+            f.write(f"- 関連度スコアの差: 平均 {mean_gap:.1f}点\n")
+        f.write(f"- 判定基準: 両モデルとも同じプロンプト(関連度{config.CORE_SCORE}以上"
+                "かつ実測あり→core、関連度"
+                f"{config.RELEVANCE_THRESHOLD}未満→除外相当)\n\n")
+        f.write("> [!warning] 不一致は誤りの証拠ではなく、抄録を読み直すべき"
+                "箇所の手がかりです。どちらのモデルも「正解」ではありません。\n\n")
+
+        def dump(rows, title, note):
+            f.write(f"## {title}({len(rows)}件)\n\n{note}\n\n")
+            if not rows:
+                f.write("なし。\n\n")
+                return
+            f.write("| 引用キー | 1本目 | 2本目 | 1本目のメモ | 2本目のメモ | タイトル |\n")
+            f.write("|---|---|---|---|---|---|\n")
+            for e in sorted(rows, key=lambda x: -(x.get("gap") or 0)):
+                t = catalog.cell(e["title"], 50)
+                ra = catalog.cell(e["reason_a"] or "-", 40)
+                rb = catalog.cell(e.get("reason_b") or "-", 40)
+                sa = e["score_a"] if e["score_a"] is not None else "-"
+                f.write(f"| [{e['key']}] | {e['cluster_a']} {sa} "
+                        f"| {e['bucket_b']} {e['score_b']} | {ra} | {rb} | {t} |\n")
+            f.write("\n")
+
+        dump(demote, "1. 最優先: 中心クラスタからの除外候補",
+             "1本目は core、2本目は無関係または関連度不足と判定した抄録。"
+             "中心的な根拠に使う前に抄録を読み直す。")
+        dump(promote, "2. 中心クラスタへの昇格候補",
+             "1本目は related、2本目は core と判定した抄録。"
+             "測定を伴う研究だと確認できたものだけを主要な根拠に加える。")
+        dump(other, "3. その他の不一致",
+             f"周辺クラスタからの除外候補、およびスコア差"
+             f"{config.ENSEMBLE_SCORE_GAP}点以上の不一致。")
+        f.write("## 4. 応答が得られなかった抄録\n\n")
+        if not missing:
+            f.write("なし。\n")
+        for e in missing:
+            f.write(f"- [{e['key']}](1本目: {e['cluster_a']})\n")
+
+    print(f"[アンサンブル] 出力: {out_path}")
+    if kappa is not None:
+        print(f"[アンサンブル] 一致率 {agree}/{len(pairs)} / κ={kappa:.2f}"
+              f"({kappa_label(kappa)})")
+    print(f"[アンサンブル] 除外候補(core→除外相当) {len(demote)}件 ← 最優先で確認 / "
+          f"昇格候補 {len(promote)}件 / その他 {len(other)}件 / 欠落 {len(missing)}件")
+    return out_path

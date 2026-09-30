@@ -1,8 +1,9 @@
-"""LLM(NVIDIA / OpenRouter)への問い合わせを一か所にまとめる。
+"""LLM(NVIDIA / OpenRouter)への問い合わせと、応答の読み取り。
 
-以前は research_bot.py・ensemble_check.py・generate_report.py がそれぞれ
-独自に API を呼んでおり、再試行・思考制御・エラー判定の作りが少しずつ
-違っていた。判定・抽出・アンサンブルはすべてここを通す。
+1段目の粗選別・関連度判定・設計の抽出・再判定は、すべてここを通す
+(旧 jsonparse.py もここへ統合した)。以前は prefilter.py だけが独自に API を
+呼んでおり、OpenRouter に切り替えると動かない・Ctrl-C で止まらない、という
+ずれが残っていた。
 
 ここで担っていること:
   1. 送信間隔の制御(全スレッド合計で REQUESTS_PER_MINUTE 以下)
@@ -16,15 +17,18 @@
   4. Ctrl-C で並列処理を即座に止める(run_parallel)
      ThreadPoolExecutor を with で使うと、Ctrl-C を押しても残り全バッチの
      完了を待ってしまい、中断処理(チェックポイント保存)に届かなかった。
+  5. 応答からJSONのレコード配列を取り出す(parse_json_array)
 
 戻り値の約束: ask() は失敗時に例外を投げず、ERROR_PREFIX で始まる文字列を
-返す。呼び出し側は is_error() で見分ける(既存コードとの互換のため)。
+返す。呼び出し側は is_error() で見分ける。
 """
 
 import concurrent.futures
 import difflib
 import itertools
+import json
 import os
+import re
 import threading
 import time
 
@@ -52,7 +56,7 @@ _active_ids = itertools.count()
 _models_cache = None          # バックエンドのモデル一覧(取得できなければ None)
 _verified_models = set()      # preflight で実在を確かめたモデル
 _no_guided = set()            # guided_json を拒否したモデル
-_no_thinking_param = set()    # 思考制御パラメータを拒否したモデル
+_no_thinking_param = set()    # 思考制御パラメータを拒否した (モデル, 種類)
 _no_stream = set()            # ストリーミングで何も返ってこなかったモデル(以後まとめて受け取る)
 _giveups = {}                 # モデル → 続けて諦めたバッチ数
 _dead = set()                 # 応答していないとみなしたモデル(以後は問い合わせない)
@@ -62,32 +66,26 @@ def is_error(text: str) -> bool:
     return (text or "").startswith(ERROR_PREFIX)
 
 
-def have_api_key() -> bool:
-    if config.API_BACKEND == "openrouter":
-        return bool(os.environ.get("OPENROUTER_API_KEY"))
-    return bool(os.environ.get("NVIDIA_API_KEY"))
-
-
 def key_name() -> str:
     return ("OPENROUTER_API_KEY" if config.API_BACKEND == "openrouter"
             else "NVIDIA_API_KEY")
+
+
+def have_api_key() -> bool:
+    return bool(os.environ.get(key_name()))
 
 
 def get_client() -> OpenAI:
     global _client
     with _client_lock:
         if _client is None:
-            if config.API_BACKEND == "openrouter":
-                _client = OpenAI(base_url=config.OPENROUTER_BASE_URL,
-                                 api_key=os.environ.get("OPENROUTER_API_KEY", ""),
-                                 max_retries=0)
-            else:
-                # max_retries=0: openai ライブラリは既定で時間切れ等を黙って
-                # 2回やり直す。こちらでも再試行するので、待ち時間が最大3倍に
-                # 膨らんでいた(実測: 240秒の上限で最初の時間切れ表示が約720秒後)。
-                _client = OpenAI(base_url=config.NVIDIA_BASE_URL,
-                                 api_key=os.environ.get("NVIDIA_API_KEY", ""),
-                                 max_retries=0)
+            base = (config.OPENROUTER_BASE_URL if config.API_BACKEND == "openrouter"
+                    else config.NVIDIA_BASE_URL)
+            # max_retries=0: openai ライブラリは既定で時間切れ等を黙って
+            # 2回やり直す。こちらでも再試行するので、待ち時間が最大3倍に
+            # 膨らんでいた(実測: 240秒の上限で最初の時間切れ表示が約720秒後)。
+            _client = OpenAI(base_url=base, api_key=os.environ.get(key_name(), ""),
+                             max_retries=0)
         return _client
 
 
@@ -130,7 +128,7 @@ def list_models():
     return _models_cache
 
 
-def _probe(model: str) -> str:
+def _probe_one(model: str) -> str:
     """1トークンだけ生成させて、モデルが呼べるか確かめる。成功なら空文字。"""
     try:
         get_client().chat.completions.create(
@@ -159,7 +157,7 @@ def preflight(models) -> None:
         if available and m in available:
             _verified_models.add(m)
             continue
-        err = _probe(m)
+        err = _probe_one(m)
         if not err:
             _verified_models.add(m)
             if available:
@@ -175,25 +173,75 @@ def preflight(models) -> None:
     tqdm.write("[モデル確認] OK — " + " / ".join(dict.fromkeys(x for x in models if x)))
 
 
+def probe(models, limit: int = 60) -> None:
+    """モデルが今応答するかを、短い問い合わせで確かめて表示する。
+
+    無料枠のモデルは時間帯によって全く応答しないことがある。長い処理を
+    始める前に、1分ほどで確かめられるようにする。
+    """
+    client = get_client()
+    print(f"短い問い合わせで応答を確かめます(1回あたり最大{limit}秒)\n")
+    for m in models:
+        body = _thinking_body(m, None)
+        msgs = [{"role": "user", "content": "Reply with the single word OK."}]
+        row = [m]
+        # まとめて受け取る方式
+        t0 = time.monotonic()
+        try:
+            r = _with_deadline(lambda: client.chat.completions.create(
+                model=m, messages=msgs, max_tokens=64, temperature=0,
+                stream=False, timeout=float(limit), extra_body=body), limit)
+            txt = ((r.choices[0].message.content or "").strip()
+                   if r.choices else "")
+            row.append(f"まとめて: {time.monotonic() - t0:.1f}秒 ({txt[:12]!r})")
+        except Exception as e:
+            row.append(f"まとめて: 失敗 {time.monotonic() - t0:.0f}秒 "
+                       f"({type(e).__name__}: {str(e)[:60]})")
+        # ストリーミング
+        t0, first = time.monotonic(), None
+        try:
+            def run_stream():
+                nonlocal first
+                s = client.chat.completions.create(
+                    model=m, messages=msgs, max_tokens=64, temperature=0,
+                    stream=True, timeout=float(limit), extra_body=body)
+                for _ in s:
+                    if first is None:
+                        first = time.monotonic() - t0
+                return True
+            _with_deadline(run_stream, limit)
+            row.append(f"ストリーミング: 最初の応答 {first or 0:.1f}秒 / "
+                       f"完了 {time.monotonic() - t0:.1f}秒")
+        except Exception as e:
+            row.append(f"ストリーミング: 失敗 {time.monotonic() - t0:.0f}秒 "
+                       f"({type(e).__name__})")
+        print(f"■ {row[0]}\n    {row[1]}\n    {row[2]}")
+    print("\n両方失敗するモデルは、今は使えません。時間をおくか別のモデルを"
+          "選んでください(一覧: python research_bot.py models)。")
+
+
 # ==========================================
 # 問い合わせ
 # ==========================================
-def _thinking_off_body(model: str) -> dict:
-    """思考を止める(または最小にする)ための追加パラメータ。
+def _thinking_body(model: str, effort) -> dict:
+    """思考の量を指定する追加パラメータ。
 
-    Nemotron 等は chat_template_kwargs.enable_thinking=false で止まるが、
-    gpt-oss はこれを無視して考え続ける。gpt-oss は reasoning_effort で
-    思考の量を指定する(low が最小。完全には止められない)。
+    effort が None なら思考を止める(または最小にする)。
+      Nemotron 等は chat_template_kwargs.enable_thinking=false で止まるが、
+      gpt-oss はこれを無視して考え続ける。gpt-oss は reasoning_effort で
+      思考の量を指定する(low が最小。完全には止められない)。
+    effort に "low" 等を渡すと、その量で考えさせる(1段目の粗選別が使う)。
     """
     if config.API_BACKEND == "openrouter":
-        return {"reasoning": {"enabled": False}}
-    if "gpt-oss" in model.lower():
-        return {"reasoning_effort": "low"}
+        return ({"reasoning": {"effort": effort}} if effort
+                else {"reasoning": {"enabled": False}})
+    if effort or "gpt-oss" in model.lower():
+        return {"reasoning_effort": effort or "low"}
     return {"chat_template_kwargs": {"enable_thinking": False}}
 
 
 class ResponseTooLong(Exception):
-    """応答全体が REQUEST_TIMEOUT を超えた。"""
+    """応答全体が上限時間を超えた。"""
 
 
 def _with_deadline(fn, seconds: float):
@@ -239,7 +287,7 @@ def _record_giveup(model: str) -> None:
     if n >= config.DEAD_MODEL_AFTER and model not in _dead:
         _dead.add(model)
         tqdm.write(f"  [!] {model} が{n}バッチ続けて応答しなかったため、このモデルへの"
-                   "残りの問い合わせを打ち切ります。NVIDIA 側で混雑しているか停止して"
+                   "残りの問い合わせを打ち切ります。サーバー側で混雑しているか停止して"
                    "いる可能性があります。時間をおいて再実行するか、"
                    "python research_bot.py probe で応答するモデルを確かめてください。")
 
@@ -257,6 +305,7 @@ def activity_summary() -> str:
         return ""
     batch_mode = any(not r.get("stream", True) for r in rows)
     longest = max(now - r["start"] for r in rows)
+    limit = max(r["limit"] for r in rows)
     content = sum(r["content"] for r in rows)
     reasoning = sum(r["reasoning"] for r in rows)
     if batch_mode:
@@ -269,17 +318,24 @@ def activity_summary() -> str:
     else:
         what = f"本文 {content:,}字・思考 {reasoning:,}字を受信"
     return (f"  … 応答待ち {len(rows)}本 / 最長 {longest:.0f}秒経過"
-            f"(上限 {config.REQUEST_TIMEOUT}秒) / {what}")
+            f"(上限 {limit:.0f}秒) / {what}")
 
 
 def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
         temperature: float = None, schema: dict = None,
-        disable_thinking: bool = True) -> str:
+        disable_thinking: bool = True, reasoning_effort: str = None,
+        timeout: float = None, mark_dead: bool = True) -> str:
     """1回問い合わせて本文を返す。失敗時は ERROR_PREFIX で始まる文字列。
 
     schema を渡し、config.USE_GUIDED_JSON が True なら、NVIDIA NIM の
     構造化出力(nvext.guided_json)で JSON の形を強制する。拒否されたら
     そのモデルでは以後使わない。
+
+    reasoning_effort  "low" 等を渡すと、思考を止める代わりにその量で考えさせる。
+    timeout           応答全体の上限(秒)。省略時は config.REQUEST_TIMEOUT。
+    mark_dead         False なら、時間切れが続いてもモデルを「応答しない」と
+                      みなさない。1段目の粗選別は短い上限で待つため、その
+                      時間切れで2段目の判定まで止めてしまわないようにする。
     """
     if not have_api_key():
         return f"{ERROR_PREFIX}エラー】{key_name()} が設定されていません。"
@@ -290,8 +346,11 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                [{"role": "user", "content": prompt}]
     max_tokens = max_tokens or config.MAX_TOKENS
     temperature = config.TEMPERATURE if temperature is None else temperature
+    limit = float(timeout or config.REQUEST_TIMEOUT)
 
-    use_thinking_off = disable_thinking and model not in _no_thinking_param
+    think_key = (model, reasoning_effort or "off")
+    use_think = ((reasoning_effort or disable_thinking)
+                 and think_key not in _no_thinking_param)
     use_guided = (schema is not None and config.USE_GUIDED_JSON
                   and config.API_BACKEND == "nvidia" and model not in _no_guided)
 
@@ -299,32 +358,31 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
     attempt = 0
     timeouts = 0
     # ストリーミングでは、この値は「何も届かない時間」の上限として効く。
-    # 応答全体の上限は下のループで REQUEST_TIMEOUT と比べて打ち切る。
+    # 応答全体の上限は下のループで limit と比べて打ち切る。
     # (httpx を直接使わないのは、openai のバージョンによって下回りの
     #  HTTP ライブラリが httpx / httpx2 と異なるため)
-    timeout = float(config.READ_TIMEOUT)
+    read_timeout = min(float(config.READ_TIMEOUT), limit)
     while attempt < config.MAX_RETRIES:
         if not _throttle():
             return f"{ERROR_PREFIX}中断】"
         extra_body = {}
-        if use_thinking_off:
-            extra_body.update(_thinking_off_body(model))
+        if use_think:
+            extra_body.update(_thinking_body(model, reasoning_effort))
         if use_guided:
             extra_body["nvext"] = {"guided_json": schema}
         use_stream = model not in _no_stream
         rid = next(_active_ids)
         info = {"model": model, "start": time.monotonic(), "content": 0,
-                "reasoning": 0, "stream": use_stream}
+                "reasoning": 0, "stream": use_stream, "limit": limit}
         with _active_lock:
             _active[rid] = info
         try:
             if not use_stream:
                 # まとめて受け取る。応答全体の上限をそのままタイムアウトにする。
                 resp = _with_deadline(lambda: client.chat.completions.create(
-                    model=model, messages=messages,
-                    timeout=float(config.REQUEST_TIMEOUT),
+                    model=model, messages=messages, timeout=limit,
                     max_tokens=max_tokens, temperature=temperature, stream=False,
-                    extra_body=extra_body or None), config.REQUEST_TIMEOUT)
+                    extra_body=extra_body or None), limit)
                 ch = resp.choices[0] if resp.choices else None
                 text = (ch.message.content or "") if ch else ""
                 if ch and getattr(ch, "finish_reason", None) == "length":
@@ -333,12 +391,12 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                 _giveups[model] = 0
                 return text
             stream = client.chat.completions.create(
-                model=model, messages=messages, timeout=timeout,
+                model=model, messages=messages, timeout=read_timeout,
                 max_tokens=max_tokens, temperature=temperature, stream=True,
                 extra_body=extra_body or None)
             parts, finish = [], None
-            # 1文字も届かなくても REQUEST_TIMEOUT で打ち切れるよう、外から閉じる
-            left = config.REQUEST_TIMEOUT - (time.monotonic() - info["start"])
+            # 1文字も届かなくても limit で打ち切れるよう、外から閉じる
+            left = limit - (time.monotonic() - info["start"])
             killer = threading.Timer(max(1.0, left), _kill_stream, (stream, info))
             killer.daemon = True
             killer.start()
@@ -346,9 +404,9 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                 for chunk in stream:
                     if STOP.is_set():
                         return f"{ERROR_PREFIX}中断】"
-                    if time.monotonic() - info["start"] > config.REQUEST_TIMEOUT:
+                    if time.monotonic() - info["start"] > limit:
                         raise ResponseTooLong(
-                            f"応答全体が{config.REQUEST_TIMEOUT}秒を超えました"
+                            f"応答全体が{limit:.0f}秒を超えました"
                             f"(本文 {info['content']}字 / 思考 {info['reasoning']}字)")
                     if not chunk.choices:
                         continue
@@ -367,7 +425,7 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                         info["content"] += len(piece)
                 if info.get("killed"):
                     raise ResponseTooLong(
-                        f"応答全体が{config.REQUEST_TIMEOUT}秒を超えました"
+                        f"応答全体が{limit:.0f}秒を超えました"
                         f"(本文 {info['content']}字 / 思考 {info['reasoning']}字)")
             finally:
                 killer.cancel()
@@ -390,7 +448,7 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
             if info.get("killed") and not isinstance(e, ResponseTooLong):
                 # 外から閉じたことで起きた通信エラーは、時間切れとして扱う
                 e = ResponseTooLong(
-                    f"応答全体が{config.REQUEST_TIMEOUT}秒を超えました"
+                    f"応答全体が{limit:.0f}秒を超えました"
                     f"(本文 {info['content']}字 / 思考 {info['reasoning']}字)")
             last = e
             msg = str(e)
@@ -416,13 +474,14 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                 if isinstance(e, ResponseTooLong):
                     why = msg
                 elif use_stream:
-                    why = f"{config.READ_TIMEOUT}秒間サーバーから何も届きませんでした"
+                    why = f"{read_timeout:.0f}秒間サーバーから何も届きませんでした"
                 else:
-                    why = f"{config.REQUEST_TIMEOUT}秒以内に応答がありませんでした"
+                    why = f"{limit:.0f}秒以内に応答がありませんでした"
                 if timeouts >= config.MAX_TIMEOUTS or model in _dead:
                     tqdm.write(f"    [!] 時間切れが{timeouts}回続いたため、このバッチを"
                                f"諦めます({model}): {why}")
-                    _record_giveup(model)
+                    if mark_dead:
+                        _record_giveup(model)
                     return f"{ERROR_PREFIX}通信エラー】timeout: {why}"
                 tqdm.write(f"    [!] 時間切れ({model}): {why}。もう一度送ります。")
                 continue
@@ -446,12 +505,11 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
             # 思考制御パラメータの拒否 → 外してやり直す
             param_hint = ("chat_template_kwargs" in low or "enable_thinking" in low
                           or "reasoning" in low)
-            if use_thinking_off and (param_hint or status == 404
-                                     or "404" in msg):
+            if use_think and (param_hint or status == 404 or "404" in msg):
                 tqdm.write(f"    [!] 思考制御パラメータが拒否された可能性があります。"
                            f"外して再送します(遅くなることがあります): {msg[:160]}")
-                _no_thinking_param.add(model)
-                use_thinking_off = False
+                _no_thinking_param.add(think_key)
+                use_think = False
                 continue
 
             # パラメータを外しても 404 → モデル名の誤り。待っても直らない。
@@ -471,6 +529,7 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                 break
             is_rate = type(e).__name__ == "RateLimitError" or status == 429 or "429" in msg
             if is_rate:
+                # 429 は短い間隔で送り直すほど長引くので、倍々で待つ
                 wait = config.RATE_LIMIT_WAIT_BASE * (2 ** (attempt - 1))
                 tqdm.write(f"    [!] レート制限(429)。{wait}秒後に再試行 "
                            f"({attempt}/{config.MAX_RETRIES})")
@@ -552,3 +611,151 @@ def run_parallel(func, jobs, desc: str, on_result=None, concurrency: int = None,
     if checkpoint:
         checkpoint()
     return done
+
+
+# ==========================================
+# 応答の読み取り(旧 jsonparse.py)
+# ==========================================
+# 厳密な json.loads は応答全体が正しいJSONであることを要求するため、
+# 本体は正しく書けているのに前後に余計なものが付いただけで全滅する。
+# 実測した失敗の大半はこの型だった。
+#
+#   [{...}]\n]                     末尾に余分な閉じ括弧
+#   [{...}]}                       同上
+#   [{...}]\n[{...}]               同じ配列を2回出力
+#   [{...}], [{...}]               同上(カンマ区切り)
+#   [{...}]\n\nNote: Only one ...  JSONの後ろに英語の説明文
+#   [{...}]\nfalse: 対象外分野...  JSONの後ろに崩れた続き
+#
+# いずれも先頭の完全なJSON値だけを読めば救える。読めない場合でも、
+# 完結している {...} を1件ずつ拾えば、途中で切れた応答から手前の分だけ
+# 回収できる。6件のバッチが1件の破損で全滅するのを防ぐのが目的。
+#
+# なお「応答が閉じ括弧なしで終わっている＝max_tokens不足」という従来の
+# 診断は、上記の型では誤診になる。JSONは完結していて、その後ろに
+# 余計なものが付いているだけだからである。
+_FENCE_RE = re.compile(r"```(?:json)?", re.IGNORECASE)
+
+
+def _as_records(value) -> list:
+    """JSON値をレコードの配列にそろえる。単一オブジェクトも1件の配列とみなす。"""
+    if isinstance(value, list):
+        return [v for v in value if isinstance(v, dict)]
+    if isinstance(value, dict):
+        return [value]
+    return []
+
+
+def _salvage_objects(s: str) -> list:
+    """完結している {...} を先頭から順に拾う。文字列の中の括弧は数えない。"""
+    out, depth, start, in_str, esc = [], 0, None, False, False
+    for i, ch in enumerate(s):
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}":
+            if depth:
+                depth -= 1
+                if depth == 0 and start is not None:
+                    try:
+                        v = json.loads(s[start:i + 1])
+                    except ValueError:
+                        v = None
+                    if isinstance(v, dict):
+                        out.append(v)
+                    start = None
+    return out
+
+
+def parse_json_array(raw: str):
+    """応答からレコードの配列を取り出す。戻り値は (records, mode)。
+
+    mode は記録用で、次の値を取る。
+      strict  … 応答全体がそのままJSONだった
+      prefix  … 先頭のJSONだけを読み、後ろの余分を捨てた
+      salvage … 完結しているオブジェクトだけを拾った(途中で切れた応答)
+      empty   … 応答が空
+      fail    … 読み取れなかった
+    records が空なら読み取れなかったということ。
+    """
+    s = _FENCE_RE.sub("", raw or "").strip()
+    if not s:
+        return [], "empty"
+
+    try:
+        recs = _as_records(json.loads(s))
+        if recs:
+            return recs, "strict"
+    except ValueError:
+        pass
+
+    # 先頭の完全なJSON値だけを読む。後ろに何が付いていても無視する。
+    dec = json.JSONDecoder()
+    truncated_array = False
+    for opener in ("[", "{"):
+        i = s.find(opener)
+        if i < 0:
+            continue
+        try:
+            value, _ = dec.raw_decode(s, i)
+        except ValueError:
+            # 配列を開いたのに閉じられない＝応答が途中で切れている。
+            truncated_array = truncated_array or opener == "["
+            continue
+        recs = _as_records(value)
+        if not recs:
+            continue
+        if not truncated_array:
+            return recs, "prefix"
+        # 途中で切れた配列では、先頭の {…} を1件読んで打ち切ると、その後ろに
+        # 完結して並んでいるオブジェクトを取りこぼす。実測: 6件バッチが2件目の
+        # 途中で切れた応答から1件しか回収できず、残り5件が未判定になっていた。
+        salvaged = _salvage_objects(s)
+        if len(salvaged) > len(recs):
+            return salvaged, "salvage"
+        return recs, "prefix"
+
+    recs = _salvage_objects(s)
+    if recs:
+        return recs, "salvage"
+    return [], "fail"
+
+
+def index_records(records: list, batch_size: int) -> dict:
+    """レコードを index → レコード の辞書にする。
+
+    index が欠けている、文字列になっている、といった応答が実測であった。
+    1件だけの応答で index が無い場合は 0 とみなす(再判定は1件ずつ投げる
+    ため、この形が出やすい)。
+
+    件数がバッチと一致し、どのレコードにも index が無い場合は、出力順が
+    入力順と同じだとみなして位置で対応づける。以前は batch_size == 1 の
+    ときしか救えず、6件バッチで index を省いた「JSONとしては完全に正しい
+    応答」が返ると6件とも未判定になっていた。判定の指示は必ず index を
+    書かせているが、守られないことがある。
+    """
+    if (records and len(records) == batch_size
+            and not any("index" in r for r in records)):
+        return dict(enumerate(records))
+
+    m = {}
+    for r in records:
+        if "index" not in r and len(records) == 1 and batch_size == 1:
+            m[0] = r
+            continue
+        try:
+            m[int(r["index"])] = r
+        except (KeyError, TypeError, ValueError):
+            continue
+    return m

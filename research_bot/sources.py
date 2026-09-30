@@ -2,7 +2,7 @@
 
 収録データベース:
   英語  OpenAlex / PubMed / Europe PMC / Crossref / Semantic Scholar / ERIC
-  日本語 J-STAGE / CiNii Research (CiNiiはappid登録時のみ)
+  日本語 J-STAGE / CiNii Research(appid登録時のみ) / 国立国会図書館サーチ
 
 ERIC は特別支援教育・応用行動分析の中核データベースで、キー不要で使える。
 心理学の中核である PsycINFO は機関契約が前提で個人からは叩けないため、
@@ -11,6 +11,8 @@ OpenAlex(収録誌が大きく重なる) + ERIC + PsyArXiv で穴を埋める設
 引用連鎖は OpenAlex を使う。キーワード検索が取りこぼした中核文献
 (著者が別の語彙を使っていた等)を拾うのが目的で、
 「収集件数は多いが中核文献が薄い」状態への最も直接的な対処になる。
+
+取得件数・待ち時間・雑記事として弾くタイトルは config.py にある。
 """
 
 import re
@@ -22,7 +24,7 @@ from tqdm import tqdm
 
 import config
 
-# キーとメールアドレスは config が一括で読む(keys.env にも対応)
+# キーとメールアドレスは config が一括で読む(KEYS_FILE にも対応)
 ACADEMIC_EMAIL = config.ACADEMIC_EMAIL
 S2_API_KEY = config.S2_API_KEY
 NCBI_API_KEY = config.NCBI_API_KEY
@@ -46,7 +48,7 @@ def openalex_key_missing_warning():
             "全リクエストにキーを要求しており、無いと検索・引用連鎖のOpenAlex"
             "呼び出しがすべて失敗します(結果は静かに0件になります)。"
             "openalex.org/settings/api で無料キーを取得し、"
-            "export OPENALEX_API_KEY=\"...\" を ~/.bashrc に追加してください。\n")
+            f"{config.KEYS_FILE} に OPENALEX_API_KEY=... と書いてください。\n")
 
 
 def test_openalex_connection() -> bool:
@@ -64,27 +66,29 @@ def test_openalex_connection() -> bool:
         if res.status_code == 200:
             n = len(res.json().get("results", []))
             if n > 0:
-                tqdm.write(f"[疎通確認] OK — OpenAlexは正常に応答しています。")
+                tqdm.write("[疎通確認] OK — OpenAlexは正常に応答しています。")
                 return True
             tqdm.write(f"[疎通確認] 応答は200だが結果が0件でした。本文: {res.text[:300]}")
             return False
         tqdm.write(f"[疎通確認] 失敗 — ステータス {res.status_code}: {res.text[:300]}")
         if not OPENALEX_API_KEY:
-            tqdm.write("[疎通確認] OPENALEX_API_KEY が空です。--- 環境変数が"
-                      "現在のシェルに読み込まれているか `echo $OPENALEX_API_KEY` "
-                      "で確認してください。")
+            tqdm.write("[疎通確認] OPENALEX_API_KEY が空です。"
+                       f"{config.KEYS_FILE} か環境変数に設定してください。")
         return False
     except Exception as e:
         tqdm.write(f"[疎通確認] 通信エラー: {type(e).__name__}: {e}")
         return False
 
+
 USER_AGENT = f"ResearchBot/31.0 (mailto:{ACADEMIC_EMAIL})" if ACADEMIC_EMAIL else "ResearchBot/31.0"
 
-# 1クエリあたりの取得上限
-FETCH_LIMIT = 100
-ERIC_LIMIT = 200          # ERICは1回200件まで
-NDL_LIMIT = 200           # NDLサーチは1回500件まで。501件目以降は取得できない
-REQUEST_PAUSE = 1.0       # DB間の礼儀的な間隔
+# 取得件数と待ち時間(値は config.py)
+FETCH_LIMIT = config.FETCH_LIMIT
+ERIC_LIMIT = config.ERIC_LIMIT
+NDL_LIMIT = config.NDL_LIMIT
+REQUEST_PAUSE = config.REQUEST_PAUSE
+# CiNii の description がこれより短ければ、DOIからOpenAlexで抄録を補う
+CINII_ENRICH_BELOW = 200
 
 
 def _openalex_params(extra: dict) -> dict:
@@ -97,7 +101,7 @@ def _openalex_params(extra: dict) -> dict:
 
 
 def _get(url, **kw):
-    kw.setdefault("timeout", 20)
+    kw.setdefault("timeout", config.DB_TIMEOUT)
     headers = kw.pop("headers", {})
     headers.setdefault("User-Agent", USER_AGENT)
     return requests.get(url, headers=headers, **kw)
@@ -173,6 +177,18 @@ def _openalex_pmcid(it: dict) -> str:
     return normalize_pmcid((it.get("ids") or {}).get("pmcid"))
 
 
+def _add_openalex_work(it: dict, add, label: str) -> bool:
+    """OpenAlex の作品1件を収集に加える。検索・後方引用・前方引用で共通。"""
+    doi = it.get("doi")
+    authors = clean_authors([(a.get("author") or {}).get("display_name")
+                             for a in (it.get("authorships") or [])])
+    return add(label, it.get("title"), it.get("publication_year"),
+               reconstruct_inverted_abstract(it.get("abstract_inverted_index")),
+               url=doi or it.get("id"), doi=doi, authors=authors,
+               openalex_id=it.get("id"), cited_by=it.get("cited_by_count"),
+               pmcid=_openalex_pmcid(it))
+
+
 # ==========================================
 # 各データベース
 # ==========================================
@@ -211,14 +227,7 @@ def fetch_openalex(query: str, add) -> int:
             tqdm.write(f"  [OpenAlex] ヒット0件(総数={total})。投げた式: {query[:180]}")
             return 0
         for it in payload.get("results", []):
-            authors = clean_authors([(a.get("author") or {}).get("display_name")
-                                     for a in (it.get("authorships") or [])])
-            doi = it.get("doi")
-            if add("OpenAlex", it.get("title"), it.get("publication_year"),
-                   reconstruct_inverted_abstract(it.get("abstract_inverted_index")),
-                   url=doi or it.get("id"), doi=doi, authors=authors,
-                   openalex_id=it.get("id"), cited_by=it.get("cited_by_count"),
-                   pmcid=_openalex_pmcid(it)):
+            if _add_openalex_work(it, add, "OpenAlex"):
                 n += 1
     except Exception as e:
         tqdm.write(f"  [OpenAlex] 通信エラー: {type(e).__name__}: {e}")
@@ -381,13 +390,13 @@ def fetch_semantic_scholar(query: str, add) -> int:
                                "キー自体が無効化・失効している可能性が高いです。"
                                "semanticscholar.org/product/api のダッシュボードで"
                                "このキーがまだ有効か確認し、無効なら再発行して"
-                               "export S2_API_KEY=\"...\" を設定し直してください。"
+                               f"{config.KEYS_FILE} の S2_API_KEY を書き換えてください。"
                                "このDBを諦めて他DBで代替することもできます。")
                 else:
                     tqdm.write("  [Semantic Scholar] 403 Forbidden。未認証の検索は"
                                "現在ほぼ拒否されます。semanticscholar.org/product/api "
-                               "でキーを取得し export S2_API_KEY=\"...\" を設定するか、"
-                               "このDBは諦めてください(他DBで代替可能です)。")
+                               f"でキーを取得し {config.KEYS_FILE} に S2_API_KEY=... と"
+                               "書くか、このDBは諦めてください(他DBで代替可能です)。")
                 return 0
             if res.status_code == 429:
                 if attempt < len(waits):
@@ -464,28 +473,11 @@ def fetch_eric(query: str, add) -> int:
     return n
 
 
-# 日本語の学会誌・大会論文集には、研究論文でない記事が大量に混ざる。
-# 抄録が付いていても内容が無いため、タイトルで弾く。
-#
-# 部分一致で弾いてよい語。記事の種別そのものを指す言葉で、研究論文の
-# 題名の一部として現れることがまず無い。
-NOISE_TITLE_PATTERNS = (
-    "大会長挨拶", "会長挨拶", "巻頭言", "祝辞",
-    "各種委員会報告", "委員会報告", "会務報告", "総会報告",
-    "会場案内", "タイムスケジュール", "日程表",
-    "座長一覧", "賛助会員", "編集後記",
-    "学会賞", "会則", "投稿規定", "執筆要領", "奥付",
-)
-
-# 完全一致でのみ弾く語。研究論文の題名の一部として普通に現れるため、
-# 部分一致にすると本文まで巻き込む。実測: 「強度行動障害支援のはじめに
-# 考えること」が「はじめに」で、「行動障害のある人への広告リテラシー支援」
-# が「広告」で落ちていた。福祉領域では特に取りこぼしが痛い。
-NOISE_TITLE_EXACT = (
-    "はじめに", "序文", "目次", "索引", "広告", "事務局", "参加費",
-    "訂正", "正誤表", "お知らせ", "編集後記", "巻頭言",
-)
-_NOISE_EXACT_NORM = {re.sub(r"[\s　]", "", p) for p in NOISE_TITLE_EXACT}
+# 日本語の学会誌・大会論文集には、研究論文でない記事(巻頭言・目次など)が
+# 大量に混ざる。抄録が付いていても内容が無いため、タイトルで弾く。
+# 弾く語は config.py の NOISE_TITLE_PATTERNS(部分一致)と
+# NOISE_TITLE_EXACT(完全一致)にある。
+_NOISE_EXACT_NORM = {re.sub(r"[\s　]", "", p) for p in config.NOISE_TITLE_EXACT}
 
 
 def _is_noise_title(title: str) -> bool:
@@ -495,7 +487,7 @@ def _is_noise_title(title: str) -> bool:
     # 「【お知らせ】」「目次・索引」等の飾りを落としてから完全一致を見る
     if re.sub(r"[\s　【】\[\]（）()：:・,、。.]", "", t) in _NOISE_EXACT_NORM:
         return True
-    return any(p in t for p in NOISE_TITLE_PATTERNS)
+    return any(p in t for p in config.NOISE_TITLE_PATTERNS)
 
 
 def _jsonld_value(item: dict, *keys) -> str:
@@ -602,60 +594,60 @@ def fetch_jstage(query_ja: str, add) -> int:
     records = []
     seen_urls = set()
     for term in _split_ja_terms(query_ja):
-      try:
-        res = _get("https://api.jstage.jst.go.jp/searchapi/do", params={
-            "service": 3, "text": term, "count": 100, "start": 1})
-        if res.status_code != 200:
-            tqdm.write(f"  [J-STAGE] エラー {res.status_code}")
-            continue
-        root = ET.fromstring(res.text)
-        entries = [e for e in root.iter() if _strip_ns(e.tag) == "entry"]
-        for e in entries:
-            doi = _jstage_text(e, "doi")
-            year = None
-            ystr = _jstage_text(e, "pubyear")
-            m = re.search(r"\d{4}", ystr or "")
-            if m:
-                year = m.group(0)
-            # 著者は <author><ja><name>…</name></ja><en><name>…</name></en></author>
-            # の入れ子。両方拾うと同一人物が二重に並ぶため、日本語側を優先する。
-            authors = []
-            for child in e:
-                if _strip_ns(child.tag) != "author":
-                    continue
-                by_lang = {}
-                for sub in child:
-                    lang = _strip_ns(sub.tag)
-                    if lang not in ("ja", "en"):
+        try:
+            res = _get("https://api.jstage.jst.go.jp/searchapi/do", params={
+                "service": 3, "text": term, "count": 100, "start": 1})
+            if res.status_code != 200:
+                tqdm.write(f"  [J-STAGE] エラー {res.status_code}")
+                continue
+            root = ET.fromstring(res.text)
+            entries = [e for e in root.iter() if _strip_ns(e.tag) == "entry"]
+            for e in entries:
+                doi = _jstage_text(e, "doi")
+                year = None
+                ystr = _jstage_text(e, "pubyear")
+                m = re.search(r"\d{4}", ystr or "")
+                if m:
+                    year = m.group(0)
+                # 著者は <author><ja><name>…</name></ja><en><name>…</name></en></author>
+                # の入れ子。両方拾うと同一人物が二重に並ぶため、日本語側を優先する。
+                authors = []
+                for child in e:
+                    if _strip_ns(child.tag) != "author":
                         continue
-                    names = [x.text.strip() for x in sub.iter()
-                             if _strip_ns(x.tag) == "name" and (x.text or "").strip()]
-                    if names:
-                        by_lang[lang] = names
-                authors = by_lang.get("ja") or by_lang.get("en") or []
-                if not authors:
-                    # 言語別の入れ子が無い形式へのフォールバック
-                    authors = [x.text.strip() for x in child.iter()
-                               if _strip_ns(x.tag) == "name" and (x.text or "").strip()]
-                break
-            jtitle = _jstage_text(e, "article_title")
-            if _is_noise_title(jtitle):
-                continue   # 巻頭言・目次などの非研究記事
-            u = _jstage_text(e, "article_link") or _jstage_text(e, "id")
-            if u and u in seen_urls:
-                continue      # 語をまたいで同じ論文が返るのは正常
-            if u:
-                seen_urls.add(u)
-            records.append({
-                "title": jtitle,
-                "year": year, "doi": doi.lower() if doi else None,
-                "url": u, "authors": authors,
-                "venue": _jstage_text(e, "material_title"),
-            })
-      except Exception as e:
-        tqdm.write(f"  [J-STAGE] 解析エラー: {type(e).__name__}: {e}")
-        continue
-      time.sleep(REQUEST_PAUSE)
+                    by_lang = {}
+                    for sub in child:
+                        lang = _strip_ns(sub.tag)
+                        if lang not in ("ja", "en"):
+                            continue
+                        names = [x.text.strip() for x in sub.iter()
+                                 if _strip_ns(x.tag) == "name" and (x.text or "").strip()]
+                        if names:
+                            by_lang[lang] = names
+                    authors = by_lang.get("ja") or by_lang.get("en") or []
+                    if not authors:
+                        # 言語別の入れ子が無い形式へのフォールバック
+                        authors = [x.text.strip() for x in child.iter()
+                                   if _strip_ns(x.tag) == "name" and (x.text or "").strip()]
+                    break
+                jtitle = _jstage_text(e, "article_title")
+                if _is_noise_title(jtitle):
+                    continue   # 巻頭言・目次などの非研究記事
+                u = _jstage_text(e, "article_link") or _jstage_text(e, "id")
+                if u and u in seen_urls:
+                    continue      # 語をまたいで同じ論文が返るのは正常
+                if u:
+                    seen_urls.add(u)
+                records.append({
+                    "title": jtitle,
+                    "year": year, "doi": doi.lower() if doi else None,
+                    "url": u, "authors": authors,
+                    "venue": _jstage_text(e, "material_title"),
+                })
+        except Exception as e:
+            tqdm.write(f"  [J-STAGE] 解析エラー: {type(e).__name__}: {e}")
+            continue
+        time.sleep(REQUEST_PAUSE)
 
     if not records:
         return 0
@@ -688,13 +680,13 @@ def fetch_cinii(query_ja: str, add) -> int:
     CiNiiはスペース区切りをANDとして扱うため、同義語を並べると
     「全語を含む論文」を探すことになり0件になる。1語ずつ検索する。
     """
+    global _cinii_warned
     if not CINII_APPID:
-        global _cinii_warned
         if not _cinii_warned:
             _cinii_warned = True
             tqdm.write("  [CiNii] CINII_APPID が未設定のため検索をスキップしました。"
                        "support.nii.ac.jp のAPI利用者登録でIDを取得し、"
-                       "export CINII_APPID=\"...\" を設定してください。")
+                       f"{config.KEYS_FILE} に CINII_APPID=... と書いてください。")
         return 0
 
     records, seen_ids = [], set()
@@ -773,13 +765,13 @@ def fetch_cinii(query_ja: str, add) -> int:
         return 0
 
     # descriptionが短い(または無い)ものはDOIから補完する
-    need = [r for r in records if len(r["abstract"]) < 200 and r.get("doi")]
+    need = [r for r in records if len(r["abstract"]) < CINII_ENRICH_BELOW and r.get("doi")]
     filled = _enrich_abstracts_by_doi(need) if need else {}
 
     n = dup = 0
     for r in records:
         text = r["abstract"]
-        if len(text) < 200:
+        if len(text) < CINII_ENRICH_BELOW:
             text = filled.get(r["doi"] or "", text)
         if add("CiNii", r["title"], r["year"], text, url=r["url"],
                doi=r["doi"], authors=r["authors"]):
@@ -789,7 +781,8 @@ def fetch_cinii(query_ja: str, add) -> int:
             dup += 1
     if records and n == 0:
         short = sum(1 for r in records
-                    if len(r["abstract"]) < 200 and not filled.get(r["doi"] or ""))
+                    if len(r["abstract"]) < CINII_ENRICH_BELOW
+                    and not filled.get(r["doi"] or ""))
         tqdm.write(f"  [CiNii] {len(records)}件ヒット → "
                    f"抄録が短い/取得できず{short}件 / 収集済みか重複{max(dup - short, 0)}件")
     return n
@@ -966,7 +959,7 @@ def fetch_ndl(query_ja: str, add) -> int:
 
 
 # 検索式の方言ごとにフェッチャを分類する。
-# キー名は searchplan.render_queries() が返す辞書のキーと対応する。
+# キー名は searchplan.build_queries() が返す辞書のキーと対応する。
 ENGLISH_SOURCES = [
     ("OpenAlex", "openalex", fetch_openalex),
     ("PubMed", "pubmed", fetch_pubmed),
@@ -1044,24 +1037,17 @@ def _fetch_openalex_works(ids: list, add, label: str):
                 tqdm.write(f"  [OpenAlex 後方引用] エラー {res.status_code}: {res.text[:150]}")
                 continue
             for it in res.json().get("results", []):
-                doi = it.get("doi")
-                authors = clean_authors([(a.get("author") or {}).get("display_name")
-                                         for a in (it.get("authorships") or [])])
-                if add(label, it.get("title"), it.get("publication_year"),
-                       reconstruct_inverted_abstract(it.get("abstract_inverted_index")),
-                       url=doi or it.get("id"), doi=doi, authors=authors,
-                       openalex_id=it.get("id"), cited_by=it.get("cited_by_count"),
-                   pmcid=_openalex_pmcid(it)):
+                if _add_openalex_work(it, add, label):
                     n += 1
-                    if doi:
-                        added_dois.append(doi)
+                    if it.get("doi"):
+                        added_dois.append(it["doi"])
         except Exception as e:
             tqdm.write(f"  [OpenAlex 後方引用] 通信エラー: {type(e).__name__}: {e}")
         time.sleep(REQUEST_PAUSE)
     return n, added_dois
 
 
-def snowball(seed_items: list, add, hops=1, max_seeds=25, min_gain=0.05) -> list:
+def snowball(seed_items: list, add, hops=1, max_seeds=25, min_gain=None) -> list:
     """シード論文から引用連鎖で文献を広げる。
 
     後方(その論文が引用している文献)と前方(その論文を引用している文献)の両方向。
@@ -1072,6 +1058,7 @@ def snowball(seed_items: list, add, hops=1, max_seeds=25, min_gain=0.05) -> list
     戻り値は各ラウンドの記録(レポートの検索履歴に載せる)。
     """
     openalex_key_missing_warning()
+    min_gain = config.SNOWBALL_MIN_GAIN if min_gain is None else min_gain
     rounds = []
     seeds = [it for it in seed_items if it.get("doi")][:max_seeds]
     for hop in range(1, hops + 1):
@@ -1106,18 +1093,10 @@ def snowball(seed_items: list, add, hops=1, max_seeds=25, min_gain=0.05) -> list
                     tqdm.write(f"  [OpenAlex 前方引用] エラー {res.status_code}: {res.text[:150]}")
                     continue
                 for it in res.json().get("results", []):
-                    doi = it.get("doi")
-                    authors = clean_authors([(a.get("author") or {}).get("display_name")
-                                             for a in (it.get("authorships") or [])])
-                    if add("OpenAlex(前方引用)", it.get("title"),
-                           it.get("publication_year"),
-                           reconstruct_inverted_abstract(it.get("abstract_inverted_index")),
-                           url=doi or it.get("id"), doi=doi, authors=authors,
-                           openalex_id=it.get("id"), cited_by=it.get("cited_by_count"),
-                   pmcid=_openalex_pmcid(it)):
+                    if _add_openalex_work(it, add, "OpenAlex(前方引用)"):
                         fwd_added += 1
-                        if doi:
-                            fwd_dois.append(doi)
+                        if it.get("doi"):
+                            fwd_dois.append(it["doi"])
             except Exception as e:
                 tqdm.write(f"  [OpenAlex 前方引用] 通信エラー: {e}")
             time.sleep(REQUEST_PAUSE)

@@ -14,78 +14,15 @@
 同名異義語(MAS = Motivation Assessment Scale / Motor Assessment Scale 等)は
 NOT で消すのではなく、フルスペル併記と文脈語ANDで抑える。NOTは、除外語を
 含みつつ関連する文献まで落とすため再現率を下げる。
+
+組み込みの同義語辞書(BUILTIN_SYNONYMS)と、検索式に使うファセット数・
+日本語DBの検索回数の上限は config.py にある。
 """
 
 import json
 import re
 
-# 心理学・行動障害領域でよく効く定型の同義語。LLMの展開が薄いときの下支え。
-#
-# 旧診断名を意図的に多く含めている。診断名は改訂のたびに置き換わるのに、
-# 文献はその時代の名前のまま残る。intellectual disability だけで検索すると
-# 2013年のDSM-5改訂より前の文献がほとんど掛からず、日本語でも「知的障害」
-# だけでは1999年の法改正以前の「精神薄弱」の文献に届かない。この領域の
-# 古典が抜け落ちるのは、収集件数の多寡よりも深刻な取りこぼしになる。
-BUILTIN_SYNONYMS = {
-    "強度行動障害": {
-        "en": ["challenging behavior", "challenging behaviour",
-               "severe behavior problem", "problem behavior",
-               "self-injurious behavior", "self-injury", "aggression",
-               "destructive behavior"],
-        "ja": ["強度行動障害", "行動障害", "著しい行動障害", "問題行動",
-               "自傷行為", "他害行為"],
-    },
-    "知的障害": {
-        "en": ["intellectual disability", "intellectual disabilities",
-               "developmental disability", "learning disability",
-               "learning difficulties",
-               # DSM-5(2013)以前の標準的な呼称
-               "mental retardation", "mentally retarded",
-               "mental deficiency", "mental handicap"],
-        # 「精神薄弱」は1999年の法改正で「知的障害」に改められた語
-        "ja": ["知的障害", "精神遅滞", "精神薄弱", "知的能力障害"],
-    },
-    "自閉症": {
-        "en": ["autism", "autism spectrum disorder", "ASD", "autistic",
-               # DSM-IV期の下位分類。DSM-5で自閉スペクトラム症に統合された
-               "pervasive developmental disorder", "PDD-NOS",
-               "Asperger syndrome", "Asperger's disorder",
-               "infantile autism", "childhood autism"],
-        "ja": ["自閉症", "自閉スペクトラム症", "自閉性障害",
-               "広汎性発達障害", "アスペルガー症候群"],
-    },
-    "応用行動分析": {
-        "en": ["applied behavior analysis", "applied behaviour analysis",
-               "behavior analytic", "behavioral intervention",
-               "behavior modification", "operant conditioning",
-               "positive behavior support"],
-        "ja": ["応用行動分析", "行動分析", "行動療法", "行動変容",
-               "積極的行動支援"],
-    },
-    "機能的アセスメント": {
-        "en": ["functional assessment", "functional behavior assessment",
-               "functional analysis", "FBA", "analogue functional analysis",
-               "functional communication training"],
-        "ja": ["機能的アセスメント", "機能アセスメント", "機能分析"],
-    },
-    "感覚統合": {
-        "en": ["sensory integration", "Ayres sensory integration",
-               "sensory processing", "sensory modulation",
-               "sensory integrative dysfunction", "sensory defensiveness"],
-        "ja": ["感覚統合", "感覚処理", "感覚調整", "感覚防衛"],
-    },
-    "作業療法": {
-        "en": ["occupational therapy", "occupational therapist"],
-        "ja": ["作業療法", "作業療法士"],
-    },
-    "愛着": {
-        "en": ["attachment", "attachment security", "caregiver relationship",
-               "attachment disorder", "reactive attachment disorder",
-               "disinhibited social engagement disorder",
-               "maternal deprivation"],
-        "ja": ["愛着", "アタッチメント", "愛着障害", "反応性愛着障害"],
-    },
-}
+import config
 
 # 測定特性(信頼性・妥当性)を扱う研究を拾うためのフィルタ。
 # COSMIN の考え方に沿った簡易版で、尺度・アセスメント道具が主題のときに足す。
@@ -118,9 +55,9 @@ facets (clusters of concepts) for use in search.
    Too many facets starves the result count when AND-combined.
    Order them so that facet 1 is the concept the theme is actually asking
    about — the phenomenon, construct, intervention, or measure under study
-   — and not the population it happens to occur in. Only the first three
-   facets are used to build the search, so a core concept placed fourth is
-   never searched at all. For "transference between abused people with
+   — and not the population it happens to occur in. Only the first
+   {max_facets} facets are used to build the search, so a core concept placed
+   after them is never searched at all. For "transference between abused people with
    intellectual disabilities and their support workers", facet 1 is
    transference, not intellectual disability. Put the population later.
 3. For each facet, list 5-10 English synonyms/related terms.
@@ -184,6 +121,11 @@ formatting.
 }}"""
 
 
+def facet_prompt(topic: str) -> str:
+    """ファセット抽出の問い合わせ文。"""
+    return FACET_PROMPT.format(topic=topic, max_facets=config.MAX_FACETS)
+
+
 def _anchor_score(facet: dict, anchor_en: str, anchor_ja: str) -> int:
     """ファセットがテーマの中心概念をどれだけ含むかを大まかに測る。"""
     ae = (anchor_en or "").strip().lower()
@@ -212,8 +154,8 @@ def _reorder_by_anchor(facets: list, anchor_en: str, anchor_ja: str) -> list:
 
     LLMは枠組みの名前の順(PCCならPopulationが先)にファセットを並べる
     ことが多く、テーマの中心概念が3番目・4番目に来ることがある。
-    build_queries は先頭3件しか使わないため、中心概念が4番目に置かれると
-    その語が一度も検索されない。実測で、投影・転移を主題とするテーマの
+    build_queries は先頭 MAX_FACETS 件しか使わないため、中心概念がその後ろに
+    置かれるとその語が一度も検索されない。実測で、投影・転移を主題とするテーマの
     検索式から当該語が丸ごと抜け落ちた(2340件を集めてcore判定0件)。
     anchorと一致する語を持つファセットが無ければ、順序は変えない。
     """
@@ -263,10 +205,10 @@ def parse_facet_response(raw: str, topic: str) -> dict:
             facets.append({"name": f.get("name") or "facet", "en": en,
                            "ja": ja, "mesh": mesh})
 
-    # 組み込みの同義語で下支えする。LLMの展開が薄いときの保険。
-    # 以前は英語の完全一致でしか発火せず、LLMが複数形や英国綴りで出すと
-    # 旧診断名を足せないまま終わっていた。
-    for key, syns in BUILTIN_SYNONYMS.items():
+    # 組み込みの同義語(config.BUILTIN_SYNONYMS)で下支えする。LLMの展開が
+    # 薄いときの保険。以前は英語の完全一致でしか発火せず、LLMが複数形や
+    # 英国綴りで出すと旧診断名を足せないまま終わっていた。
+    for key, syns in config.BUILTIN_SYNONYMS.items():
         if key not in topic:
             continue
         target = next((f for f in facets if _facet_matches(f, key, syns["en"])),
@@ -416,12 +358,6 @@ def _or_group(terms: list, quote=True) -> str:
     return "(" + " OR ".join(items) + ")" if items else ""
 
 
-# 日本語DBは1語(または1組)ごとに個別のリクエストになるため、上限を置く。
-# 2段構え(precise/broad/core)でそれぞれ実行されることにも注意。
-JA_PAIR_LIMIT = 4     # 2語ANDの組み合わせ数の上限
-JA_SINGLE_LIMIT = 2   # 単独語検索の上限
-
-
 def _japanese_queries(facets: list, anchor_ja: str) -> str:
     """日本語DBへ渡す検索語列。" | " 区切りで、各要素が1回の検索になる。
 
@@ -429,6 +365,9 @@ def _japanese_queries(facets: list, anchor_ja: str) -> str:
     「中核の語 × 別ファセットの語」の2語ANDを並べて精度を確保し、
     続けて中核ファセットの単独語を置いて取りこぼしを回収する。
     ファセットが1つしかない検索(coreパス)では単独語だけになる。
+    日本語DBは1語(または1組)ごとに個別のリクエストになり、しかも
+    precise/broad/core の各段で実行されるため、回数に上限を置く
+    (config.JA_PAIR_LIMIT / JA_SINGLE_LIMIT)。
     """
     core = list(dict.fromkeys(t for t in (facets[0]["ja"] if facets else []) if t))
     # 第2ファセット以降は交互に取る。順に連結すると、上限に達するまでに
@@ -449,21 +388,22 @@ def _japanese_queries(facets: list, anchor_ja: str) -> str:
             q = f"{a} {b}"
             if q not in queries:
                 queries.append(q)
-            if len(queries) >= JA_PAIR_LIMIT:
+            if len(queries) >= config.JA_PAIR_LIMIT:
                 break
-        if len(queries) >= JA_PAIR_LIMIT:
+        if len(queries) >= config.JA_PAIR_LIMIT:
             break
-    queries += [t for t in core[:JA_SINGLE_LIMIT] if t not in queries]
+    queries += [t for t in core[:config.JA_SINGLE_LIMIT] if t not in queries]
     return " | ".join(queries) or anchor_ja
 
 
-def build_queries(plan: dict, max_facets=3) -> dict:
+def build_queries(plan: dict, max_facets=None) -> dict:
     """ファセット計画からDB方言ごとの検索式を組む。
 
     ファセット内はOR、ファセット間はANDで結ぶ。ファセットを増やすほど
-    精度は上がるが件数が枯れるため、中核から max_facets 個までに絞る。
+    精度は上がるが件数が枯れるため、中核から max_facets 個
+    (既定は config.MAX_FACETS)までに絞る。
     """
-    facets = plan["facets"][:max_facets]
+    facets = plan["facets"][:max_facets or config.MAX_FACETS]
     en_groups = [_or_group(f["en"]) for f in facets if f["en"]]
     # 日本語語彙の平坦化は廃止した(_japanese_queries が facets を直接読む)
 
@@ -544,15 +484,15 @@ def build_query_passes(plan: dict) -> list:
 
     ファセットを全部ANDで結ぶと精度は上がるが、中核文献まで落ちることがある
     (これが「収集件数は多いのに中核が薄い」状態を招く)。そこで
-      precise : ファセット3個をAND     — 主題が一致する文献
-      broad   : ファセット2個をAND     — 取りこぼしの回収
-      core    : 中核ファセットのみ     — その概念を扱う文献を漏らさない
+      precise : ファセットMAX_FACETS個をAND — 主題が一致する文献
+      broad   : ファセット2個をAND          — 取りこぼしの回収
+      core    : 中核ファセットのみ          — その概念を扱う文献を漏らさない
     の順に投げ、重複はDOI/タイトルで自動的に排除される。
     ファセットが少ないテーマでは重複するパスを自動で省く。
     """
     passes, seen = [], set()
     n_facets = len(plan["facets"])
-    for label, k in (("precise", 3), ("broad", 2), ("core", 1)):
+    for label, k in (("precise", config.MAX_FACETS), ("broad", 2), ("core", 1)):
         if k > n_facets:
             continue
         q = build_queries(plan, max_facets=k)
@@ -573,10 +513,11 @@ def describe_plan(plan: dict, queries: dict) -> str:
         lines.append("同名異義語として区別すべき概念: " + " / ".join(plan["homonyms"]))
     lines.append("")
     lines.append("ファセット:")
+    n = config.MAX_FACETS
     for i, f in enumerate(plan["facets"]):
-        # build_queries は先頭3件しか使わない。4番目以降が中心概念だと
-        # 一度も検索されないまま終わるので、その場で分かるようにしておく。
-        mark = "" if i < 3 else "   ※4番目以降は検索式に入りません"
+        # build_queries は先頭 MAX_FACETS 件しか使わない。それより後ろが
+        # 中心概念だと一度も検索されないまま終わるので、その場で分かるようにする。
+        mark = "" if i < n else f"   ※{n + 1}番目以降は検索式に入りません"
         lines.append(f"  - {f['name']}{mark}")
         if f["en"]:
             lines.append("      EN: " + ", ".join(f["en"]))

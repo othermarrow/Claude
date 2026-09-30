@@ -1,12 +1,10 @@
 """全文に関する処理をまとめる(旧 fulltext.py + fulltext_check.py)。
 
 1. refine_with_fulltext() — 収集パイプラインの中で使う
-   中心クラスタの文献について本文の Methods 章を取得し、extract.py が
+   中心クラスタの文献について本文の Methods 章を取得し、judge.py の抽出が
    抄録だけで推定した設計・参加者数・場面・質指標を確かめ直す。
-   旧版はこの関数がどこからも呼ばれておらず、カタログの
-   「📄本文で確認済み」が一度も出ない状態だった。
 
-2. check_access() — 生成済みカタログに対して使う(check の一部)
+2. check_access() — 生成済みカタログに対して使う(research_bot.py fulltext / check)
    core 文献の全文へのアクセス可否を A/B/C に分けた一覧を書き出す。
      A) Europe PMC が OA 全文を配布(APIで機械的に取得できる)
      B) 無料で読めるが API 取得は不可(リンクを開く)
@@ -35,21 +33,18 @@ from tqdm import tqdm
 
 import catalog
 import config
-import extract
+import judge
 import llm
 import sources
 
 EPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 UNPAYWALL = "https://api.unpaywall.org/v2"
 
-FETCH_TIMEOUT = 30
+# 長さ・時間・同時接続数の設定は config.py(FULLTEXT_*)にある。
 MAX_BODY_CHARS = 400_000       # あまりに巨大なページは丸ごと処理しない
-METHODS_EXCERPT_CHARS = 6000   # モデルに渡す抜粋の上限(抄録の1200字よりずっと広い)
-# 抽出した本文がこれ未満、または抄録の1.5倍未満しかなければ、要旨だけの
-# ランディングページに過ぎないと判断して使わない。
-MIN_USABLE_CHARS = 800
+# 抽出した本文が FULLTEXT_MIN_USABLE_CHARS 未満、または抄録のこの倍率未満しか
+# なければ、要旨だけのランディングページに過ぎないと判断して使わない。
 LANDING_PAGE_RATIO = 1.5
-NET_CONCURRENCY = 3
 
 # pypdf は依存先(cryptography)の壊れ方によって ImportError ではなく
 # Rust 側のパニック(BaseException)を投げることがある。そこで全体が
@@ -80,12 +75,13 @@ DOI_IN_URL = re.compile(r"(?:https?://(?:dx\.)?doi\.org/|^)(10\.\d{4,9}/[^\s\"<>
 # ==========================================
 # 通信
 # ==========================================
-def _get(url, params=None, timeout=FETCH_TIMEOUT, attempt=0, headers=None):
+def _get(url, params=None, timeout=None, attempt=0, headers=None):
     """GET。429/5xx は2回まで待って再試行する。失敗時は None。"""
     h = {"User-Agent": sources.USER_AGENT}
     h.update(headers or {})
     try:
-        r = requests.get(url, params=params, timeout=timeout, headers=h)
+        r = requests.get(url, params=params, headers=h,
+                         timeout=timeout or config.FULLTEXT_TIMEOUT)
     except Exception:
         return None
     if r.status_code in (429, 500, 502, 503) and attempt < 2:
@@ -193,8 +189,8 @@ def methods_from_jats(xml_text: str) -> str:
         return re.sub(r"\s+", " ", " ".join(el.itertext())).strip()
 
     if top:
-        return "\n\n".join(text(s) for s in top)[:METHODS_EXCERPT_CHARS]
-    return text(body)[:METHODS_EXCERPT_CHARS]
+        return "\n\n".join(text(s) for s in top)[:config.FULLTEXT_METHODS_CHARS]
+    return text(body)[:config.FULLTEXT_METHODS_CHARS]
 
 
 def _html_to_text(raw_html: str) -> str:
@@ -221,7 +217,7 @@ def _pdf_to_text(pdf_bytes: bytes) -> str:
 def _fetch_url_text(url: str):
     """URLから本文をプレーンテキストで取る。戻り値は (本文, "PDF"/"HTML")。"""
     try:
-        res = requests.get(url, timeout=FETCH_TIMEOUT,
+        res = requests.get(url, timeout=config.FULLTEXT_TIMEOUT,
                            headers={"User-Agent": "Mozilla/5.0 (academic research script)"})
     except Exception:
         return "", ""
@@ -235,7 +231,7 @@ def _fetch_url_text(url: str):
 
 def _looks_usable(text: str, abstract: str) -> bool:
     """要旨だけのランディングページを弾く。厳密な判定ではない。"""
-    if len(text) < MIN_USABLE_CHARS:
+    if len(text) < config.FULLTEXT_MIN_USABLE_CHARS:
         return False
     if abstract and len(text) < len(abstract) * LANDING_PAGE_RATIO:
         return False
@@ -252,7 +248,7 @@ def isolate_methods(text: str) -> str:
             start = i
             break
     if start is None:
-        return text[:METHODS_EXCERPT_CHARS]
+        return text[:config.FULLTEXT_METHODS_CHARS]
     end = len(lines)
     for j in range(start + 1, len(lines)):
         low = lines[j].strip().lower()
@@ -260,7 +256,7 @@ def isolate_methods(text: str) -> str:
             end = j
             break
     excerpt = "\n".join(lines[start:end]).strip()
-    return (excerpt or text)[:METHODS_EXCERPT_CHARS]
+    return (excerpt or text)[:config.FULLTEXT_METHODS_CHARS]
 
 
 def get_methods_text(item: dict):
@@ -280,7 +276,7 @@ def get_methods_text(item: dict):
         xml_text = fetch_epmc_xml(pmcid)
         if xml_text:
             m = methods_from_jats(xml_text)
-            if len(m) >= MIN_USABLE_CHARS // 2:
+            if len(m) >= config.FULLTEXT_MIN_USABLE_CHARS // 2:
                 return m, "Europe PMC全文XML", ""
 
     # (2) OA の PDF / HTML
@@ -311,13 +307,13 @@ def _merge(item: dict, rec: dict) -> None:
     本文で「不明」になった項目は抄録の値を残し、質指標は和集合にする。
     """
     new = {}
-    extract._apply(new, rec)
+    judge.apply_extraction(new, rec)
     if new["design_code"] != "NA":
         item["design_code"], item["design"] = new["design_code"], new["design"]
         item["design_detail"] = new["design_detail"] or item.get("design_detail", "")
     if new["participants_n"] is not None:
         item["participants_n"] = new["participants_n"]
-    if new["setting"] != extract.SETTING_LABELS["NA"]:
+    if new["setting"] != catalog.SETTING_LABELS["NA"]:
         item["setting"] = new["setting"]
     if new["population"]:
         item["population"] = new["population"]
@@ -351,8 +347,8 @@ def refine_with_fulltext(items, topic, definition, model, limit=None) -> dict:
         text, label, why = get_methods_text(it)
         if not text:
             return None, why
-        excerpt = text[:METHODS_EXCERPT_CHARS]
-        m = extract.extract_records(
+        excerpt = text[:config.FULLTEXT_METHODS_CHARS]
+        m = judge.extract_records(
             [(it.get("title", "Untitled"),
               "Methods excerpt (from the full text; fuller than the abstract)",
               excerpt)], topic, definition, model, retries=1)
@@ -372,7 +368,7 @@ def refine_with_fulltext(items, topic, definition, model, limit=None) -> dict:
         stats["sources"][info] = stats["sources"].get(info, 0) + 1
 
     llm.run_parallel(work, targets, "本文を取得・解析中", on_result=on_result,
-                     concurrency=NET_CONCURRENCY)
+                     concurrency=config.FULLTEXT_CONCURRENCY)
     shown = " / ".join(f"{k} {v}件" for k, v in stats["sources"].items())
     print(f"   → {stats['attempted']}件中 {stats['used']}件を本文で確認"
           + (f"({shown})" if shown else ""))
@@ -443,7 +439,7 @@ def check_access(theme_arg: str, cluster: str = "core", fetch: bool = False) -> 
     results = []
     llm.run_parallel(lambda kv: classify_access(*kv), list(targets.items()),
                      "全文の所在を照会", on_result=lambda _j, r: r and results.append(r),
-                     concurrency=NET_CONCURRENCY)
+                     concurrency=config.FULLTEXT_CONCURRENCY)
 
     order = {"A": 0, "B": 1, "C": 2}
     results.sort(key=lambda r: (order[r["grade"]],

@@ -1,18 +1,26 @@
-"""抄録カタログの書き出しと読み取り。
+"""抄録カタログの書き出し・読み取り・比較と、レポートまわりの処理。
 
 カタログの書式を知っているのはこのモジュールだけにする。書式を変えるときは
-ここだけを直せばよく、読み取り(relink)側と食い違わない。
+ここだけを直せばよく、読み取り(relink・差分・再判定)側と食い違わない。
+
+  build_catalog()   カタログ・索引・URL一覧・検索の記録・レポート生成プロンプト
+  run_diff()        前回のカタログとの差分(旧 catalog_diff.py)
+  relink_report()   生成済みレポートの引用キーを検証し、索引表を付ける
+  unwikilink()      フロントマターのウィキリンクを文字列にする(旧 extract_wikilink_text.py)
 
 レポート生成プロンプトは Claude と Gemini の双方で機能する形にしてある。
 両ベンダーが共通して推奨する「長文を先・指示を後」の配置を前提に、
-カタログ本体の後ろへ貼る運用にしている。
+カタログ本体の後ろへ貼る運用にしている。専門領域などの言い回しは
+config.py(PROMPT_*)で変えられる。
 """
 
 import datetime
+import glob
 import hashlib
 import json
 import os
 import re
+import shutil
 import time
 import unicodedata
 
@@ -20,21 +28,59 @@ import requests
 from tqdm import tqdm
 
 import config
-
-CROSSREF_MAILTO = config.ACADEMIC_EMAIL
+import sources
 # OpenAlexとSemantic Scholarは「名 姓」の西欧順。PubMed・Crossref・ERIC・
 # Europe PMCは「姓 名」の順。一律に先頭を姓とすると名が引用キーになる。
 GIVEN_FIRST_SOURCES = {"OpenAlex", "Semantic Scholar",
                        "OpenAlex(後方引用)", "OpenAlex(前方引用)"}
-# "off"(関連度20以下)は RELEVANCE_THRESHOLD=70 で必ず除外されるため、
+# "off"(関連度 OFF_SCORE 以下)は RELEVANCE_THRESHOLD で必ず除外されるため、
 # カタログには一度も現れない。並び順の定義に残しておくと、実態と
 # 食い違う記述(プロンプトの「core → related → off → 未判定」等)を
 # 誘発するので外してある。off の件数は除外ログ側で数えている。
+# 未判定は並べ替えのために残しているが、書き出し時に本体から分離する。
 CLUSTER_ORDER = ["core", "related", "未判定"]
-# 中心クラスタの基準スコアの既定値。実際の値は research_bot 側の CORE_SCORE
-# が meta["core_score"] で渡してくる。ここに直接書いた 90 を使っていたため、
-# CORE_SCORE を変えてもカタログの警告だけが古い基準のままになっていた。
-DEFAULT_CORE_SCORE = 90
+
+# 研究設計・場面・質指標の語彙。抽出(judge.py)はモデルに英語コードを
+# 書かせ、日本語ラベルはここで与える。自由記述の日本語ラベルを書かせると
+# 表記が揺れて集計できなくなる。レポート生成プロンプトの略号の説明もここから作る。
+DESIGN_LABELS = {
+    "SR": "系統的レビュー・メタ分析",
+    "RCT": "ランダム化比較試験",
+    "QE": "非ランダム化群間比較",
+    "SCED": "単一事例実験",
+    "PP": "単群前後比較",
+    "OBS": "観察・横断・相関",
+    "PSY": "心理測定・尺度研究",
+    "QUAL": "質的研究",
+    "CASE": "事例報告",
+    "REV": "総説・解説",
+    "THEO": "理論・概念",
+    "GUIDE": "ガイドライン・行政資料",
+    "NA": "不明",
+}
+# 集計・表示の並び順。エビデンスの強さの一般的な順に近づけてある。
+DESIGN_ORDER = ["SR", "RCT", "QE", "SCED", "PP", "OBS", "PSY", "QUAL",
+                "CASE", "REV", "THEO", "GUIDE", "NA"]
+SETTING_LABELS = {
+    "RESIDENTIAL": "入所施設",
+    "DAY": "通所・日中活動",
+    "SCHOOL": "学校・教育機関",
+    "HOME": "家庭",
+    "CLINIC": "医療機関",
+    "LAB": "研究室・実験場面",
+    "COMMUNITY": "地域・その他",
+    "NA": "不明",
+}
+MARKER_LABELS = {
+    "baseline": "ベースライン",
+    "ioa": "観察者間一致率",
+    "fidelity": "手続きの整合性",
+    "generalization": "般化",
+    "maintenance": "維持",
+    "social": "社会的妥当性",
+    "random": "無作為割付",
+    "effect": "効果量",
+}
 
 FILE_KINDS = {
     "catalog": ("[catalog] ", ".md"),
@@ -432,8 +478,7 @@ def _fetch_crossref_meta(doi: str) -> dict:
         return {}
     try:
         res = requests.get(f"https://api.crossref.org/works/{doi}",
-                           headers={"User-Agent": f"ResearchBot/30.0 (mailto:{CROSSREF_MAILTO})"},
-                           timeout=10)
+                           headers={"User-Agent": sources.USER_AGENT}, timeout=10)
         if res.status_code != 200:
             return {}
         msg = res.json().get("message", {})
@@ -469,50 +514,37 @@ def _fingerprint(a: str) -> str:
 
 
 # 略語の衝突等で、心理学・福祉・医療(臨床)・教育のいずれとも無関係な
-# 分野の論文がcore判定をすり抜けてカタログに残る事例が実測された
-# (代謝工学のflux balance analysis、外国語教育の言語選択、小児気道異物の
-# CT診断等)。FILTER_PROMPTには既に「いずれにも該当しない論文はスコア20
-# 以下」という指示があるが、通り抜けることがある。
-# 誤検知で本当に必要な文献を失う損失の方が大きいため、除外はせず
-# カタログ上で警告するに留める(利用者が最終判断する)。
-OFF_DOMAIN_PATTERNS = (
-    # 基礎生物学・分子生物学・代謝工学
-    "flux balance analysis", "genome-scale model", "metabolic network",
-    "gene expression profil", "transcriptome", "crystal structure",
-    "in vitro assay", "mouse model of cancer",
-    # 腫瘍学・薬剤開発
-    "chemotherapy", "tumor", "tumour", "carcinoma", "oncolog",
-    "antibody-drug conjugate", "myeloma",
-    # 工学・物理・情報
-    "wireless network", "semiconductor", "combustion",
-    "finite element", "hydraulic",
-    # 語学教育(behavior/functionの語義衝突)
-    "foreign language classroom", "second language acquisition",
-)
-
-
+# 分野の論文がcore判定をすり抜けてカタログに残る事例が実測された。
+# FILTER_PROMPTには既に「いずれにも該当しない論文はスコア20以下」という
+# 指示があるが、通り抜けることがある。誤検知で本当に必要な文献を失う
+# 損失の方が大きいため、除外はせずカタログ上で警告するに留める
+# (利用者が最終判断する)。語の一覧は config.OFF_DOMAIN_PATTERNS。
 def _looks_off_domain(title: str, abstract: str) -> bool:
     """タイトル・抄録が明らかに対象外分野を示していないか判定する。"""
     text = f"{title or ''} {abstract or ''}".lower()
-    return any(p in text for p in OFF_DOMAIN_PATTERNS)
+    return any(p in text for p in config.OFF_DOMAIN_PATTERNS)
 
 
-# 抄録が薄すぎて根拠に使えないと判定する閾値。日本語は1文字あたりの
-# 情報量が多いため、同じ字数で英語より内容がある。research_bot.py側の
-# MIN_ABSTRACT_LENGTH_JA(収集段階の下限、既定150字)を下回らない範囲で、
-# 収集直後の抄録がすぐ「薄い」と警告されないよう、英語より低い値にする。
-THIN_ABSTRACT_CHARS = int(os.environ.get("THIN_ABSTRACT_CHARS", "200"))
-THIN_ABSTRACT_CHARS_JA = int(os.environ.get("THIN_ABSTRACT_CHARS_JA", "100"))
-_CJK_RE_THIN = __import__("re").compile(r"[\u3040-\u30ff\u4e00-\u9fff]")
+_CJK_RE = re.compile(r"[\u3040-\u30ff\u4e00-\u9fff]")
+
+
+def is_cjk(text: str) -> bool:
+    """日本語(中国語を含む)の文章かどうかを、文字数と比率の両方で大まかに見る。
+
+    収集の下限(MIN_ABSTRACT_LENGTH_JA)とカタログの「薄い抄録」の判定
+    (THIN_ABSTRACT_CHARS_JA)で同じ基準を使う。日本語は1文字あたりの
+    情報量が多いため、同じ字数で英語より内容がある。
+    """
+    if not text:
+        return False
+    n = len(_CJK_RE.findall(text))
+    return n >= 20 and n / len(text) >= 0.2
 
 
 def _thin_threshold(abstract: str) -> int:
     """抄録の言語に応じた薄さ判定の閾値を返す。"""
-    text = abstract or ""
-    n = len(_CJK_RE_THIN.findall(text))
-    if n >= 20 and len(text) and n / len(text) >= 0.2:
-        return THIN_ABSTRACT_CHARS_JA
-    return THIN_ABSTRACT_CHARS
+    return (config.THIN_ABSTRACT_CHARS_JA if is_cjk(abstract)
+            else config.THIN_ABSTRACT_CHARS)
 
 
 def _abstract_prefix_key(abstract: str, n: int = 150) -> str:
@@ -579,11 +611,7 @@ def _year_int(v):
     return int(s) if s.isdigit() else 0
 
 
-DESIGN_STRENGTH_ORDER = ["系統的レビュー・メタ分析", "ランダム化比較試験",
-                         "非ランダム化群間比較", "単一事例実験", "単群前後比較",
-                         "観察・横断・相関", "心理測定・尺度研究", "質的研究",
-                         "事例報告", "総説・解説", "理論・概念",
-                         "ガイドライン・行政資料", "不明"]
+DESIGN_STRENGTH_ORDER = [DESIGN_LABELS[c] for c in DESIGN_ORDER]
 
 
 def _tally(values, order=None):
@@ -785,7 +813,7 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
 
     dups = flag_duplicates(entries)
     scores = [e["score"] for e in entries if e["score"] is not None]
-    core_score = int(meta.get("core_score") or DEFAULT_CORE_SCORE)
+    core_score = int(meta.get("core_score") or config.CORE_SCORE)
     # 基準を下げた回は core が基準未満になるのが当たり前なので、
     # 「core判定だが基準未満」の警告を出しても意味がない(冒頭の注記で足りる)。
     inconsistent = set() if meta.get("cluster_note") else {
@@ -876,8 +904,8 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
                   "査読済み研究と同じ重みで扱わないこと。 "
                   "該当: " + ", ".join(not_peer), ""]
     if thin:
-        lines += [f"**⚠️ 抄録が短すぎる(英語{THIN_ABSTRACT_CHARS}字/日本語"
-                  f"{THIN_ABSTRACT_CHARS_JA}字未満): {len(thin)}件** "
+        lines += [f"**⚠️ 抄録が短すぎる(英語{config.THIN_ABSTRACT_CHARS}字/日本語"
+                  f"{config.THIN_ABSTRACT_CHARS_JA}字未満): {len(thin)}件** "
                   "書誌情報のみで内容の判断ができない。分析の根拠に使わないこと。 "
                   "該当: " + ", ".join(thin), ""]
     if off_domain:
@@ -1038,8 +1066,9 @@ def _write_unjudged(path, meta, entries, catalog_file):
         lines.append(f"### {i+1}) {e['title']}{off}")
         lines.append(f"- 参考キー: {e['ref_key']} | Year: {e['year']} | "
                      f"Source: {e['src']}")
-        lines.append(f"- 判定できなかった理由: "
-                     f"{e.get('exclusion_reason') or '記録なし'}")
+        # entries では判定メモは "reason" に入っている(旧版は存在しない
+        # "exclusion_reason" を見ており、常に「記録なし」になっていた)
+        lines.append(f"- 判定できなかった理由: {e.get('reason') or '記録なし'}")
         lines.append(f"- DOI: {e['doi']}")
         if e["url"] != "なし":
             lines.append(f"- URL: {e['url']}")
@@ -1081,18 +1110,13 @@ def _write_searchlog(path, meta):
 # ==========================================
 # レポート生成プロンプト
 # ==========================================
-PROMPT_DOMAIN = "心理学(特に発達障害・行動障害領域)"
-PROMPT_SUB_DOMAIN = "福祉"
-PROMPT_PERSPECTIVE_A = "心理学的支援"
-PROMPT_PERSPECTIVE_B = "福祉制度・サービス提供体制"
-
-# 中心クラスタ内部で主根拠と補助を分ける境界。カタログ側の
-# 「core判定だが関連度89以下」の警告と同じ位置に合わせてある。
+# 専門領域と「実践への示唆」の観点は config.PROMPT_* で変えられる。
+# 中心クラスタ内部で主根拠と補助を分ける境界は、カタログ側の
+# 「core判定だが関連度が基準未満」の警告と同じ位置(CORE_SCORE)に合わせる。
 # 基準を下げた回(cluster_note あり)では境界が意味を持たないため、
-# その場合はこの区別を프롬プトに書かない。
-CORE_STRONG_SCORE = 90
+# その場合はこの区別をプロンプトに書かない。
 
-# check()(ensemble_check.py / fulltext_check.py)が出す補助ファイルの読み方。
+# check(アンサンブル判定・全文アクセス可否)が出す補助ファイルの読み方。
 # 最も避けたい誤読は2つ。①別モデルの再判定を「正解」として一括で採用する
 # こと ②全文アクセス可否の一覧を「全文を読んだ」ことと取り違えること。
 # どちらも明示的に禁止する形で書いてある。
@@ -1102,7 +1126,7 @@ ATTACHED_FILES_BLOCK = """<attached_files>
 この節は読み飛ばしてよい。
 
 ■ `{ensemble_file}` — 別モデルによる再判定で分類が食い違ったものの一覧
-カタログと同じ抄録を、同じ判定基準(関連度{core_strong}以上かつ実際に
+カタログと同じ抄録を、同じ判定基準(関連度{core_score}以上かつ実際に
 測定・評価・適用した研究だけをcoreとする)のまま別のモデルにもう一度
 判定させ、分類が一致しなかったものだけを並べたファイル。どちらの判定が
 正しいかを決めるものではなく、「自分で抄録を読み直すべきものはどれか」を
@@ -1170,18 +1194,16 @@ ClaudeでもGeminiでも同じ手順で使える。
 <how_to_read_the_catalog>
 1. カタログ冒頭の「引用キー索引」に載っている引用キーだけを使う。
    索引に無いキーを作ってはならない。
-2. 抄録はクラスタ順(core → related → 未判定)に並んでいる。
+2. 抄録はクラスタ順(core → related)に並んでいる。
    関連度スコアとクラスタは機械的な事前判定であり、出発点として参照して
    よいが、抄録の内容と矛盾する場合は自分の判断を優先し、その旨を書く。
 {core_tier_note}3. 索引表の「確認」欄に⚠️がある抄録は、判定とスコアが矛盾している。
    方法・結果を読んで自分で分類し直すこと。
-4. 「未判定」は自動判定が失敗した抄録で選別を経ていない。内容だけを見て
-   厳格に判断し、中心・周辺・対象外の三つに振り分ける。対象外とは、
-   テーマの定義に挙げた別概念・同名異義語に該当するもの、主題と
-   無関係なもの、抄録が短く内容を判断できないものを指す。対象外に
-   したものは探索的参照にも使わない。件数と混入の傾向(略語の衝突、
-   引用連鎖による巻き込み等)だけを「エビデンスの限界」に書く。
-   これは core・related に分類されている抄録にも同じく当てはまる。
+4. core・related に分類されていても、テーマの定義に挙げた別概念・
+   同名異義語に該当するもの、主題と無関係なもの、抄録が短く内容を
+   判断できないものは対象外とする。対象外にしたものは探索的参照にも
+   使わない。件数と混入の傾向(略語の衝突、引用連鎖による巻き込み等)
+   だけを「エビデンスの限界」に書く。
 5. 引用キー末尾が0000は発行年不明を意味する。この抄録は内容についての
    主張の根拠には使えるが、年代順の議論、概念の成立経緯、先行・後続
    関係といった時系列的な主張の根拠には使わない。
@@ -1190,11 +1212,7 @@ ClaudeでもGeminiでも同じ手順で使える。
    確かめること。知見の重みは設計によって変わる。単一事例実験(SCED)の
    結果を群間比較(RCT/QE)と同列に扱わない。参加者数の少ない研究の
    結果を集団全体へ一般化しない。設計の略号は
-   SR=系統的レビュー・メタ分析 / RCT=ランダム化比較試験 /
-   QE=非ランダム化群間比較 / SCED=単一事例実験 / PP=単群前後比較 /
-   OBS=観察・横断・相関 / PSY=心理測定・尺度研究 / QUAL=質的研究 /
-   CASE=事例報告 / REV=総説・解説 / THEO=理論・概念 /
-   GUIDE=ガイドライン・行政資料。
+{design_codes}。
 7. 「抄録に明記された質指標」は、その研究が実施したことの記録ではなく、
    抄録に書いてあったかどうかの記録である。記載が無いことを
    「実施していない」と解釈して研究を批判してはならない。書けるのは
@@ -1305,7 +1323,7 @@ ClaudeでもGeminiでも同じ手順で使える。
 catalog_source: "{catalog_file}"
 source_method: catalog
 model: "(自分のモデル名)"
-evidence_scope: "添付された抄録カタログに収録された文献のみを対象とする。coreは主根拠、relatedは補助、未判定は内容で再分類、別概念・無関係・抄録不足のものは対象外とする。"
+evidence_scope: "添付された抄録カタログに収録された文献のみを対象とする。coreは主根拠、relatedは補助、別概念・無関係・抄録不足のものは対象外とする。"
 ---
 
 - 全ての節見出しはMarkdown記法(##/###)で書く。見出しの文字列だけを
@@ -1378,11 +1396,19 @@ def _yield_summary(counts, n_entries) -> str:
             f"({rate:.1%} / 関連度不足で除外 {counts.get('excluded', 0)}件)")
 
 
+def _design_codes() -> str:
+    """プロンプトに載せる設計の略号の説明(3件ずつ改行)。"""
+    parts = [f"{c}={DESIGN_LABELS[c]}" for c in DESIGN_ORDER if c != "NA"]
+    rows = [" / ".join(parts[i:i + 3]) for i in range(0, len(parts), 3)]
+    return " /\n".join("   " + r for r in rows)
+
+
 def _write_prompt(path, catalog_file, meta, cluster_counts, dups,
                   inconsistent, thin, entries=None, src_counts=None,
                   no_author=0):
     entries = entries or []
     src_counts = src_counts or {}
+    core_score = int(meta.get("core_score") or config.CORE_SCORE)
     # check()が同じフォルダへ出す補助ファイルの名前。カタログのファイル名から
     # テーマ名を復元して組み立てる。このプロンプトはカタログ出力と同時に
     # 作られ、その時点ではcheckがまだ走っていない(ファイルが存在しない)ため、
@@ -1395,13 +1421,13 @@ def _write_prompt(path, catalog_file, meta, cluster_counts, dups,
     fulltext_file = f"_fulltext__{core_name}.md"
     attached_files = ATTACHED_FILES_BLOCK.format(
         ensemble_file=ensemble_file, fulltext_file=fulltext_file,
-        core_strong=CORE_STRONG_SCORE)
+        core_score=core_score)
     summary = " / ".join(f"{c} {cluster_counts.get(c, 0)}件"
                          for c in CLUSTER_ORDER if cluster_counts.get(c)) or "なし"
     source_summary = (" / ".join(f"{k} {v}件" for k, v in src_counts.items())
                       or "不明")
 
-    # 基準を下げた回は core が89以下になるのが前提なので、90を境界に
+    # 基準を下げた回は core が基準未満になるのが前提なので、基準を境界に
     # した階層はかえって誤解を招く。その場合は書かない。
     core_tier_note = ""
     if not meta.get("cluster_note"):
@@ -1409,7 +1435,7 @@ def _write_prompt(path, catalog_file, meta, cluster_counts, dups,
             "   なお core のうち関連度{s}以上を主要な根拠とし、{t}以下の core は\n"
             "   補助的な根拠として扱う。{t}以下の core だけが支持する内容は、\n"
             "   「限定的な示唆」等と射程を明示するか、書かない。\n"
-        ).format(s=CORE_STRONG_SCORE, t=CORE_STRONG_SCORE - 1)
+        ).format(s=core_score, t=core_score - 1)
 
     extra = []
     unknown_year = sum(1 for e in entries if str(e["ref_key"]).endswith("0000"))
@@ -1451,10 +1477,10 @@ def _write_prompt(path, catalog_file, meta, cluster_counts, dups,
             extra_info=extra_info, core_tier_note=core_tier_note,
             extra_notes="".join(notes),
             ensemble_file=ensemble_file, fulltext_file=fulltext_file,
-            attached_files=attached_files,
-            domain=PROMPT_DOMAIN, sub_domain=PROMPT_SUB_DOMAIN,
-            perspective_a=PROMPT_PERSPECTIVE_A,
-            perspective_b=PROMPT_PERSPECTIVE_B))
+            attached_files=attached_files, design_codes=_design_codes(),
+            domain=config.PROMPT_DOMAIN, sub_domain=config.PROMPT_SUB_DOMAIN,
+            perspective_a=config.PROMPT_PERSPECTIVE_A,
+            perspective_b=config.PROMPT_PERSPECTIVE_B))
 
 
 # ==========================================
@@ -1630,7 +1656,8 @@ def _fm_value(v) -> str:
     return _yq(s)
 
 
-def relink_report(report_path, catalogs, min_rate=0.5, apply=False) -> dict:
+def relink_report(report_path, catalogs, min_rate=None, apply=False) -> dict:
+    min_rate = config.RELINK_MIN_RATE if min_rate is None else min_rate
     with open(report_path, encoding="utf-8") as f:
         raw = f.read()
     fm, body = _split_fm(raw)
@@ -1761,3 +1788,314 @@ def relink_report(report_path, catalogs, min_rate=0.5, apply=False) -> dict:
     return {"name": name, "status": status, "keys": len(keys),
             "catalog": os.path.basename(best_disp) if best_disp else "-",
             "rate": rate, "unresolved": unresolved, "suspect_keys": suspect_keys}
+
+
+# ==========================================
+# 前回のカタログとの差分(旧 catalog_diff.py)
+# ==========================================
+# [index] <テーマ>.json を世代間で比較し、新規・消滅・分類変更・スコア変動を
+# _diff__<テーマ>.md に書き出す。初回は記録(スナップショット)を残すだけで、
+# 効果は2回目の生成から。
+def _slug(name: str) -> str:
+    """テーマ名をファイル名に使える形にする。日本語はそのまま残す。"""
+    s = re.sub(r"[/\\:*?\"<>|]", "_", name)
+    return s.strip() or "unnamed"
+
+
+def snapshot_path(theme_name: str, index: dict = None) -> str:
+    """このテーマの前回分の記録の場所。
+
+    収集をやり直すと build_paths は「テーマ_1」「テーマ_2」と新しいフォルダを
+    作る。フォルダ名ごとに記録すると再生成のたびに「前回の記録なし」となり、
+    差分が一度も出ない。フォルダ名ではなくテーマ文(索引の topic)を鍵にする。
+    """
+    topic = ((index or {}).get("topic") or "").strip()
+    key = _sanitize_core(topic.splitlines()[0]) if topic else theme_name
+    return os.path.join(config.SNAP_DIR, _slug(key) + ".json")
+
+
+def _legacy_snapshot_path(theme_name: str) -> str:
+    """旧方式(フォルダ名ごと)の記録の場所。以前に残した記録を読むために使う。"""
+    return os.path.join(config.SNAP_DIR, _slug(theme_name) + ".json")
+
+
+def has_snapshot(theme_name: str, index: dict = None) -> bool:
+    return (os.path.exists(snapshot_path(theme_name, index))
+            or os.path.exists(_legacy_snapshot_path(theme_name)))
+
+
+def _cluster_of(rec) -> str:
+    return (rec.get("cluster") or "未判定").strip()
+
+
+def _doi_map(items) -> dict:
+    """DOIから引用キーを引く表。キーが変わった論文の追跡に使う。"""
+    m = {}
+    for key, rec in items.items():
+        doi = (rec.get("doi") or "").strip().lower()
+        if doi and doi not in ("なし", "none", "-"):
+            m[doi] = key
+    return m
+
+
+def compare_indexes(old: dict, new: dict) -> dict:
+    """2つの索引を比べる。"""
+    o_items, n_items = old["items"], new["items"]
+    o_doi, n_doi = _doi_map(o_items), _doi_map(n_items)
+    o_keys, n_keys = set(o_items), set(n_items)
+
+    # DOI一致でキーが変わったものを対応づける
+    renamed = {}
+    for doi, ok in o_doi.items():
+        nk = n_doi.get(doi)
+        if nk and nk != ok and ok not in n_keys:
+            renamed[ok] = nk
+    # DOIの無い文献はタイトルで対応づける。これが無いと、キーが変わった
+    # だけの同じ論文が「新規」と「消滅」に1件ずつ数えられていた。
+    n_title = {}
+    for k, rec in n_items.items():
+        tk = title_key(rec.get("title"))
+        if tk and k not in o_keys:
+            n_title.setdefault(tk, k)
+    taken = set(renamed.values())
+    for ok in sorted(o_keys - n_keys):
+        if ok in renamed:
+            continue
+        nk = n_title.get(title_key(o_items[ok].get("title")))
+        if nk and nk not in taken:
+            renamed[ok] = nk
+            taken.add(nk)
+
+    renamed_new = set(renamed.values())
+    added = [(k, n_items[k]) for k in sorted(n_keys - o_keys) if k not in renamed_new]
+    removed = [(k, o_items[k]) for k in sorted(o_keys - n_keys) if k not in renamed]
+
+    # 共通分(キー変更を含む)の変化
+    cluster_changed, score_changed = [], []
+    pairs = [(k, k) for k in sorted(o_keys & n_keys)] + sorted(renamed.items())
+    for ok, nk in pairs:
+        orec, nrec = o_items[ok], n_items[nk]
+        os_, ns_ = orec.get("score"), nrec.get("score")
+        if _cluster_of(orec) != _cluster_of(nrec):
+            cluster_changed.append((ok, nk, orec, nrec))
+        elif (isinstance(os_, int) and isinstance(ns_, int)
+              and abs(os_ - ns_) >= config.DIFF_SCORE_GAP):
+            score_changed.append((ok, nk, orec, nrec))
+
+    return {"added": added, "removed": removed,
+            "cluster_changed": cluster_changed,
+            "score_changed": score_changed, "renamed": renamed}
+
+
+def _count_clusters(items) -> dict:
+    c = {}
+    for rec in items.values():
+        k = _cluster_of(rec)
+        c[k] = c.get(k, 0) + 1
+    return c
+
+
+def _fmt_counts(c) -> str:
+    return " / ".join(f"{k}: {v}件" for k, v in sorted(c.items()))
+
+
+def _write_diff_report(path, theme, old, new, diff):
+    o_items, n_items = old["items"], new["items"]
+    gap = config.DIFF_SCORE_GAP
+    lines = ["---", f"topic: {theme}",
+             f"previous_generated_at: {old.get('generated_at', '不明')}",
+             f"current_generated_at: {new.get('generated_at', '不明')}",
+             "---", "",
+             f"# カタログ差分 — {theme}", "",
+             f"- 前回: {len(o_items)}件({_fmt_counts(_count_clusters(o_items))})",
+             f"- 今回: {len(n_items)}件({_fmt_counts(_count_clusters(n_items))})",
+             f"- 新規: {len(diff['added'])}件 / 消滅: {len(diff['removed'])}件 / "
+             f"分類変更: {len(diff['cluster_changed'])}件 / "
+             f"スコア変動: {len(diff['score_changed'])}件", ""]
+    om, nm = old.get("filter_model") or "", new.get("filter_model") or ""
+    if om and nm and om != nm:
+        lines += [f"> [!warning] 判定モデルが変わっています({om} → {nm})。"
+                  "分類変更・スコア変動の多くはモデルの違いによるもので、"
+                  "文献の中身が変わったわけではない可能性があります。", ""]
+    lines += ["> [!tip] 新規と分類変更だけを読めば、"
+              "前回のレポートを見直すべきかが判断できます。", ""]
+
+    lines += [f"## 1. 新規に加わった抄録({len(diff['added'])}件)", ""]
+    if not diff["added"]:
+        lines += ["なし。", ""]
+    else:
+        lines += ["| 引用キー | 分類 | スコア | 年 | タイトル |", "|---|---|---|---|---|"]
+        for k, r in sorted(diff["added"],
+                           key=lambda x: (_cluster_of(x[1]) != "core",
+                                          -(x[1].get("score") or 0))):
+            lines.append(f"| [{k}] | {_cluster_of(r)} | {r.get('score', '-')} "
+                         f"| {r.get('year', '-')} | {cell(r.get('title'), 60)} |")
+        lines.append("")
+
+    lines += [f"## 2. 分類が変わった抄録({len(diff['cluster_changed'])}件)", ""]
+    if not diff["cluster_changed"]:
+        lines += ["なし。", ""]
+    else:
+        lines += ["| 引用キー | 前回 | 今回 | スコア変化 |", "|---|---|---|---|"]
+        for ok, nk, orec, nrec in diff["cluster_changed"]:
+            key = f"[{ok}]" if ok == nk else f"[{ok}] → [{nk}]"
+            lines.append(f"| {key} | {_cluster_of(orec)} | {_cluster_of(nrec)} "
+                         f"| {orec.get('score', '-')} → {nrec.get('score', '-')} |")
+        lines.append("")
+
+    lines += [f"## 3. 消滅した抄録({len(diff['removed'])}件)", "",
+              "前回のレポートで引用していた場合、"
+              "その根拠が今回のカタログには存在しません。", ""]
+    if not diff["removed"]:
+        lines += ["なし。", ""]
+    else:
+        lines += ["| 引用キー | 前回の分類 | スコア | タイトル |", "|---|---|---|---|"]
+        for k, r in diff["removed"]:
+            lines.append(f"| [{k}] | {_cluster_of(r)} | {r.get('score', '-')} "
+                         f"| {cell(r.get('title'), 60)} |")
+        lines.append("")
+
+    lines += [f"## 4. スコアが動いた抄録({len(diff['score_changed'])}件)", "",
+              f"分類は同じだが、関連度が{gap}点以上変化したもの。", ""]
+    if not diff["score_changed"]:
+        lines.append("なし。")
+    else:
+        lines += ["| 引用キー | 分類 | 前回 | 今回 |", "|---|---|---|---|"]
+        for ok, nk, orec, nrec in diff["score_changed"]:
+            lines.append(f"| [{nk}] | {_cluster_of(nrec)} "
+                         f"| {orec.get('score', '-')} | {nrec.get('score', '-')} |")
+
+    if diff["renamed"]:
+        lines += ["", f"## 5. 引用キーが変わった抄録({len(diff['renamed'])}件)", "",
+                  "DOIまたはタイトルが同一のため同じ論文と判断しました。"
+                  "前回のレポートの引用キーは書き換えが必要です。", ""]
+        lines += [f"- [{ok}] → [{nk}]" for ok, nk in sorted(diff["renamed"].items())]
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def run_diff(theme_arg: str, save_only: bool = False) -> str:
+    """前回との差分を取り、報告ファイルのパスを返す(記録だけした場合は空文字)。"""
+    theme = resolve_theme(theme_arg)
+    if not theme["index"]:
+        raise FileNotFoundError(f"[index] …json が見つかりません: {theme['dir']}")
+    new = load_index(theme["index"])
+    os.makedirs(config.SNAP_DIR, exist_ok=True)
+    snap = snapshot_path(theme["name"], new)
+    legacy = _legacy_snapshot_path(theme["name"])
+    prev = snap if os.path.exists(snap) else (legacy if os.path.exists(legacy) else "")
+
+    if save_only or not prev:
+        shutil.copy2(theme["index"], snap)
+        print(f"[差分] スナップショットを記録しました: {len(new['items'])}件"
+              f"({_fmt_counts(_count_clusters(new['items']))})")
+        if not save_only:
+            print("[差分] 前回の記録がないため比較はしていません。"
+                  "次回の生成時から差分が出ます。")
+        return ""
+
+    old = load_index(prev)
+    if old.get("generated_at") == new.get("generated_at"):
+        print(f"[差分] 前回と同じ生成時刻です({new.get('generated_at')})。"
+              "カタログが再生成されていません。")
+        return ""
+
+    diff = compare_indexes(old, new)
+    out_path = os.path.join(theme["dir"], f"_diff__{theme['name']}.md")
+    _write_diff_report(out_path, theme["name"], old, new, diff)
+    shutil.copy2(theme["index"], snap)
+
+    print(f"[差分] 前回 {len(old['items'])}件 → 今回 {len(new['items'])}件 / "
+          f"新規 {len(diff['added'])}件 / 消滅 {len(diff['removed'])}件 / "
+          f"分類変更 {len(diff['cluster_changed'])}件 / "
+          f"スコア変動 {len(diff['score_changed'])}件"
+          + (f" / 引用キー変更 {len(diff['renamed'])}件" if diff["renamed"] else ""))
+    print(f"[差分] 出力: {out_path}")
+    return out_path
+
+
+# ==========================================
+# フロントマターのウィキリンクを文字列にする(旧 extract_wikilink_text.py)
+# ==========================================
+# 例: topic: "[[強度行動障害|強度行動障害]]" → topic: 強度行動障害
+# 以前のレポートや手で作ったノートのプロパティに残った [[...]] を外す。
+# 本文のリンクには触れない。
+_FM_BLOCK_RE = re.compile(r'^---\r?\n(.*?)\r?\n---\r?\n', re.DOTALL)
+_WIKILINK_RE = re.compile(r'\[\[([^\[\]\|]+)(?:\|([^\[\]]+))?\]\]')
+
+
+def _wikilink_to_text(value):
+    """値の中のウィキリンクを表示名に置き換える。リストは重複も除く。"""
+    if isinstance(value, str):
+        def repl(m):
+            path, alias = m.group(1), m.group(2)
+            if alias:
+                return alias
+            base = path.rsplit('/', 1)[-1]
+            return base[:-3] if base.endswith('.md') else base
+        return _WIKILINK_RE.sub(repl, value)
+    if isinstance(value, list):
+        seen, out = set(), []
+        for x in (_wikilink_to_text(v) for v in value):
+            key = x if isinstance(x, str) else repr(x)
+            if key not in seen:
+                seen.add(key)
+                out.append(x)
+        return out
+    if isinstance(value, dict):
+        return {k: _wikilink_to_text(v) for k, v in value.items()}
+    return value
+
+
+def _unwikilink_text(text: str, yaml):
+    """1ファイル分。戻り値は (新しい本文, 書き換えたプロパティ名の一覧)。"""
+    text = text.replace('﻿', '')
+    m = _FM_BLOCK_RE.match(text)
+    if not m:
+        return text, []
+    try:
+        data = yaml.safe_load(m.group(1))
+    except yaml.YAMLError:
+        return text, []
+    if not isinstance(data, dict):
+        return text, []
+    new_data = {k: _wikilink_to_text(v) for k, v in data.items()}
+    changed = [k for k in data if new_data[k] != data[k]]
+    if not changed:
+        return text, []
+    new_yaml = yaml.dump(new_data, allow_unicode=True, sort_keys=False)
+    return f"---\n{new_yaml}---\n{text[m.end():]}", changed
+
+
+def unwikilink(target: str, apply: bool = False) -> int:
+    """ファイルまたはフォルダ(下位も含む .md)のフロントマターを処理する。
+
+    apply が False なら表示だけ。True なら元の内容を .bak に残して書き換える。
+    戻り値は対象になったファイルの数。PyYAML が必要(pip install pyyaml)。
+    """
+    try:
+        import yaml
+    except ImportError:
+        raise SystemExit("[エラー] PyYAML がありません。pip install pyyaml を実行してください。")
+    files = ([target] if os.path.isfile(target)
+             else glob.glob(os.path.join(target, '**', '*.md'), recursive=True))
+    changed = 0
+    for path in files:
+        with open(path, encoding='utf-8') as f:
+            original = f.read()
+        fixed, keys = _unwikilink_text(original, yaml)
+        if not keys:
+            continue
+        changed += 1
+        print(f"[{path}] ウィキリンクを文字列に{'' if apply else '(プレビューのみ)'}: "
+              + ", ".join(keys))
+        if apply:
+            with open(path + '.bak', 'w', encoding='utf-8') as f:
+                f.write(original)
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(fixed)
+    if changed == 0:
+        print("対象は見つかりませんでした")
+    elif not apply:
+        print("\n--apply を付けて再実行すると実際に書き換えます(元ファイルは .bak に保存)")
+    return changed
