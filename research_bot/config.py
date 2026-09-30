@@ -41,32 +41,22 @@ CHECKPOINT_DIRNAME = ".checkpoint"
 ACADEMIC_EMAIL = ""                                                  # ★
 
 # APIキー(値は KEYS_FILE か環境変数から読む。ここには書かない)
-#   NVIDIA_API_KEY / OPENROUTER_API_KEY  判定に使うLLM(どちらか)
+#   NVIDIA_API_KEY    判定に使うLLM(NVIDIA API)
 #   OPENALEX_API_KEY  OpenAlex。2026年2月から必須。無いと検索・引用連鎖が0件になる
 #   NCBI_API_KEY      PubMed(無くても動くが遅い)
 #   S2_API_KEY        Semantic Scholar(無いとほぼ拒否される)
 #   CINII_APPID       CiNii Research(無ければCiNiiは検索しない)
 
 # ==========================================
-# 3. API とモデル
+# 3. モデル(NVIDIA API)
 # ==========================================
-API_BACKEND = "nvidia"             # "nvidia" または "openrouter"
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-# 役割ごとのモデル(API_BACKEND = "nvidia" のとき)
+# 役割ごとのモデル
 PLANNING_MODEL = "nvidia/nemotron-3-super-120b-a12b"   # ★ テーマ文→検索ファセット
 FILTER_MODEL = "nvidia/nemotron-3-super-120b-a12b"     # ★ 関連度判定・設計の抽出
 ENSEMBLE_MODEL = "google/gemma-3-27b-it"               # ★ 事後チェックの再判定(別系統に)
 PREFILTER_MODEL = "nvidia/nemotron-3-super-120b-a12b"  # 1段目の粗選別
-
-# API_BACKEND = "openrouter" のときのモデル
-OPENROUTER_MODELS = {                                  # ★
-    "planning": "nvidia/nemotron-3-super-120b-a12b:free",
-    "filter": "nvidia/nemotron-3-super-120b-a12b:free",
-    "ensemble": "google/gemma-3-27b-it:free",
-    "prefilter": "nvidia/nemotron-3-super-120b-a12b:free",
-}
 
 # --model に渡せる短い名前(python research_bot.py models で実在を確認できる)
 MODEL_PRESETS = {                                      # ★
@@ -376,14 +366,6 @@ OPENALEX_API_KEY = os.environ.get("OPENALEX_API_KEY", "")
 NCBI_API_KEY = os.environ.get("NCBI_API_KEY", "")
 S2_API_KEY = os.environ.get("S2_API_KEY", "")
 CINII_APPID = os.environ.get("CINII_APPID", "")
-
-
-def backend_model(role: str) -> str:
-    """役割(planning / filter / ensemble / prefilter)に使うモデル名。"""
-    if API_BACKEND == "openrouter":
-        return OPENROUTER_MODELS.get(role, "")
-    return {"planning": PLANNING_MODEL, "filter": FILTER_MODEL,
-            "ensemble": ENSEMBLE_MODEL, "prefilter": PREFILTER_MODEL}.get(role, "")
 
 
 def resolve_model(name: str) -> str:

@@ -137,9 +137,9 @@ def prefilter(items, theme: str, tag: str = "theme") -> list:
     if mode == "off":
         return list(items)
     if not llm.have_api_key():
-        print(f"[prefilter] {llm.key_name()} が未設定のためスキップ")
+        print(f"[prefilter] {llm.KEY_NAME} が未設定のためスキップ")
         return list(items)
-    model = config.backend_model("prefilter")
+    model = config.PREFILTER_MODEL
     cands = [it for it in items
              if it.get("relevance_score") is None and "prefilter" not in it]
     if cands:
@@ -939,7 +939,7 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
     topic = idx.get("topic") or theme["name"]
     definition = idx.get("theme_definition") or f"{topic} に関する研究"
     homonyms = idx.get("homonyms") or []
-    model = model or config.backend_model("ensemble")
+    model = model or config.ENSEMBLE_MODEL
     model_a = idx.get("filter_model") or "(記録なし)"
 
     print(f"[アンサンブル] テーマ: {theme['name']}")

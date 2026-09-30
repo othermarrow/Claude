@@ -1,9 +1,9 @@
-"""LLM(NVIDIA / OpenRouter)への問い合わせと、応答の読み取り。
+"""LLM(NVIDIA API)への問い合わせと、応答の読み取り。
 
 1段目の粗選別・関連度判定・設計の抽出・再判定は、すべてここを通す
 (旧 jsonparse.py もここへ統合した)。以前は prefilter.py だけが独自に API を
-呼んでおり、OpenRouter に切り替えると動かない・Ctrl-C で止まらない、という
-ずれが残っていた。
+呼んでおり、Ctrl-C で止まらない・送信間隔の制御を通らない、というずれが
+残っていた。
 
 ここで担っていること:
   1. 送信間隔の制御(全スレッド合計で REQUESTS_PER_MINUTE 以下)
@@ -66,26 +66,22 @@ def is_error(text: str) -> bool:
     return (text or "").startswith(ERROR_PREFIX)
 
 
-def key_name() -> str:
-    return ("OPENROUTER_API_KEY" if config.API_BACKEND == "openrouter"
-            else "NVIDIA_API_KEY")
+KEY_NAME = "NVIDIA_API_KEY"
 
 
 def have_api_key() -> bool:
-    return bool(os.environ.get(key_name()))
+    return bool(os.environ.get(KEY_NAME))
 
 
 def get_client() -> OpenAI:
     global _client
     with _client_lock:
         if _client is None:
-            base = (config.OPENROUTER_BASE_URL if config.API_BACKEND == "openrouter"
-                    else config.NVIDIA_BASE_URL)
             # max_retries=0: openai ライブラリは既定で時間切れ等を黙って
             # 2回やり直す。こちらでも再試行するので、待ち時間が最大3倍に
             # 膨らんでいた(実測: 240秒の上限で最初の時間切れ表示が約720秒後)。
-            _client = OpenAI(base_url=base, api_key=os.environ.get(key_name(), ""),
-                             max_retries=0)
+            _client = OpenAI(base_url=config.NVIDIA_BASE_URL,
+                             api_key=os.environ.get(KEY_NAME, ""), max_retries=0)
         return _client
 
 
@@ -147,9 +143,9 @@ def preflight(models) -> None:
     それも 404 なら打ち間違いとみなして止める。
     """
     if not have_api_key():
-        raise SystemExit(f"[エラー] {key_name()} が設定されていません。\n"
-                         f"        export {key_name()}=\"...\" を実行するか、"
-                         f"{config.KEYS_FILE} に書いてください。")
+        raise SystemExit(f"[エラー] {KEY_NAME} が設定されていません。\n"
+                         f"        {config.KEYS_FILE} に {KEY_NAME}=... と書くか、"
+                         "環境変数で渡してください。")
     available = list_models()
     for m in dict.fromkeys(x for x in models if x):
         if m in _verified_models:
@@ -232,9 +228,6 @@ def _thinking_body(model: str, effort) -> dict:
       思考の量を指定する(low が最小。完全には止められない)。
     effort に "low" 等を渡すと、その量で考えさせる(1段目の粗選別が使う)。
     """
-    if config.API_BACKEND == "openrouter":
-        return ({"reasoning": {"effort": effort}} if effort
-                else {"reasoning": {"enabled": False}})
     if effort or "gpt-oss" in model.lower():
         return {"reasoning_effort": effort or "low"}
     return {"chat_template_kwargs": {"enable_thinking": False}}
@@ -287,7 +280,7 @@ def _record_giveup(model: str) -> None:
     if n >= config.DEAD_MODEL_AFTER and model not in _dead:
         _dead.add(model)
         tqdm.write(f"  [!] {model} が{n}バッチ続けて応答しなかったため、このモデルへの"
-                   "残りの問い合わせを打ち切ります。サーバー側で混雑しているか停止して"
+                   "残りの問い合わせを打ち切ります。NVIDIA 側で混雑しているか停止して"
                    "いる可能性があります。時間をおいて再実行するか、"
                    "python research_bot.py probe で応答するモデルを確かめてください。")
 
@@ -338,7 +331,7 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                       時間切れで2段目の判定まで止めてしまわないようにする。
     """
     if not have_api_key():
-        return f"{ERROR_PREFIX}エラー】{key_name()} が設定されていません。"
+        return f"{ERROR_PREFIX}エラー】{KEY_NAME} が設定されていません。"
     if model in _dead:
         return f"{ERROR_PREFIX}通信エラー】{model} は応答していないため省略"
     client = get_client()
@@ -352,7 +345,7 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
     use_think = ((reasoning_effort or disable_thinking)
                  and think_key not in _no_thinking_param)
     use_guided = (schema is not None and config.USE_GUIDED_JSON
-                  and config.API_BACKEND == "nvidia" and model not in _no_guided)
+                  and model not in _no_guided)
 
     last = None
     attempt = 0
@@ -485,13 +478,6 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                     return f"{ERROR_PREFIX}通信エラー】timeout: {why}"
                 tqdm.write(f"    [!] 時間切れ({model}): {why}。もう一度送ります。")
                 continue
-
-            # OpenRouterのクレジット不足は待っても直らない
-            if config.API_BACKEND == "openrouter" and (
-                    status == 402 or ("insufficient" in low and "credit" in low)):
-                tqdm.write(f"    [!] OpenRouterのクレジット不足(402)。"
-                           f"再試行しても直りません: {msg[:200]}")
-                return f"{ERROR_PREFIX}通信エラー】{msg[:300]}"
 
             # 構造化出力の拒否 → 外してやり直す(試行回数は消費しない)
             if use_guided and (status in (400, 422) or "guided" in low

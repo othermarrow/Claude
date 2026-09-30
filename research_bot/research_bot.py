@@ -83,11 +83,11 @@ _filter_model_override = ""
 
 
 def active_planning_model() -> str:
-    return config.backend_model("planning")
+    return config.PLANNING_MODEL
 
 
 def active_filter_model() -> str:
-    return _filter_model_override or config.backend_model("filter")
+    return _filter_model_override or config.FILTER_MODEL
 
 
 # ==========================================
@@ -409,8 +409,7 @@ def cmd_search(args):
     llm.STOP.clear()
     if args.model:
         _filter_model_override = config.resolve_model(args.model)
-    ensemble_model = config.resolve_model(args.ensemble_model) or \
-        config.backend_model("ensemble")
+    ensemble_model = config.resolve_model(args.ensemble_model) or config.ENSEMBLE_MODEL
     do_check = config.RUN_CHECK_AFTER_SEARCH and not args.no_check
 
     topic = args.topic or read_topic()
@@ -418,8 +417,7 @@ def cmd_search(args):
     print(f"\n【テーマ】\n{topic}\n")
     # 古いファイルのコピーを使っていて修正が反映されていなかった事例が
     # あったため、主要な設定値を起動時に必ず表示する。
-    print(f"[設定] API_BACKEND={config.API_BACKEND} / "
-          f"PLANNING={active_planning_model()} / FILTER={active_filter_model()}"
+    print(f"[設定] PLANNING={active_planning_model()} / FILTER={active_filter_model()}"
           + (f" / ENSEMBLE={ensemble_model}" if do_check else ""))
     print(f"[設定] BATCH={config.FILTER_BATCH_SIZE} / "
           f"並列={config.CONCURRENCY} / 送信上限={config.REQUESTS_PER_MINUTE}回/分 / "
@@ -430,12 +428,12 @@ def cmd_search(args):
           f"{config.MIN_ABSTRACT_LENGTH_JA}(JA)")
     use_prefilter = config.PREFILTER_MODE != "off"
     print(f"[設定] PREFILTER_MODE={config.PREFILTER_MODE}"
-          + (f" / PREFILTER={config.backend_model('prefilter')}" if use_prefilter else "")
+          + (f" / PREFILTER={config.PREFILTER_MODEL}" if use_prefilter else "")
           + "\n")
 
     # 数時間の処理を始める前に、モデル名の誤りをここで止める
     llm.preflight([active_planning_model(), active_filter_model()]
-                  + ([config.backend_model("prefilter")] if use_prefilter else [])
+                  + ([config.PREFILTER_MODEL] if use_prefilter else [])
                   + ([ensemble_model] if do_check else []))
 
     acquire_wake_lock()
@@ -709,7 +707,7 @@ def cmd_check(args):
     skip = set()
     if args.no_ensemble:
         skip.add("ensemble")
-    ens = config.resolve_model(args.model) or config.backend_model("ensemble")
+    ens = config.resolve_model(args.model) or config.ENSEMBLE_MODEL
     if "ensemble" not in skip:
         llm.preflight([ens])
     run_checks(t["dir"], ens, skip)
@@ -776,15 +774,14 @@ def cmd_themes(args):
 
 def _require_key():
     if not llm.have_api_key():
-        print(f"[エラー] {llm.key_name()} が設定されていません。")
+        print(f"[エラー] {llm.KEY_NAME} が設定されていません。")
         sys.exit(1)
 
 
 def cmd_probe(args):
     _require_key()
     models = [config.resolve_model(m) for m in (args.model or [])] or \
-        list(dict.fromkeys([config.backend_model("filter"),
-                            config.backend_model("ensemble")]))
+        list(dict.fromkeys([config.FILTER_MODEL, config.ENSEMBLE_MODEL]))
     llm.probe(models, args.timeout)
 
 
@@ -801,11 +798,11 @@ def cmd_models(args):
     if avail is None:
         print("[エラー] モデル一覧を取得できませんでした。")
         sys.exit(1)
-    print(f"[{config.API_BACKEND}] 利用できるモデル: {len(avail)}件\n")
+    print(f"利用できるモデル: {len(avail)}件\n")
     print("■ config.py の設定")
-    for role in ("planning", "filter", "ensemble", "prefilter"):
-        m = config.backend_model(role)
-        print(f"  {'✓' if m in avail else '✗ 見つからない'}  {role:9} {m}")
+    for name in ("PLANNING_MODEL", "FILTER_MODEL", "ENSEMBLE_MODEL", "PREFILTER_MODEL"):
+        m = getattr(config, name)
+        print(f"  {'✓' if m in avail else '✗ 見つからない'}  {name:15} {m}")
     print("\n■ --model の短い名前")
     for k, m in config.MODEL_PRESETS.items():
         print(f"  {'✓' if m in avail else '✗'}  {k}  {m}")
@@ -851,10 +848,9 @@ def main():
                     help="判定モデルを差し替える(短い名前: "
                          + " / ".join(config.MODEL_PRESETS)
                          + "、または 'ベンダー/モデル名')。既定は "
-                         + config.backend_model("filter"))
+                         + config.FILTER_MODEL)
     ps.add_argument("--ensemble-model", default="", metavar="名前",
-                    help="事後チェックの再判定モデル。既定は "
-                         + config.backend_model("ensemble"))
+                    help="事後チェックの再判定モデル。既定は " + config.ENSEMBLE_MODEL)
     ps.add_argument("--no-check", action="store_true",
                     help="完了後の事後チェック(アンサンブル・全文・差分)を行わない")
     ps.set_defaults(func=cmd_search)
