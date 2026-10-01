@@ -840,7 +840,7 @@ def cmd_probe(args):
     _require_key()
     models = [config.resolve_model(m) for m in (args.model or [])] or \
         list(dict.fromkeys([config.FILTER_MODEL, config.ENSEMBLE_MODEL]))
-    llm.probe(models, args.timeout)
+    llm.probe(models, args.timeout, args.tokens)
 
 
 def cmd_bench(args):
@@ -975,6 +975,8 @@ def main():
     pp.add_argument("--model", action="append", metavar="名前",
                     help="確かめるモデル(複数回指定可)。省略時は判定用と再判定用")
     pp.add_argument("--timeout", type=int, default=60, help="1回あたりの上限秒数")
+    pp.add_argument("--tokens", type=int, default=64,
+                    help="返答の長さの上限(既定64。本文が空なら増やして確かめる)")
     pp.set_defaults(func=cmd_probe)
 
     pb = sub.add_parser("bench", help="1段目(prefilter)の候補モデルを同じ問題で比べる")

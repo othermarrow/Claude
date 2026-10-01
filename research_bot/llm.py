@@ -260,49 +260,75 @@ def preflight(models, fallbacks=None) -> None:
             tqdm.write(f"[モデル確認] {label}の切り替え先: " + " → ".join(usable))
 
 
-def probe(models, limit: int = 60) -> None:
+def probe(models, limit: int = 60, max_tokens: int = 64) -> None:
     """モデルが今応答するかを、短い問い合わせで確かめて表示する。
 
     無料枠のモデルは時間帯によって全く応答しないことがある。長い処理を
     始める前に、1分ほどで確かめられるようにする。
+    応答があっても本文が空のモデルがある(思考だけで max_tokens を使い切る、
+    思考を止める指定を無視する等)。その区別がつくよう、終了の理由と、
+    本文・思考の量も表示する。
     """
     client = get_client()
-    print(f"短い問い合わせで応答を確かめます(1回あたり最大{limit}秒)\n")
+    print(f"短い問い合わせで応答を確かめます(1回あたり最大{limit}秒 / "
+          f"max_tokens={max_tokens})\n")
     for m in models:
         body = _thinking_body(m, None)
         msgs = [{"role": "user", "content": "Reply with the single word OK."}]
         row = [m]
+        empty = False
         # まとめて受け取る方式
         t0 = time.monotonic()
         try:
             r = _with_deadline(lambda: client.chat.completions.create(
-                model=m, messages=msgs, max_tokens=64, temperature=0,
+                model=m, messages=msgs, max_tokens=max_tokens, temperature=0,
                 stream=False, timeout=float(limit), extra_body=body), limit)
-            txt = ((r.choices[0].message.content or "").strip()
-                   if r.choices else "")
-            row.append(f"まとめて: {time.monotonic() - t0:.1f}秒 ({txt[:12]!r})")
+            ch = r.choices[0] if r.choices else None
+            txt = ((ch.message.content or "").strip() if ch else "")
+            u = getattr(r, "usage", None)
+            det = getattr(u, "completion_tokens_details", None) if u else None
+            rt = getattr(det, "reasoning_tokens", None)
+            extra = (f" finish={getattr(ch, 'finish_reason', None)}"
+                     f" 出力{getattr(u, 'completion_tokens', '?')}tok"
+                     f"(思考{rt if rt is not None else '?'})")
+            row.append(f"まとめて: {time.monotonic() - t0:.1f}秒 ({txt[:12]!r}){extra}")
+            empty = not txt
         except Exception as e:
             row.append(f"まとめて: 失敗 {time.monotonic() - t0:.0f}秒 "
                        f"({type(e).__name__}: {str(e)[:60]})")
         # ストリーミング
         t0, first = time.monotonic(), None
+        n_content = n_reason = 0
+        fin = None
         try:
             def run_stream():
-                nonlocal first
+                nonlocal first, n_content, n_reason, fin
                 s = client.chat.completions.create(
-                    model=m, messages=msgs, max_tokens=64, temperature=0,
+                    model=m, messages=msgs, max_tokens=max_tokens, temperature=0,
                     stream=True, timeout=float(limit), extra_body=body)
-                for _ in s:
+                for chunk in s:
                     if first is None:
                         first = time.monotonic() - t0
+                    if not chunk.choices:
+                        continue
+                    c = chunk.choices[0]
+                    fin = getattr(c, "finish_reason", None) or fin
+                    d = c.delta
+                    n_reason += len(getattr(d, "reasoning_content", None) or "")
+                    n_content += len(getattr(d, "content", None) or "")
                 return True
             _with_deadline(run_stream, limit)
             row.append(f"ストリーミング: 最初の応答 {first or 0:.1f}秒 / "
-                       f"完了 {time.monotonic() - t0:.1f}秒")
+                       f"完了 {time.monotonic() - t0:.1f}秒 / 本文{n_content}字 "
+                       f"思考{n_reason}字 finish={fin}")
         except Exception as e:
             row.append(f"ストリーミング: 失敗 {time.monotonic() - t0:.0f}秒 "
                        f"({type(e).__name__})")
         print(f"■ {row[0]}\n    {row[1]}\n    {row[2]}")
+        if empty:
+            print("    → 応答は来ましたが本文が空です。思考だけで使い切った(思考が多い)か、"
+                  "思考を止める指定が合わないか、このモデルの出力形式が違う可能性が"
+                  "あります。--tokens 512 で再度確かめると区別できます。")
     print("\n両方失敗するモデルは、今は使えません。時間をおくか別のモデルを"
           "選んでください(一覧: python research_bot.py models)。")
 
