@@ -131,8 +131,12 @@ python research_bot.py --reuse-plan 重度知的障害者に対する1週間の�
 判定の途中でモデルが応答しなくなると、`config.py` の切り替えの順番に従って
 次のモデルへ自動で切り替え、残りを続ける。
 
-- 関連度判定・抽出(`FALLBACK_ORDER`): 1 → 2 → 3 → 4(同じ系統を先に)
-- 再判定(`ENSEMBLE_FALLBACK_ORDER`): 3 → 8 → 4 → 2 → 1(別系統を先に。1本目に使ったモデルは飛ばす)
+- 関連度判定・抽出(`FALLBACK_ORDER`): 1 だけ。super が休んでいる間は代わりを
+  使わず、10分ごとに試し直して戻るのを待つ(戻らなければ止まるので `--resume`)。
+  2(lightning)に切り替えた回は寛大すぎて、カタログが無関係な文献で膨らんだ
+  (2本目・3本目が共に除外相当とした107件のうち90件が lightning の採用分)。
+  3(gpt-oss)は厳しすぎて、切り替えた分だけ取りこぼす
+- 再判定(`ENSEMBLE_FALLBACK_ORDER`): 3 → 8 → 4 → 1(別系統を先に。1本目に使ったモデルは飛ばす)
 - 8 は、思考を止めると本文が空になるため、思考ありで呼ぶ
   (`THINKING_REQUIRED_MODELS`)。再判定の切り替え先と、3つ目の判定
   (`ENSEMBLE_SECOND_MODEL`)に使う。1本目の切り替え先には入れていない
@@ -193,7 +197,7 @@ python research_bot.py --reuse-plan 重度知的障害者に対する1週間の�
 | `ENSEMBLE_SECOND_MODEL` | diffusiongemma | 再判定の3つ目のモデル。2本目と3本目が両方とも除外相当にした文献を報告の最優先に出す(`--model` を指定した再判定では使わない。空文字で無効) |
 | `PREFILTER_MODE` | off | 1段目の粗選別。dryrun で試す、on で除外(取りこぼしが出たため既定は off) |
 | `REUSE_SEARCH_PLAN` | False | 同じテーマ文の前回の検索計画を使う(`--reuse-plan` / `--replan`) |
-| `FALLBACK_ORDER` | 1, 2, 3, 4 | 応答しなくなったときの切り替えの順番 |
+| `FALLBACK_ORDER` | 1 | 応答しなくなったときの切り替えの順番(関連度判定は代わりを使わず待つ) |
 | `DEAD_MODEL_COOLDOWN` | 600 | 応答しなくなったモデルを試し直すまでの秒数(0で試し直さない) |
 | `EUROPEPMC_TIMEOUT` | 60 | Europe PMC の待ち時間(長い検索式は20秒で返らなかった) |
 | `RELEVANCE_THRESHOLD` | 70 | これ未満は除外。判定の手引きの「隣接する研究」の帯(70〜89)もこの値から始まる |

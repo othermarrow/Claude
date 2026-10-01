@@ -762,8 +762,15 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
     fallback = unresolved = 0
     src_counts, cluster_counts = {}, {}
 
+    # クラスタの中は関連度(平均があれば平均)の高い順。実測: 1本目が寛大な
+    # モデルに切り替わった回に、周辺クラスタ203件の7割が2本目・3本目の除外
+    # 相当で、年順だと関連の深い文献がその中に埋もれた
+    def _eff(x):
+        m = x.get("score_mean")
+        m = m if m is not None else x.get("relevance_score")
+        return m if isinstance(m, int) else -1
     ordered = sorted(final_items,
-                     key=lambda x: (_cluster_rank(x.get("cluster")),
+                     key=lambda x: (_cluster_rank(x.get("cluster")), -_eff(x),
                                     -_year_int(x.get("year"))))
 
     for it in tqdm(ordered, desc="カタログ生成中", dynamic_ncols=True):
@@ -1340,7 +1347,8 @@ ClaudeでもGeminiでも同じ手順で使える。
 <how_to_read_the_catalog>
 1. カタログ冒頭の「引用キー索引」に載っている引用キーだけを使う。
    索引に無いキーを作ってはならない。
-2. 抄録はクラスタ順(core → related)に並んでいる。
+2. 抄録はクラスタ順(core → related)、各クラスタの中は関連度の高い順に
+   並んでいる。
    関連度スコアとクラスタは機械的な事前判定であり、出発点として参照して
    よいが、抄録の内容と矛盾する場合は自分の判断を優先し、その旨を書く。
 {core_tier_note}3. 索引表の「確認」欄に⚠️がある抄録は、判定とスコアが矛盾している。
