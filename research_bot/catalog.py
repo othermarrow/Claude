@@ -24,6 +24,7 @@ import re
 import shutil
 import time
 import unicodedata
+from collections import Counter
 
 import requests
 from tqdm import tqdm
@@ -809,7 +810,15 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
             "src": src, "doi": it.get("doi") or "なし",
             "url": it.get("url") or "なし",
             "oa_url": it.get("oa_url"), "cited_by": it.get("cited_by"),
-            "score": it.get("relevance_score"), "cluster": cluster,
+            # 3つのモデルの平均があればそれがクラスタを決めた点数(judge.consensus_judge)
+            "score": (it["score_mean"] if it.get("score_mean") is not None
+                      else it.get("relevance_score")),
+            "score_a": it.get("relevance_score"),
+            "measured_a": it.get("measured"),
+            "raters": {k: it.get(k) for k in (
+                "score_b", "measured_b", "reason_b", "model_b",
+                "score_c", "measured_c", "reason_c", "model_c") if k in it},
+            "cluster": cluster,
             "design": it.get("design") or "不明",
             "design_code": it.get("design_code") or "NA",
             "design_detail": it.get("design_detail") or "",
@@ -823,7 +832,8 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
             "fulltext_used": bool(it.get("fulltext_used")),
             "fulltext_source": it.get("fulltext_source") or "",
             "pmcid": it.get("pmcid") or "",
-            "measured": it.get("measured"),
+            "measured": (it["measured_consensus"] if "measured_consensus" in it
+                         else it.get("measured")),
             "judge_model": it.get("judge_model") or "",
             "reason": (it.get("exclusion_reason") or "").strip(),
             "abstract": clean_abstract(it.get("content", "")),
@@ -945,6 +955,13 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
                   "自動判定に失敗し、関連度による選別を一度も通っていない"
                   "抄録です。本カタログの引用キー索引には載せていないため、"
                   "レポートから引用することはできません。", ""]
+    rater_models = _rater_models(entries, main_model)
+    if rater_models:
+        lines += ["**関連度**: " + " / ".join(rater_models) + f" の{len(rater_models)}つのモデルの"
+                  "平均点(各項目の「関連度の内訳」に個別の点数)。採否は1本目の"
+                  f"判定({config.RELEVANCE_THRESHOLD}点以上)で決め、クラスタは平均点と"
+                  "「実測あり」の多数決で決めた。平均が採用の閾値を大きく下回る"
+                  "文献は、2本目・3本目が主題と無関係と見たもの。", ""]
     if meta.get("cluster_note"):
         lines += [f"**⚠️ 中心クラスタの基準について** {meta['cluster_note']}", ""]
     if len(judge_models) > 1:
@@ -1039,6 +1056,8 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
             + ((" | 📄本文で確認済み"
                 + (f"({e['fulltext_source']})" if e["fulltext_source"] else ""))
                if e["fulltext_used"] else ""))
+        if e["raters"]:
+            lines.append(f"- **関連度の内訳**: {_rater_line(e, main_model)}")
         if e["reason"]:
             lines.append(f"- **判定メモ**: {e['reason']}")
         if e["judge_model"] and main_model and e["judge_model"] != main_model:
@@ -1088,6 +1107,33 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
             "unjudged": len(unjudged), "unjudged_path": paths["unjudged"]}
 
 
+def _short_model(m: str) -> str:
+    return (m or "").split("/")[-1]
+
+
+def _rater_models(entries, main_model) -> list:
+    """3つのモデルの平均を使った回なら、使ったモデルの短い名前の並び。"""
+    if not any(e["raters"] for e in entries):
+        return []
+    out = [_short_model(main_model) or "1本目"]
+    for k in ("model_b", "model_c"):
+        names = Counter(e["raters"][k] for e in entries if e["raters"].get(k))
+        if names:
+            out.append("・".join(_short_model(m) for m, _ in names.most_common()))
+    return out
+
+
+def _rater_line(e, main_model) -> str:
+    """「super 75 / gpt-oss 85 / diffusiongemma 70(平均 77)」の形。"""
+    r = e["raters"]
+    parts = [f"{_short_model(e['judge_model'] or main_model) or '1本目'} "
+             f"{e['score_a'] if e['score_a'] is not None else '-'}"]
+    for p in ("b", "c"):
+        if r.get(f"score_{p}") is not None:
+            parts.append(f"{_short_model(r.get(f'model_{p}'))} {r[f'score_{p}']}")
+    return " / ".join(parts) + f"(平均 {e['score']})"
+
+
 def _write_index(path, catalog_path, meta, entries):
     with open(path, "w", encoding="utf-8") as f:
         json.dump({
@@ -1107,6 +1153,9 @@ def _write_index(path, catalog_path, meta, entries):
             "items": {e["ref_key"]: {"title": e["title"], "year": e["year"],
                                      "doi": e["doi"], "score": e["score"],
                                      "measured": e["measured"],
+                                     "score_a": e["score_a"],
+                                     "measured_a": e["measured_a"],
+                                     **e["raters"],
                                      "reason": e["reason"],
                                      "cluster": e["cluster"], "src": e["src"],
                                      "design": e["design"],
@@ -1216,6 +1265,9 @@ ATTACHED_FILES_BLOCK = """<attached_files>
   同じ介入を別の対象で行った近縁の研究(例: 自閉症児の活動スケジュール)も
   含まれる。抄録を読み、無関係なら対象外、近縁なら周辺の補助根拠(中心の
   根拠にはしない)として扱い、その判断を書く。
+- 「中心クラスタの内訳」の節がある場合、カタログの中心クラスタは複数の
+  モデルの平均点で決めたもの。⚠️ が付いた抄録は、1つのモデルが採用の
+  閾値を下回っている。中心的な根拠に使う前に抄録を読んで確かめる。
 - 除外候補(core→off/除外相当)に挙がった抄録は、中心的な根拠に使う前に
   抄録本文を読み、テーマの定義が示す交差を実際に満たしているか確かめる。
   満たしていなければ補助に落とすか対象外にし、そう判断した理由を書く。
@@ -1973,6 +2025,9 @@ def compare_indexes(old: dict, new: dict) -> dict:
     for ok, nk in pairs:
         orec, nrec = o_items[ok], n_items[nk]
         os_, ns_ = orec.get("score"), nrec.get("score")
+        if ("score_a" in orec) != ("score_a" in nrec):
+            # 一方だけが3つのモデルの平均(score)。1本目自身の点数どうしで比べる
+            os_, ns_ = orec.get("score_a", os_), nrec.get("score_a", ns_)
         if _cluster_of(orec) != _cluster_of(nrec):
             cluster_changed.append((ok, nk, orec, nrec))
         elif (isinstance(os_, int) and isinstance(ns_, int)

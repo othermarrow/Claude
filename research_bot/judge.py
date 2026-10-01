@@ -819,6 +819,117 @@ def second_look(items, topic, definition, homonyms, model, save=None) -> tuple:
     return back, len(targets)
 
 
+def consensus_judge(kept, topic, definition, homonyms, save=None) -> dict:
+    """採用した文献を2本目・3本目のモデルでも判定し、平均点でクラスタを決め直す。
+
+    実測: 1つのモデルの点数で中心クラスタの線を引くと、同じ検索計画で
+    続けて2回収集しても、中心12件のうち両方で core だったのは4件だけだった
+    (活動スケジュールの単一事例研究に70〜85点が回ごとに付け分けられる)。
+    別系統の3つの平均なら、1つのモデルの揺れは3分の1に薄まる。
+
+    採否(RELEVANCE_THRESHOLD)は1本目の判定のまま変えない(取りこぼしを
+    増やさないため)。書き込む項目:
+      score_b/measured_b/reason_b/model_b, score_c/… … 各モデルの判定
+      score_mean       … 得られた点数(1本目を含む)の平均(整数)
+      measured_consensus … 実測ありの多数決(得られた判定の過半数)
+    2本目は再判定の切り替え順(ENSEMBLE_FALLBACK_ORDER)で代わりのモデルへ
+    切り替わる。3つ目は切り替えない(run_ensemble と同じ)。
+    既に score_b / score_c がある文献は飛ばす(--resume で続きから)。
+    戻り値は {"model_b", "model_c", "got_b", "got_c"}。行わなければ空。
+    """
+    if not config.CONSENSUS_CORE or not kept or not llm.have_api_key():
+        return {}
+    hom = homonym_note(homonyms)
+    first = {it.get("judge_model") for it in kept if it.get("judge_model")}
+    order = config.fallback_models("ensemble")
+    model_b = config.ENSEMBLE_MODEL
+    if model_b in first:
+        model_b = llm.pick_model(model_b, avoid=first, order=order) or ""
+    if not model_b:
+        print("   [警告] 2本目に使えるモデルが無いため、中心クラスタは1本目の"
+              "点数で決めます。")
+        return {}
+    print(f"\n   採用した {len(kept)}件を、別系統のモデルでも判定します"
+          "(中心クラスタを3つのモデルの平均点で決めるため)...")
+
+    def judge_with(model, prefix, avoid, use_order, desc):
+        todo = [it for it in kept if f"score_{prefix}" not in it]
+        if not todo:
+            return
+
+        def work(batch):
+            return judge_batch(batch, topic, definition, hom, model,
+                               max_tokens=config.ENSEMBLE_MAX_TOKENS, avoid=avoid,
+                               order=use_order)
+
+        def on_result(batch, results):
+            for it, r in zip(batch, results or []):
+                if r and "error" not in r:
+                    it.update({f"score_{prefix}": r["score"],
+                               f"measured_{prefix}": r["measured"],
+                               f"reason_{prefix}": r["reason"],
+                               f"model_{prefix}": r.get("model") or model})
+
+        size = config.FILTER_BATCH_SIZE
+        llm.run_parallel(work, [todo[i:i + size] for i in range(0, len(todo), size)],
+                         desc, on_result=on_result, checkpoint=save,
+                         checkpoint_every=config.JUDGE_CHECKPOINT_EVERY)
+        # 欠落は1度だけ少数ずつやり直す(run_ensemble と同じ)。切り替えない
+        # 3つ目は、止まっていれば何度送っても同じなのでやり直さない
+        left = [it for it in kept if f"score_{prefix}" not in it]
+        if left and use_order and llm.pick_model(model, avoid, use_order):
+            size = config.RESCUE_BATCH_SIZE
+            llm.run_parallel(work, [left[i:i + size] for i in range(0, len(left), size)],
+                             f"{desc}(やり直し)", on_result=on_result,
+                             checkpoint=save,
+                             checkpoint_every=config.JUDGE_CHECKPOINT_EVERY)
+
+    judge_with(model_b, "b", first - {model_b}, order, "2本目の判定")
+    used_b = {it["model_b"] for it in kept if it.get("model_b")}
+    model_c = config.ENSEMBLE_SECOND_MODEL
+    if model_c and (model_c in first or model_c in used_b):
+        print(f"   [情報] 3つ目のモデル {model_c} は1本目か2本目で使われたため、"
+              "2つのモデルの平均で決めます。")
+        model_c = ""
+    if model_c:
+        judge_with(model_c, "c", first | used_b, (), "3つ目の判定")
+
+    for it in kept:
+        scores = [v for v in (it.get("relevance_score"), it.get("score_b"),
+                              it.get("score_c")) if isinstance(v, int)]
+        votes = [v for v in (it.get("measured"), it.get("measured_b"),
+                             it.get("measured_c")) if isinstance(v, bool)]
+        if len(scores) < 2:
+            continue      # 他のモデルの判定が得られなかった文献は1本目のまま
+        it["score_mean"] = round(sum(scores) / len(scores))
+        it["n_raters"] = len(scores)
+        it["measured_consensus"] = sum(votes) * 2 > len(votes) if votes else None
+        if it.get("cluster") in ("core", "related"):
+            it["cluster"] = ("core" if it["measured_consensus"] is True
+                             and it["score_mean"] >= config.CORE_SCORE else "related")
+    got_b = sum(1 for it in kept if "score_b" in it)
+    got_c = sum(1 for it in kept if "score_c" in it)
+    print(f"   → 2本目 {got_b}/{len(kept)}件"
+          + (f" / 3つ目 {got_c}/{len(kept)}件" if model_c else "")
+          + " の判定を得て、平均点でクラスタを決め直しました。")
+    return {"model_b": catalog.models_label(Counter(
+                it["model_b"] for it in kept if it.get("model_b"))),
+            "model_c": model_c if got_c else "", "got_b": got_b, "got_c": got_c}
+
+
+def eff_score(it):
+    """クラスタを決める点数。3つのモデルの平均があればそれ、無ければ1本目。"""
+    m = it.get("score_mean")
+    return m if m is not None else it.get("relevance_score")
+
+
+def eff_measured(it):
+    """クラスタを決める「実測あり」。3つのモデルの多数決があればそれ。"""
+    if "measured_consensus" in it:
+        return it["measured_consensus"]
+    return it.get("measured")
+
+
 def rebalance_clusters(kept) -> str:
     """core が少なすぎるとき、最高スコア帯を中心として扱う。戻り値は注記。
 
@@ -831,43 +942,59 @@ def rebalance_clusters(kept) -> str:
     採用の閾値の中間以上のものに限る。実測: 隣接する研究の帯を70〜89点に
     してから、隣接する研究がほぼ一律に75点になり、帯を広げると75点の30件
     (総説・本の章・対象の違う研究を含む)がまとめて core になった。
+
+    3つのモデルの平均点(consensus_judge)があるときは、平均が中間以上の
+    ものをすべて core とし、それが CORE_MIN_ITEMS 件に満たなければ、平均の
+    高い順に採用の閾値まで下りて補う。平均は1点刻みになるので、1つの
+    モデルの75点のような「まとめて入る」帯は生じない。
     """
-    scored = [it for it in kept if it.get("relevance_score") is not None]
+    scored = [it for it in kept if eff_score(it) is not None]
     if not scored:
         return ""
     core_now = sum(1 for it in kept if it.get("cluster") == "core")
     if core_now >= config.CORE_MIN_ITEMS:
         return ""
+    cons = any(it.get("score_mean") is not None for it in kept)
     floor = (config.CORE_SCORE + config.RELEVANCE_THRESHOLD) // 2
+    lowest = config.RELEVANCE_THRESHOLD if cons else floor
     cands = [it for it in scored if it.get("cluster") != "core"
-             and it.get("measured") is True and it["relevance_score"] >= floor]
-    top = max(it["relevance_score"] for it in scored)
+             and eff_measured(it) is True and eff_score(it) >= lowest]
+    top = max(eff_score(it) for it in scored)
+    n_models = max((it.get("n_raters") or 0) for it in kept) if cons else 0
+    what = f"{n_models}つのモデルの平均で" if cons else ""
     if not cands:
         if core_now:
             return ""
-        note = (f"関連度{config.CORE_SCORE}以上かつ実測ありの文献が無く、"
-                f"{floor}点以上で実測を伴う文献も無かったため、中心クラスタは"
+        note = (f"{what}関連度{config.CORE_SCORE}以上かつ実測ありの文献が無く、"
+                f"{lowest}点以上で実測を伴う文献も無かったため、中心クラスタは"
                 f"空とした(最高は{top}点)。テーマの中核を直接扱った研究が"
                 "見当たらない可能性が高い。周辺クラスタの隣接する研究が主な材料になる。")
         print(f"   → {note}")
         return note
-    levels = sorted({it["relevance_score"] for it in cands}, reverse=True)
-    cut, n = levels[0], 0
-    for lv in levels:
-        n = sum(1 for it in cands if it["relevance_score"] >= lv)
-        cut = lv
-        if core_now + n >= config.CORE_MIN_ITEMS:
-            break
+    levels = sorted({eff_score(it) for it in cands}, reverse=True)
+    if cons and core_now + sum(1 for it in cands
+                               if eff_score(it) >= floor) >= config.CORE_MIN_ITEMS:
+        cut = floor
+    else:
+        cut = levels[0]
+        for lv in levels:
+            cut = lv
+            if core_now + sum(1 for it in cands
+                              if eff_score(it) >= lv) >= config.CORE_MIN_ITEMS:
+                break
+    n = 0
     for it in cands:
-        if it["relevance_score"] >= cut:
+        if eff_score(it) >= cut:
             it["cluster"] = "core"
-    reason = (f"関連度{config.CORE_SCORE}以上の文献が1件も無かった" if core_now == 0
-              else f"本来の基準(関連度{config.CORE_SCORE}以上かつ実測あり)を満たす"
+            n += 1
+    reason = (f"{what}関連度{config.CORE_SCORE}以上の文献が1件も無かった" if core_now == 0
+              else f"{what}本来の基準(関連度{config.CORE_SCORE}以上かつ実測あり)を満たす"
                    f"文献が{core_now}件しか無かった")
-    note = (f"{reason}ため、実測を伴う最高スコア帯({cut}点以上・{n}件)を"
-            "中心クラスタとして扱った。テーマの交差が薄く、全条件を満たす"
-            "文献が存在しない可能性がある。中心クラスタの文献も、交差の"
-            "一部しか満たしていないことがある。")
+    band = (f"平均{cut}点以上で、過半数のモデルが実測ありとした{n}件" if cons
+            else f"実測を伴う最高スコア帯({cut}点以上・{n}件)")
+    note = (f"{reason}ため、{band}を中心クラスタとして扱った。テーマの交差が"
+            "薄く、全条件を満たす文献が存在しない可能性がある。中心クラスタの"
+            "文献も、交差の一部しか満たしていないことがある。")
     print(f"   → {note}")
     return note
 
@@ -1252,15 +1379,25 @@ def _ensemble_entries(theme: dict) -> tuple:
                  if theme["catalog"] else {})
     entries = []
     for key, rec in idx["items"].items():
-        entries.append({
+        # score_a は1本目自身の点数。3つのモデルの平均で中心クラスタを決めた回
+        # (consensus_judge。score_b がある)は score が平均
+        own = rec["score_a"] if "score_a" in rec else rec.get("score")
+        e = {
             "key": key, "title": rec.get("title") or "",
             "src": rec.get("src") or "",
             "content": abstracts.get(key, ""),
-            "score_a": rec.get("score") if isinstance(rec.get("score"), int) else None,
+            "score_a": own if isinstance(own, int) else None,
+            "measured_a": rec["measured_a"] if "measured_a" in rec else rec.get("measured"),
             "cluster_a": (rec.get("cluster") or UNJUDGED).strip(),
             "reason_a": rec.get("reason") or "",
             "model_a": rec.get("judge_model") or "",
-        })
+            "mean": rec.get("score") if isinstance(rec.get("score_b"), int) else None,
+        }
+        for p in ("b", "c"):
+            if isinstance(rec.get(f"score_{p}"), int):
+                e[f"stored_{p}"] = {k: rec.get(f"{k}_{p}")
+                                    for k in ("score", "measured", "reason", "model")}
+        entries.append(e)
     return idx, entries
 
 
@@ -1271,7 +1408,8 @@ def _second_pass(entries, topic, definition, hom, model, avoid) -> int:
     載せない。別のモデルが混ざると「別系統の2つ」でなくなる)。
     """
     size = config.FILTER_BATCH_SIZE
-    batches = [entries[i:i + size] for i in range(0, len(entries), size)]
+    todo = [e for e in entries if "cluster_c" not in e]
+    batches = [todo[i:i + size] for i in range(0, len(todo), size)]
 
     def work(batch):
         return judge_batch(batch, topic, definition, hom, model,
@@ -1337,12 +1475,31 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
     if not entries:
         print("[アンサンブル] 対象がありません。")
         return ""
-    if preflight:
+    # 3つのモデルの平均で中心クラスタを決めた回は、収集時の2本目・3つ目の
+    # 判定が索引にある。--model で別のモデルと比べるとき以外は使い回す
+    consensus = any(e.get("mean") is not None for e in entries)
+    m3 = config.ENSEMBLE_SECOND_MODEL
+    if consensus and not explicit:
+        for e in entries:
+            for p, name in (("b", model), ("c", m3)):
+                st = e.get(f"stored_{p}")
+                if st:
+                    e.update({f"score_{p}": st["score"],
+                              f"cluster_{p}": classify(st["score"], st["measured"]),
+                              f"reason_{p}": st["reason"] or "",
+                              f"measured_{p}": st["measured"],
+                              f"model_{p}": st["model"] or name})
+        reused = sum(1 for e in entries if "cluster_b" in e)
+        if reused:
+            print(f"[アンサンブル] 収集時に別系統のモデルで判定した結果を使います"
+                  f"({reused}/{len(entries)}件)。")
+    todo = [e for e in entries if "cluster_b" not in e]
+    if preflight and todo:
         llm.preflight([model])
 
     hom = homonym_note(homonyms)
     size = config.FILTER_BATCH_SIZE
-    batches = [entries[i:i + size] for i in range(0, len(entries), size)]
+    batches = [todo[i:i + size] for i in range(0, len(todo), size)]
 
     def work(batch):
         return judge_batch(batch, topic, definition, hom, model,
@@ -1356,7 +1513,8 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                          reason_b=r["reason"], measured_b=r["measured"],
                          model_b=r.get("model") or model)
 
-    llm.run_parallel(work, batches, "再判定中", on_result=on_result)
+    if batches:
+        llm.run_parallel(work, batches, "再判定中", on_result=on_result)
 
     # 欠落を一度だけやり直す。途中でモデルが切り替わった回は、切り替わる
     # 前に失敗したバッチが欠落のまま残る(実測: 52件中24件)ので切り替え先で。
@@ -1386,20 +1544,25 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
         print(f"[警告] 判定を得られたのは {got}/{len(entries)}件だけです。"
               "κ係数などは参考程度に見てください。")
 
-    cut = _core_cut(idx, entries)
+    # 平均で決めた回の中心クラスタは2本目の判定も含んでいるので、1本目と
+    # 2本目の比較には1本目自身の分類(本来の基準)を使う
+    cut = config.CORE_SCORE if consensus else _core_cut(idx, entries)
     wide = 0    # 1本目は related、2本目は緩めた基準なら core に当たる件数
     demote, promote, other, missing, pairs = [], [], [], [], []
     for e in entries:
+        e["cluster_cmp"] = (classify(e["score_a"], e.get("measured_a"))
+                            if consensus and e["score_a"] is not None
+                            else e["cluster_a"])
         if "cluster_b" not in e:
             missing.append(e)
             continue
         relaxed = (cut < config.CORE_SCORE and e["cluster_b"] == "related"
                    and e.get("measured_b") is True and e["score_b"] >= cut)
-        if relaxed and e["cluster_a"] == "core":
+        if relaxed and e["cluster_cmp"] == "core":
             e["cluster_b"] = "core"
         elif relaxed:
             wide += 1
-        a, b = e["cluster_a"], e["cluster_b"]
+        a, b = e["cluster_cmp"], e["cluster_b"]
         e["gap"] = (abs(e["score_a"] - e["score_b"])
                     if e["score_a"] is not None else None)
         e["bucket_b"] = _bucket(b, e["score_b"])
@@ -1417,14 +1580,14 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                                            if e.get("model_b")))
     # 3つ目のモデル(--model を指定した比較のときは使わない)
     model_c, both = "", []
-    m3 = config.ENSEMBLE_SECOND_MODEL
     if m3 and not explicit:
         used_b = {e["model_b"] for e in entries if e.get("model_b")}
         if m3 in first_pass or m3 in used_b:
             print(f"[アンサンブル] 3つ目のモデル {m3} は1本目か2本目で使われたため、"
                   "3つ目の判定は行いません。")
         else:
-            print(f"\n[アンサンブル] 3つ目のモデル {m3} でも判定します...")
+            if any("cluster_c" not in e for e in entries):
+                print(f"\n[アンサンブル] 3つ目のモデル {m3} でも判定します...")
             got3 = _second_pass(entries, topic, definition, hom, m3,
                                 avoid=set(first_pass) | used_b | {model})
             if got3:
@@ -1436,8 +1599,12 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
             else:
                 print(f"[警告] {m3} から判定を得られなかったため、3つ目の判定は"
                       "報告に載せません。")
-    # 1本目と2本目・3本目が共に外したものは最優先の節にだけ載せる
-    shown = {e["key"] for e in both}
+    # 1本目と2本目・3本目が共に外したものは最優先の節にだけ、平均で決めた
+    # 中心クラスタは内訳の節にだけ載せる
+    core_rows = ([e for e in entries if e["cluster_a"] == "core"]
+                 if consensus else [])
+    shown = {e["key"] for e in both} | {e["key"] for e in core_rows}
+    promote = [e for e in promote if e["key"] not in shown]
     demote = [e for e in demote if e["key"] not in shown]
     other = [e for e in other if e["key"] not in shown]
     agree = sum(1 for a, b in pairs if a == b)
@@ -1489,6 +1656,10 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
         f.write(f"- 判定基準: 両モデルとも同じプロンプト(関連度{config.CORE_SCORE}以上"
                 "かつ実測あり→core、関連度"
                 f"{config.RELEVANCE_THRESHOLD}未満→除外相当)\n")
+        if consensus:
+            f.write("  - 中心クラスタは、収集時に複数のモデルの平均点と「実測あり」の"
+                    "多数決で決めた(カタログの関連度は平均)。下の表の「1本目」は"
+                    "1本目自身の点数と、本来の基準での分類\n")
         if cut < config.CORE_SCORE:
             f.write(f"  - 1本目の中心クラスタは基準を緩めて(実測ありかつ{cut}点以上)"
                     "作られているため、1本目の core の文献は、2本目もこの基準を"
@@ -1515,7 +1686,7 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                 ra = catalog.cell(e["reason_a"] or "-", 40)
                 rb = catalog.cell(e.get("reason_b") or "-", 40)
                 sa = e["score_a"] if e["score_a"] is not None else "-"
-                f.write(f"| [{e['key']}] | {e['cluster_a']} {sa} "
+                f.write(f"| [{e['key']}] | {e['cluster_cmp']} {sa} "
                         f"| {e['bucket_b']} {e['score_b']} | {ra} | {rb} | {t} |\n")
             f.write("\n")
 
@@ -1543,11 +1714,31 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                                                      x["score_b"] + x["score_c"],
                                                      -(x.get("score_a") or 0))):
                     sa = e["score_a"] if e["score_a"] is not None else "-"
-                    f.write(f"| [{e['key']}] | {e['cluster_a']} {sa} "
+                    f.write(f"| [{e['key']}] | {e['cluster_cmp']} {sa} "
                             f"| {e['score_b']} | {e['score_c']} "
                             f"| {catalog.cell(e['reason_a'] or '-', 40)} "
                             f"| {catalog.cell(e.get('reason_c') or '-', 40)} "
                             f"| {catalog.cell(e['title'], 50)} |\n")
+                f.write("\n")
+        if consensus:
+            f.write(f"## {num('中心クラスタの内訳(複数のモデルの平均で決めた)')}"
+                    f"({len(core_rows)}件)\n\n"
+                    "各モデルの点数と平均。⚠️ は、平均では中心に入ったが、1つの"
+                    f"モデルが採用の閾値({config.RELEVANCE_THRESHOLD}点)を下回った"
+                    "もの。中心の根拠に使う前に抄録を読む。\n\n")
+            if not core_rows:
+                f.write("なし。\n\n")
+            else:
+                f.write("| 引用キー | 1本目 | 2本目 | 3本目 | 平均 | 確認 | タイトル |\n"
+                        "|---|---|---|---|---|---|---|\n")
+                for e in sorted(core_rows, key=lambda x: -(x.get("mean") or 0)):
+                    vals = [e["score_a"], (e.get("stored_b") or {}).get("score"),
+                            (e.get("stored_c") or {}).get("score")]
+                    low = any(isinstance(v, int) and v < config.RELEVANCE_THRESHOLD
+                              for v in vals)
+                    cells = " | ".join(str(v) if v is not None else "-" for v in vals)
+                    f.write(f"| [{e['key']}] | {cells} | {e['mean']} "
+                            f"| {'⚠️' if low else ''} | {catalog.cell(e['title'], 50)} |\n")
                 f.write("\n")
         dump(demote, num("中心クラスタからの除外候補"),
              "1本目は core、2本目は無関係または関連度不足と判定した抄録。"
@@ -1562,7 +1753,7 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
         if not missing:
             f.write("なし。\n")
         for e in missing:
-            f.write(f"- [{e['key']}](1本目: {e['cluster_a']})\n")
+            f.write(f"- [{e['key']}](1本目: {e['cluster_cmp']})\n")
 
     print(f"[アンサンブル] 出力: {out_path}")
     if pairs:

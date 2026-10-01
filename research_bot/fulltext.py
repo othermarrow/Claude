@@ -332,7 +332,7 @@ def refine_with_fulltext(items, topic, definition, model, limit=None) -> dict:
     """
     limit = config.FULLTEXT_REFINE_LIMIT if limit is None else limit
     ranked = sorted(items, key=lambda x: (x.get("cluster") != "core",
-                                          -(x.get("relevance_score") or 0)))
+                                          -(judge.eff_score(x) or 0)))
     targets = [it for it in ranked
                if it.get("pmcid") or it.get("oa_url") or it.get("doi")][:limit]
     stats = {"attempted": 0, "used": 0, "sources": {}, "fail_reasons": {}}

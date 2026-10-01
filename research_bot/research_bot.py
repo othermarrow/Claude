@@ -641,6 +641,17 @@ def cmd_search(args):
             if not kept:
                 print("\n【終了】判定の結果、論文が残りませんでした。")
                 return
+            cons = judge.consensus_judge(kept, topic, plan["definition"],
+                                         plan.get("homonyms"),
+                                         save=lambda: _save("judging"))
+            if cons:
+                search_log.append(
+                    f"中心クラスタ: 採用した{len(kept)}件を {cons['model_b']}"
+                    + (f" と {cons['model_c']}" if cons["model_c"] else "")
+                    + " でも判定し、平均点と「実測あり」の多数決で決めた"
+                    f"(2本目 {cons['got_b']}件"
+                    + (f" / 3つ目 {cons['got_c']}件" if cons["model_c"] else "")
+                    + "の判定を得た。採否は1本目の判定のまま)")
             cluster_note = judge.rebalance_clusters(kept)
             _save("judged")
         current = "judged"
@@ -663,7 +674,7 @@ def cmd_search(args):
             print("\n[6/7] 撤回の有無とOA全文の所在を調べています...")
             sources.annotate_retractions(kept)
             core_first = sorted(kept, key=lambda x: (x.get("cluster") != "core",
-                                                     -(x.get("relevance_score") or 0)))
+                                                     -(judge.eff_score(x) or 0)))
             oa = sources.annotate_open_access(core_first, limit=config.OA_LOOKUP_LIMIT)
             if oa:
                 print(f"   → {oa}件はオープンアクセス全文が読めます。")
