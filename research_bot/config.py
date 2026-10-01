@@ -118,14 +118,14 @@ FALLBACK_ORDER = (
     "1",   # nemotron-3-super     本判定と同じ。ファセット抽出が失敗したときの第一候補
     "2",   # nemotron-3.5-lightning  同じ系統で速い。判定の傾向が近い
     "3",   # gpt-oss-20b          思考を少量(low)に抑えて動く。実測で判定できた
-    "5",   # muse-glimmer-30b     応答は速い(約5秒)。実測で再判定できた
+    "5",   # muse-glimmer-30b     応答は速い(約5秒)。思考ありで呼ぶ(THINKING_REQUIRED_MODELS)
     "4",   # gemma-4-31b          応答しない状態が続いたので後ろ。戻れば前に出す
 )
 # 再判定(アンサンブル)の代わり。見落としが重ならないよう別系統を先にする。
 # 1本目の判定に使ったモデルは、ここに書いてあっても飛ばす。
 ENSEMBLE_FALLBACK_ORDER = (
     "3",   # gpt-oss-20b          既定の再判定モデル。実測で再判定できた
-    "5",   # muse-glimmer-30b     応答は速い。別系統
+    "5",   # muse-glimmer-30b     応答は速い。別系統。思考ありで呼ぶ(判定の質は評価中)
     "4",   # gemma-4-31b          応答しない状態が続いたので後ろ
     "2",   # nemotron-3.5-lightning  本判定と同じ系統なので後ろ
     "1",   # nemotron-3-super
@@ -279,11 +279,15 @@ DEAD_MODEL_COOLDOWN = 600
 # 「思考を止められない」とみなし、その場で以後使わない。時間切れを3回待つより
 # ずっと早く代わりのモデルへ移れる。指定が効くモデルの思考は0字。0で無効
 THINKING_RUNAWAY_CHARS = 4000
-# 思考を止めると本文が空になるモデル。思考ありで呼ぶ(思考の暴走の見張りも外す)。
-# 実測: diffusiongemma は思考なしだと出力1トークン(終了の合図だけ)で、返答の
-# 長さや temperature を変えても空。思考ありなら本文が出た(思考は短かった)。
+# 思考ありで呼ぶモデル(思考の暴走の見張りも外す)。思考を止められない、または
+# 止めると本文が空になるモデルを入れる。
+#   diffusiongemma  思考なしだと出力1トークン(終了の合図だけ)で、返答の長さや
+#                   temperature を変えても空。思考ありなら本文が出た
+#   muse-glimmer    短い問い合わせでは思考なしが効くが、判定のプロンプトでは
+#                   本文の前に4000字超の思考が出て、毎回見切られていた
 THINKING_REQUIRED_MODELS = (
     "google/diffusiongemma-26b-a4b-it",
+    "meta/muse-glimmer-30b",
 )
 HEARTBEAT_SECONDS = 60        # 応答待ちの状況を表示する間隔(秒)
 # NVIDIA NIM の構造化出力(nvext.guided_json)で、JSONの形をAPI側で強制
