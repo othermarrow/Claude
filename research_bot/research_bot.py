@@ -840,6 +840,9 @@ def cmd_probe(args):
     _require_key()
     models = [config.resolve_model(m) for m in (args.model or [])] or \
         list(dict.fromkeys([config.FILTER_MODEL, config.ENSEMBLE_MODEL]))
+    if args.variants:
+        llm.probe_variants(models, args.timeout)
+        return
     llm.probe(models, args.timeout, args.tokens)
 
 
@@ -975,6 +978,9 @@ def main():
     pp.add_argument("--model", action="append", metavar="名前",
                     help="確かめるモデル(複数回指定可)。省略時は判定用と再判定用")
     pp.add_argument("--timeout", type=int, default=60, help="1回あたりの上限秒数")
+    pp.add_argument("--variants", action="store_true",
+                    help="本文が空のモデル向け。思考・返答の長さ・temperature を"
+                         "変えた8通りを試し、本文が出る設定を探す")
     pp.add_argument("--tokens", type=int, default=64,
                     help="返答の長さの上限(既定64。本文が空なら増やして確かめる)")
     pp.set_defaults(func=cmd_probe)

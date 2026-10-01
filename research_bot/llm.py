@@ -277,6 +277,7 @@ def probe(models, limit: int = 60, max_tokens: int = 64) -> None:
         msgs = [{"role": "user", "content": "Reply with the single word OK."}]
         row = [m]
         empty = False
+        print(f"■ {m}  (確認中。応答しないモデルは最大{limit * 2}秒かかります)", flush=True)
         # まとめて受け取る方式
         t0 = time.monotonic()
         try:
@@ -296,6 +297,7 @@ def probe(models, limit: int = 60, max_tokens: int = 64) -> None:
         except Exception as e:
             row.append(f"まとめて: 失敗 {time.monotonic() - t0:.0f}秒 "
                        f"({type(e).__name__}: {str(e)[:60]})")
+        print(f"    {row[1]}", flush=True)
         # ストリーミング
         t0, first = time.monotonic(), None
         n_content = n_reason = 0
@@ -324,13 +326,52 @@ def probe(models, limit: int = 60, max_tokens: int = 64) -> None:
         except Exception as e:
             row.append(f"ストリーミング: 失敗 {time.monotonic() - t0:.0f}秒 "
                        f"({type(e).__name__})")
-        print(f"■ {row[0]}\n    {row[1]}\n    {row[2]}")
+        print(f"    {row[2]}", flush=True)
         if empty:
             print("    → 応答は来ましたが本文が空です。思考だけで使い切った(思考が多い)か、"
                   "思考を止める指定が合わないか、このモデルの出力形式が違う可能性が"
                   "あります。--tokens 512 で再度確かめると区別できます。")
     print("\n両方失敗するモデルは、今は使えません。時間をおくか別のモデルを"
           "選んでください(一覧: python research_bot.py models)。")
+
+
+def probe_variants(models, limit: int = 120) -> None:
+    """応答はあるのに本文が空のモデルについて、本文が出る設定を探す。
+
+    思考(あり/なし) × 返答の長さ(64/4096) × temperature(0/1) の8通りを
+    1回ずつ送る。実測: diffusiongemma は思考なし・temperature 0 で、
+    出力1トークン(終了の合図だけ)で終わり、返答を長くしても変わらなかった。
+    """
+    client = get_client()
+    msgs = [{"role": "user", "content": "Reply with the single word OK."}]
+    for m in models:
+        print(f"\n■ {m}", flush=True)
+        good = []
+        for think, tokens, temp in itertools.product((False, True), (64, 4096), (0, 1)):
+            label = f"思考={'あり' if think else 'なし'} tokens={tokens:<5} temp={temp}"
+            t0 = time.monotonic()
+            try:
+                r = _with_deadline(
+                    lambda th=think, tk=tokens, tp=temp: client.chat.completions.create(
+                        model=m, messages=msgs, max_tokens=tk, temperature=tp,
+                        stream=False, timeout=float(limit),
+                        extra_body={"chat_template_kwargs": {"enable_thinking": th}}),
+                    limit)
+            except Exception as e:
+                print(f"  {label}: 失敗 {time.monotonic() - t0:.0f}秒 "
+                      f"({type(e).__name__}: {str(e)[:60]})", flush=True)
+                continue
+            ch = r.choices[0] if r.choices else None
+            txt = ((ch.message.content or "").strip() if ch else "")
+            u = getattr(r, "usage", None)
+            print(f"  {label}: {time.monotonic() - t0:.1f}秒 "
+                  f"finish={getattr(ch, 'finish_reason', None)} "
+                  f"出力{getattr(u, 'completion_tokens', '?')}tok "
+                  f"{('本文 ' + repr(txt[:20])) if txt else '本文は空'}", flush=True)
+            if txt:
+                good.append(f"思考{'あり' if think else 'なし'}/{tokens}tok/temp{temp}")
+        print("  → 本文が出た組み合わせ: " + (", ".join(good) if good
+                                          else "なし(どの設定でも空か失敗)"))
 
 
 # ==========================================
