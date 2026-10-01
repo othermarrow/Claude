@@ -464,6 +464,21 @@ def title_key(title: str) -> str:
     return f"t:{hashlib.md5(nt.encode()).hexdigest()[:16]}" if nt else ""
 
 
+def _title_key_variants(title) -> list:
+    """レジストリを引くときのタイトル指紋。今の形と、実体参照を戻す前の形。
+
+    以前は &apos; を戻さずに指紋を取っていた(ERIC のタイトル)。今は ' に
+    戻してから取るので、同じ論文でも指紋が変わる。古い形でも引けるようにする。
+    """
+    keys = [title_key(str(title or ""))]
+    if "'" in str(title or ""):
+        nt = re.sub(r"[^a-zA-Z0-9ぁ-んァ-ン一-龥]", "",
+                    clean_abstract(title).replace("'", "apos").lower())
+        if nt:
+            keys.append(f"t:{hashlib.md5(nt.encode()).hexdigest()[:16]}")
+    return [k for k in keys if k]
+
+
 def load_keyring(output_dir: str) -> tuple:
     """引用キーのレジストリを読む。
 
@@ -801,7 +816,13 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
 
         doi_norm = (it.get("doi") or "").strip().lower()
         tkey = "" if doi_norm else title_key(it.get("title"))
-        known = keyring.get(doi_norm) if doi_norm else title_ring.get(tkey)
+        known = keyring.get(doi_norm) if doi_norm else None
+        if not known:
+            # DOI を後から得た文献(ERIC の URL から拾うようにした等)は、以前は
+            # タイトル指紋で登録されている。実測: その切り替えで7件のキーが
+            # 変わった(Chan2014a → Chan2014b など)
+            known = next((title_ring[k] for k in _title_key_variants(it.get("title"))
+                          if k in title_ring), None)
         if known and known not in used_keys:
             used_keys.add(known)
             keyring_hits += 1
