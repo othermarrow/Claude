@@ -417,6 +417,30 @@ def cmd_search(args):
     do_check = config.RUN_CHECK_AFTER_SEARCH and not args.no_check
 
     topic = args.topic or read_topic()
+    named_plan = None
+    if isinstance(args.reuse_plan, str):
+        # --reuse-plan <フォルダ名>: その回の検索計画で取り直す。テーマ文も
+        # その回のものにそろえる。実測: テーマファイルが別のテーマに書き
+        # 換わっていて、「インフォーマルなアセスメント」の名前のカタログに
+        # 週間スケジュールの検索計画で集めた文献が入った。
+        try:
+            named_plan = catalog.plan_of_theme(args.reuse_plan, args.output_dir)
+        except FileNotFoundError as e:
+            raise SystemExit(f"[エラー] --reuse-plan: {e}\n"
+                             "        テーマの一覧: python research_bot.py themes")
+        plan_topic = named_plan[2]
+        if plan_topic and plan_topic != topic.strip():
+            if args.topic:
+                raise SystemExit(
+                    f"[エラー] --reuse-plan で指定した回({named_plan[1]})のテーマ文と、"
+                    "指定したテーマ文が違います。\n"
+                    f"        その回のテーマ文: {plan_topic.splitlines()[0]}\n"
+                    "        その回を取り直すならテーマ文を省き、別のテーマなら "
+                    "--reuse-plan を外してください。")
+            print(f"[情報] --reuse-plan で指定した回({named_plan[1]})のテーマ文で"
+                  "収集します(テーマファイルの「"
+                  f"{topic.splitlines()[0]}」ではなく)。\n")
+            topic = plan_topic
     print("=== 学術リサーチ ===")
     print(f"\n【テーマ】\n{topic}\n")
     # 古いファイルのコピーを使っていて修正が反映されていなかった事例が
@@ -486,13 +510,8 @@ def cmd_search(args):
     else:
         reuse = (args.reuse_plan if args.reuse_plan is not None
                  else config.REUSE_SEARCH_PLAN)
-        if isinstance(reuse, str):
-            # --reuse-plan <フォルダ名>: その回の検索計画を使う
-            try:
-                prev_plan, prev_from = catalog.plan_of_theme(reuse, args.output_dir)
-            except FileNotFoundError as e:
-                raise SystemExit(f"[エラー] --reuse-plan: {e}\n"
-                                 "        テーマの一覧: python research_bot.py themes")
+        if named_plan:
+            prev_plan, prev_from = named_plan[0], named_plan[1]
         else:
             prev_plan, prev_from = (catalog.find_previous_plan(topic, args.output_dir)
                                     if reuse else (None, ""))
