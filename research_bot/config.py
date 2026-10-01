@@ -235,6 +235,11 @@ FILTER_EXCERPT_CHARS = 900    # 抄録を先頭から何字渡すか
 JUDGE_BATCH_RETRIES = 2       # 応答を読めなかったバッチを送り直す回数
 JUDGE_CHECKPOINT_EVERY = 20   # 何バッチごとに途中経過を保存するか
 RESCUE_BATCH_SIZE = 1         # 未判定を判定し直すときの件数(少ないほど壊れにくい)
+# 除外した中間帯(OFF_SCORE より上・RELEVANCE_THRESHOLD 未満)を、バッチの
+# 顔ぶれを変えてもう一度判定し、採用相当なら戻す。同じ入力でも判定は回ごとに
+# 揺れ、実測では採用した文献の3割が別の回では除外されていた。判定の回数は
+# 中間帯の件数分(全体の1〜2割)増える。False で行わない
+SECOND_LOOK = True
 # --- 研究設計の抽出・本文での確認 ---
 EXTRACT_BATCH_SIZE = 5
 EXTRACT_EXCERPT_CHARS = 1200  # 設計・参加者は方法と結果に書かれるので判定より広く渡す

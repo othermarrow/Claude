@@ -12,6 +12,7 @@
 """
 
 import datetime
+import hashlib
 import json
 import os
 import re
@@ -360,7 +361,10 @@ you cannot tell, also mark false, and write in reason (in Japanese):
 If the title looks similar but refers to a different concept, scale, or
 field (a same-name/same-spelling but unrelated case), score 20 or below,
 and write in reason (in Japanese) what it is being confused with, in the
-form "同名異義語: 〇〇". Any paper whose content falls outside psychology,
+form "同名異義語: 〇〇". A homonym is a different thing that happens to share
+the name. An outdated term for the same population (e.g. "mentally
+retarded"), a broader or narrower population, or a related method is not a
+homonym. Any paper whose content falls outside psychology,
 welfare, medicine, and education scores 20 or below.
 
 [Output]
@@ -667,6 +671,49 @@ def rescue_unjudged(items, topic, definition, homonyms, model, save=None) -> int
     print(f"   → 判定できた {solved}件(うち関連度不足で除外 {now_excluded}件) / "
           f"なお未判定 {still}件")
     return solved
+
+
+def second_look(items, topic, definition, homonyms, model, save=None) -> int:
+    """除外の中間帯(OFF_SCORE より上・閾値未満)を、組み合わせを変えてもう一度判定する。
+
+    実測: 同じ検索計画・同じ1375件を同じモデルで2回判定すると、一方で
+    採用した文献のうち26件が他方では除外された。多くは同じ抄録に75点と
+    25点を付け分けたもの(「隣接する研究」か「分野が重なるだけ」かの
+    揺れ)で、中心的なレビュー(Spriggs2016)も95点と65点に割れた。
+    除外を一度で確定させず、中間帯だけをバッチの顔ぶれを変えて判定し直し、
+    どちらかで採用相当なら採用する(二人で選別し、片方が残せば残す方式)。
+    0〜OFF_SCORE(別分野・同名異義語)は見直さない。戻した数を返す。
+    """
+    if not config.SECOND_LOOK or not llm.have_api_key():
+        return 0
+    lo, hi = config.OFF_SCORE, config.RELEVANCE_THRESHOLD
+    targets = [it for it in items if it.get("relevance_score") is not None
+               and lo < it["relevance_score"] < hi and not it.get("second_looked")]
+    if not targets:
+        return 0
+    # 1回目と同じ並びで送ると、同じ顔ぶれのバッチになり同じ判定になりやすい
+    targets.sort(key=lambda it: hashlib.md5(
+        (it.get("title") or "").encode("utf-8")).hexdigest())
+    first = {id(it): {k: it.get(k) for k in ("relevance_score", "cluster", "measured",
+                                              "exclusion_reason", "judge_model")}
+             for it in targets}
+    print(f"\n   除外した中間帯({lo + 1}〜{hi - 1}点)の {len(targets)}件を、"
+          "組み合わせを変えてもう一度判定します...")
+    _run(targets, config.FILTER_BATCH_SIZE, topic, definition, homonyms, model,
+         "除外の再確認", save)
+    back = 0
+    for it in targets:
+        before = first[id(it)]
+        it["second_looked"] = True
+        s2 = it.get("relevance_score")
+        if s2 is not None and s2 >= hi:
+            back += 1
+            it["exclusion_reason"] = (f"(再確認で採用。1回目は{before['relevance_score']}点) "
+                                      + (it.get("exclusion_reason") or ""))
+        else:
+            it.update(before)
+    print(f"   → 再確認で採用に戻した {back}件 / 除外のまま {len(targets) - back}件")
+    return back
 
 
 def rebalance_clusters(kept) -> str:

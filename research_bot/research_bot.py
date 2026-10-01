@@ -613,6 +613,9 @@ def cmd_search(args):
                 judge.rescue_unjudged(collected, topic, plan["definition"],
                                       plan.get("homonyms"), active_filter_model(),
                                       save=lambda: _save("judging"))
+            judge.second_look(collected, topic, plan["definition"],
+                              plan.get("homonyms"), active_filter_model(),
+                              save=lambda: _save("judging"))
             kept, excluded = judge.split_by_threshold(collected)
             used = {}
             for it in collected:
