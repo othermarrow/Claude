@@ -299,6 +299,13 @@ def bench_prefilter(models, timeout: float = 300) -> None:
 # 判定結果の形(1件ぶん):
 #   {"score": 0-100, "measured": True/False/None, "reason": str, "cluster": str}
 # cluster は score と measured から classify() で機械的に決める。
+#
+# 「対象が同じだけでは隣接ではない」の段落: 実測で、単一事例研究の方法論の
+# 総説3件、知的障害者の住環境のレビュー、自閉症の介入全般のレビューに70〜75点が
+# 付き、判定メモには「スケジュール支援とは無関係」「扱われていない」と書かれて
+# いた(点数とメモが食い違う)。対象(知的障害者)が一致することを隣接と
+# 取り違えていたため、介入そのものを扱わないものは帯の外と明記し、
+# 自分のメモと点数を突き合わせさせる。
 FILTER_PROMPT = """You are an expert in academic literature review.
 
 [Research theme] {topic}
@@ -338,6 +345,16 @@ study's own procedure (e.g. the weekly plan of an exercise program), a
 staff rota, an administrative or care plan, or a unit of time used for
 measurement. Such a paper shares only a keyword with the theme: score
 {off_above}-{keep_below}, however close its population or setting is.
+
+Sharing the population alone is not adjacency either. A paper that does
+not address the theme's intervention or phenomenon, or a close variant of
+it — a general review of the population, a study of a different
+intervention, a paper on research methods, a survey of living conditions
+or attitudes — shares only a broad area: score {off_above}-{keep_below}, even when its
+population matches the theme exactly. Check your own reason before you
+give the score: if it says the paper does not deal with the intervention or
+phenomenon at all (not merely that it uses another variant, time unit, or
+population of it), the score must be {keep_below} or lower.
 
 The definition may say that some kinds of studies are not included — a
 broader or narrower population, a different time unit or variant of the

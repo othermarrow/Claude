@@ -17,6 +17,7 @@ config.py(PROMPT_*)で変えられる。
 import datetime
 import glob
 import hashlib
+import html
 import json
 import os
 import re
@@ -342,9 +343,9 @@ def clean_abstract(text) -> str:
     s = re.sub(r"<h[1-6]>\s*([^<]{1,60}?)\s*</h[1-6]>", r" 【\1】 ", s, flags=re.I)
     s = re.sub(r"<(p|br|div)\s*/?>", " ", s, flags=re.I)
     s = re.sub(r"<[^>]{1,200}>", "", s)
-    for a, b in (("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"),
-                 ("&quot;", '"'), ("&#39;", "'"), ("&nbsp;", " ")):
-        s = s.replace(a, b)
+    # 実体参照はすべて戻す。実測: ERIC のタイトルが「Teachers&apos;」のまま残り、
+    # 同じ論文の Crossref 版(Teachers’)とタイトルの指紋が食い違って二重に収録された
+    s = html.unescape(s)
     return re.sub(r"\s+", " ", s).strip()
 
 

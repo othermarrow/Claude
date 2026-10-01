@@ -306,6 +306,12 @@ def add_item(src, title, year, content, url=None, doi=None, authors=None,
     # タイトルもHTMLタグ・実体参照を含むことがある(Wiley系の <scp> 等)。
     # クリーニングしないと正規化ハッシュが食い違い、重複排除をすり抜ける。
     title = catalog.clean_abstract(title) or None
+    if not doi and url:
+        # ERIC 等は DOI 欄が空で、URL が doi.org を指していることがある。
+        # 拾わないと、同じ論文の Crossref 版と DOI で突き合わせられない
+        m = fulltext.DOI_IN_URL.search(str(url).strip())
+        if m and str(url).strip().lower().startswith(("http://", "https://")):
+            doi = m.group(1).rstrip(".")
     doi_norm, title_key = _dedupe_keys(title, doi)
     if not doi_norm and not title_key:
         return False
