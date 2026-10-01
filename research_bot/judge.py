@@ -371,12 +371,16 @@ welfare, medicine, and education scores 20 or below.
 Output only a JSON array in the following format. You must output exactly one
 entry for every paper, with no omissions. Write the reason field in Japanese,
 briefly (under 40 characters). Leave it empty when there is nothing to note.
+Each entry also has "t": the first three words of that paper's title,
+copied exactly as listed (for a Japanese title, its first 10 characters),
+without the source in brackets. It shows which paper the entry is about, so
+take it from the paper you are judging at that moment.
 The example below shows the format only. Judge each paper from its own
 abstract and write your own reason; never copy the example scores or reasons.
 "〇〇" is a slot to fill in, never output it as is.
-[{{"index": 0, "score": 95, "measured": true, "reason": ""}},
- {{"index": 1, "score": 85, "measured": false, "reason": "導入で言及するのみ"}},
- {{"index": 2, "score": 10, "measured": false, "reason": "同名異義語: 〇〇"}}]"""
+[{{"index": 0, "t": "〇〇", "score": 95, "measured": true, "reason": ""}},
+ {{"index": 1, "t": "〇〇", "score": 85, "measured": false, "reason": "導入で言及するのみ"}},
+ {{"index": 2, "t": "〇〇", "score": 10, "measured": false, "reason": "同名異義語: 〇〇"}}]"""
 
 # 例の枠("〇〇")。これが残った理由は、抄録を読まずに例を写したとみなす。
 EXAMPLE_SLOT = "〇〇"
@@ -388,11 +392,12 @@ FILTER_SCHEMA = {
         "type": "object",
         "properties": {
             "index": {"type": "integer"},
+            "t": {"type": "string"},
             "score": {"type": "integer", "minimum": 0, "maximum": 100},
             "measured": {"type": "boolean"},
             "reason": {"type": "string"},
         },
-        "required": ["index", "score", "measured", "reason"],
+        "required": ["index", "t", "score", "measured", "reason"],
     },
 }
 
@@ -454,11 +459,80 @@ def _coerce(rec: dict) -> dict:
             "cluster": classify(score, measured)}
 
 
+def _flat(text) -> str:
+    """改行・連続した空白を1つの空白にする。抄録の中の「2. 方法」のような
+    行が、並べた論文の番号に見えないように。"""
+    return re.sub(r"\s+", " ", str(text or "")).strip()
+
+
 def _listing(batch) -> str:
     return "\n".join(
-        f"{i}. [{it.get('src', '')}] {it.get('title', 'Untitled')}\n"
-        f"   Abstract: {(it.get('content') or '')[:config.FILTER_EXCERPT_CHARS]}"
+        f"{i}. [{it.get('src', '')}] {_flat(it.get('title')) or 'Untitled'}\n"
+        f"   Abstract: {_flat((it.get('content') or '')[:config.FILTER_EXCERPT_CHARS])}"
         for i, it in enumerate(batch))
+
+
+# 「この番号の論文は無い」という応答。モデルが途中で1件読み落とし、判定を
+# 1件ずつずらして書いたときに、最後の番号に出る(実測: 1回の収集で6〜8件、
+# 「該当する論文が存在しない(候補に5件のみ)」等)。
+_MISSING_RE = re.compile(r"(論文|抄録|文献)が(提供され|与えられ|存在し|見当たら|含まれ)"
+                         r"|候補に\s*\d+\s*件")
+
+
+def _title_key(s) -> str:
+    s = re.sub(r"^\s*\[[^\]]*\]\s*", "", str(s or ""))
+    return re.sub(r"[\W_]+", "", s.lower())
+
+
+def _realign(m: dict, titles: list) -> tuple:
+    """判定と論文の対応を、各判定の "t"(タイトルの書き出し)で確かめて直す。
+
+    実測: モデルが6件のうち1件を読み落とすと、以降の判定を1件ずつ前の番号に
+    書き、最後の番号に「論文が無い」と書いた。関連の明らかな研究(ビデオ
+    活動スケジュール)が0点になり、その判定は無関係な本(PRT の手引き)に
+    付いていた。抽出でも、2件の参加者数が入れ替わっていた。
+    t が別の1件のタイトルと一致すればそちらへ付け替える。t が無い・読めない
+    判定は番号どおりに置く(付け替えた判定と重なれば捨てる)。
+    「論文が無い」と答えた判定は捨てる(判定し直しになる)。
+    戻り値は (付け替えた数, 捨てた数)。
+    """
+    keys = [_title_key(t) for t in titles]
+    dropped = 0
+    for i in [i for i, r in m.items()
+              if _MISSING_RE.search(str((r or {}).get("reason") or ""))]:
+        del m[i]
+        dropped += 1
+
+    def where(r):
+        tk = _title_key((r or {}).get("t"))[:30]
+        if len(tk) < 4:
+            return None
+        return [j for j, k in enumerate(keys) if k.startswith(tk)]
+
+    ok, move, unsure = {}, [], []
+    for i, r in m.items():
+        hit = where(r)
+        if hit and i in hit:
+            ok[i] = r
+        elif hit and len(hit) == 1:
+            move.append((hit[0], r))
+        else:
+            unsure.append((i, r))
+    moved = 0
+    for j, r in move:
+        if j in ok:
+            dropped += 1
+        else:
+            ok[j] = r
+            moved += 1
+    for i, r in unsure:
+        if i in ok:
+            dropped += 1
+        else:
+            ok[i] = r
+    m.clear()
+    m.update(ok)
+    return moved, dropped
 
 
 def _diagnose(raw: str, n: int) -> None:
@@ -563,6 +637,10 @@ def judge_batch(batch, topic, definition, hom, model, max_tokens=None, avoid=(),
             return [{"error": "判定失敗(AIへの問い合わせが失敗)"}] * len(batch)
         recs, mode = llm.parse_json_array(raw)
         m = llm.index_records(recs, len(batch))
+        moved, dropped = _realign(m, [it.get("title") for it in batch])
+        if moved or dropped:
+            tqdm.write(f"  [i] 判定と論文の番号がずれていました(付け替え {moved}件"
+                       f" / 判定し直し {dropped}件)。")
         # 例文を写した分は送り直さない(温度0では同じ応答が返りやすい)。
         # 未判定として、あとで1件ずつ判定し直す。
         copied = _drop_copied(m)
@@ -874,13 +952,18 @@ markers - an array of codes for methodological details EXPLICITLY stated in
   effect         an effect size is reported
   Empty array if none are stated.
 
+t - the first three words of that paper's title, copied exactly as listed
+  (for a Japanese title, its first 10 characters). It shows which paper the
+  entry is about, so take it from the paper you are reading at that moment.
+
 [Output]
 Output only the following JSON array. Exactly one entry per paper, no
-omissions, no explanatory text, no code fences.
-[{{"index": 0, "design": "SCED", "detail": "多層ベースライン", "n": 3,
+omissions, no explanatory text, no code fences. The values below show the
+format only; "〇〇" is a slot to fill in.
+[{{"index": 0, "t": "〇〇", "design": "SCED", "detail": "多層ベースライン", "n": 3,
   "setting": "SCHOOL", "pop": "自閉症児(5〜8歳)",
   "markers": ["baseline", "ioa", "maintenance"]}},
- {{"index": 1, "design": "SR", "detail": "メタ分析", "n": null,
+ {{"index": 1, "t": "〇〇", "design": "SR", "detail": "メタ分析", "n": null,
   "setting": "NA", "pop": "", "markers": ["effect"]}}]"""
 
 EXTRACT_SCHEMA = {
@@ -889,6 +972,7 @@ EXTRACT_SCHEMA = {
         "type": "object",
         "properties": {
             "index": {"type": "integer"},
+            "t": {"type": "string"},
             "design": {"type": "string", "enum": list(catalog.DESIGN_LABELS)},
             "detail": {"type": "string"},
             "n": {"type": ["integer", "null"]},
@@ -955,7 +1039,7 @@ def extract_records(papers, topic, definition, model, retries=2) -> dict:
     本文ラベルは抄録なら "Abstract"、全文由来なら Methods の抜粋である旨を
     書く(fulltext.py が使う)。読めなかった分は含まれない。items には書き込まない。
     """
-    listing = "\n".join(f"{i}. {t}\n   {label}: {body}"
+    listing = "\n".join(f"{i}. {_flat(t)}\n   {label}: {_flat(body)}"
                         for i, (t, label, body) in enumerate(papers))
     prompt = EXTRACT_PROMPT.format(topic=topic, definition=definition,
                                    listing=listing)
@@ -972,6 +1056,10 @@ def extract_records(papers, topic, definition, model, retries=2) -> dict:
             return {}
         recs, mode = llm.parse_json_array(raw)
         m = llm.index_records(recs, len(papers))
+        moved, dropped = _realign(m, [p[0] for p in papers])
+        if moved or dropped:
+            tqdm.write(f"  [i] 抽出と論文の番号がずれていました(付け替え {moved}件"
+                       f" / 抽出し直し {dropped}件)。")
         if len(m) >= len(papers):
             return m
         if attempt < retries:
