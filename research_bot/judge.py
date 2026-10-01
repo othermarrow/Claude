@@ -1210,6 +1210,30 @@ def _ensemble_entries(theme: dict) -> tuple:
     return idx, entries
 
 
+def _second_pass(entries, topic, definition, hom, model, avoid) -> int:
+    """再判定の3つ目のモデルで全件を判定し、score_c 等を書き込む。得られた件数を返す。
+
+    代わりのモデルへの切り替えはしない(3つ目が止まったら、その分は報告に
+    載せない。別のモデルが混ざると「別系統の2つ」でなくなる)。
+    """
+    size = config.FILTER_BATCH_SIZE
+    batches = [entries[i:i + size] for i in range(0, len(entries), size)]
+
+    def work(batch):
+        return judge_batch(batch, topic, definition, hom, model,
+                           max_tokens=config.ENSEMBLE_MAX_TOKENS, avoid=avoid,
+                           order=())
+
+    def on_result(batch, results):
+        for e, r in zip(batch, results or []):
+            if r and "error" not in r:
+                e.update(score_c=r["score"], cluster_c=r["cluster"],
+                         reason_c=r["reason"], model_c=r.get("model") or model)
+
+    llm.run_parallel(work, batches, "確認の再判定中", on_result=on_result)
+    return sum(1 for e in entries if "cluster_c" in e)
+
+
 def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                  preflight: bool = True) -> str:
     """アンサンブル判定を行い、報告ファイル(_ensemble__テーマ.md)のパスを返す。"""
@@ -1329,6 +1353,27 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
 
     model_b = catalog.models_label(Counter(e["model_b"] for e in entries
                                            if e.get("model_b")))
+    # 3つ目のモデル(--model を指定した比較のときは使わない)
+    model_c, both = "", []
+    m3 = config.ENSEMBLE_SECOND_MODEL
+    if m3 and not explicit:
+        used_b = {e["model_b"] for e in entries if e.get("model_b")}
+        if m3 in first_pass or m3 in used_b:
+            print(f"[アンサンブル] 3つ目のモデル {m3} は1本目か2本目で使われたため、"
+                  "3つ目の判定は行いません。")
+        else:
+            print(f"\n[アンサンブル] 3つ目のモデル {m3} でも判定します...")
+            got3 = _second_pass(entries, topic, definition, hom, m3,
+                                avoid=set(first_pass) | used_b | {model})
+            if got3:
+                model_c = catalog.models_label(Counter(
+                    e["model_c"] for e in entries if e.get("model_c")))
+                both = [e for e in entries
+                        if "cluster_c" in e and e.get("bucket_b") == EXCLUDED
+                        and _bucket(e["cluster_c"], e["score_c"]) == EXCLUDED]
+            else:
+                print(f"[警告] {m3} から判定を得られなかったため、3つ目の判定は"
+                      "報告に載せません。")
     agree = sum(1 for a, b in pairs if a == b)
     kappa = cohen_kappa(pairs)
     gaps = [e["gap"] for e in entries if e.get("gap") is not None]
@@ -1343,6 +1388,8 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
         f.write("---\n")
         f.write(f"catalog_source: \"{os.path.basename(theme['catalog'] or '')}\"\n")
         f.write(f"model_a: \"{model_a}\"\nmodel_b: \"{model_b}\"\n")
+        if model_c:
+            f.write(f"model_c: \"{model_c}\"\n")
         f.write(f"checked_at: {datetime.datetime.now().isoformat(timespec='seconds')}\n")
         f.write(f"kappa: {round(kappa, 3) if kappa is not None else 'null'}\n")
         f.write("---\n\n")
@@ -1361,7 +1408,8 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
             side = ("方向の偏りなし" if abs(bias) < 1 else
                     f"2本目のほうが平均 {abs(bias):.1f}点{'低い' if bias > 0 else '高い'}")
             f.write(f"- 関連度スコアの差: 平均 {mean_gap:.1f}点({side})\n")
-        f.write(f"- 判定モデル: 1本目 {model_a} / 2本目 {model_b}\n")
+        f.write(f"- 判定モデル: 1本目 {model_a} / 2本目 {model_b}"
+                + (f" / 3本目 {model_c}" if model_c else "") + "\n")
         f.write(f"- 判定基準: 両モデルとも同じプロンプト(関連度{config.CORE_SCORE}以上"
                 "かつ実測あり→core、関連度"
                 f"{config.RELEVANCE_THRESHOLD}未満→除外相当)\n\n")
@@ -1386,16 +1434,43 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                         f"| {e['bucket_b']} {e['score_b']} | {ra} | {rb} | {t} |\n")
             f.write("\n")
 
-        dump(demote, "1. 最優先: 中心クラスタからの除外候補",
+        sec = 0
+
+        def num(title):
+            nonlocal sec
+            sec += 1
+            return f"{sec}. {title}"
+
+        if model_c:
+            f.write(f"## {num('最優先: 別系統の2つのモデルが、どちらも除外相当と判定')}"
+                    f"({len(both)}件)\n\n"
+                    "1本目は残したのに、2本目と3本目が共に除外相当と判定した抄録。"
+                    "主題と無関係なものが多いが、同じ介入を別の対象で行った近縁の"
+                    "研究も含まれる。抄録を読み、無関係なら対象外、近縁なら周辺の"
+                    "補助根拠とする。\n\n")
+            if not both:
+                f.write("なし。\n\n")
+            else:
+                f.write("| 引用キー | 1本目 | 2本目 | 3本目 | 1本目のメモ | "
+                        "3本目のメモ | タイトル |\n|---|---|---|---|---|---|---|\n")
+                for e in sorted(both, key=lambda x: -(x.get("score_a") or 0)):
+                    sa = e["score_a"] if e["score_a"] is not None else "-"
+                    f.write(f"| [{e['key']}] | {e['cluster_a']} {sa} "
+                            f"| {e['score_b']} | {e['score_c']} "
+                            f"| {catalog.cell(e['reason_a'] or '-', 40)} "
+                            f"| {catalog.cell(e.get('reason_c') or '-', 40)} "
+                            f"| {catalog.cell(e['title'], 50)} |\n")
+                f.write("\n")
+        dump(demote, num("中心クラスタからの除外候補"),
              "1本目は core、2本目は無関係または関連度不足と判定した抄録。"
              "中心的な根拠に使う前に抄録を読み直す。")
-        dump(promote, "2. 中心クラスタへの昇格候補",
+        dump(promote, num("中心クラスタへの昇格候補"),
              "1本目は related、2本目は core と判定した抄録。"
              "測定を伴う研究だと確認できたものだけを主要な根拠に加える。")
-        dump(other, "3. その他の不一致",
+        dump(other, num("その他の不一致"),
              f"周辺クラスタからの除外候補、およびスコア差"
              f"{config.ENSEMBLE_SCORE_GAP}点以上の不一致。")
-        f.write("## 4. 応答が得られなかった抄録\n\n")
+        f.write(f"## {num('応答が得られなかった抄録')}\n\n")
         if not missing:
             f.write("なし。\n")
         for e in missing:
@@ -1410,6 +1485,8 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
               "(どちらかの判定が1種類だけ)")
     if bias_note:
         print(f"[アンサンブル] {bias_note}")
+    if model_c:
+        print(f"[アンサンブル] 別系統の2つが両方とも除外相当: {len(both)}件 ← 最優先で確認")
     print(f"[アンサンブル] 除外候補(core→除外相当) {len(demote)}件 ← 最優先で確認 / "
           f"昇格候補 {len(promote)}件 / その他 {len(other)}件 / 欠落 {len(missing)}件")
     return out_path

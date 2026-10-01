@@ -61,6 +61,12 @@ QUERY_FILE = "/storage/emulated/0/query.js"
 PLANNING_MODEL = "nvidia/nemotron-3-ultra-550b-a55b"
 FILTER_MODEL = "nvidia/nemotron-3-super-120b-a12b"
 ENSEMBLE_MODEL = "openai/gpt-oss-20b"
+# 再判定の3つ目のモデル。2本目と別系統にし、1本目が残した文献を両方が「除外相当」と
+# 判定したものを、再判定の報告の最優先に出す(別系統の2つが共に外したものは、
+# 片方だけの癖より、読み直す価値が高い)。実測: 2本目1つだけでは、無関係な文献は
+# 取れても「近縁だが対象が違う」研究まで外していた。空文字で3つ目を使わない。
+# --model で再判定のモデルを指定したときは、比較のため3つ目は使わない。
+ENSEMBLE_SECOND_MODEL = "google/diffusiongemma-26b-a4b-it"
 PREFILTER_MODEL = "nvidia/nemotron-3-super-120b-a12b"
 
 # 1段目の粗選別。軽い問い合わせで「明らかに無関係」だけを先に弾き、

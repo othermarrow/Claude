@@ -187,6 +187,7 @@ python research_bot.py --reuse-plan 重度知的障害者に対する1週間の�
 | `CATALOG_ROOT` | …/Vault/Abstract/catalog | カタログの保存先 |
 | `FILTER_MODEL` | nemotron-3-super-120b-a12b | 関連度判定・抽出のモデル |
 | `ENSEMBLE_MODEL` | gpt-oss-20b | 再判定のモデル(判定モデルとは別系統にする) |
+| `ENSEMBLE_SECOND_MODEL` | diffusiongemma | 再判定の3つ目のモデル。2本目と3本目が両方とも除外相当にした文献を報告の最優先に出す(`--model` を指定した再判定では使わない。空文字で無効) |
 | `PREFILTER_MODE` | off | 1段目の粗選別。dryrun で試す、on で除外(取りこぼしが出たため既定は off) |
 | `REUSE_SEARCH_PLAN` | False | 同じテーマ文の前回の検索計画を使う(`--reuse-plan` / `--replan`) |
 | `FALLBACK_ORDER` | 1, 2, 3, 5, 4 | 応答しなくなったときの切り替えの順番 |
