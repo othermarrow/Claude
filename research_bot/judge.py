@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import re
+import statistics
 import time
 from collections import Counter
 
@@ -820,17 +821,20 @@ def second_look(items, topic, definition, homonyms, model, save=None) -> tuple:
 
 
 def consensus_judge(kept, topic, definition, homonyms, save=None) -> dict:
-    """採用した文献を2本目・3本目のモデルでも判定し、平均点でクラスタを決め直す。
+    """採用した文献を2本目・3本目のモデルでも判定し、中央値でクラスタを決め直す。
 
     実測: 1つのモデルの点数で中心クラスタの線を引くと、同じ検索計画で
     続けて2回収集しても、中心12件のうち両方で core だったのは4件だけだった
     (活動スケジュールの単一事例研究に70〜85点が回ごとに付け分けられる)。
-    別系統の3つの平均なら、1つのモデルの揺れは3分の1に薄まる。
+    平均ではなく中央値にしたのは、1つのモデルの外れた点数に引かれないため。
+    実測: 平均で決めた回に、在宅高齢者の介護計画の論文(1本目75・3本目70)が
+    2本目の95点で平均80になり core に入った。続けて2回収集した中心クラスタの
+    重なり(Jaccard)は、平均80点以上では0.23、中央値80点以上では0.50だった。
 
     採否(RELEVANCE_THRESHOLD)は1本目の判定のまま変えない(取りこぼしを
     増やさないため)。書き込む項目:
       score_b/measured_b/reason_b/model_b, score_c/… … 各モデルの判定
-      score_mean       … 得られた点数(1本目を含む)の平均(整数)
+      score_consensus  … 得られた点数(1本目を含む)の中央値(整数)
       measured_consensus … 実測ありの多数決(得られた判定の過半数)
     2本目は再判定の切り替え順(ENSEMBLE_FALLBACK_ORDER)で代わりのモデルへ
     切り替わる。3つ目は切り替えない(run_ensemble と同じ)。
@@ -850,7 +854,7 @@ def consensus_judge(kept, topic, definition, homonyms, save=None) -> dict:
               "点数で決めます。")
         return {}
     print(f"\n   採用した {len(kept)}件を、別系統のモデルでも判定します"
-          "(中心クラスタを3つのモデルの平均点で決めるため)...")
+          "(中心クラスタを3つのモデルの中央値で決めるため)...")
 
     def judge_with(model, prefix, avoid, use_order, desc):
         todo = [it for it in kept if f"score_{prefix}" not in it]
@@ -889,7 +893,7 @@ def consensus_judge(kept, topic, definition, homonyms, save=None) -> dict:
     model_c = config.ENSEMBLE_SECOND_MODEL
     if model_c and (model_c in first or model_c in used_b):
         print(f"   [情報] 3つ目のモデル {model_c} は1本目か2本目で使われたため、"
-              "2つのモデルの平均で決めます。")
+              "2つのモデルの点数で決めます。")
         model_c = ""
     if model_c:
         judge_with(model_c, "c", first | used_b, (), "3つ目の判定")
@@ -901,25 +905,26 @@ def consensus_judge(kept, topic, definition, homonyms, save=None) -> dict:
                              it.get("measured_c")) if isinstance(v, bool)]
         if len(scores) < 2:
             continue      # 他のモデルの判定が得られなかった文献は1本目のまま
-        it["score_mean"] = round(sum(scores) / len(scores))
+        it["score_consensus"] = int(round(statistics.median(scores)))
         it["n_raters"] = len(scores)
         it["measured_consensus"] = sum(votes) * 2 > len(votes) if votes else None
         if it.get("cluster") in ("core", "related"):
             it["cluster"] = ("core" if it["measured_consensus"] is True
-                             and it["score_mean"] >= config.CORE_SCORE else "related")
+                             and it["score_consensus"] >= config.CORE_SCORE
+                             else "related")
     got_b = sum(1 for it in kept if "score_b" in it)
     got_c = sum(1 for it in kept if "score_c" in it)
     print(f"   → 2本目 {got_b}/{len(kept)}件"
           + (f" / 3つ目 {got_c}/{len(kept)}件" if model_c else "")
-          + " の判定を得て、平均点でクラスタを決め直しました。")
+          + " の判定を得て、中央値でクラスタを決め直しました。")
     return {"model_b": catalog.models_label(Counter(
                 it["model_b"] for it in kept if it.get("model_b"))),
             "model_c": model_c if got_c else "", "got_b": got_b, "got_c": got_c}
 
 
 def eff_score(it):
-    """クラスタを決める点数。3つのモデルの平均があればそれ、無ければ1本目。"""
-    m = it.get("score_mean")
+    """クラスタを決める点数。3つのモデルの中央値があればそれ、無ければ1本目。"""
+    m = it.get("score_consensus")
     return m if m is not None else it.get("relevance_score")
 
 
@@ -943,10 +948,11 @@ def rebalance_clusters(kept) -> str:
     してから、隣接する研究がほぼ一律に75点になり、帯を広げると75点の30件
     (総説・本の章・対象の違う研究を含む)がまとめて core になった。
 
-    3つのモデルの平均点(consensus_judge)があるときは、平均が中間以上の
-    ものをすべて core とし、それが CORE_MIN_ITEMS 件に満たなければ、平均の
-    高い順に採用の閾値まで下りて補う。平均は1点刻みになるので、1つの
-    モデルの75点のような「まとめて入る」帯は生じない。
+    3つのモデルの中央値(consensus_judge)があるときは、中央値が中間以上で
+    過半数のモデルが実測ありとしたものを、件数によらずすべて core とする。
+    上の帯から件数で切ると、85点の文献が5件あるかどうかで80点の帯がまるごと
+    出入りし、回ごとの顔ぶれが大きく変わる。中間より下へは広げない(中央値は
+    5点刻みなので、75点に下りると隣接する研究がまとめて入る)。
     """
     scored = [it for it in kept if eff_score(it) is not None]
     if not scored:
@@ -954,26 +960,24 @@ def rebalance_clusters(kept) -> str:
     core_now = sum(1 for it in kept if it.get("cluster") == "core")
     if core_now >= config.CORE_MIN_ITEMS:
         return ""
-    cons = any(it.get("score_mean") is not None for it in kept)
+    cons = any(it.get("score_consensus") is not None for it in kept)
     floor = (config.CORE_SCORE + config.RELEVANCE_THRESHOLD) // 2
-    lowest = config.RELEVANCE_THRESHOLD if cons else floor
     cands = [it for it in scored if it.get("cluster") != "core"
-             and eff_measured(it) is True and eff_score(it) >= lowest]
+             and eff_measured(it) is True and eff_score(it) >= floor]
     top = max(eff_score(it) for it in scored)
     n_models = max((it.get("n_raters") or 0) for it in kept) if cons else 0
-    what = f"{n_models}つのモデルの平均で" if cons else ""
+    what = f"{n_models}つのモデルの中央値で" if cons else ""
     if not cands:
         if core_now:
             return ""
         note = (f"{what}関連度{config.CORE_SCORE}以上かつ実測ありの文献が無く、"
-                f"{lowest}点以上で実測を伴う文献も無かったため、中心クラスタは"
+                f"{floor}点以上で実測を伴う文献も無かったため、中心クラスタは"
                 f"空とした(最高は{top}点)。テーマの中核を直接扱った研究が"
                 "見当たらない可能性が高い。周辺クラスタの隣接する研究が主な材料になる。")
         print(f"   → {note}")
         return note
     levels = sorted({eff_score(it) for it in cands}, reverse=True)
-    if cons and core_now + sum(1 for it in cands
-                               if eff_score(it) >= floor) >= config.CORE_MIN_ITEMS:
+    if cons:
         cut = floor
     else:
         cut = levels[0]
@@ -990,7 +994,7 @@ def rebalance_clusters(kept) -> str:
     reason = (f"{what}関連度{config.CORE_SCORE}以上の文献が1件も無かった" if core_now == 0
               else f"{what}本来の基準(関連度{config.CORE_SCORE}以上かつ実測あり)を満たす"
                    f"文献が{core_now}件しか無かった")
-    band = (f"平均{cut}点以上で、過半数のモデルが実測ありとした{n}件" if cons
+    band = (f"中央値{cut}点以上で、過半数のモデルが実測ありとした{n}件" if cons
             else f"実測を伴う最高スコア帯({cut}点以上・{n}件)")
     note = (f"{reason}ため、{band}を中心クラスタとして扱った。テーマの交差が"
             "薄く、全条件を満たす文献が存在しない可能性がある。中心クラスタの"
@@ -1379,8 +1383,8 @@ def _ensemble_entries(theme: dict) -> tuple:
                  if theme["catalog"] else {})
     entries = []
     for key, rec in idx["items"].items():
-        # score_a は1本目自身の点数。3つのモデルの平均で中心クラスタを決めた回
-        # (consensus_judge。score_b がある)は score が平均
+        # score_a は1本目自身の点数。3つのモデルの中央値で中心クラスタを決めた回
+        # (consensus_judge。score_b がある)は score が中央値
         own = rec["score_a"] if "score_a" in rec else rec.get("score")
         e = {
             "key": key, "title": rec.get("title") or "",
@@ -1475,7 +1479,7 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
     if not entries:
         print("[アンサンブル] 対象がありません。")
         return ""
-    # 3つのモデルの平均で中心クラスタを決めた回は、収集時の2本目・3つ目の
+    # 3つのモデルの中央値で中心クラスタを決めた回は、収集時の2本目・3つ目の
     # 判定が索引にある。--model で別のモデルと比べるとき以外は使い回す
     consensus = any(e.get("mean") is not None for e in entries)
     m3 = config.ENSEMBLE_SECOND_MODEL
@@ -1544,7 +1548,7 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
         print(f"[警告] 判定を得られたのは {got}/{len(entries)}件だけです。"
               "κ係数などは参考程度に見てください。")
 
-    # 平均で決めた回の中心クラスタは2本目の判定も含んでいるので、1本目と
+    # 中央値で決めた回の中心クラスタは2本目の判定も含んでいるので、1本目と
     # 2本目の比較には1本目自身の分類(本来の基準)を使う
     cut = config.CORE_SCORE if consensus else _core_cut(idx, entries)
     wide = 0    # 1本目は related、2本目は緩めた基準なら core に当たる件数
@@ -1599,7 +1603,7 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
             else:
                 print(f"[警告] {m3} から判定を得られなかったため、3つ目の判定は"
                       "報告に載せません。")
-    # 1本目と2本目・3本目が共に外したものは最優先の節にだけ、平均で決めた
+    # 1本目と2本目・3本目が共に外したものは最優先の節にだけ、中央値で決めた
     # 中心クラスタは内訳の節にだけ載せる
     core_rows = ([e for e in entries if e["cluster_a"] == "core"]
                  if consensus else [])
@@ -1657,8 +1661,8 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                 "かつ実測あり→core、関連度"
                 f"{config.RELEVANCE_THRESHOLD}未満→除外相当)\n")
         if consensus:
-            f.write("  - 中心クラスタは、収集時に複数のモデルの平均点と「実測あり」の"
-                    "多数決で決めた(カタログの関連度は平均)。下の表の「1本目」は"
+            f.write("  - 中心クラスタは、収集時に複数のモデルの点数の中央値と「実測あり」"
+                    "の多数決で決めた(カタログの関連度は中央値)。下の表の「1本目」は"
                     "1本目自身の点数と、本来の基準での分類\n")
         if cut < config.CORE_SCORE:
             f.write(f"  - 1本目の中心クラスタは基準を緩めて(実測ありかつ{cut}点以上)"
@@ -1721,15 +1725,15 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                             f"| {catalog.cell(e['title'], 50)} |\n")
                 f.write("\n")
         if consensus:
-            f.write(f"## {num('中心クラスタの内訳(複数のモデルの平均で決めた)')}"
+            f.write(f"## {num('中心クラスタの内訳(複数のモデルの中央値で決めた)')}"
                     f"({len(core_rows)}件)\n\n"
-                    "各モデルの点数と平均。⚠️ は、平均では中心に入ったが、1つの"
+                    "各モデルの点数と中央値。⚠️ は、中央値では中心に入ったが、1つの"
                     f"モデルが採用の閾値({config.RELEVANCE_THRESHOLD}点)を下回った"
                     "もの。中心の根拠に使う前に抄録を読む。\n\n")
             if not core_rows:
                 f.write("なし。\n\n")
             else:
-                f.write("| 引用キー | 1本目 | 2本目 | 3本目 | 平均 | 確認 | タイトル |\n"
+                f.write("| 引用キー | 1本目 | 2本目 | 3本目 | 中央値 | 確認 | タイトル |\n"
                         "|---|---|---|---|---|---|---|\n")
                 for e in sorted(core_rows, key=lambda x: -(x.get("mean") or 0)):
                     vals = [e["score_a"], (e.get("stored_b") or {}).get("score"),

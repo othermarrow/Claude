@@ -648,7 +648,7 @@ def cmd_search(args):
                 search_log.append(
                     f"中心クラスタ: 採用した{len(kept)}件を {cons['model_b']}"
                     + (f" と {cons['model_c']}" if cons["model_c"] else "")
-                    + " でも判定し、平均点と「実測あり」の多数決で決めた"
+                    + " でも判定し、点数の中央値と「実測あり」の多数決で決めた"
                     f"(2本目 {cons['got_b']}件"
                     + (f" / 3つ目 {cons['got_c']}件" if cons["model_c"] else "")
                     + "の判定を得た。採否は1本目の判定のまま)")

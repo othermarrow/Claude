@@ -777,11 +777,11 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
     fallback = unresolved = 0
     src_counts, cluster_counts = {}, {}
 
-    # クラスタの中は関連度(平均があれば平均)の高い順。実測: 1本目が寛大な
+    # クラスタの中は関連度(中央値があれば中央値)の高い順。実測: 1本目が寛大な
     # モデルに切り替わった回に、周辺クラスタ203件の7割が2本目・3本目の除外
     # 相当で、年順だと関連の深い文献がその中に埋もれた
     def _eff(x):
-        m = x.get("score_mean")
+        m = x.get("score_consensus")
         m = m if m is not None else x.get("relevance_score")
         return m if isinstance(m, int) else -1
     ordered = sorted(final_items,
@@ -838,8 +838,8 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
             "src": src, "doi": it.get("doi") or "なし",
             "url": it.get("url") or "なし",
             "oa_url": it.get("oa_url"), "cited_by": it.get("cited_by"),
-            # 3つのモデルの平均があればそれがクラスタを決めた点数(judge.consensus_judge)
-            "score": (it["score_mean"] if it.get("score_mean") is not None
+            # 3つのモデルの中央値があればそれがクラスタを決めた点数(judge.consensus_judge)
+            "score": (it["score_consensus"] if it.get("score_consensus") is not None
                       else it.get("relevance_score")),
             "score_a": it.get("relevance_score"),
             "measured_a": it.get("measured"),
@@ -986,9 +986,9 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
     rater_models = _rater_models(entries, main_model)
     if rater_models:
         lines += ["**関連度**: " + " / ".join(rater_models) + f" の{len(rater_models)}つのモデルの"
-                  "平均点(各項目の「関連度の内訳」に個別の点数)。採否は1本目の"
-                  f"判定({config.RELEVANCE_THRESHOLD}点以上)で決め、クラスタは平均点と"
-                  "「実測あり」の多数決で決めた。平均が採用の閾値を大きく下回る"
+                  "点数の中央値(各項目の「関連度の内訳」に個別の点数)。採否は1本目の"
+                  f"判定({config.RELEVANCE_THRESHOLD}点以上)で決め、クラスタは中央値と"
+                  "「実測あり」の多数決で決めた。中央値が採用の閾値を大きく下回る"
                   "文献は、2本目・3本目が主題と無関係と見たもの。", ""]
     if meta.get("cluster_note"):
         lines += [f"**⚠️ 中心クラスタの基準について** {meta['cluster_note']}", ""]
@@ -1152,14 +1152,14 @@ def _rater_models(entries, main_model) -> list:
 
 
 def _rater_line(e, main_model) -> str:
-    """「super 75 / gpt-oss 85 / diffusiongemma 70(平均 77)」の形。"""
+    """「super 75 / gpt-oss 85 / diffusiongemma 70(中央値 75)」の形。"""
     r = e["raters"]
     parts = [f"{_short_model(e['judge_model'] or main_model) or '1本目'} "
              f"{e['score_a'] if e['score_a'] is not None else '-'}"]
     for p in ("b", "c"):
         if r.get(f"score_{p}") is not None:
             parts.append(f"{_short_model(r.get(f'model_{p}'))} {r[f'score_{p}']}")
-    return " / ".join(parts) + f"(平均 {e['score']})"
+    return " / ".join(parts) + f"(中央値 {e['score']})"
 
 
 def _write_index(path, catalog_path, meta, entries):
@@ -1294,7 +1294,7 @@ ATTACHED_FILES_BLOCK = """<attached_files>
   含まれる。抄録を読み、無関係なら対象外、近縁なら周辺の補助根拠(中心の
   根拠にはしない)として扱い、その判断を書く。
 - 「中心クラスタの内訳」の節がある場合、カタログの中心クラスタは複数の
-  モデルの平均点で決めたもの。⚠️ が付いた抄録は、1つのモデルが採用の
+  モデルの点数の中央値で決めたもの。⚠️ が付いた抄録は、1つのモデルが採用の
   閾値を下回っている。中心的な根拠に使う前に抄録を読んで確かめる。
 - 除外候補(core→off/除外相当)に挙がった抄録は、中心的な根拠に使う前に
   抄録本文を読み、テーマの定義が示す交差を実際に満たしているか確かめる。
