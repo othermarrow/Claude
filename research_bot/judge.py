@@ -1172,6 +1172,12 @@ def _core_cut(idx: dict, entries) -> int:
     2本目は90点以上だけを core とした。2本目が85点(1本目より高い)を
     付けた5件が「core→related の不一致」として並び、一致率と κ も下がった。
     比べるなら同じ基準で分ける。
+
+    ただし緩めた基準を使うのは、1本目が core とした文献の一致の判定だけ。
+    実測: 全件に当てはめると、2本目は隣接する研究の多くに85点を付けるため、
+    1本目が related とした46件が昇格候補に並んだ(緩めた基準は1本目の
+    点数の分布から決めたもので、2本目の分布には合わない)。昇格候補は
+    本来の基準(CORE_SCORE 以上かつ実測あり)で選ぶ。
     """
     core = [e["score_a"] for e in entries
             if e["cluster_a"] == "core" and e["score_a"] is not None]
@@ -1364,14 +1370,18 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
               "κ係数などは参考程度に見てください。")
 
     cut = _core_cut(idx, entries)
+    wide = 0    # 1本目は related、2本目は緩めた基準なら core に当たる件数
     demote, promote, other, missing, pairs = [], [], [], [], []
     for e in entries:
         if "cluster_b" not in e:
             missing.append(e)
             continue
-        if (cut < config.CORE_SCORE and e["cluster_b"] == "related"
-                and e.get("measured_b") is True and e["score_b"] >= cut):
+        relaxed = (cut < config.CORE_SCORE and e["cluster_b"] == "related"
+                   and e.get("measured_b") is True and e["score_b"] >= cut)
+        if relaxed and e["cluster_a"] == "core":
             e["cluster_b"] = "core"
+        elif relaxed:
+            wide += 1
         a, b = e["cluster_a"], e["cluster_b"]
         e["gap"] = (abs(e["score_a"] - e["score_b"])
                     if e["score_a"] is not None else None)
@@ -1464,7 +1474,12 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                 f"{config.RELEVANCE_THRESHOLD}未満→除外相当)\n")
         if cut < config.CORE_SCORE:
             f.write(f"  - 1本目の中心クラスタは基準を緩めて(実測ありかつ{cut}点以上)"
-                    "作られているため、2本目も同じ基準で core とした\n")
+                    "作られているため、1本目の core の文献は、2本目もこの基準を"
+                    "満たせば一致とした。昇格候補は本来の基準で選んだ\n")
+            if wide:
+                f.write(f"  - 1本目が related とした文献のうち{wide}件は、2本目では"
+                        f"実測ありかつ{cut}点以上だった。中心クラスタの境界は"
+                        "モデルによって動く\n")
         f.write("\n")
         if bias_note:
             f.write(f"> [!note] 判定の厳しさの違い\n> {bias_note}\n\n")
