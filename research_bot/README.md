@@ -126,12 +126,15 @@ python research_bot.py --reuse-plan 重度知的障害者に対する1週間の�
 | 5 | meta/muse-glimmer-30b |
 | 6 | z-ai/glm-5.3-flash |
 | 7 | nvidia/nemotron-3-nano-omni-30b-a3b-reasoning |
+| 8 | google/diffusiongemma-26b-a4b-it(拡散方式。未評価) |
 
 判定の途中でモデルが応答しなくなると、`config.py` の切り替えの順番に従って
 次のモデルへ自動で切り替え、残りを続ける。
 
 - 関連度判定・抽出(`FALLBACK_ORDER`): 1 → 2 → 3 → 5 → 4(同じ系統を先に)
 - 再判定(`ENSEMBLE_FALLBACK_ORDER`): 3 → 5 → 4 → 2 → 1(別系統を先に。1本目に使ったモデルは飛ばす)
+- 8 は、思考を止めると本文が空になるため、思考ありで呼ぶ
+  (`THINKING_REQUIRED_MODELS`)。判定の質は未評価で、切り替え先には入れていない
 - 6 と 7 はどちらの順番にも入れていない(`--model` では使える)。6 は思考を
   止められず1バッチに4分以上かかり、7 は関連の明らかな文献にもプロンプトの
   例の理由をそのまま写した。切り替え先が尽きた分は未判定として残り、あとで

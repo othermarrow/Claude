@@ -92,6 +92,7 @@ MODEL_PRESETS = {
     "5": "meta/muse-glimmer-30b",
     "6": "z-ai/glm-5.3-flash",
     "7": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+    "8": "google/diffusiongemma-26b-a4b-it",   # 拡散方式。思考ありでだけ本文が出る(未評価)
 }
 
 # モデルが応答しなくなったときに代わりに使う順番(短い名前か 'ベンダー/モデル名')。
@@ -278,6 +279,12 @@ DEAD_MODEL_COOLDOWN = 600
 # 「思考を止められない」とみなし、その場で以後使わない。時間切れを3回待つより
 # ずっと早く代わりのモデルへ移れる。指定が効くモデルの思考は0字。0で無効
 THINKING_RUNAWAY_CHARS = 4000
+# 思考を止めると本文が空になるモデル。思考ありで呼ぶ(思考の暴走の見張りも外す)。
+# 実測: diffusiongemma は思考なしだと出力1トークン(終了の合図だけ)で、返答の
+# 長さや temperature を変えても空。思考ありなら本文が出た(思考は短かった)。
+THINKING_REQUIRED_MODELS = (
+    "google/diffusiongemma-26b-a4b-it",
+)
 HEARTBEAT_SECONDS = 60        # 応答待ちの状況を表示する間隔(秒)
 # NVIDIA NIM の構造化出力(nvext.guided_json)で、JSONの形をAPI側で強制
 # する。対応していないモデルでは自動的に外して従来の方法に戻る。

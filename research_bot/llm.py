@@ -385,7 +385,11 @@ def _thinking_body(model: str, effort) -> dict:
       gpt-oss はこれを無視して考え続ける。gpt-oss は reasoning_effort で
       思考の量を指定する(low が最小。完全には止められない)。
     effort に "low" 等を渡すと、その量で考えさせる(1段目の粗選別が使う)。
+    config.THINKING_REQUIRED_MODELS のモデルは、思考を止めると本文が空になる
+    ので、effort によらず思考ありで呼ぶ。
     """
+    if model in config.THINKING_REQUIRED_MODELS:
+        return {"chat_template_kwargs": {"enable_thinking": True}}
     if effort or "gpt-oss" in model.lower():
         return {"reasoning_effort": effort or "low"}
     return {"chat_template_kwargs": {"enable_thinking": False}}
@@ -591,7 +595,9 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
         if use_think:
             body = _thinking_body(model, reasoning_effort)
             extra_body.update(body)
-            expect_no_thinking = "chat_template_kwargs" in body
+            # 思考を止める指定をしたときだけ、思考の暴走を見張る
+            expect_no_thinking = (body.get("chat_template_kwargs", {})
+                                  .get("enable_thinking") is False)
         if use_guided:
             extra_body["nvext"] = {"guided_json": schema}
         use_stream = model not in _no_stream
