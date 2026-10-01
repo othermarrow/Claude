@@ -176,7 +176,7 @@ python research_bot.py --reuse-plan 重度知的障害者に対する1週間の�
 | `[searchlog] テーマ.md` | 検索の記録 |
 | `[excluded] テーマ.log` | 関連度不足で除外したもの |
 | `[urls] テーマ.txt` | URL の一覧 |
-| `_ensemble__テーマ.md` | 別モデルとの不一致・一致率・κ係数 |
+| `_ensemble__テーマ.md` | 別モデルとの不一致・採否の一致・一致率・κ係数(1本目の分類が偏るときは κ が低く出やすい旨を注記) |
 | `_fulltext__テーマ.md` | core 文献の全文アクセス可否(A/B/C) |
 | `_diff__テーマ.md` | 前回カタログとの差分 |
 
@@ -197,7 +197,7 @@ python research_bot.py --reuse-plan 重度知的障害者に対する1週間の�
 | `DEAD_MODEL_COOLDOWN` | 600 | 応答しなくなったモデルを試し直すまでの秒数(0で試し直さない) |
 | `EUROPEPMC_TIMEOUT` | 60 | Europe PMC の待ち時間(長い検索式は20秒で返らなかった) |
 | `RELEVANCE_THRESHOLD` | 70 | これ未満は除外。判定の手引きの「隣接する研究」の帯(70〜89)もこの値から始まる |
-| `SECOND_LOOK` | True | 除外した中間帯(21〜69点)を組み合わせを変えてもう一度判定し、採用相当なら戻す(判定の回ごとの揺れ対策) |
+| `SECOND_LOOK` | True | 除外した中間帯(21〜69点)を組み合わせを変えてもう一度判定し、採用相当なら戻す(判定の回ごとの揺れ対策。件数は検索の記録に残る) |
 | `CORE_SCORE` | 90 | core とする関連度 |
 | `MIN_ABSTRACT_LENGTH` | 400(日本語 150) | 抄録の下限 |
 | `REQUESTS_PER_MINUTE` | 35 | 1分あたりの送信上限。429 が返ると自動で下げ、成功が続くと戻す(`ADAPTIVE_RPM`) |

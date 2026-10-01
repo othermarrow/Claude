@@ -332,6 +332,13 @@ transference between abused people with intellectual disabilities and their
 support workers, a general overview of transference-focused psychotherapy
 is {keep}-{core_below}, not 95. Score the intersection, not the keyword.
 
+Adjacent evidence means the same intervention or phenomenon. Sometimes the
+theme's keyword appears but names something else: the timetable of the
+study's own procedure (e.g. the weekly plan of an exercise program), a
+staff rota, an administrative or care plan, or a unit of time used for
+measurement. Such a paper shares only a keyword with the theme: score
+{off_above}-{keep_below}, however close its population or setting is.
+
 The definition may say that some kinds of studies are not included — a
 broader or narrower population, a different time unit or variant of the
 intervention, another setting. A study that is close to the theme but falls
@@ -751,7 +758,7 @@ def rescue_unjudged(items, topic, definition, homonyms, model, save=None) -> int
     return solved
 
 
-def second_look(items, topic, definition, homonyms, model, save=None) -> int:
+def second_look(items, topic, definition, homonyms, model, save=None) -> tuple:
     """除外の中間帯(OFF_SCORE より上・閾値未満)を、組み合わせを変えてもう一度判定する。
 
     実測: 同じ検索計画・同じ1375件を同じモデルで2回判定すると、一方で
@@ -760,15 +767,16 @@ def second_look(items, topic, definition, homonyms, model, save=None) -> int:
     揺れ)で、中心的なレビュー(Spriggs2016)も95点と65点に割れた。
     除外を一度で確定させず、中間帯だけをバッチの顔ぶれを変えて判定し直し、
     どちらかで採用相当なら採用する(二人で選別し、片方が残せば残す方式)。
-    0〜OFF_SCORE(別分野・同名異義語)は見直さない。戻した数を返す。
+    0〜OFF_SCORE(別分野・同名異義語)は見直さない。
+    (戻した数, 見直した数) を返す。
     """
     if not config.SECOND_LOOK or not llm.have_api_key():
-        return 0
+        return 0, 0
     lo, hi = config.OFF_SCORE, config.RELEVANCE_THRESHOLD
     targets = [it for it in items if it.get("relevance_score") is not None
                and lo < it["relevance_score"] < hi and not it.get("second_looked")]
     if not targets:
-        return 0
+        return 0, 0
     # 1回目と同じ並びで送ると、同じ顔ぶれのバッチになり同じ判定になりやすい
     targets.sort(key=lambda it: hashlib.md5(
         (it.get("title") or "").encode("utf-8")).hexdigest())
@@ -791,7 +799,7 @@ def second_look(items, topic, definition, homonyms, model, save=None) -> int:
         else:
             it.update(before)
     print(f"   → 再確認で採用に戻した {back}件 / 除外のまま {len(targets) - back}件")
-    return back
+    return back, len(targets)
 
 
 def rebalance_clusters(kept) -> str:
@@ -1157,6 +1165,29 @@ def _bias_note(bias: float, mean_gap) -> str:
             "狭くないか(除外条件が近い研究まで外していないか)を確かめてください。")
 
 
+def _core_cut(idx: dict, entries) -> int:
+    """1本目の core の下限。基準を緩めた回(rebalance_clusters)はその点数。
+
+    実測: 1本目の core が「実測ありかつ80点以上」に緩めて作られた回に、
+    2本目は90点以上だけを core とした。2本目が85点(1本目より高い)を
+    付けた5件が「core→related の不一致」として並び、一致率と κ も下がった。
+    比べるなら同じ基準で分ける。
+    """
+    core = [e["score_a"] for e in entries
+            if e["cluster_a"] == "core" and e["score_a"] is not None]
+    if idx.get("cluster_note") and core and min(core) < config.CORE_SCORE:
+        return min(core)
+    return config.CORE_SCORE
+
+
+def _kappa_skew(pairs):
+    """1本目の分類の偏り(最多の区分, 割合)。κ が構造的に低く出るかの目安。"""
+    if not pairs:
+        return "", 0.0
+    top, n = Counter(a for a, _ in pairs).most_common(1)[0]
+    return top, n / len(pairs)
+
+
 def cohen_kappa(pairs):
     """[(評定A, 評定B), ...] から Cohen の κ を返す。計算できなければ None。
 
@@ -1332,11 +1363,15 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
         print(f"[警告] 判定を得られたのは {got}/{len(entries)}件だけです。"
               "κ係数などは参考程度に見てください。")
 
+    cut = _core_cut(idx, entries)
     demote, promote, other, missing, pairs = [], [], [], [], []
     for e in entries:
         if "cluster_b" not in e:
             missing.append(e)
             continue
+        if (cut < config.CORE_SCORE and e["cluster_b"] == "related"
+                and e.get("measured_b") is True and e["score_b"] >= cut):
+            e["cluster_b"] = "core"
         a, b = e["cluster_a"], e["cluster_b"]
         e["gap"] = (abs(e["score_a"] - e["score_b"])
                     if e["score_a"] is not None else None)
@@ -1374,8 +1409,14 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
             else:
                 print(f"[警告] {m3} から判定を得られなかったため、3つ目の判定は"
                       "報告に載せません。")
+    # 1本目と2本目・3本目が共に外したものは最優先の節にだけ載せる
+    shown = {e["key"] for e in both}
+    demote = [e for e in demote if e["key"] not in shown]
+    other = [e for e in other if e["key"] not in shown]
     agree = sum(1 for a, b in pairs if a == b)
+    kept_b = sum(1 for _, b in pairs if b != EXCLUDED)
     kappa = cohen_kappa(pairs)
+    skew_cls, skew = _kappa_skew(pairs)
     gaps = [e["gap"] for e in entries if e.get("gap") is not None]
     mean_gap = sum(gaps) / len(gaps) if gaps else None
     signed = [e["score_a"] - e["score_b"] for e in entries
@@ -1397,6 +1438,9 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
         f.write(f"- 対象抄録: {len(entries)}件 / 2本目の判定取得: "
                 f"{len(entries) - len(missing)}件 / 応答欠落: {len(missing)}件\n")
         if pairs:
+            f.write(f"- 採否の一致: 1本目が残した{len(pairs)}件のうち、2本目も残した"
+                    f"(関連度{config.RELEVANCE_THRESHOLD}以上)のは{kept_b}件"
+                    f"({kept_b / len(pairs):.1%})\n")
             line = f"- 分類の一致: {agree}/{len(pairs)}件({agree / len(pairs):.1%})"
             if kappa is not None:
                 line += f" / Cohen の κ = {kappa:.2f}({kappa_label(kappa)})"
@@ -1404,6 +1448,11 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                 line += (" / κ は算出不可(どちらかの判定が1種類だけ。"
                          "応答欠落が多い回に起きやすい)")
             f.write(line + "\n")
+            if kappa is not None and skew >= 0.85:
+                f.write(f"  - κ は低く出やすい: 1本目が残した文献だけで比べており、"
+                        f"1本目の分類の{skew:.0%}が {skew_cls} に偏っている。"
+                        "このとき κ は一致が多くても0付近になる(κ のパラドックス)。"
+                        "採否の一致と合わせて読む\n")
         if mean_gap is not None:
             side = ("方向の偏りなし" if abs(bias) < 1 else
                     f"2本目のほうが平均 {abs(bias):.1f}点{'低い' if bias > 0 else '高い'}")
@@ -1412,7 +1461,11 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                 + (f" / 3本目 {model_c}" if model_c else "") + "\n")
         f.write(f"- 判定基準: 両モデルとも同じプロンプト(関連度{config.CORE_SCORE}以上"
                 "かつ実測あり→core、関連度"
-                f"{config.RELEVANCE_THRESHOLD}未満→除外相当)\n\n")
+                f"{config.RELEVANCE_THRESHOLD}未満→除外相当)\n")
+        if cut < config.CORE_SCORE:
+            f.write(f"  - 1本目の中心クラスタは基準を緩めて(実測ありかつ{cut}点以上)"
+                    "作られているため、2本目も同じ基準で core とした\n")
+        f.write("\n")
         if bias_note:
             f.write(f"> [!note] 判定の厳しさの違い\n> {bias_note}\n\n")
         f.write("> [!warning] 不一致は誤りの証拠ではなく、抄録を読み直すべき"
@@ -1445,15 +1498,18 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
             f.write(f"## {num('最優先: 別系統の2つのモデルが、どちらも除外相当と判定')}"
                     f"({len(both)}件)\n\n"
                     "1本目は残したのに、2本目と3本目が共に除外相当と判定した抄録。"
-                    "主題と無関係なものが多いが、同じ介入を別の対象で行った近縁の"
-                    "研究も含まれる。抄録を読み、無関係なら対象外、近縁なら周辺の"
-                    "補助根拠とする。\n\n")
+                    "2つの点数の高い方が低い順に並べた。上ほど主題と無関係の"
+                    "可能性が高く、下に行くほど同じ介入を別の対象・単位で行った"
+                    "近縁の研究が多い。抄録を読み、無関係なら対象外、近縁なら周辺の"
+                    "補助根拠とする。ここに挙げた抄録は以降の節には載せない。\n\n")
             if not both:
                 f.write("なし。\n\n")
             else:
                 f.write("| 引用キー | 1本目 | 2本目 | 3本目 | 1本目のメモ | "
                         "3本目のメモ | タイトル |\n|---|---|---|---|---|---|---|\n")
-                for e in sorted(both, key=lambda x: -(x.get("score_a") or 0)):
+                for e in sorted(both, key=lambda x: (max(x["score_b"], x["score_c"]),
+                                                     x["score_b"] + x["score_c"],
+                                                     -(x.get("score_a") or 0))):
                     sa = e["score_a"] if e["score_a"] is not None else "-"
                     f.write(f"| [{e['key']}] | {e['cluster_a']} {sa} "
                             f"| {e['score_b']} | {e['score_c']} "
@@ -1477,9 +1533,13 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
             f.write(f"- [{e['key']}](1本目: {e['cluster_a']})\n")
 
     print(f"[アンサンブル] 出力: {out_path}")
+    if pairs:
+        print(f"[アンサンブル] 採否の一致 {kept_b}/{len(pairs)}"
+              "(1本目が残したもののうち2本目も残した数)")
     if kappa is not None:
         print(f"[アンサンブル] 一致率 {agree}/{len(pairs)} / κ={kappa:.2f}"
-              f"({kappa_label(kappa)})")
+              f"({kappa_label(kappa)})"
+              + ("(1本目の分類が偏っているため低く出やすい)" if skew >= 0.85 else ""))
     elif pairs:
         print(f"[アンサンブル] 一致率 {agree}/{len(pairs)} / κ は算出不可"
               "(どちらかの判定が1種類だけ)")
