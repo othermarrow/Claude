@@ -63,6 +63,7 @@ PLANNING_MODEL = "nvidia/nemotron-3-ultra-550b-a55b"
 # 計画の質が上がるなら True でよい。思考を止められないモデルを PLANNING_MODEL に
 # するときは True にする(False だと思考の暴走として打ち切られる)。
 # 比べるには: python research_bot.py plan "テーマ" --model 名前
+# (作った計画は残り、次の rbrun が使う。続けて比べると最後の計画が残る)
 # 2026-10 の実測(成人の知的障害者へのキーパーソン支援):
 #   ultra 思考なし 54秒 / 思考あり 96秒。glm-5.3-flash(思考あり)は思考が
 #   3万〜3.7万字に達しても本文を書かず、600秒の上限を2回超えて失敗した(計20分)。
@@ -377,6 +378,11 @@ KEYS_FILE = "~/.config/research_bot/keys.env"
 # 記録の置き場所(Vaultの外)
 SNAP_DIR = "~/.local/share/research_snapshots"        # 差分(diff)用の前回分の索引
 PREFILTER_LOG_DIR = "~/.local/share/research_prefilter"  # 1段目の除外ログ
+# 検索計画の記録。rb plan で確認した計画(同じテーマ文の次の rbrun が使う)と、
+# JSON として読めなかった計画の応答(plan_raw_*.txt)。rbrun のログ
+# (~/rb_logs/*.txt)は .research_bot.sh の側で書いている
+PLAN_DIR = "~/rb_logs/plans"
+PLAN_RAW_DIR = "~/rb_logs"
 # 中断復帰用の途中経過(CATALOG_ROOT の下に作る)
 CHECKPOINT_DIRNAME = ".checkpoint"
 
@@ -568,7 +574,7 @@ KEYS_FILE = _path(os.environ.get("KEYS_FILE") or KEYS_FILE)
 _load_keys(KEYS_FILE)
 _apply_env_overrides()
 for _name in ("CATALOG_ROOT", "REPORT_DIR", "QUERY_FILE", "SNAP_DIR",
-              "PREFILTER_LOG_DIR"):
+              "PREFILTER_LOG_DIR", "PLAN_DIR", "PLAN_RAW_DIR"):
     globals()[_name] = _path(globals()[_name])
 
 ACADEMIC_EMAIL = (ACADEMIC_EMAIL
