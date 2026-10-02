@@ -64,6 +64,7 @@ python research_bot.py unwikilink <パス> --apply   # フロントマターの[
 python research_bot.py models               # 使えるモデルの一覧
 python research_bot.py probe                # モデルが今応答するか(1分ほど)
 python research_bot.py bench                # 1段目の候補モデルを同じ問題で比べる
+python research_bot.py plan "テーマ" --model 6 --think  # 検索計画だけ作る(計画のモデルの比較用。検索・判定はしない)
 ```
 
 `<テーマ>` はフォルダ名・フォルダのパス・カタログのパスのどれでもよい。
@@ -204,6 +205,7 @@ python research_bot.py --reuse-plan 重度知的障害者に対する1週間の�
 | `SECOND_LOOK` | True | 除外した中間帯(21〜69点)を組み合わせを変えてもう一度判定し、採用相当なら戻す(判定の回ごとの揺れ対策。件数は検索の記録に残る) |
 | `CORE_SCORE` | 90 | core とする関連度 |
 | `CONSENSUS_CORE` | True | 採用した文献を `ENSEMBLE_MODEL` と `ENSEMBLE_SECOND_MODEL` でも判定し、3つの点数の中央値と「実測あり」の多数決で中心クラスタを決める(採否は1本目のまま)。1つのモデルの外れた点数に引かれないよう平均ではなく中央値。カタログの関連度は中央値になり、各項目に内訳が付く。check の再判定はこの結果を使い回す。False で1本目の点数だけで決める |
+| `PLANNING_THINKING` | False | 検索計画を作るモデルに思考させる。思考を止められないモデル(glm-5.3 など)を `PLANNING_MODEL` にするときは True |
 | `CONSENSUS_EXCLUDE` | False | True にすると、1本目が採用しても2本目・3本目が共に70点未満とした文献を除外する(3つのうち2つが除外)。除外ログに「多数決で除外」と残る。カタログが大きすぎるときに。近縁の研究も数件外れうる。`CONSENSUS_EXCLUDE=true rbrun …` で1回だけ有効にできる |
 | `CORE_MIN_ITEMS` | 5 | core がこれ未満のとき基準を緩める。中央値の回は、中央値80点以上で過半数が実測ありとしたものを件数によらずすべて core とする(75点には下りない) |
 | `MIN_ABSTRACT_LENGTH` | 400(日本語 150) | 抄録の下限 |

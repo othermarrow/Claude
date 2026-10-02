@@ -59,6 +59,12 @@ QUERY_FILE = "/storage/emulated/0/query.js"
 #              なったため、実測で再判定をやり遂げた gpt-oss-20b にした。
 #   PREFILTER: 1段目の粗選別。「明らかに無関係」だけを弾く。
 PLANNING_MODEL = "nvidia/nemotron-3-ultra-550b-a55b"
+# 検索計画を作るときに思考させるか。1回しか呼ばないので、時間がかかっても
+# 計画の質が上がるなら True でよい。思考を止められないモデル(glm-5.3 など)を
+# PLANNING_MODEL にするときは True にする(False だと思考の暴走として打ち切られる)。
+# 比べるには: python research_bot.py plan "テーマ" --model 6 --think
+PLANNING_THINKING = False
+PLANNING_TIMEOUT = 600        # 検索計画の1回の問い合わせの上限(秒)。思考させると長い
 FILTER_MODEL = "nvidia/nemotron-3-super-120b-a12b"
 ENSEMBLE_MODEL = "openai/gpt-oss-20b"
 # 再判定の3つ目のモデル。2本目と別系統にし、1本目が残した文献を両方が「除外相当」と

@@ -69,8 +69,17 @@ facets (clusters of concepts) for use in search.
      to "weekly schedule" misses the whole activity-schedule literature.
    - Include both controlled-vocabulary terms (the kind you would expect in
      MeSH or the ERIC thesaurus) and free-text terms
-   - Always give abbreviations together with their full spelled-out form
-     (e.g., FBA and functional behavior assessment)
+   - Give an abbreviation together with its full spelled-out form (e.g.,
+     FBA and functional behavior assessment), but only when it has three or
+     more letters. Never list a one- or two-letter abbreviation such as ID:
+     it also matches identity, identifier and many unrelated papers.
+   - For a population, list the group the theme names, its synonyms, and
+     its obsolete names. Do not add a broader category that mostly covers
+     other conditions: for intellectual disability, "neurodevelopmental
+     disorders" is mostly autism and ADHD. Add such a category only when the
+     theme itself names it.
+   - Search terms are for what the theme includes. Do not add terms for
+     something the theme places outside it.
    - When the facet names a population, a disorder, or a diagnosis, include
      the terms that were standard in earlier editions of the diagnostic
      manuals and are now obsolete. A search for intellectual disability
@@ -88,7 +97,11 @@ facets (clusters of concepts) for use in search.
    they are used as-is against Japanese-language databases. Apply the same
    rule about obsolete terminology here: 知的障害 also needs 精神遅滞 and
    精神薄弱; 自閉スペクトラム症 also needs 広汎性発達障害 and
-   アスペルガー症候群.
+   アスペルガー症候群. Japanese usage differs from English here: 学習障害
+   means a specific learning disorder (LD), and 発達障害 mostly means
+   autism, ADHD and LD. Neither is a synonym of 知的障害 (the English
+   "learning disability", the UK term for intellectual disability, does
+   belong in the English list).
 5. For each facet, list 0-3 candidate MeSH headings (the controlled
    vocabulary of PubMed) in the "mesh" array, written exactly as MeSH
    spells them (e.g. "Intellectual Disability", "Self-Injurious Behavior",
@@ -104,7 +117,8 @@ facets (clusters of concepts) for use in search.
    instrument itself; set intervention to true if it concerns the effect of
    a specific intervention. Both may be false.
 8. Define in 1-2 sentences, in Japanese, what this theme refers to: its
-   center. The definition is handed to the relevance judge. Do not add
+   center. Write what the theme is, not lists of what it is not. The
+   definition is handed to the relevance judge. Do not add
    exclusion rules — not for a broader or narrower population (e.g.
    intellectual disability in general, with no separate data for the
    severe group), another setting, or a close variant (e.g. a daily or
@@ -245,6 +259,7 @@ def parse_facet_response(raw: str, topic: str) -> dict:
     anchor_en = plan.get("anchor_en") or topic
     anchor_ja = plan.get("anchor_ja") or topic
     facets = _reorder_by_anchor(facets, anchor_en, anchor_ja)
+    pruned = prune_terms(facets, topic)
 
     return {
         "framework": plan.get("framework") or "PCC",
@@ -255,7 +270,49 @@ def parse_facet_response(raw: str, topic: str) -> dict:
         "homonyms": [str(x) for x in (plan.get("homonyms") or [])],
         "psychometric": bool(plan.get("psychometric")),
         "intervention": bool(plan.get("intervention")),
+        "pruned": pruned,
     }
+
+
+# 知的障害のテーマで、対象の語として入ると広がりすぎる語。テーマ文そのものが
+# 含んでいれば残す(「知的障害と発達障害」のようなテーマ)。
+# 実測(キーパーソン支援, 2026-10): 対象のファセットに 学習障害・発達障害・
+# 神経発達症・neurodevelopmental disorder が入り、カタログ525件のうち39件が
+# 自閉症か ADHD だけを扱う研究だった。日本語の 学習障害 は LD を指す
+# (英語の learning disability は英国で知的障害を指すので残す)。
+_BROAD_FOR_ID = {
+    "ja": ("学習障害", "発達障害", "神経発達症", "神経発達障害"),
+    "en": ("neurodevelopmental disorder", "neurodevelopmental disorders"),
+}
+
+
+def prune_terms(facets: list, topic: str) -> list:
+    """検索語から、無関係な文献を招く語を落とす。落とした語を返す。
+
+    - 2文字以下の略語(ID など)。実測: 知的障害の略として ID が検索式に入った。
+      identity や identifier にも当たる
+    - 知的障害のテーマの対象のファセットに入った、より広い診断名(_BROAD_FOR_ID)
+    語を全部落とすとファセットが空になる場合は落とさない。
+    """
+    dropped = []
+    low_topic = (topic or "").lower()
+    for f in facets:
+        en = [t for t in f["en"]
+              if len(re.sub(r"[^0-9A-Za-z]", "", t)) > 2 or not t.isascii()]
+        is_id = any("知的" in t for t in f["ja"]) or any(
+            "intellectual" in t.lower() or "mental retardation" in t.lower()
+            for t in f["en"])
+        ja = list(f["ja"])
+        if is_id:
+            en = [t for t in en if t.lower() not in _BROAD_FOR_ID["en"]
+                  or t.lower() in low_topic]
+            ja = [t for t in ja if t not in _BROAD_FOR_ID["ja"] or t in topic]
+        if not (en or ja):
+            continue
+        dropped += [t for t in f["en"] if t not in en]
+        dropped += [t for t in f["ja"] if t not in ja]
+        f["en"], f["ja"] = en, ja
+    return dropped
 
 
 def apply_validated_mesh(plan: dict, valid) -> int:
@@ -524,6 +581,9 @@ def describe_plan(plan: dict, queries: dict) -> str:
              f"テーマの定義: {plan['definition']}"]
     if plan.get("homonyms"):
         lines.append("同名異義語として区別すべき概念: " + " / ".join(plan["homonyms"]))
+    if plan.get("pruned"):
+        lines.append("検索語から外した語(無関係な文献を招くため): "
+                     + ", ".join(plan["pruned"]))
     lines.append("")
     lines.append("ファセット:")
     n = config.MAX_FACETS

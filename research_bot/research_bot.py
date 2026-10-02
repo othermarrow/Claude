@@ -534,8 +534,10 @@ def cmd_search(args):
             # --- 1. ファセット抽出 ---
             print("[1/7] テーマを検索のファセットへ分解しています...")
             # 1回しか呼ばないので、失敗したらすぐ代わりのモデルへ移る
-            facet_raw, _used = llm.ask_fallback(searchplan.facet_prompt(topic),
-                                                active_planning_model(), any_error=True)
+            facet_raw, _used = llm.ask_fallback(
+                searchplan.facet_prompt(topic), active_planning_model(),
+                any_error=True, disable_thinking=not config.PLANNING_THINKING,
+                timeout=config.PLANNING_TIMEOUT)
             if llm.is_error(facet_raw):
                 print(f"[警告] ファセット抽出に失敗しました: {facet_raw}")
                 print("       テーマ文をそのまま検索語として使う縮退動作になります。")
@@ -884,6 +886,36 @@ def cmd_probe(args):
     llm.probe(models, args.timeout, args.tokens)
 
 
+def cmd_plan(args):
+    """検索計画だけを作って表示する(検索も判定もしない)。モデルの比較用。"""
+    _require_key()
+    topic = (args.topic or read_topic()).strip()
+    model = config.resolve_model(args.model) or config.PLANNING_MODEL
+    think = args.think or config.PLANNING_THINKING
+    print(f"[計画] テーマ: {topic}")
+    print(f"[計画] モデル: {model} / 思考: {'あり' if think else 'なし'}")
+    t0 = time.time()
+    raw = llm.ask(searchplan.facet_prompt(topic), model,
+                  disable_thinking=not think, timeout=args.timeout)
+    took = time.time() - t0
+    if llm.is_error(raw):
+        print(f"[計画] 失敗({took:.0f}秒): {raw[:300]}")
+        if not think:
+            print("       思考を止められないモデルなら --think を付けて試してください。")
+        return
+    plan = searchplan.parse_facet_response(raw, topic)
+    mesh_cand = [m for f in plan["facets"] for m in (f.get("mesh") or [])]
+    if mesh_cand:
+        searchplan.apply_validated_mesh(plan, sources.validate_mesh_terms(mesh_cand))
+    passes = searchplan.build_query_passes(plan)
+    print("\n" + "=" * 60)
+    print(searchplan.describe_plan(plan, passes[0][1]))
+    print("=" * 60)
+    n_terms = sum(len(f["en"]) + len(f["ja"]) for f in plan["facets"])
+    print(f"[計画] {took:.0f}秒 / ファセット {len(plan['facets'])}個 / 検索語 {n_terms}語"
+          + (f" / 外した語 {len(plan['pruned'])}語" if plan.get("pruned") else ""))
+
+
 def cmd_bench(args):
     _require_key()
     models = ([config.resolve_model(m) for m in (args.model or [])]
@@ -921,7 +953,7 @@ def cmd_models(args):
 # エントリポイント
 # ==========================================
 SUBCOMMANDS = ("search", "relink", "check", "ensemble", "fulltext", "diff",
-               "unwikilink", "themes", "models", "probe", "bench")
+               "unwikilink", "themes", "models", "probe", "bench", "plan")
 
 
 def main():
@@ -1022,6 +1054,17 @@ def main():
     pp.add_argument("--tokens", type=int, default=64,
                     help="返答の長さの上限(既定64。本文が空なら増やして確かめる)")
     pp.set_defaults(func=cmd_probe)
+
+    pn = sub.add_parser("plan", help="検索計画だけを作って表示する(モデルの比較用)")
+    pn.add_argument("topic", nargs="?", default=None,
+                    help="テーマ文(省略時はテーマファイル)")
+    pn.add_argument("--model", default="", metavar="名前",
+                    help="計画を作るモデル(省略時は PLANNING_MODEL)")
+    pn.add_argument("--think", action="store_true",
+                    help="思考させる(思考を止められないモデルには必須)")
+    pn.add_argument("--timeout", type=float, default=config.PLANNING_TIMEOUT,
+                    help="上限秒数")
+    pn.set_defaults(func=cmd_plan)
 
     pb = sub.add_parser("bench", help="1段目(prefilter)の候補モデルを同じ問題で比べる")
     pb.add_argument("--model", action="append", metavar="名前",
