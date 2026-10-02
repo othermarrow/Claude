@@ -191,10 +191,9 @@ CONSENSUS_CORE = True
 #   週間スケジュール(126件)  外れる21件の多くは無関係だが、携帯端末の写真
 #                         プロンプトで作業を移行する研究など、近縁の研究も数件
 #                         含まれていた(2本目・3本目が「週単位でない」で外した)
-# 取りこぼしを避けたい回は False(既定)。カタログが大きすぎてレポートの
-# モデルに渡しきれない回は True。環境変数でも切り替えられる:
-#   CONSENSUS_EXCLUDE=true rbrun …
-CONSENSUS_EXCLUDE = False
+# 既定は True(カタログを絞る)。取りこぼしを避けたい回だけ環境変数で切る:
+#   CONSENSUS_EXCLUDE=false rbrun …
+CONSENSUS_EXCLUDE = True
 # アンサンブル: 2つのモデルのスコア差がこれ以上なら不一致として挙げる
 ENSEMBLE_SCORE_GAP = 20
 # 差分: 前回とのスコア差がこれ以上なら「スコア変動」として挙げる

@@ -206,7 +206,7 @@ python research_bot.py --reuse-plan 重度知的障害者に対する1週間の�
 | `CORE_SCORE` | 90 | core とする関連度 |
 | `CONSENSUS_CORE` | True | 採用した文献を `ENSEMBLE_MODEL` と `ENSEMBLE_SECOND_MODEL` でも判定し、3つの点数の中央値と「実測あり」の多数決で中心クラスタを決める(採否は1本目のまま)。1つのモデルの外れた点数に引かれないよう平均ではなく中央値。カタログの関連度は中央値になり、各項目に内訳が付く。check の再判定はこの結果を使い回す。False で1本目の点数だけで決める |
 | `PLANNING_THINKING` | True | 検索計画を作るモデルに思考させる。ultra で比べると、思考ありのほうが指示に従い(広すぎる診断名を出さない)、同名異義語も挙げた。ultra は思考ありで約1分半。glm-5.3-flash は思考が600秒を超えて計画を返せなかった |
-| `CONSENSUS_EXCLUDE` | False | True にすると、1本目が採用しても2本目・3本目が共に70点未満とした文献を除外する(3つのうち2つが除外)。除外ログに「多数決で除外」と残る。カタログが大きすぎるときに。近縁の研究も数件外れうる。`CONSENSUS_EXCLUDE=true rbrun …` で1回だけ有効にできる |
+| `CONSENSUS_EXCLUDE` | True | 1本目が採用しても2本目・3本目が共に70点未満とした文献を除外する(3つのうち2つが除外)。除外ログに「多数決で除外」と残る。カタログを絞るため。近縁の研究も数件外れうる。`CONSENSUS_EXCLUDE=false rbrun …` で1回だけ無効にできる |
 | `CORE_MIN_ITEMS` | 5 | core がこれ未満のとき基準を緩める。中央値の回は、中央値80点以上で過半数が実測ありとしたものを件数によらずすべて core とする(75点には下りない) |
 | `MIN_ABSTRACT_LENGTH` | 400(日本語 150) | 抄録の下限 |
 | `REQUESTS_PER_MINUTE` | 35 | 1分あたりの送信上限。429 が返ると自動で下げ、成功が続くと戻す(`ADAPTIVE_RPM`) |
