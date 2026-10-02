@@ -714,7 +714,8 @@ def split_by_threshold(items) -> tuple:
     kept, excluded = [], []
     for it in items:
         s = it.get("relevance_score")
-        (kept if s is None or s >= config.RELEVANCE_THRESHOLD else excluded).append(it)
+        out = it.get("outvoted") or (s is not None and s < config.RELEVANCE_THRESHOLD)
+        (excluded if out else kept).append(it)
     return kept, excluded
 
 
@@ -912,14 +913,30 @@ def consensus_judge(kept, topic, definition, homonyms, save=None) -> dict:
             it["cluster"] = ("core" if it["measured_consensus"] is True
                              and it["score_consensus"] >= config.CORE_SCORE
                              else "related")
+    outvoted = 0
+    if config.CONSENSUS_EXCLUDE:
+        thr = config.RELEVANCE_THRESHOLD
+        for it in kept:
+            b, c = it.get("score_b"), it.get("score_c")
+            if (isinstance(b, int) and isinstance(c, int) and b < thr and c < thr
+                    and not it.get("outvoted")):
+                it["outvoted"] = True
+                it["exclusion_reason"] = (f"(多数決で除外: 2本目{b}点・3本目{c}点) "
+                                          + (it.get("reason_c") or it.get("reason_b")
+                                             or it.get("exclusion_reason") or ""))
+                outvoted += 1
     got_b = sum(1 for it in kept if "score_b" in it)
     got_c = sum(1 for it in kept if "score_c" in it)
     print(f"   → 2本目 {got_b}/{len(kept)}件"
           + (f" / 3つ目 {got_c}/{len(kept)}件" if model_c else "")
           + " の判定を得て、中央値でクラスタを決め直しました。")
+    if outvoted:
+        print(f"   → 2本目・3本目が共に{config.RELEVANCE_THRESHOLD}点未満とした "
+              f"{outvoted}件を除外しました(CONSENSUS_EXCLUDE)。")
     return {"model_b": catalog.models_label(Counter(
                 it["model_b"] for it in kept if it.get("model_b"))),
-            "model_c": model_c if got_c else "", "got_b": got_b, "got_c": got_c}
+            "model_c": model_c if got_c else "", "got_b": got_b, "got_c": got_c,
+            "outvoted": outvoted}
 
 
 def eff_score(it):

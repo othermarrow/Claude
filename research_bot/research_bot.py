@@ -651,7 +651,18 @@ def cmd_search(args):
                     + " でも判定し、点数の中央値と「実測あり」の多数決で決めた"
                     f"(2本目 {cons['got_b']}件"
                     + (f" / 3つ目 {cons['got_c']}件" if cons["model_c"] else "")
-                    + "の判定を得た。採否は1本目の判定のまま)")
+                    + "の判定を得た。"
+                    + ("採否は1本目の判定と下の多数決)" if config.CONSENSUS_EXCLUDE
+                       else "採否は1本目の判定のまま)"))
+            if cons and cons.get("outvoted"):
+                search_log.append(
+                    f"多数決で除外: 1本目は採用したが2本目・3本目が共に"
+                    f"{config.RELEVANCE_THRESHOLD}点未満とした {cons['outvoted']}件"
+                    "(CONSENSUS_EXCLUDE。除外ログに「多数決で除外」と残る)")
+                kept, excluded = judge.split_by_threshold(collected)
+                if not kept:
+                    print("\n【終了】多数決で除外した結果、論文が残りませんでした。")
+                    return
             cluster_note = judge.rebalance_clusters(kept)
             _save("judged")
         current = "judged"
@@ -709,8 +720,11 @@ def cmd_search(args):
         "counts": {"collected": collected_count, "excluded": len(excluded),
                    "final": len(kept)},
     }, paths)
-    judge.write_reject_log(paths["excluded"], excluded,
-                           f"# 関連度不足による除外 (スコア {config.RELEVANCE_THRESHOLD} 未満)")
+    judge.write_reject_log(
+        paths["excluded"], excluded,
+        f"# 関連度不足による除外 (スコア {config.RELEVANCE_THRESHOLD} 未満"
+        + ("、または2本目・3本目が共に未満" if any(it.get("outvoted") for it in excluded)
+           else "") + ")")
     clear_checkpoint(args.output_dir, topic)
 
     theme_name = os.path.basename(paths["_folder"])
