@@ -38,8 +38,9 @@ HELP = """\
   例   : 郵便受けを開ける / チラシを読む / ランプをつける / 全部取る
          剣でトロールを攻撃 / 袋をテーブルに置く→「袋を置く」
   特殊 : 見る（周りを見る） / 持ち物 / 待つ / 得点 / セーブ / ロード / 終了
-  ほか : :en … 次の出力を英語のまま表示する切り替え
-         :help … この説明
+  表示 : :both … 日本語と英語を併記（はじめはこれ）
+         :ja … 日本語だけ　　:en … 英語だけ
+  ほか : :help … この説明
 英語の命令（open mailbox など）はそのまま渡します。
 """
 
@@ -258,8 +259,8 @@ class Translator:
         return en
 
     # ---- 出力ブロック全体 ----
-    def block(self, raw):
-        """ゲーム出力のかたまりを訳す。(状態行, 本文) を返す。"""
+    def block(self, raw, use_ai=True):
+        """ゲーム出力のかたまりを訳す。(状態行, [(日本語, 英語), ...]) を返す。"""
         status = None
         lines = raw.replace("\r", "").split("\n")
         body = []
@@ -291,30 +292,32 @@ class Translator:
         pending = []
         for ln in body:
             if not ln.strip():
-                translated.append(("", None))
+                translated.append(("", None, ""))
                 continue
             indent = len(ln) - len(ln.lstrip())
             if indent:
                 j = self.name(ln.strip()) or self.sentence(ln.strip())
                 if j is not None:
-                    translated.append((" " * indent + j, None))
+                    translated.append((" " * indent + j, None, ln.rstrip()))
                     continue
             parts = self.line(ln)
-            translated.append((None, parts))
+            translated.append((None, parts, ln.rstrip()))
             pending += [en for ja, en in parts if ja is None]
 
-        ai = self.ai_translate(list(dict.fromkeys(pending))) if pending else {}
+        ai = (self.ai_translate(list(dict.fromkeys(pending)))
+              if pending and use_ai else {})
         out = []
-        for text, parts in translated:
+        for text, parts, en_line in translated:
             if parts is None:
-                out.append(text)
+                out.append((text, en_line))
                 continue
             seg = []
             for ja, en in parts:
                 seg.append(ja if ja is not None else ai.get(en, en))
-            out.append("".join(seg) if all(
-                ja is not None or en in ai for ja, en in parts) else " ".join(seg))
-        return status, "\n".join(out)
+            ja_line = "".join(seg) if all(
+                ja is not None or en in ai for ja, en in parts) else " ".join(seg)
+            out.append((ja_line, en_line))
+        return status, out
 
 
 I_TO_U = {"い": "う", "き": "く", "ぎ": "ぐ", "し": "す", "ち": "つ",
@@ -520,21 +523,35 @@ def main():
     tr = Translator()
     cp = CommandParser(tr)
     game = Game(dfrotz, story)
-    english = False
+    # 表示のしかた: both＝日本語と英語を併記 / ja＝日本語だけ / en＝英語だけ
+    mode = os.environ.get("ZORK_JA_MODE", "both")
+    if mode not in ("both", "ja", "en"):
+        mode = "both"
+    gray = "" if os.environ.get("NO_COLOR") else "\033[90m"
+    reset = "" if os.environ.get("NO_COLOR") else "\033[0m"
     if not tr.key:
         print("[Gemini API キーが未設定のため、辞書にない文は英語のまま表示します]")
     print(HELP)
 
     def show(raw):
-        if english:
-            print(raw.rstrip().rstrip(">").rstrip())
+        status, lines = tr.block(raw, use_ai=(mode != "en"))
+        if mode == "en":
+            if status:
+                print(f"―― {status[0]}　Score {status[1]} / Moves {status[2]} ――")
+            for ja, en in lines:
+                print(en)
             return
-        status, text = tr.block(raw)
         if status:
             room = tr.name(status[0]) or status[0]
+            if mode == "both" and room != status[0]:
+                room = f"{room}（{status[0]}）"
             print(f"―― {room}　得点 {status[1]}／手数 {status[2]} ――")
-        if text.strip():
-            print(text)
+        for ja, en in lines:
+            print(ja)
+            # 併記のときは、訳せた行の下に英語の原文を灰色で出す
+            if mode == "both" and en.strip() and norm(ja) != norm(en):
+                indent = en[: len(en) - len(en.lstrip())]
+                print(f"{indent}{gray}{en.strip()}{reset}")
 
     raw = game.read()
     show(raw)
@@ -549,9 +566,12 @@ def main():
         if line in (":help", ":ヘルプ", "ヘルプ", "help?"):
             print(HELP)
             continue
-        if line in (":en", ":英語"):
-            english = not english
-            print("[英語表示: %s]" % ("オン" if english else "オフ"))
+        new_mode = {":both": "both", ":併記": "both", ":ja": "ja", ":日本語": "ja",
+                    ":en": "en", ":英語": "en"}.get(line)
+        if new_mode:
+            mode = new_mode
+            print("[表示: %s]" % {"both": "日本語と英語を併記", "ja": "日本語だけ",
+                                  "en": "英語だけ"}[mode])
             continue
         if raw_input_next or not line or re.fullmatch(r"[\x20-\x7e]+", line):
             cmd = line
