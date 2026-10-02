@@ -1,0 +1,219 @@
+# 英語の名前<TAB>日本語の名前（部屋名・物の名前）。# で始まる行は無視。
+# 部屋
+West of House	家の西
+North of House	家の北
+South of House	家の南
+Behind House	家の裏
+Stone Barrow	石の塚
+Forest	森
+Forest Path	森の小道
+Up a Tree	木の上
+Clearing	空き地
+Kitchen	台所
+Attic	屋根裏
+Living Room	居間
+Cellar	地下室
+The Troll Room	トロールの部屋
+East of Chasm	裂け目の東
+Gallery	画廊
+Studio	アトリエ
+Maze	迷路
+Dead End	行き止まり
+Grating Room	格子の部屋
+Cyclops Room	サイクロプスの部屋
+Strange Passage	奇妙な通路
+Treasure Room	宝物庫
+Reservoir South	貯水池の南
+Reservoir	貯水池
+Reservoir North	貯水池の北
+Stream View	小川の眺め
+Stream	小川
+Mirror Room	鏡の部屋
+Cave	洞穴
+Cold Passage	冷たい通路
+Narrow Passage	狭い通路
+Winding Passage	曲がりくねった通路
+Twisting Passage	ねじれた通路
+Atlantis Room	アトランティスの部屋
+East-West Passage	東西の通路
+Round Room	円形の部屋
+Deep Canyon	深い峡谷
+Damp Cave	湿った洞穴
+Loud Room	騒がしい部屋
+North-South Passage	南北の通路
+Chasm	裂け目
+Entrance to Hades	冥府の入口
+Land of the Dead	死者の国
+Engravings Cave	彫刻の洞穴
+Egyptian Room	エジプトの部屋
+Dome Room	ドームの部屋
+Torch Room	たいまつの部屋
+Temple	神殿
+Altar	祭壇
+Dam	ダム
+Dam Lobby	ダムのロビー
+Maintenance Room	整備室
+Dam Base	ダムのふもと
+Frigid River	フリジッド川
+White Cliffs Beach	白い崖の浜
+Shore	岸
+Sandy Beach	砂浜
+Sandy Cave	砂の洞穴
+Aragain Falls	アラゲイン滝
+On the Rainbow	虹の上
+End of Rainbow	虹のふもと
+Canyon Bottom	峡谷の底
+Rocky Ledge	岩棚
+Canyon View	峡谷の展望台
+Mine Entrance	鉱山の入口
+Squeaky Room	キーキーいう部屋
+Bat Room	コウモリの部屋
+Shaft Room	縦穴の部屋
+Smelly Room	臭い部屋
+Gas Room	ガスの部屋
+Ladder Top	はしごの上
+Ladder Bottom	はしごの下
+Timber Room	材木の部屋
+Drafty Room	すきま風の部屋
+Machine Room	機械室
+Coal Mine	炭鉱
+Slide Room	滑り台の部屋
+# 物
+ZORK owner's manual	ZORK取扱説明書
+altar	祭壇
+ancient map	古い地図
+basket	かご
+bat	コウモリ
+beautiful brass bauble	美しい真鍮の飾り玉
+beautiful jeweled scarab	宝石をちりばめた美しいスカラベ
+bird's nest	鳥の巣
+black book	黒い本
+blast of air	突風
+bloody axe	血まみれの斧
+blue button	青いボタン
+board	板
+boarded window	板を打ちつけた窓
+bolt	ボルト
+brass bell	真鍮の鐘
+brass lantern	真鍮のランタン
+broken clockwork canary	壊れたぜんまい仕掛けのカナリア
+broken jewel-encrusted egg	壊れた宝石の卵
+broken lantern	壊れたランタン
+broken timber	折れた材木
+brown button	茶色のボタン
+brown sack	茶色の袋
+burned-out lantern	燃え尽きたランタン
+carpet	じゅうたん
+chalice	聖杯
+chimney	煙突
+chute	落とし口
+cliff	崖
+clove of garlic	ニンニクのかけら
+control panel	操作盤
+crack	割れ目
+crystal skull	水晶のドクロ
+crystal trident	水晶の三叉槍
+cyclops	サイクロプス
+dam	ダム
+door	扉
+forest	森
+glass bottle	ガラスのびん
+gold coffin	黄金の棺
+golden clockwork canary	金のぜんまい仕掛けのカナリア
+granite wall	花崗岩の壁
+grating	格子
+green bubble	緑の泡
+ground	地面
+group of tool chests	工具箱の山
+hand-held air pump	手押しの空気入れ
+huge diamond	巨大なダイヤモンド
+jade figurine	翡翠の像
+jewel-encrusted egg	宝石をちりばめた卵
+kitchen table	台所のテーブル
+kitchen window	台所の窓
+large bag	大きな袋
+large emerald	大きなエメラルド
+leaflet	チラシ
+leak	水漏れ
+leather bag of coins	硬貨の入った革袋
+lunch	お弁当
+lurking grue	潜んでいるグルー
+machine	機械
+magic boat	魔法のボート
+matchbook	マッチ
+mirror	鏡
+mountain range	山脈
+nasty knife	物騒なナイフ
+number of ghosts	幽霊たち
+painting	絵画
+pair of candles	一対のろうそく
+pair of hands	両手
+passage	通路
+pedestal	台座
+pile of bodies	死体の山
+pile of leaves	落ち葉の山
+pile of plastic	ビニールの山
+platinum bar	プラチナの延べ棒
+pot of gold	金の壺
+prayer	祈りの言葉
+punctured boat	穴のあいたボート
+quantity of water	水
+rainbow	虹
+red buoy	赤いブイ
+red button	赤いボタン
+red hot brass bell	真っ赤に焼けた真鍮の鐘
+river	川
+rope	ロープ
+rusty knife	錆びたナイフ
+sailor	船乗り
+sand	砂
+sapphire-encrusted bracelet	サファイアの腕輪
+sceptre	王笏
+screwdriver	ドライバー
+set of teeth	歯
+shovel	シャベル
+skeleton	骸骨
+skeleton key	合鍵
+small mailbox	小さな郵便受け
+small piece of vitreous slag	ガラス状の鉱滓のかけら
+small pile of coal	石炭の小山
+songbird	さえずる鳥
+stairs	階段
+stiletto	短剣
+stone barrow	石の塚
+stone door	石の扉
+surrounding wall	周りの壁
+switch	スイッチ
+sword	剣
+table	テーブル
+tan label	黄褐色のラベル
+thief	盗賊
+torch	たいまつ
+tour guidebook	観光案内書
+trap door	跳ね上げ戸
+tree	木
+troll	トロール
+trophy case	トロフィー棚
+trunk of jewels	宝石の詰まったトランク
+tube	チューブ
+viscous material	ねばねばした物質
+wall with engravings	彫刻のある壁
+water	水
+white cliffs	白い崖
+white house	白い家
+wooden door	木の扉
+wooden ladder	木のはしご
+wooden railing	木の手すり
+wrench	レンチ
+yellow button	黄色いボタン
+you	あなた
+zorkmid	ゾークミッド
+# 順位
+Master Adventurer	大冒険家
+Wizard	魔法使い
+Master	達人
+Adventurer	冒険家
+Junior Adventurer	見習い冒険家
+Novice Adventurer	駆け出し冒険家
+Amateur Adventurer	素人冒険家
+Beginner	初心者

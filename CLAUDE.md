@@ -22,6 +22,7 @@
 |---|---|
 | `gh-reader/` | Balance 2 で GitHub のフォルダ・Markdown を読むミニアプリ（Zepp OS） |
 | `research_bot/` | テーマ文から文献を集め、抄録カタログを作るツール |
+| `zork-ja/` | 英語版 Zork I を Termux で日本語で遊ぶためのラッパー |
 
 新しいプロジェクトを足したら、この表も更新する。
 

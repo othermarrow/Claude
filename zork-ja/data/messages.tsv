@@ -1,0 +1,413 @@
+# 英語の一文（または一行）<TAB>日本語。文単位で照合する。# で始まる行は無視。
+# ---- 起動画面 ----
+ZORK I: The Great Underground Empire	ZORK I：大地下帝国
+Infocom interactive fiction - a fantasy story	インフォコムのインタラクティブ・フィクション ― ファンタジー物語
+Copyright (c) 1981, 1982, 1983, 1984, 1985, 1986 Infocom, Inc. All rights reserved.	Copyright (c) 1981-1986 Infocom, Inc. All rights reserved.
+ZORK is a registered trademark of Infocom, Inc.	ZORK は Infocom, Inc. の登録商標です。
+# ---- 家のまわり ----
+You are standing in an open field west of a white house, with a boarded front door.	あなたは白い家の西にある開けた野原に立っている。家の玄関は板でふさがれている。
+A secret path leads southwest into the forest.	秘密の小道が南西の森へと続いている。
+You are facing the north side of a white house.	あなたは白い家の北側に面している。
+There is no door here, and all the windows are boarded up.	ここには扉がなく、窓はすべて板でふさがれている。
+To the north a narrow path winds through the trees.	北には細い小道が木々の間を曲がりくねって続いている。
+You are facing the south side of a white house.	あなたは白い家の南側に面している。
+There is no door here, and all the windows are boarded.	ここには扉がなく、窓はすべて板でふさがれている。
+You are behind the white house.	あなたは白い家の裏にいる。
+A path leads into the forest to the east.	東の森へと小道が続いている。
+In one corner of the house there is a small window which is slightly ajar.	家の隅に小さな窓があり、少しだけ開いている。
+In one corner of the house there is a small window which is open.	家の隅に小さな窓があり、開いている。
+The door is boarded and you can't remove the boards.	扉は板でふさがれていて、板ははがせない。
+The windows are all boarded.	窓はすべて板でふさがれている。
+The boards are securely fastened.	板はしっかりと打ちつけられている。
+The house is a beautiful colonial house which is painted white. It is clear that the owners must have been extremely wealthy.	白く塗られた美しいコロニアル様式の家だ。持ち主はよほどの金持ちだったに違いない。
+I can't see how to get in from here.	ここからどうやって入ればいいのかわからない。
+You're not at the house.	あなたは家のそばにいない。
+With great effort, you open the window far enough to allow entry.	苦労して、通り抜けられるくらいまで窓を開けた。
+The window closes (more easily than it opened).	窓が閉まった（開けたときよりずっと簡単に）。
+The window is slightly ajar, but not enough to allow entry.	窓は少し開いているが、通り抜けられるほどではない。
+# ---- 郵便受け・チラシ ----
+"WELCOME TO ZORK!	「ZORKへようこそ！
+ZORK is a game of adventure, danger, and low cunning.	ZORKは冒険と危険と悪知恵のゲームである。
+In it you will explore some of the most amazing territory ever seen by mortals.	あなたはこのゲームで、人間がかつて目にしたことのない驚くべき領域を探検することになる。
+No computer should be without one!"	すべてのコンピュータに一本は必要だ！」
+It is securely anchored.	しっかりと固定されている。
+# ---- 森 ----
+This is a forest, with trees in all directions.	ここは森で、四方を木に囲まれている。
+To the east, there appears to be sunlight.	東の方には日の光が見えるようだ。
+This is a dimly lit forest, with large trees all around.	薄暗い森で、まわりは大きな木ばかりだ。
+The forest thins out, revealing impassable mountains.	森がまばらになり、越えられない山々が見えてくる。
+This is a path winding through a dimly lit forest.	薄暗い森を縫うように続く小道だ。
+The path heads north-south here.	ここで小道は南北に延びている。
+One particularly large tree with some low branches stands at the edge of the path.	小道の脇に、低い枝のある特に大きな木が一本立っている。
+You are in a small clearing in a well marked forest path that extends to the east and west.	あなたは、東西に延びるはっきりした森の小道の、小さな空き地にいる。
+You are in a clearing, with a forest surrounding you on all sides.	あなたは四方を森に囲まれた空き地にいる。
+A path leads south.	南へ小道が続いている。
+There is an open grating, descending into darkness.	開いた格子があり、暗闇へと下っている。
+There is a grating securely fastened into the ground.	地面にしっかりと格子がはめ込まれている。
+You are about 10 feet above the ground nestled among some large branches.	あなたは地上3メートルほどの、大きな枝の間にいる。
+The nearest branch above you is above your reach.	すぐ上の枝には手が届かない。
+You hear in the distance the chirping of a song bird.	遠くで鳥のさえずりが聞こえる。
+The mountains are impassable.	山は越えられない。
+The forest becomes impenetrable to the north.	北は森が深くて進めない。
+Storm-tossed trees block your way.	嵐でなぎ倒された木が行く手をふさいでいる。
+You cannot climb any higher.	これ以上は登れない。
+# ---- 台所・屋根裏・居間 ----
+You are in the kitchen of the white house.	あなたは白い家の台所にいる。
+A table seems to have been used recently for the preparation of food.	テーブルは最近料理に使われたようだ。
+A passage leads to the west and a dark staircase can be seen leading upward.	西へ通路が続き、上へ向かう暗い階段が見える。
+A dark chimney leads down and to the east is a small window which is slightly ajar.	暗い煙突が下へ続き、東には少しだけ開いた小さな窓がある。
+A dark chimney leads down and to the east is a small window which is open.	暗い煙突が下へ続き、東には開いた小さな窓がある。
+On the table is an elongated brown sack, smelling of hot peppers.	テーブルの上に細長い茶色の袋があり、唐辛子のにおいがする。
+A bottle is sitting on the table.	テーブルの上にびんが置いてある。
+The glass bottle contains:	ガラスのびんの中には：
+The brown sack contains:	茶色の袋の中には：
+This is the attic.	ここは屋根裏だ。
+The only exit is a stairway leading down.	出口は下へ続く階段だけだ。
+A large coil of rope is lying in the corner.	隅に大きな巻いたロープが置いてある。
+On a table is a nasty-looking knife.	テーブルの上に物騒なナイフがある。
+You are in the living room.	あなたは居間にいる。
+There is a doorway to the east, a wooden door with strange gothic lettering to the west, which appears to be nailed shut, a trophy case, and a large oriental rug in the center of the room.	東に出入り口があり、西には奇妙なゴシック文字の書かれた木の扉（釘で打ちつけられているようだ）、トロフィー棚、そして部屋の中央に大きな東洋風のじゅうたんがある。
+There is a doorway to the east, a wooden door with strange gothic lettering to the west, which appears to be nailed shut, a trophy case, and a closed trap door at your feet.	東に出入り口があり、西には奇妙なゴシック文字の書かれた木の扉（釘で打ちつけられているようだ）、トロフィー棚、そして足元に閉じた跳ね上げ戸がある。
+There is a doorway to the east, a wooden door with strange gothic lettering to the west, which appears to be nailed shut, a trophy case, and a rug lying beside an open trap door.	東に出入り口があり、西には奇妙なゴシック文字の書かれた木の扉（釘で打ちつけられているようだ）、トロフィー棚、そして開いた跳ね上げ戸の横にじゅうたんがある。
+There is a doorway to the east, a wooden door with strange gothic lettering to the west, which appears to be nailed shut, a trophy case, and an open trap door at your feet.	東に出入り口があり、西には奇妙なゴシック文字の書かれた木の扉（釘で打ちつけられているようだ）、トロフィー棚、そして足元に開いた跳ね上げ戸がある。
+Above the trophy case hangs an elvish sword of great antiquity.	トロフィー棚の上に、とても古いエルフの剣が掛かっている。
+A battery-powered brass lantern is on the trophy case.	トロフィー棚の上に電池式の真鍮のランタンがある。
+In the trophy case is an ancient parchment which appears to be a map.	トロフィー棚の中に、地図らしい古い羊皮紙がある。
+With a great effort, the rug is moved to one side of the room, revealing the dusty cover of a closed trap door.	やっとのことでじゅうたんを部屋の端に寄せると、ほこりをかぶった閉じた跳ね上げ戸が現れた。
+Having moved the carpet previously, you find it impossible to move it again.	じゅうたんはもう動かしたので、これ以上は動かせない。
+The door reluctantly opens to reveal a rickety staircase descending into darkness.	扉がしぶしぶ開き、暗闇へ下るぐらぐらした階段が現れた。
+The door swings shut and closes.	扉がばたんと閉まった。
+The trap door crashes shut, and you hear someone barring it.	跳ね上げ戸が大きな音を立てて閉まり、誰かがかんぬきを掛ける音がした。
+The door is nailed shut.	扉は釘で打ちつけられている。
+The engravings translate to "This space intentionally left blank."	文字を訳すと「このスペースは意図的に空白にしてあります」となる。
+Your collection of treasures consists of:	あなたの集めた宝物は次のとおり：
+# ---- 地下 ----
+You are in a dark and damp cellar with a narrow passageway leading north, and a crawlway to the south.	あなたは暗くじめじめした地下室にいる。北へ狭い通路が、南へ這って進む穴が続いている。
+On the west is the bottom of a steep metal ramp which is unclimbable.	西には急な金属の坂の下端があるが、登ることはできない。
+You try to ascend the ramp, but it is impossible, and you slide back down.	坂を登ろうとしたが無理で、滑り落ちてしまった。
+It is pitch black. You are likely to be eaten by a grue.	真っ暗だ。グルーに食べられてしまいそうだ。
+It is pitch black.	真っ暗だ。
+You are likely to be eaten by a grue.	グルーに食べられてしまいそうだ。
+Oh, no! You have walked into the slavering fangs of a lurking grue!	ああ、なんということだ！あなたは潜んでいたグルーのよだれを垂らした牙に飛び込んでしまった！
+Oh, no! A lurking grue slithered into the room and devoured you!	ああ、なんということだ！潜んでいたグルーが部屋に這い込み、あなたを食べてしまった！
+This is a small room with passages to the east and south and a forbidding hole leading west.	ここは小さな部屋で、東と南に通路があり、西には不気味な穴が続いている。
+Bloodstains and deep scratches (perhaps made by an axe) mar the walls.	壁には血の跡と深い傷（たぶん斧によるもの）がついている。
+A nasty-looking troll, brandishing a bloody axe, blocks all passages out of the room.	血まみれの斧を振りかざす凶悪そうなトロールが、部屋の出口をすべてふさいでいる。
+The troll fends you off with a menacing gesture.	トロールは威嚇するしぐさであなたを追い払った。
+You are on the east edge of a chasm, the bottom of which cannot be seen.	あなたは底の見えない裂け目の東端にいる。
+A narrow passage goes north, and the path you are on continues to the east.	細い通路が北へ延び、今いる小道は東へ続いている。
+This is an art gallery.	ここは画廊だ。
+Most of the paintings have been stolen by vandals with exceptional taste.	絵のほとんどは、ずば抜けた審美眼を持つ荒らしに盗まれてしまった。
+The vandals left through either the north or west exits.	荒らしたちは北か西の出口から出ていった。
+Fortunately, there is still one chance for you to be a vandal, for on the far wall is a painting of unparalleled beauty.	幸い、あなたにも荒らしになるチャンスがまだ一つある。奥の壁に比類なく美しい絵が掛かっているのだ。
+This appears to have been an artist's studio.	ここは画家のアトリエだったようだ。
+The walls and floors are splattered with paints of 69 different colors.	壁や床には69色もの絵の具が飛び散っている。
+Strangely enough, nothing of value is hanging here.	不思議なことに、価値のあるものは何も掛かっていない。
+At the south end of the room is an open door (also covered with paint).	部屋の南端には開いた扉がある（これも絵の具まみれだ）。
+A dark and narrow chimney leads up from a fireplace; although you might be able to get up it, it seems unlikely you could get back down.	暖炉から暗く狭い煙突が上へ続いている。登れるかもしれないが、戻ってこられそうにはない。
+Loosely attached to a wall is a small piece of paper.	壁に小さな紙切れがゆるく貼ってある。
+This is part of a maze of twisty little passages, all alike.	ここは、どれも似たような曲がりくねった小さな通路の迷路の一部だ。
+You have come to a dead end in the maze.	迷路の行き止まりに来た。
+A skeleton, probably the remains of a luckless adventurer, lies here.	骸骨が横たわっている。おそらく運の悪い冒険者の亡骸だろう。
+Beside the skeleton is a rusty knife.	骸骨の横に錆びたナイフがある。
+The deceased adventurer's useless lantern is here.	死んだ冒険者の役に立たないランタンがある。
+An old leather bag, bulging with coins, is here.	硬貨でふくらんだ古い革袋がある。
+You are in a small room near the maze. There are twisty passages in the immediate vicinity.	あなたは迷路の近くの小さな部屋にいる。すぐそばに曲がりくねった通路がある。
+Above you is a grating locked with a skull-and-crossbones lock.	頭上に、ドクロの錠前で施錠された格子がある。
+Above you is an open grating with sunlight pouring in.	頭上に開いた格子があり、日の光が差し込んでいる。
+Above you is a grating.	頭上に格子がある。
+This is a long passage.	長い通路だ。
+To the west is one entrance.	西に入口が一つある。
+On the east there is an old wooden door, with a large opening in it (about cyclops sized).	東には古い木の扉があり、大きな穴（サイクロプスくらいの大きさ）が開いている。
+This is a large room, whose east wall is solid granite.	大きな部屋で、東の壁は一枚岩の花崗岩だ。
+A number of discarded bags, which crumble at your touch, are scattered about on the floor.	捨てられた袋がいくつも床に散らばっていて、触るとぼろぼろに崩れる。
+There is an exit down a staircase.	下へ向かう階段の出口がある。
+# ---- 川・洞穴 ----
+You are standing on a path beside a gently flowing stream.	あなたは穏やかに流れる小川のそばの小道に立っている。
+The path follows the stream, which flows from west to east.	小道は小川に沿って続き、小川は西から東へ流れている。
+You are on the gently flowing stream.	あなたは穏やかに流れる小川の上にいる。
+The upstream route is too narrow to navigate, and the downstream route is invisible due to twisting walls.	上流は狭すぎて進めず、下流は曲がりくねった壁で見えない。
+There is a narrow beach to land on.	上陸できる狭い浜がある。
+This is a tiny cave with entrances west and north, and a staircase leading down.	西と北に入口があり、下へ階段が続く小さな洞穴だ。
+This is a tiny cave with entrances west and north, and a dark, forbidding staircase leading down.	西と北に入口があり、下へ暗く不気味な階段が続く小さな洞穴だ。
+This is a cold and damp corridor where a long east-west passageway turns into a southward path.	寒くてじめじめした廊下で、東西に長い通路がここで南向きの道に変わる。
+This is a long and narrow corridor where a long north-south passageway briefly narrows even further.	長く狭い廊下で、南北に長い通路がここで一段と狭くなっている。
+This is a winding passage.	曲がりくねった通路だ。
+It seems that there are only exits on the east and north.	出口は東と北にしかないようだ。
+This is an ancient room, long under water.	長い間水の底にあった古い部屋だ。
+There is an exit to the south and a staircase leading up.	南に出口があり、上へ階段が続いている。
+This is a narrow east-west passageway.	東西に延びる狭い通路だ。
+There is a narrow stairway leading down at the north end of the room.	部屋の北端に下へ続く狭い階段がある。
+This is a circular stone room with passages in all directions.	四方に通路のある円形の石の部屋だ。
+Several of them have unfortunately been blocked by cave-ins.	残念ながら、そのいくつかは落盤でふさがれている。
+This cave has exits to the west and east, and narrows to a crack toward the south.	この洞穴は西と東に出口があり、南へ向かって割れ目ほどに狭まっている。
+The earth is particularly damp here.	ここは地面が特に湿っている。
+This is a high north-south passage, which forks to the northeast.	天井の高い南北の通路で、北東に分かれ道がある。
+A chasm runs southwest to northeast and the path follows it.	裂け目が南西から北東へ走っていて、小道はそれに沿っている。
+You are on the south side of the chasm, where a crack opens into a passage.	あなたは裂け目の南側にいて、ここで割れ目が通路に通じている。
+You have entered the Land of the Living Dead.	あなたは生ける屍の国に入った。
+Thousands of lost souls can be heard weeping and moaning.	何千もの迷える魂がすすり泣き、うめく声が聞こえる。
+In the corner are stacked the remains of dozens of previous adventurers less fortunate than yourself.	隅には、あなたより不運だった何十人もの冒険者の亡骸が積み上げられている。
+A passage exits to the north.	北へ通路が出ている。
+You have entered a low cave with passages leading northwest and east.	あなたは北西と東に通路の続く天井の低い洞穴に入った。
+There are old engravings on the walls here.	ここの壁には古い彫刻がある。
+This is a room which looks like an Egyptian tomb.	エジプトの墓のような部屋だ。
+There is an ascending staircase to the west.	西に上り階段がある。
+The solid-gold coffin used for the burial of Ramses II is here.	ラムセス2世の埋葬に使われた純金の棺がある。
+This is the north end of a large temple.	大きな神殿の北の端だ。
+On the east wall is an ancient inscription, probably a prayer in a long-forgotten language.	東の壁には古い碑文がある。おそらく忘れ去られた言語で書かれた祈りの言葉だろう。
+Below the prayer is a staircase leading down.	祈りの言葉の下に、下へ続く階段がある。
+The west wall is solid granite.	西の壁は一枚岩の花崗岩だ。
+The exit to the north end of the room is through huge marble pillars.	部屋の北端の出口は、巨大な大理石の柱の間を抜けた先にある。
+There is a brass bell here.	ここに真鍮の鐘がある。
+This is the south end of a large temple.	大きな神殿の南の端だ。
+In front of you is what appears to be an altar.	目の前に祭壇らしきものがある。
+In one corner is a small hole in the floor which leads into darkness.	隅の床に小さな穴があり、暗闇へ通じている。
+You probably could not get back up it.	たぶん、そこから戻ってくることはできないだろう。
+On the two ends of the altar are burning candles.	祭壇の両端でろうそくが燃えている。
+On the altar is a large black book, open to page 569.	祭壇の上に大きな黒い本があり、569ページが開いている。
+# ---- ダム・川 ----
+This is what appears to have been the maintenance room for Flood Control Dam #3.	ここは第3治水ダムの整備室だったらしい。
+Apparently, this room has been ransacked recently, for most of the valuable equipment is gone.	どうやら最近荒らされたらしく、値打ちのある機材のほとんどがなくなっている。
+On the wall in front of you is a group of buttons colored blue, yellow, brown, and red.	目の前の壁に、青・黄・茶・赤のボタンが並んでいる。
+There are doorways to the west and south.	西と南に出入り口がある。
+You are at the base of Flood Control Dam #3, which looms above you and to the north.	あなたは第3治水ダムのふもとにいる。ダムは北の頭上にそびえている。
+The river Frigid is flowing by here.	ここをフリジッド川が流れている。
+Along the river are the White Cliffs which seem to form giant walls stretching from north to south along the shores of the river as it winds its way downstream.	川沿いには白い崖があり、蛇行しながら下る川の岸に沿って、北から南へ巨大な壁のように連なっている。
+There is a folded pile of plastic here which has a small valve attached.	小さなバルブの付いた、折りたたまれたビニールの山がある。
+You are on the Frigid River in the vicinity of the Dam.	あなたはダムの近くのフリジッド川の上にいる。
+The river flows quietly here.	ここでは川は静かに流れている。
+There is a landing on the west shore.	西岸に船着き場がある。
+The river turns a corner here making it impossible to see the Dam.	川がここで曲がっていて、ダムは見えなくなる。
+The White Cliffs loom on the east bank and large rocks prevent landing on the west.	東岸には白い崖がそびえ、西岸は大きな岩があって上陸できない。
+The river descends here into a valley.	川はここで谷へと下っていく。
+There is a narrow beach on the west shore below the cliffs.	西岸の崖の下に狭い浜がある。
+In the distance a faint rumbling can be heard.	遠くでかすかなとどろきが聞こえる。
+There is a red buoy here (probably a warning).	赤いブイがある（たぶん警告だろう）。
+You are on a narrow strip of beach which runs along the base of the White Cliffs.	あなたは白い崖のふもとに沿って延びる細長い浜にいる。
+There is a narrow path heading south along the Cliffs and a tight passage leading west into the cliffs themselves.	崖に沿って南へ細い小道があり、西には崖の中へ入る狭い通路がある。
+You are on a rocky, narrow strip of beach beside the Cliffs.	あなたは崖の横の岩だらけの細長い浜にいる。
+A narrow path leads north along the shore.	岸に沿って北へ細い小道が続いている。
+The river is running faster here and the sound ahead appears to be that of rushing water.	ここでは川の流れが速く、前方から激流の音が聞こえる。
+On the east shore is a sandy beach.	東岸に砂浜がある。
+A small area of beach can also be seen below the cliffs on the west shore.	西岸の崖の下にも小さな浜が見える。
+The sound of rushing water is nearly unbearable here.	ここでは激流の音が耐えがたいほどだ。
+On the east shore is a large landing area.	東岸に広い上陸地点がある。
+You are on the east shore of the river.	あなたは川の東岸にいる。
+The water here seems somewhat treacherous.	ここの水は少し危なそうだ。
+A path travels from north to south here, the south end quickly turning around a sharp corner.	小道がここを北から南へ通っていて、南の端はすぐに急な角を曲がっている。
+You are on a large sandy beach on the east shore of the river, which is flowing quickly by.	あなたは流れの速い川の東岸にある、広い砂浜にいる。
+A path runs beside the river to the south here, and a passage is partially buried in sand to the northeast.	川沿いに南へ小道が延び、北東には砂に半分埋もれた通路がある。
+This is a sand-filled cave whose exit is to the southwest.	砂で埋まった洞穴で、出口は南西にある。
+On the shore lies Poseidon's own crystal trident.	岸にポセイドンその人の水晶の三叉槍が落ちている。
+You are on top of a rainbow (I bet you never thought you would walk on a rainbow), with a magnificent view of the Falls.	あなたは虹のてっぺんにいて（虹の上を歩くなんて思ってもみなかっただろう）、滝のすばらしい眺めが広がっている。
+The rainbow travels east-west here.	虹はここで東西に架かっている。
+You are on a small, rocky beach on the continuation of the Frigid River past the Falls.	あなたは、滝の先へ続くフリジッド川の、岩だらけの小さな浜にいる。
+The beach is narrow due to the presence of the White Cliffs.	白い崖があるため浜は狭い。
+The river canyon opens here and sunlight shines in from above.	川の峡谷がここで開けて、上から日の光が差し込んでいる。
+A rainbow crosses over the falls to the east and a narrow path continues to the southwest.	東では虹が滝の上に架かり、南西へ細い小道が続いている。
+At the end of the rainbow is a pot of gold.	虹のふもとに金の壺がある。
+You are beneath the walls of the river canyon which may be climbable here.	あなたは川の峡谷の壁の下にいる。ここなら登れるかもしれない。
+The lesser part of the runoff of Aragain Falls flows by below.	アラゲイン滝から流れ出た水の一部が下を流れている。
+To the north is a narrow path.	北に細い小道がある。
+You are on a ledge about halfway up the wall of the river canyon.	あなたは川の峡谷の壁の中ほどにある岩棚にいる。
+You can see from here that the main flow from Aragain Falls twists along a passage which it is impossible for you to enter.	ここから、アラゲイン滝の本流が、あなたには入れない通路に沿ってうねっているのが見える。
+Below you is the canyon bottom.	下には峡谷の底がある。
+Above you is more cliff, which appears climbable.	上にはまだ崖が続いていて、登れそうだ。
+You are at the top of the Great Canyon on its west wall.	あなたは大峡谷の西壁のてっぺんにいる。
+From here there is a marvelous view of the canyon and parts of the Frigid River upstream.	ここからは、峡谷とフリジッド川の上流の一部がすばらしく見渡せる。
+Across the canyon, the walls of the White Cliffs join the mighty ramparts of the Flathead Mountains to the east.	峡谷の向こうでは、白い崖の壁が東のフラットヘッド山脈の雄大な岩壁へとつながっている。
+Following the Canyon upstream to the north, Aragain Falls may be seen, complete with rainbow.	峡谷を北の上流へたどると、虹のかかったアラゲイン滝が見える。
+The mighty Frigid River flows out from a great dark cavern.	雄大なフリジッド川が、大きな暗い洞窟から流れ出ている。
+To the west and south can be seen an immense forest, stretching for miles around.	西と南には、何キロにもわたって広がる広大な森が見える。
+A path leads northwest.	北西へ小道が続いている。
+It is possible to climb down into the canyon from here.	ここから峡谷へ降りることができる。
+# ---- 鉱山 ----
+You are standing at the entrance of what might have been a coal mine.	あなたは、かつて炭鉱だったらしい場所の入口に立っている。
+The shaft enters the west wall, and there is another exit on the south end of the room.	坑道は西の壁に入っていて、部屋の南端にも出口がある。
+You are in a small room.	あなたは小さな部屋にいる。
+Strange squeaky sounds may be heard coming from the passage at the north end.	北の端の通路から、奇妙なキーキーという音が聞こえる。
+You may also escape to the east.	東へ逃げることもできる。
+This is a large room, in the middle of which is a small shaft descending through the floor into darkness below.	大きな部屋で、真ん中に床を貫いて暗闇へ下る小さな縦穴がある。
+To the west and the north are exits from this room.	この部屋の出口は西と北にある。
+Constructed over the top of the shaft is a metal framework to which a heavy iron chain is attached.	縦穴の上には金属の枠組みが組まれていて、重い鉄の鎖が取りつけられている。
+At the end of the chain is a basket.	鎖の先にかごがある。
+From the chain is suspended a basket.	鎖からかごがぶら下がっている。
+This is a small nondescript room.	何の変哲もない小さな部屋だ。
+However, from the direction of a small descending staircase a foul odor can be detected.	しかし、下へ続く小さな階段のほうから嫌なにおいがする。
+To the south is a narrow tunnel.	南には狭いトンネルがある。
+This is a small room which smells strongly of coal gas.	石炭ガスのにおいが強くする小さな部屋だ。
+There is a short climb up some stairs and a narrow tunnel leading east.	少し上る階段と、東へ続く狭いトンネルがある。
+This is a very small room.	とても小さな部屋だ。
+In the corner is a rickety wooden ladder, leading downward.	隅に下へ続くぐらぐらした木のはしごがある。
+It might be safe to descend.	降りても大丈夫かもしれない。
+There is also a staircase leading upward.	上へ続く階段もある。
+This is a rather wide room.	かなり広い部屋だ。
+On one side is the bottom of a narrow wooden ladder.	片側に細い木のはしごの下端がある。
+To the west and the south are passages leaving the room.	西と南に部屋から出る通路がある。
+You have come to a dead end in the mine.	鉱山の行き止まりに来た。
+This is a long and narrow passage, which is cluttered with broken timbers.	長く狭い通路で、折れた材木が散らかっている。
+A wide passage comes from the east and turns at the west end of the room into a very narrow passageway.	東から広い通路が来て、部屋の西端でとても狭い通路に変わる。
+From the west comes a strong draft.	西から強い風が吹いてくる。
+This is a small drafty room in which is the bottom of a long shaft.	すきま風の入る小さな部屋で、長い縦穴の底になっている。
+To the south is a passageway and to the east a very narrow passage.	南に通路があり、東にはとても狭い通路がある。
+In the shaft can be seen a heavy iron chain.	縦穴の中に重い鉄の鎖が見える。
+This is a nondescript part of a coal mine.	炭鉱の何の変哲もない一角だ。
+# ---- 物の説明（LDESC/FDESC） ----
+Lying in one corner of the room is a beautifully carved crystal skull.	部屋の隅に、美しく彫られた水晶のドクロが転がっている。
+It appears to be grinning at you rather nastily.	意地悪くこちらに笑いかけているように見える。
+A hot pepper sandwich is here.	唐辛子のサンドイッチがある。
+On the ground is a red hot bell.	地面に真っ赤に焼けた鐘がある。
+An ornamented sceptre, tapering to a sharp point, is here.	先の鋭くとがった、飾りのついた王笏がある。
+A sceptre, possibly that of ancient Egypt itself, is in the coffin.	棺の中に王笏がある。おそらく古代エジプトそのものの王笏だろう。
+The sceptre is ornamented with colored enamel, and tapers to a sharp point.	王笏は色とりどりのエナメルで飾られ、先が鋭くとがっている。
+There is a silver chalice, intricately engraved, here.	精巧な彫刻の施された銀の聖杯がある。
+There is an enormous diamond (perfectly cut) here.	巨大なダイヤモンド（完璧なカット）がある。
+There is an exquisite jade figurine here.	精巧な翡翠の像がある。
+There is a brass lantern (battery-powered) here.	真鍮のランタン（電池式）がある。
+A small leaflet is on the ground.	地面に小さなチラシが落ちている。
+A painting by a neglected genius is here.	不遇の天才による絵がある。
+On the ground is a pile of leaves.	地面に落ち葉の山がある。
+On the ground is a large platinum bar.	地面に大きなプラチナの延べ棒がある。
+There is a suspicious-looking individual, holding a large bag, leaning against one wall.	大きな袋を持った怪しげな人物が、壁にもたれている。
+He is armed with a deadly stiletto.	男は恐ろしい短剣で武装している。
+Sitting on the pedestal is a flaming torch, made of ivory.	台座の上に、象牙でできた燃えるたいまつがある。
+There is an old trunk here, bulging with assorted jewels.	いろいろな宝石でふくらんだ古いトランクがある。
+Lying half buried in the mud is an old trunk, bulging with jewels.	泥に半分埋もれて、宝石でふくらんだ古いトランクがある。
+There is an object which looks like a tube of toothpaste here.	歯みがき粉のチューブのようなものがある。
+Beside you on the branch is a small bird's nest.	あなたのそばの枝に、小さな鳥の巣がある。
+In the bird's nest is a large egg encrusted with precious jewels, apparently scavenged by a childless songbird.	鳥の巣の中に、貴重な宝石をちりばめた大きな卵がある。子のいない鳥がどこかから拾ってきたらしい。
+The egg is covered with fine gold inlay, and ornamented in lapis lazuli and mother-of-pearl.	卵は細かな金の象嵌で覆われ、ラピスラズリと真珠層で飾られている。
+Unlike most eggs, this one is hinged and closed with a delicate looking clasp.	ふつうの卵と違って、ちょうつがいが付いていて、繊細そうな留め金で閉じられている。
+The egg appears extremely fragile.	卵はとても壊れやすそうだ。
+There is a somewhat ruined egg here.	少し壊れた卵がある。
+There is a golden clockwork canary nestled in the egg.	卵の中に、金のぜんまい仕掛けのカナリアが収まっている。
+It has ruby eyes and a silver beak.	目はルビー、くちばしは銀でできている。
+Through a crystal window below its left wing you can see intricate machinery inside.	左の翼の下の水晶の窓から、中の精巧な機械が見える。
+It appears to have wound down.	ぜんまいが切れているようだ。
+# ---- よく出る応答 ----
+Taken.	取った。
+Dropped.	置いた。
+(Taken)	（取った）
+Opened.	開けた。
+Closed.	閉めた。
+Done.	やった。
+OK.	わかった。
+Ok.	わかった。
+Time passes...	時が過ぎる……
+Nothing happens.	何も起こらない。
+You can't go that way.	そちらへは行けない。
+You are empty-handed.	あなたは何も持っていない。
+You are carrying:	持ち物：
+It is now pitch black.	真っ暗になった。
+It's too dark to see!	暗すぎて見えない！
+It's too dark to see.	暗すぎて見えない。
+I beg your pardon?	何とおっしゃいましたか？
+Beg pardon?	え？
+I couldn't understand that sentence.	その文は理解できなかった。
+That sentence isn't one I recognize.	その文はわからない。
+There was no verb in that sentence!	その文には動詞がない！
+There seems to be a noun missing in that sentence!	その文には名詞が足りないようだ！
+There were too many nouns in that sentence.	その文には名詞が多すぎる。
+I don't see what you're referring to.	何のことを言っているのかわからない。
+You don't have that!	それは持っていない！
+You can't see any such thing.	そんなものは見当たらない。
+It's difficult to repeat fragments.	断片をくり返すのは難しい。
+That question can't be answered.	その質問には答えられない。
+I can't help your clumsiness.	あなたの不器用さはどうにもできない。
+Your load is too heavy.	荷物が重すぎる。
+You're holding too many things already!	もう持ち物がいっぱいだ！
+You already have that!	もう持っている！
+You already have it.	もう持っている。
+It is already open.	もう開いている。
+It is already closed.	もう閉まっている。
+You must tell me how to do that to a door.	扉にどうやってそれをするのか言ってほしい。
+You can't reach something that's inside a closed container.	閉じた入れ物の中のものには手が届かない。
+Hello.	こんにちは。
+Good day.	ごきげんよう。
+Nice weather we've been having lately.	最近いい天気が続いているね。
+Goodbye.	さようなら。
+What a concept!	なんという発想だ！
+A valiant attempt.	勇ましい試みだ。
+You can't be serious.	本気じゃないよね。
+Not a prayer.	まず無理だ。
+Fiddling with that won't help.	いじっても役に立たない。
+Wheeeeeeeeee!!!!!	ひゃっほーーーー！！！
+Very good. Now you can go to the second grade.	よくできました。これで2年生に進級だ。
+Are you enjoying yourself?	楽しんでいる？
+Do you expect me to applaud?	拍手でもしてほしいのかい？
+Look around.	周りを見てごらん。
+Too late for that.	もう手遅れだ。
+Have your eyes checked.	目を調べてもらったら？
+Nothing has been written on it.	何も書かれていない。
+How does one read a door?	扉なんてどうやって読むんだ？
+You hear nothing unusual.	特に変わった音は聞こえない。
+You smell nothing unusual.	特に変わったにおいはしない。
+You find nothing unusual.	特に変わったものは見つからない。
+There's nothing special about it.	特に変わったところはない。
+Well, you seem to be quite healthy.	まあ、あなたはいたって健康のようだ。
+You are in perfect health.	あなたは健康そのものだ。
+Thank you very much. It really hit the spot.	どうもありがとう。本当においしかった。
+Thank you very much. I was rather thirsty (from all this talking, probably).	どうもありがとう。けっこう喉が渇いていたんだ（たぶんしゃべりすぎたせいだね）。
+This seems to have no effect.	効果はないようだ。
+You can't do that.	それはできない。
+Ok.	わかった。
+Restarting.	最初からやり直す。
+Ok, restoring.	わかった、再開する。
+Ok, saving.	わかった、保存する。
+Failed.	失敗した。
+Do you wish to leave the game? (Y is affirmative):	ゲームを終了しますか？（はい＝y）：
+Do you wish to restart? (Y is affirmative):	最初からやり直しますか？（はい＝y）：
+Maximum verbosity.	詳しい表示にした。
+Brief descriptions.	簡潔な表示にした。
+Superbrief descriptions.	最も簡潔な表示にした。
+Here begins a transcript of interaction with	ここから記録を始める：
+# ---- 死亡・終了 ----
+****  You have died  ****	****  あなたは死んでしまった  ****
+****  You have won  ****	****  あなたの勝利だ  ****
+Now, let's take a look here...	さて、ちょっと見てみよう……
+Well, you probably deserve another chance.	まあ、もう一度チャンスをあげてもいいだろう。
+I can't quite fix you up completely, but you can't have everything.	完全には治してあげられないが、何もかもとはいかない。
+As you take your last breath, you feel relieved of your burdens.	最後の息を引き取ると、重荷から解放されたように感じる。
+The feeling passes as you find yourself before the gates of Hell, where the spirits jeer at you and deny you entry.	その感覚はすぐに消え、気がつくと地獄の門の前にいる。霊たちがあなたをあざけり、入れてくれない。
+Your senses are disturbed. The objects in the dungeon appear indistinct, bleached of color, even unreal.	感覚がおかしい。地下迷宮の物がぼんやりして色あせ、まるで現実ではないように見える。
+You clearly are a suicidal maniac. We don't allow psychotics in the cave, since they may harm other adventurers. Your remains will be installed in the Land of the Living Dead, where your fellow adventurers may gloat over them.	あなたは明らかに自殺志願の狂人だ。ほかの冒険者に危害を加えかねないので、そういう者は洞窟に入れない。あなたの亡骸は生ける屍の国に置かれ、仲間の冒険者たちのさらし者になる。
+Would you like to restart the game from the beginning, restore a saved game position, or end this session of the game?	ゲームを最初からやり直すか、保存した場面から再開するか、このゲームを終了するか選んでほしい。
+(Type RESTART, RESTORE, or QUIT):	（「やり直す」「ロード」「終了」のどれかを入力）：
+# ---- 小ネタ・その他 ----
+A hollow voice says "Fool."	うつろな声が言う。「愚か者め」
+A hollow voice says "Cretin."	うつろな声が言う。「間抜けめ」
+Fool.	愚か者め。
+There is a wall there.	そこは壁だ。
+There's not much lake left....	湖はもうほとんど残っていない……
+You are in a maze of twisty little passages, all alike.	あなたは、どれも似たような曲がりくねった小さな通路の迷路にいる。
+You are already wearing it.	もう身につけている。
+You are now in the magic boat.	魔法のボートに乗った。
+You are on your own feet again.	自分の足で立った。
+The lamp appears a bit dimmer.	ランプが少し暗くなったようだ。
+The lamp is definitely dimmer now.	ランプは明らかに暗くなった。
+The lamp is nearly out.	ランプはもうすぐ消えそうだ。
+The rope drops over the side and comes within ten feet of the floor.	ロープが縁から垂れ下がり、床まで3メートルほどのところに届いた。
+The rope is already tied to it.	ロープはもうそれに結んである。
+The troll, angered and humiliated, recovers his weapon. He appears to have an axe to grind with you.	怒りと屈辱に燃えたトロールは武器を拾い上げた。どうやらあなたに恨みがあるようだ。
+The troll is knocked out!	トロールは気絶した！
+Almost as soon as the troll breathes his last breath, a cloud of sinister black fog envelops him, and when the fog lifts, the carcass has disappeared.	トロールが息絶えるやいなや、不気味な黒い霧が彼を包み、霧が晴れると死体は消えていた。
+Someone carrying a large bag is casually leaning against one of the walls here. He does not speak, but it is clear from his aspect that the bag will be taken only over his dead body.	大きな袋を持った誰かが、ここの壁の一つに何気なくもたれている。何も言わないが、その様子から、袋は彼の死体を越えなければ手に入らないことが明らかだ。
+You hear a scream of anguish as you violate the robber's hideaway. Using passages unknown to you, he rushes to its defense.	あなたが盗賊の隠れ家に踏み込むと、苦悶の叫び声が聞こえた。あなたの知らない通路を使って、彼が守りに駆けつける。
+The thief seems to have left you something.	盗賊はあなたに何か置いていったようだ。
+A seedy-looking individual with a large bag just wandered through the room. On the way through, he quietly abstracted some valuables from the room and from your possession, mumbling something about "Doing unto others before..."	大きな袋を持ったみすぼらしい人物が部屋を通り抜けていった。通りがかりに、部屋とあなたの持ち物からこっそり貴重品をくすねていき、「人にされる前に……」と何やらつぶやいていた。
+Your sword is glowing with a faint blue glow.	剣がかすかに青く光っている。
+Your sword has begun to glow very brightly.	剣がとても明るく光り始めた。
+Your sword is no longer glowing.	剣はもう光っていない。
+The troll swings his axe, and it nicks your arm as you dodge.	トロールが斧を振り回し、よけたあなたの腕をかすめた。
+The haft of your sword knocks out the troll.	剣の柄がトロールを打ち、気絶させた。
+The unconscious troll cannot defend himself: He dies.	気絶したトロールは身を守れない。トロールは死んだ。
+The troll's axe barely misses your ear.	トロールの斧があなたの耳をかすめた。
+The axe sweeps past as you jump aside.	あなたが飛びのくと、斧が横をかすめていった。
+The troll's swing almost knocks you over as you barely parry in time.	なんとか受け流したが、トロールの一撃にもう少しで倒されるところだった。
+The troll hits you with a glancing blow, and you are momentarily stunned.	トロールの一撃がかすり、あなたは一瞬くらくらした。
+The troll is battered into unconsciousness.	トロールは打ちのめされて気を失った。
+A furious exchange, and the troll is knocked out!	激しい打ち合いの末、トロールは気絶した！
+Clang! Crash! The troll parries.	ガキン！ガシャン！トロールが受け流した。
+You are still recovering from that last blow, so your attack is ineffective.	さっきの一撃からまだ立ち直っておらず、攻撃は効かなかった。
+The troll stirs, quickly resuming a fighting stance.	トロールが身じろぎし、すぐに身構え直した。

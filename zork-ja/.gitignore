@@ -1,0 +1,5 @@
+# setup.sh が作るもの
+bin/
+build/
+game/
+__pycache__/
