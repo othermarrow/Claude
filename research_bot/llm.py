@@ -656,7 +656,10 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                                 and info["reasoning"] > config.THINKING_RUNAWAY_CHARS):
                             raise ThinkingRunaway(
                                 f"思考だけで{info['reasoning']:,}字(本文 0字)")
-                        continue
+                    # 思考の終わりと本文の書き出しが同じチャンクで届くことがある。
+                    # 以前はここで次のチャンクへ進めていたため、本文の最初の数文字が
+                    # 落ちた(実測: ultra に思考させた検索計画で先頭の { が消え、
+                    # JSON として読めなかった)。
                     piece = getattr(delta, "content", None)
                     if piece:
                         parts.append(piece)

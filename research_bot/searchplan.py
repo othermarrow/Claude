@@ -236,6 +236,9 @@ def extract_plan_json(raw: str) -> dict:
     if "</think>" in s.lower():
         s = s[s.lower().rindex("</think>") + len("</think>"):]
     s = s.strip()
+    if s.startswith('"'):
+        # 先頭の { だけが欠けた応答(思考と本文の境目で落ちる)。補って読む。
+        s = "{" + s
     dec = json.JSONDecoder()
     for text in (s, re.sub(r",\s*([}\]])", r"\1", s)):
         try:
