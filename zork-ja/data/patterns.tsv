@@ -1,0 +1,64 @@
+# 正規表現<TAB>日本語テンプレート。{1}{2}… はかっこの中身（物の名前は自動で日本語にする）。
+# {r1} のように r を付けると、名前に変換せずそのまま使う。
+# 名前に変換できない {1} があるときは、そのパターンは使わない。
+# 上から順に試す。文単位（行単位）で照合する。
+^There is an? (.+) here\.$	ここに{1}がある。
+^There are (.+) here\.$	ここに{1}がある。
+^There is an? (.+) here \(providing light\)\.$	ここに{1}がある（明かりがついている）。
+^An? (.+) \(providing light\)$	{1}（明かりがついている）
+^An? (.+) \(being worn\)$	{1}（身につけている）
+^The (.+) contains:$	{1}の中には：
+^Sitting on the (.+) is:$	{1}の上には：
+^On the (.+) is:$	{1}の上には：
+^Opening the (.+) reveals an? (.+)\.$	{1}を開けると、{2}が出てきた。
+^Opening the (.+) reveals (.+)\.$	{1}を開けると、{2}が出てきた。
+^The (.+) is now open\.$	{1}が開いた。
+^The (.+) is now closed\.$	{1}が閉まった。
+^The (.+) is closed\.$	{1}は閉まっている。
+^The (.+) is open\.$	{1}は開いている。
+^The (.+) is empty\.$	{1}は空っぽだ。
+^The (.+) is now on\.$	{1}の明かりがついた。
+^The (.+) is now off\.$	{1}の明かりが消えた。
+^The (.+) is already on\.$	{1}の明かりはもうついている。
+^The (.+) is already off\.$	{1}の明かりはもう消えている。
+^The (.+) isn't open\.$	{1}は開いていない。
+^The (.+) is locked\.$	{1}には鍵がかかっている。
+^The (.+) is unlocked\.$	{1}の鍵が開いた。
+^You can't see any (.+) here!$	ここに{1}は見当たらない！
+^You don't have the (.+)\.$	{1}は持っていない。
+^You're not carrying the (.+)\.$	{1}は持っていない。
+^You aren't carrying the (.+)\.$	{1}は持っていない。
+^You can't use multiple direct objects with "(.+)"\.$	「{r1}」には目的語を複数使えない。
+^You can't use multiple indirect objects with "(.+)"\.$	「{r1}」には間接目的語を複数使えない。
+^I don't know the word "(.+)"\.$	「{r1}」という単語は知らない。
+^You used the word "(.+)" in a way that I don't understand\.$	「{r1}」という単語の使い方がわからない。
+^What do you want to (.+)\?$	何を対象にする？（{r1}）
+^Which (.+) do you mean, (.+)\?$	どの{1}のこと？　{2}？
+^\(How about the (.+)\?\)$	（{1}はどう？）
+^\(with the (.+)\)$	（{1}を使って）
+^\((.+)\)$	（{1}）
+^You can't reach the (.+)\.$	{1}に手が届かない。
+^There's nothing special about the (.+)\.$	{1}に特に変わったところはない。
+^I see nothing special about the (.+)\.$	{1}に特に変わったところはない。
+^The (.+) is already open\.$	{1}はもう開いている。
+^The (.+) is already closed\.$	{1}はもう閉まっている。
+^You must tell me how to do that to an? (.+)\.$	{1}にどうやってそれをするのか言ってほしい。
+^You can't take the (.+)\.$	{1}は取れない。
+^A nice idea, but with an? (.+)\?$	いい考えだけど、{1}で？
+^Your score is (-?\d+) \(total of 350 points\), in (\d+) moves?\.$	あなたの得点は{1}点（満点350点）、手数は{2}手だ。
+^This gives you the rank of (.+)\.$	あなたの称号は「{1}」だ。
+^\[Your score has just gone up by (\d+) points?\.\]$	［得点が{1}点上がった。］
+^\[Your score has just gone down by (\d+) points?\.\]$	［得点が{1}点下がった。］
+^You have been killed once\.$	あなたは一度死んでいる。
+^You have been killed twice\.$	あなたは二度死んでいる。
+^With great effort, you open the (.+)\.$	苦労して{1}を開けた。
+^The (.+) is too big to fit\.$	{1}は大きすぎて入らない。
+^There's no room\.$	入る余地がない。
+^The (.+) isn't here!$	{1}はここにない！
+^(.+): Taken\.$	{1}：取った。
+^(.+): Dropped\.$	{1}：置いた。
+^(.+): Done\.$	{1}：やった。
+^(.+): You can't take that\.$	{1}：それは取れない。
+^(.+): Your load is too heavy\.$	{1}：荷物が重すぎる。
+^(.+): It's already in the (.+)\.$	{1}：もう{2}の中にある。
+^Please enter a filename \[(.+)\]:$	ファイル名を入力してください（英数字。何も入れずに Enter で「{r1}」）：

@@ -1,0 +1,63 @@
+# 日本語の動詞（, 区切りで言い方を並べる）<TAB>目的語があるときの英語<TAB>目的語がないときの英語（省略可）
+# 「A|B」と書くと、{i} がないときは A、あるときは B を使う。
+# {o}＝「〜を」の物、{i}＝「〜に／〜で／〜へ」などの物。[ ] の中は {i} があるときだけ使う。
+取る,とる,取って,拾う,ひろう,持つ,手に取る,もらう,取り出す	take {o}[ from {i}]
+置く,おく,捨てる,すてる,下ろす,手放す	drop {o}|put {o} in {i}
+入れる,いれる,しまう,詰める	put {o} in {i}
+乗せる,載せる,のせる	put {o} on {i}
+開ける,あける,開く,ひらく	open {o}[ with {i}]
+閉める,しめる,閉じる,とじる	close {o}
+鍵を開ける,解錠する,解錠	unlock {o}[ with {i}]
+鍵をかける,鍵を掛ける,施錠する,施錠	lock {o}[ with {i}]
+読む,よむ	read {o}
+調べる,しらべる,見る,みる,観察する,眺める,確認する	examine {o}	look
+中を見る,のぞく,覗く,のぞき込む	look in {o}
+探す,さがす,捜す	search {o}
+つける,点ける,点灯する,灯す,ともす	turn on {o}
+消す,けす,消灯する	turn off {o}
+火をつける,燃やす,もやす,焼く	burn {o}[ with {i}]
+攻撃する,攻撃,殺す,ころす,倒す,たおす,戦う,たたかう,斬る,切りつける,刺す,殴る,なぐる	attack {o}[ with {i}]
+切る,切断する	cut {o}[ with {i}]
+渡す,わたす,あげる,与える,あたえる,差し出す	give {o}[ to {i}]
+投げる,なげる,投げつける	throw {o}[ at {i}]
+結ぶ,むすぶ,縛る,しばる,くくる,つなぐ	tie {o}[ to {i}]
+ほどく,解く	untie {o}
+登る,のぼる,上る,上がる,あがる	climb {o}	up
+降りる,おりる,下りる,くだる	climb down {o}	down
+入る,はいる	enter {o}	in
+出る,でる,出て行く	exit {o}	out
+乗る,のる,乗り込む	board {o}
+食べる,たべる,食う	eat {o}
+飲む,のむ	drink {o}
+押す,おす	push {o}
+引く,ひく,引っ張る	pull {o}
+動かす,うごかす,どける,ずらす,めくる	move {o}
+持ち上げる,上げる,あげて	raise {o}
+回す,まわす,ひねる	turn {o}[ with {i}]
+振る,ふる	wave {o}
+鳴らす,ならす	ring {o}
+巻く,まく,ぜんまいを巻く	wind {o}
+掘る,ほる	dig in {o}[ with {i}]
+膨らませる,ふくらませる,膨らます	inflate {o}[ with {i}]
+しぼませる,空気を抜く	deflate {o}
+注ぐ,そそぐ,かける	pour {o}[ on {i}]
+満たす,満たして,汲む,くむ	fill {o}[ with {i}]
+着る,身につける,はめる,かぶる	wear {o}
+脱ぐ,外す	take off {o}
+壊す,こわす,割る,わる	break {o}[ with {i}]
+話す,はなす,話しかける	talk to {o}
+起こす,おこす	wake {o}
+蹴る	kick {o}
+触る,さわる,触れる	touch {o}
+嗅ぐ,かぐ,においを嗅ぐ	smell {o}
+聞く,きく	listen to {o}
+数える,かぞえる	count {o}
+修理する,直す,なおす	fix {o}[ with {i}]
+締める,しめつける	tighten {o}[ with {i}]
+緩める,ゆるめる	loosen {o}[ with {i}]
+飛び越える,跳び越える	jump over {o}	jump
+泳ぐ,およぐ	swim in {o}	swim
+待つ,まつ	wait	wait
+祈る,いのる	pray	pray
+唱える,となえる,言う,いう	say {o}
+送り出す,漕ぎ出す	launch {o}
