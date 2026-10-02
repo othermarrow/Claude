@@ -16,6 +16,7 @@
 | `catalog.py` | カタログ・索引・レポート生成プロンプトの書き出し、前回との差分、relink |
 | `llm.py` | API 呼び出し(送信間隔・モデル名の事前確認・再試行・自動切り替え・JSON の回収) |
 | `update_research_bot.sh` | `rbup` の中身。Download の zip で `~/research_bot` を入れ替える(Termux のホームに置く) |
+| `.research_bot.sh` | 補助コマンド(`rb`・`rbrun`・`check`・`rbup` など。一覧は `rbhelp`)。`~/.research_bot.sh` に置き、`.bashrc` から読み込む。rbup では入れ替わらない |
 
 すべて同じフォルダに置いて実行する。
 
