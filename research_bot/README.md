@@ -15,6 +15,8 @@
 | `fulltext.py` | 本文(Methods 章)での確認と、全文アクセス可否の一覧 |
 | `catalog.py` | カタログ・索引・レポート生成プロンプトの書き出し、前回との差分、relink |
 | `llm.py` | API 呼び出し(送信間隔・モデル名の事前確認・再試行・自動切り替え・JSON の回収) |
+| `update_research_bot.sh` | `rbup` の中身。Download の zip で `~/research_bot` を入れ替える(Termux のホームに置く) |
+| `.research_bot.sh` | 補助コマンド(`rb`・`rbrun`・`check`・`rbup` など。一覧は `rbhelp`)。`~/.research_bot.sh` に置き、`.bashrc` から読み込む。rbup では入れ替わらない |
 
 すべて同じフォルダに置いて実行する。
 
@@ -64,7 +66,7 @@ python research_bot.py unwikilink <パス> --apply   # フロントマターの[
 python research_bot.py models               # 使えるモデルの一覧
 python research_bot.py probe                # モデルが今応答するか(1分ほど)
 python research_bot.py bench                # 1段目の候補モデルを同じ問題で比べる
-python research_bot.py plan "テーマ" --model 6      # 検索計画だけ作る(計画のモデルの比較用。検索・判定はしない。--queries で検索式も)
+python research_bot.py plan "テーマ"        # 検索計画だけ作って確かめる(検索・判定はしない。--queries で検索式も)。残した計画を次の収集が使う
 ```
 
 `<テーマ>` はフォルダ名・フォルダのパス・カタログのパスのどれでもよい。
@@ -90,6 +92,20 @@ python research_bot.py plan "テーマ" --model 6      # 検索計画だけ作�
 ```bash
 python research_bot.py --reuse-plan 重度知的障害者に対する1週間のスケジュール提示支援_1
 ```
+
+### 検索計画を先に確かめるとき(rb plan)
+
+`python research_bot.py plan "テーマ"` は検索計画だけを作って表示する。
+作った計画は `~/rb_logs/plans/` に残り、同じテーマ文の次の収集は、計画を
+作り直さずにそれで検索する(確かめた計画と違う計画で検索しないため。
+同じテーマ文でも、作るたびに語の読み方が変わることがある)。
+
+- 収集が終わると、使った計画は `.used.json` に退く(次からは使われない)
+- `--replan` を付けると、残した計画を退けて作り直す
+- `--reuse-plan` を付けると、残した計画は使わずに次の回のために残す
+  (前回の収集と同じ計画で差分を見たい、という指定を優先する)
+- `--model` を変えて続けて作ると、最後に作った計画が残る。別のモデルの計画を
+  使いたいときは、そのモデルでもう一度 `plan` を実行する
 
 テーマ文は2行目以降も AI に渡る(フォルダ名に使うのは1行目だけ)。集めたい
 範囲を2行目に書き足すと、検索語とテーマの定義に反映されやすい。
@@ -221,11 +237,12 @@ FILTER_BATCH_SIZE=4 python research_bot.py --resume
 
 ## 更新のしかた
 
-送られてきた zip を Download に置いて:
+送られてきた zip を Download に置いて `rbup`(= `bash ~/update_research_bot.sh`)。
+Download にある `research_bot*.zip` のうち最も新しいものを使い、`.py` と
+`README.md` を `~/research_bot` に上書きする。中身は `update_research_bot.sh`。
 
-```bash
-bash ~/update_research_bot.sh
-```
+zip を作るときは、中を `research_bot/` フォルダに入れる(`research_bot/config.py`
+など)。フォルダが無いと `cp` で止まり、何も入れ替わらない。
 
 ## 旧版からの変更(2026年9月)
 

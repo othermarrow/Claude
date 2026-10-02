@@ -2055,7 +2055,7 @@ def compare_indexes(old: dict, new: dict) -> dict:
         orec, nrec = o_items[ok], n_items[nk]
         os_, ns_ = orec.get("score"), nrec.get("score")
         if ("score_a" in orec) != ("score_a" in nrec):
-            # 一方だけが3つのモデルの平均(score)。1本目自身の点数どうしで比べる
+            # 一方だけが3つのモデルの中央値(score)。1本目自身の点数どうしで比べる
             os_, ns_ = orec.get("score_a", os_), nrec.get("score_a", ns_)
         if _cluster_of(orec) != _cluster_of(nrec):
             cluster_changed.append((ok, nk, orec, nrec))

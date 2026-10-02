@@ -844,6 +844,14 @@ def consensus_judge(kept, topic, definition, homonyms, save=None) -> dict:
     """
     if not config.CONSENSUS_CORE or not kept or not llm.have_api_key():
         return {}
+    # 1本目が判定していない(未判定の)文献は対象にしない。採否は1本目で決める
+    # 約束で、未判定はカタログ本体から分離される。実測で確かめた食い違い:
+    # 未判定の文献が2本目・3本目の点数だけで中央値を持ち、rebalance_clusters で
+    # core に入った(逆に2本目・3本目が共に低ければ「多数決で除外」になった)。
+    # 429 が続いて未判定が多い回ほど、問い合わせも無駄に増えていた。
+    kept = [it for it in kept if it.get("relevance_score") is not None]
+    if not kept:
+        return {}
     hom = homonym_note(homonyms)
     first = {it.get("judge_model") for it in kept if it.get("judge_model")}
     order = config.fallback_models("ensemble")

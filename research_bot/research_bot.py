@@ -4,6 +4,11 @@
   python research_bot.py "テーマを文章で"     テーマを直接指定して収集
   python research_bot.py --resume            中断したところから再開
   python research_bot.py --model 2           判定モデルを差し替えて収集
+  python research_bot.py --reuse-plan        前回の収集と同じ検索計画で収集
+  python research_bot.py --replan            検索計画を作り直して収集
+
+  python research_bot.py plan [テーマ]        検索計画だけを作って確かめる
+                                             (残した計画を次の収集が使う)
 
   python research_bot.py check <テーマ>       事後チェック3種をまとめて実行
   python research_bot.py ensemble <テーマ>    別モデルで判定を再確認
@@ -516,12 +521,32 @@ def cmd_search(args):
     else:
         reuse = (args.reuse_plan if args.reuse_plan is not None
                  else config.REUSE_SEARCH_PLAN)
+        # rb plan で確認した計画。--reuse-plan も --replan も付けなければ使う。
+        # 確認した計画と違う計画で検索してしまうのを避けるため(実測: 同じ
+        # テーマ文でも、作るたびに「キーパーソン」の読み方が変わった)。
+        # --reuse-plan を付けたときは、前回と同じ計画で差分を見たいという指定の
+        # ほうを優先し、確認した計画は次の回のために残す。
+        checked = load_checked_plan(topic) if args.reuse_plan is None else {}
+        if args.reuse_plan is False:
+            retire_checked_plan(topic)
+        elif args.reuse_plan is not None and load_checked_plan(topic):
+            print("[情報] rb plan で確認した計画がありますが、--reuse-plan を付けたので"
+                  "今回は使いません(次の rbrun のために残します)。")
         if named_plan:
             prev_plan, prev_from = named_plan[0], named_plan[1]
         else:
             prev_plan, prev_from = (catalog.find_previous_plan(topic, args.output_dir)
                                     if reuse else (None, ""))
-        if prev_plan:
+        if checked:
+            print(f"[1/7] rb plan で確認した検索計画({checked.get('made_at')} 作成・"
+                  f"{checked.get('model')})を使います(作り直すには --replan、"
+                  "前回の収集の計画を使うには --reuse-plan)。")
+            # どの確認済みの計画を使ったかを計画に残す。収集を終えたとき、
+            # 使った計画だけを退けるため(--resume でもチェックポイントから戻る)
+            plan = dict(checked["plan"], checked_at=checked.get("made_at"))
+            search_log.append(f"検索計画: rb plan で確認したもの({checked.get('made_at')} "
+                              f"作成・{checked.get('model')})を使用")
+        elif prev_plan:
             # 同じ計画で検索すれば、前回との差分が「新しく出た文献」になる
             print(f"[1/7] 前回の収集({prev_from})の検索計画を使います"
                   "(作り直すには --replan)。")
@@ -533,8 +558,8 @@ def cmd_search(args):
                       "新しく作ります。")
             # --- 1. ファセット抽出 ---
             print("[1/7] テーマを検索のファセットへ分解しています...")
-            plan = make_plan(topic, active_planning_model(), config.PLANNING_THINKING,
-                             config.PLANNING_TIMEOUT)
+            plan, _ = make_plan(topic, active_planning_model(), config.PLANNING_THINKING,
+                                config.PLANNING_TIMEOUT)
             facets = plan.get("facets") or []
             if searchplan.is_degenerate(plan, topic):
                 print("[警告] 検索計画を作れず、テーマ文をそのまま検索語として使う"
@@ -718,6 +743,8 @@ def cmd_search(args):
         + ("、または2本目・3本目が共に未満" if any(it.get("outvoted") for it in excluded)
            else "") + ")")
     clear_checkpoint(args.output_dir, topic)
+    if plan.get("checked_at"):
+        retire_checked_plan(topic, plan["checked_at"])
 
     theme_name = os.path.basename(paths["_folder"])
     print("\n【完了】")
@@ -877,8 +904,8 @@ def cmd_probe(args):
 
 
 def _save_plan_raw(raw: str, model: str) -> str:
-    """読めなかった計画の応答を ~/rb_logs に残す(原因を調べるため)。"""
-    d = os.path.expanduser("~/rb_logs")
+    """読めなかった計画の応答を config.PLAN_RAW_DIR に残す(原因を調べるため)。"""
+    d = config.PLAN_RAW_DIR
     try:
         os.makedirs(d, exist_ok=True)
         p = os.path.join(d, "plan_raw_" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -890,9 +917,60 @@ def _save_plan_raw(raw: str, model: str) -> str:
         return ""
 
 
+def _checked_plan_path(topic: str) -> str:
+    """rb plan で確認した計画の置き場所。テーマ文ごとに1つ。"""
+    h = hashlib.sha1(topic.strip().encode("utf-8")).hexdigest()[:12]
+    return os.path.join(config.PLAN_DIR, f"plan_{h}.json")
+
+
+def save_checked_plan(topic: str, plan: dict, model: str, think: bool) -> str:
+    """rb plan で作った計画を、次の rbrun で使えるよう残す。"""
+    p = _checked_plan_path(topic)
+    try:
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump({"topic": topic.strip(), "model": model, "thinking": think,
+                       "made_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                       "plan": plan}, f, ensure_ascii=False, indent=1)
+        return p
+    except (OSError, TypeError, ValueError):
+        return ""
+
+
+def load_checked_plan(topic: str) -> dict:
+    """rb plan で確認した計画。無ければ空の辞書。"""
+    try:
+        with open(_checked_plan_path(topic), encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    if (d.get("topic") or "") != topic.strip() or not (d.get("plan") or {}).get("facets"):
+        return {}
+    return d
+
+
+def retire_checked_plan(topic: str, made_at: str = None) -> None:
+    """使い終えた(または作り直した)ので、確認済みの計画を退ける。
+
+    made_at を渡したときは、その時刻に作った計画が今も残っているときだけ退ける。
+    収集の途中で rb plan を作り直していた場合に、まだ使っていない新しい計画を
+    退けないため。
+    """
+    if made_at is not None and load_checked_plan(topic).get("made_at") != made_at:
+        return
+    p = _checked_plan_path(topic)
+    try:
+        os.replace(p, p[:-len(".json")] + ".used.json")
+    except OSError:
+        pass
+
+
 def make_plan(topic: str, model: str, think: bool, timeout: float,
-              fallback: bool = True) -> dict:
+              fallback: bool = True) -> tuple:
     """検索計画を作る。応答が読めなければ、思考なしでもう一度作る。
+
+    戻り値は (計画, 実際に思考させたか)。思考ありで読めず、思考なしで作り直した
+    ときは False になる(rb plan が残す記録を実際と合わせるため)。
 
     実測: ultra に思考させた計画は、同じテーマで1回目は読めたが、2回目は
     JSON として読めず、テーマ文だけの1ファセットに縮退した(検索がほぼ機能
@@ -916,18 +994,22 @@ def make_plan(topic: str, model: str, think: bool, timeout: float,
             continue
         plan = searchplan.parse_facet_response(raw, topic)
         if not searchplan.is_degenerate(plan, topic):
-            return plan
+            return plan, th
         saved = _save_plan_raw(raw, used)
         print(f"[警告] 計画の応答を JSON として読めませんでした({used}・思考"
               f"{'あり' if th else 'なし'}・{len(raw)}字)。"
               + (f"応答を {saved} に保存しました。" if saved else ""))
         print(f"       先頭: {raw[:150]!r}")
         print(f"       末尾: {raw[-150:]!r}")
-    return searchplan.parse_facet_response("" if llm.is_error(raw) else raw, topic)
+    return searchplan.parse_facet_response("" if llm.is_error(raw) else raw, topic), False
 
 
 def cmd_plan(args):
-    """検索計画だけを作って表示する(検索も判定もしない)。モデルの比較用。"""
+    """検索計画だけを作って表示する(検索も判定もしない)。
+
+    作った計画は残り、同じテーマ文の次の rbrun が使う(--replan / --reuse-plan を
+    付けなければ)。モデルを比べるために続けて作ると、最後に作った計画が残る。
+    """
     _require_key()
     topic = (args.topic or read_topic()).strip()
     model = config.resolve_model(args.model) or config.PLANNING_MODEL
@@ -935,7 +1017,7 @@ def cmd_plan(args):
     print(f"[計画] テーマ: {topic}")
     print(f"[計画] モデル: {model} / 思考: {'あり' if think else 'なし'}")
     t0 = time.time()
-    plan = make_plan(topic, model, think, args.timeout, fallback=False)
+    plan, thought = make_plan(topic, model, think, args.timeout, fallback=False)
     took = time.time() - t0
     if searchplan.is_degenerate(plan, topic):
         print(f"[計画] 失敗({took:.0f}秒): 計画を作れませんでした。")
@@ -950,6 +1032,13 @@ def cmd_plan(args):
     n_terms = sum(len(f["en"]) + len(f["ja"]) for f in plan["facets"])
     print(f"[計画] {took:.0f}秒 / ファセット {len(plan['facets'])}個 / 検索語 {n_terms}語"
           + (f" / 外した語 {len(plan['pruned'])}語" if plan.get("pruned") else ""))
+    before = load_checked_plan(topic)
+    if save_checked_plan(topic, plan, model, thought):
+        if before:
+            print(f"[計画] 前に残した計画({before.get('made_at')} 作成・"
+                  f"{before.get('model')})をこの計画で置き換えました。")
+        print("[計画] この計画を残しました。同じテーマ文の次の rbrun は、作り直さずに"
+              "この計画で検索します(作り直すなら --replan)。")
 
 
 def cmd_bench(args):
