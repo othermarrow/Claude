@@ -15,6 +15,7 @@
 | `fulltext.py` | 本文(Methods 章)での確認と、全文アクセス可否の一覧 |
 | `catalog.py` | カタログ・索引・レポート生成プロンプトの書き出し、前回との差分、relink |
 | `llm.py` | API 呼び出し(送信間隔・モデル名の事前確認・再試行・自動切り替え・JSON の回収) |
+| `update_research_bot.sh` | `rbup` の中身。Download の zip で `~/research_bot` を入れ替える(Termux のホームに置く) |
 
 すべて同じフォルダに置いて実行する。
 
@@ -235,11 +236,12 @@ FILTER_BATCH_SIZE=4 python research_bot.py --resume
 
 ## 更新のしかた
 
-送られてきた zip を Download に置いて:
+送られてきた zip を Download に置いて `rbup`(= `bash ~/update_research_bot.sh`)。
+Download にある `research_bot*.zip` のうち最も新しいものを使い、`.py` と
+`README.md` を `~/research_bot` に上書きする。中身は `update_research_bot.sh`。
 
-```bash
-bash ~/update_research_bot.sh
-```
+zip を作るときは、中を `research_bot/` フォルダに入れる(`research_bot/config.py`
+など)。フォルダが無いと `cp` で止まり、何も入れ替わらない。
 
 ## 旧版からの変更(2026年9月)
 
