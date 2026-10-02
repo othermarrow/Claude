@@ -12,9 +12,11 @@
 """
 
 import datetime
+import hashlib
 import json
 import os
 import re
+import statistics
 import time
 from collections import Counter
 
@@ -298,6 +300,13 @@ def bench_prefilter(models, timeout: float = 300) -> None:
 # 判定結果の形(1件ぶん):
 #   {"score": 0-100, "measured": True/False/None, "reason": str, "cluster": str}
 # cluster は score と measured から classify() で機械的に決める。
+#
+# 「対象が同じだけでは隣接ではない」の段落: 実測で、単一事例研究の方法論の
+# 総説3件、知的障害者の住環境のレビュー、自閉症の介入全般のレビューに70〜75点が
+# 付き、判定メモには「スケジュール支援とは無関係」「扱われていない」と書かれて
+# いた(点数とメモが食い違う)。対象(知的障害者)が一致することを隣接と
+# 取り違えていたため、介入そのものを扱わないものは帯の外と明記し、
+# 自分のメモと点数を突き合わせさせる。
 FILTER_PROMPT = """You are an expert in academic literature review.
 
 [Research theme] {topic}
@@ -310,23 +319,51 @@ FILTER_PROMPT = """You are an expert in academic literature review.
 For each paper, judge both a relevance score (0-100) and measured (boolean).
 
 Guide to the relevance score:
-90-100: the paper's main subject is the exact target/method the theme's
+{core}-100: the paper's main subject is the exact target/method the theme's
         definition refers to
-60-89 : addresses the same broader concept or an adjacent area, but the
-        target itself is not the main subject
-21-59 : some relevance but weak, or the target is somewhat off
-0-20  : unrelated, or a same-name/same-spelling but different concept
+{keep}-{core_below}: adjacent evidence that a reader of this theme would want to
+        see: the same intervention or phenomenon in a broader or neighboring
+        population or setting, a close variant of the target, or a review
+        of it. The target itself is not the main subject.
+{off_above}-{keep_below}: shares a broad area or a keyword, but would not inform the
+        theme
+0-{off}: unrelated, or a same-name/same-spelling but different concept
 
 A theme is normally an intersection of conditions, not a single keyword.
 Read the definition and identify every condition it states — the
 phenomenon, the population, and the setting or context. A paper reaches
 90-100 only when its main subject covers that whole intersection. A paper
 about the phenomenon in general, or about it in a population the definition
-does not cover, belongs in 60-89 however central the phenomenon is to that
+does not cover, belongs in {keep}-{core_below} however central the phenomenon is to that
 paper, and however often the keyword appears in it. For a theme about
 transference between abused people with intellectual disabilities and their
 support workers, a general overview of transference-focused psychotherapy
-is 60-89, not 95. Score the intersection, not the keyword.
+is {keep}-{core_below}, not 95. Score the intersection, not the keyword.
+
+Adjacent evidence means the same intervention or phenomenon. Sometimes the
+theme's keyword appears but names something else: the timetable of the
+study's own procedure (e.g. the weekly plan of an exercise program), a
+staff rota, an administrative or care plan, or a unit of time used for
+measurement. Such a paper shares only a keyword with the theme: score
+{off_above}-{keep_below}, however close its population or setting is.
+
+Sharing the population alone is not adjacency either. A paper that does
+not address the theme's intervention or phenomenon, or a close variant of
+it — a general review of the population, a study of a different
+intervention, a paper on research methods, a survey of living conditions
+or attitudes — shares only a broad area: score {off_above}-{keep_below}, even when its
+population matches the theme exactly. Check your own reason before you
+give the score: if it says the paper does not deal with the intervention or
+phenomenon at all (not merely that it uses another variant, time unit, or
+population of it), the score must be {keep_below} or lower.
+
+The definition may say that some kinds of studies are not included — a
+broader or narrower population, a different time unit or variant of the
+intervention, another setting. A study that is close to the theme but falls
+under such a clause is still adjacent evidence: score it {keep}-{core_below},
+not lower. Reserve 0-{off} for a same-name/same-spelling concept or a
+different field, and {off_above}-{keep_below} for a study that shares only a broad area or a
+keyword with the theme.
 
 Judge measured on this single question only:
 "Did this study actually measure, evaluate, or apply the target that the
@@ -349,16 +386,29 @@ you cannot tell, also mark false, and write in reason (in Japanese):
 If the title looks similar but refers to a different concept, scale, or
 field (a same-name/same-spelling but unrelated case), score 20 or below,
 and write in reason (in Japanese) what it is being confused with, in the
-form "同名異義語: 〇〇". Any paper whose content falls outside psychology,
+form "同名異義語: 〇〇". A homonym is a different thing that happens to share
+the name. An outdated term for the same population (e.g. "mentally
+retarded"), a broader or narrower population, or a related method is not a
+homonym. Any paper whose content falls outside psychology,
 welfare, medicine, and education scores 20 or below.
 
 [Output]
-Output only the following JSON array. You must output exactly one entry for
-every paper, with no omissions. Write the reason field in Japanese, briefly
-(under 40 characters). Leave it empty when there is nothing to note.
-[{{"index": 0, "score": 95, "measured": true, "reason": ""}},
- {{"index": 1, "score": 85, "measured": false, "reason": "導入で言及するのみ"}},
- {{"index": 2, "score": 10, "measured": false, "reason": "同名異義語: 運動機能評価尺度"}}]"""
+Output only a JSON array in the following format. You must output exactly one
+entry for every paper, with no omissions. Write the reason field in Japanese,
+briefly (under 40 characters). Leave it empty when there is nothing to note.
+Each entry also has "t": the first three words of that paper's title,
+copied exactly as listed (for a Japanese title, its first 10 characters),
+without the source in brackets. It shows which paper the entry is about, so
+take it from the paper you are judging at that moment.
+The example below shows the format only. Judge each paper from its own
+abstract and write your own reason; never copy the example scores or reasons.
+"〇〇" is a slot to fill in, never output it as is.
+[{{"index": 0, "t": "〇〇", "score": 95, "measured": true, "reason": ""}},
+ {{"index": 1, "t": "〇〇", "score": 85, "measured": false, "reason": "導入で言及するのみ"}},
+ {{"index": 2, "t": "〇〇", "score": 10, "measured": false, "reason": "同名異義語: 〇〇"}}]"""
+
+# 例の枠("〇〇")。これが残った理由は、抄録を読まずに例を写したとみなす。
+EXAMPLE_SLOT = "〇〇"
 
 # guided_json(config.USE_GUIDED_JSON)を使うときのスキーマ
 FILTER_SCHEMA = {
@@ -367,13 +417,29 @@ FILTER_SCHEMA = {
         "type": "object",
         "properties": {
             "index": {"type": "integer"},
+            "t": {"type": "string"},
             "score": {"type": "integer", "minimum": 0, "maximum": 100},
             "measured": {"type": "boolean"},
             "reason": {"type": "string"},
         },
-        "required": ["index", "score", "measured", "reason"],
+        "required": ["index", "t", "score", "measured", "reason"],
     },
 }
+
+
+def _score_bands() -> dict:
+    """判定の手引きの点数帯。config の閾値と揃える。
+
+    実測: 手引きが「隣接領域は60-89」、採用の閾値が70で、隣接領域の帯の
+    真ん中で採否が分かれていた。同じ種類の文献が65点で除外、75点で採用と
+    なり(知的障害者への視覚的活動スケジュールのメタ分析が65点で除外)、
+    取り直すたびに採否が入れ替わった。隣接領域の帯を閾値から始めれば、
+    採否は「このテーマの読み手に役立つか」という一つの問いで決まる。
+    """
+    return {"core": config.CORE_SCORE, "core_below": config.CORE_SCORE - 1,
+            "keep": config.RELEVANCE_THRESHOLD,
+            "keep_below": config.RELEVANCE_THRESHOLD - 1,
+            "off": config.OFF_SCORE, "off_above": config.OFF_SCORE + 1}
 
 
 def homonym_note(homonyms) -> str:
@@ -418,11 +484,80 @@ def _coerce(rec: dict) -> dict:
             "cluster": classify(score, measured)}
 
 
+def _flat(text) -> str:
+    """改行・連続した空白を1つの空白にする。抄録の中の「2. 方法」のような
+    行が、並べた論文の番号に見えないように。"""
+    return re.sub(r"\s+", " ", str(text or "")).strip()
+
+
 def _listing(batch) -> str:
     return "\n".join(
-        f"{i}. [{it.get('src', '')}] {it.get('title', 'Untitled')}\n"
-        f"   Abstract: {(it.get('content') or '')[:config.FILTER_EXCERPT_CHARS]}"
+        f"{i}. [{it.get('src', '')}] {_flat(it.get('title')) or 'Untitled'}\n"
+        f"   Abstract: {_flat((it.get('content') or '')[:config.FILTER_EXCERPT_CHARS])}"
         for i, it in enumerate(batch))
+
+
+# 「この番号の論文は無い」という応答。モデルが途中で1件読み落とし、判定を
+# 1件ずつずらして書いたときに、最後の番号に出る(実測: 1回の収集で6〜8件、
+# 「該当する論文が存在しない(候補に5件のみ)」等)。
+_MISSING_RE = re.compile(r"(論文|抄録|文献)が(提供され|与えられ|存在し|見当たら|含まれ)"
+                         r"|候補に\s*\d+\s*件")
+
+
+def _title_key(s) -> str:
+    s = re.sub(r"^\s*\[[^\]]*\]\s*", "", str(s or ""))
+    return re.sub(r"[\W_]+", "", s.lower())
+
+
+def _realign(m: dict, titles: list) -> tuple:
+    """判定と論文の対応を、各判定の "t"(タイトルの書き出し)で確かめて直す。
+
+    実測: モデルが6件のうち1件を読み落とすと、以降の判定を1件ずつ前の番号に
+    書き、最後の番号に「論文が無い」と書いた。関連の明らかな研究(ビデオ
+    活動スケジュール)が0点になり、その判定は無関係な本(PRT の手引き)に
+    付いていた。抽出でも、2件の参加者数が入れ替わっていた。
+    t が別の1件のタイトルと一致すればそちらへ付け替える。t が無い・読めない
+    判定は番号どおりに置く(付け替えた判定と重なれば捨てる)。
+    「論文が無い」と答えた判定は捨てる(判定し直しになる)。
+    戻り値は (付け替えた数, 捨てた数)。
+    """
+    keys = [_title_key(t) for t in titles]
+    dropped = 0
+    for i in [i for i, r in m.items()
+              if _MISSING_RE.search(str((r or {}).get("reason") or ""))]:
+        del m[i]
+        dropped += 1
+
+    def where(r):
+        tk = _title_key((r or {}).get("t"))[:30]
+        if len(tk) < 4:
+            return None
+        return [j for j, k in enumerate(keys) if k.startswith(tk)]
+
+    ok, move, unsure = {}, [], []
+    for i, r in m.items():
+        hit = where(r)
+        if hit and i in hit:
+            ok[i] = r
+        elif hit and len(hit) == 1:
+            move.append((hit[0], r))
+        else:
+            unsure.append((i, r))
+    moved = 0
+    for j, r in move:
+        if j in ok:
+            dropped += 1
+        else:
+            ok[j] = r
+            moved += 1
+    for i, r in unsure:
+        if i in ok:
+            dropped += 1
+        else:
+            ok[i] = r
+    m.clear()
+    m.update(ok)
+    return moved, dropped
 
 
 def _diagnose(raw: str, n: int) -> None:
@@ -452,6 +587,52 @@ def _count_note(n: int) -> str:
             f"Your array must contain exactly {n} entries.")
 
 
+_extra_shown = set()          # JSON 以外の出力を知らせたモデル
+
+
+def _note_extra(raw: str, model: str) -> None:
+    """JSON の前後に余分な出力が付いた応答を、モデルごとに1回だけ知らせる。
+
+    実測: 判定の応答の全バッチで JSON の前後に何かが付き、毎回
+    「余分な出力があった」と表示されて、他の表示が読めなくなった。読み取り
+    には影響しない(先頭の JSON だけを使う)ので、何が付いているかの例を
+    1回見せて、以後は表示しない。
+    """
+    if model in _extra_shown:
+        return
+    _extra_shown.add(model)
+    s = (raw or "").strip()
+    lead, tail = "", ""
+    i = s.find("[")
+    if i >= 0:
+        try:
+            _, end = json.JSONDecoder().raw_decode(s, i)
+            lead, tail = s[:i].strip(), s[end:].strip()
+        except ValueError:
+            pass
+    parts = ([f"前 {lead[:60]!r}"] if lead else []) + \
+            ([f"後ろ {tail[:80]!r}"] if tail else [])
+    tqdm.write(f"  [i] {model} の応答に JSON 以外の出力が付いています。先頭の JSON "
+               "だけを使うので判定には影響しません(以後この表示は省略)。"
+               + (f"\n      例: {' / '.join(parts)}" if parts else ""))
+
+
+def _drop_copied(m: dict) -> set:
+    """例の枠("〇〇")が残った判定を m から取り除き、その index を返す。
+
+    実測: 同名異義語の概念が無いテーマで、nemotron-nano-omni-reasoning が
+    明らかに関連する文献(問題行動の機能分析など)にも、プロンプトの例の
+    「score 10 / 同名異義語: 運動機能評価尺度」をそのまま写した(再判定
+    321件中45件、本判定の除外にも36件)。例を枠にしておけば写したことが
+    分かるので、その判定は使わずに判定し直す。
+    """
+    copied = {i for i, r in m.items()
+              if EXAMPLE_SLOT in str((r or {}).get("reason") or "")}
+    for i in copied:
+        del m[i]
+    return copied
+
+
 def judge_batch(batch, topic, definition, hom, model, max_tokens=None, avoid=(),
                 order=None):
     """1バッチを判定し、batch と同じ長さのリストを返す。
@@ -463,7 +644,8 @@ def judge_batch(batch, topic, definition, hom, model, max_tokens=None, avoid=(),
     avoid 以外の代わりのモデルで判定する。
     """
     prompt = FILTER_PROMPT.format(topic=topic, definition=definition,
-                                  homonym_note=hom, listing=_listing(batch))
+                                  homonym_note=hom, listing=_listing(batch),
+                                  **_score_bands())
     prompt += _count_note(len(batch))
     # guided_json を使う場合にも件数を強制する(使わない場合は無害)
     schema = dict(FILTER_SCHEMA, minItems=len(batch), maxItems=len(batch))
@@ -480,16 +662,32 @@ def judge_batch(batch, topic, definition, hom, model, max_tokens=None, avoid=(),
             return [{"error": "判定失敗(AIへの問い合わせが失敗)"}] * len(batch)
         recs, mode = llm.parse_json_array(raw)
         m = llm.index_records(recs, len(batch))
-        if m and (len(m) >= len(batch) or attempt >= config.JUDGE_BATCH_RETRIES):
-            if mode != "strict":
-                tqdm.write(f"  [i] 応答に余分な出力があったため先頭のJSONだけ"
-                           f"使いました(mode={mode} / {len(m)}件)")
+        moved, dropped = _realign(m, [it.get("title") for it in batch])
+        if moved or dropped:
+            tqdm.write(f"  [i] 判定と論文の番号がずれていました(付け替え {moved}件"
+                       f" / 判定し直し {dropped}件)。")
+        # 例文を写した分は送り直さない(温度0では同じ応答が返りやすい)。
+        # 未判定として、あとで1件ずつ判定し直す。
+        copied = _drop_copied(m)
+        if m and (len(m) + len(copied) >= len(batch)
+                  or attempt >= config.JUDGE_BATCH_RETRIES):
+            if mode == "prefix":
+                _note_extra(raw, used)
+            elif mode != "strict":
+                tqdm.write(f"  [i] 応答の形が崩れていたため、読める{len(m)}件を"
+                           f"拾いました(mode={mode})")
+            if copied:
+                tqdm.write(f"  [!] {used} が{len(copied)}件で例文を写したため、"
+                           "その分は未判定として後で判定し直します。")
             return [(dict(_coerce(m[i]), model=used) if i in m
-                     else {"error": "判定失敗(応答に該当indexなし)"})
+                     else {"error": "判定失敗(例文の写し)" if i in copied
+                           else "判定失敗(応答に該当indexなし)"})
                     for i in range(len(batch))]
         if attempt < config.JUDGE_BATCH_RETRIES:
             why = (f"{len(batch)}件中{len(m)}件しか読めない" if m
                    else "JSONとして読める部分が無い")
+            if copied:
+                why += f"、{len(copied)}件は例文の写し"
             tqdm.write(f"  [!] 判定応答の解析に失敗({why}, mode={mode})。"
                        f"再送します ({attempt + 1}/{config.JUDGE_BATCH_RETRIES})")
     _diagnose(raw, len(batch))
@@ -516,7 +714,8 @@ def split_by_threshold(items) -> tuple:
     kept, excluded = [], []
     for it in items:
         s = it.get("relevance_score")
-        (kept if s is None or s >= config.RELEVANCE_THRESHOLD else excluded).append(it)
+        out = it.get("outvoted") or (s is not None and s < config.RELEVANCE_THRESHOLD)
+        (excluded if out else kept).append(it)
     return kept, excluded
 
 
@@ -578,6 +777,181 @@ def rescue_unjudged(items, topic, definition, homonyms, model, save=None) -> int
     return solved
 
 
+def second_look(items, topic, definition, homonyms, model, save=None) -> tuple:
+    """除外の中間帯(OFF_SCORE より上・閾値未満)を、組み合わせを変えてもう一度判定する。
+
+    実測: 同じ検索計画・同じ1375件を同じモデルで2回判定すると、一方で
+    採用した文献のうち26件が他方では除外された。多くは同じ抄録に75点と
+    25点を付け分けたもの(「隣接する研究」か「分野が重なるだけ」かの
+    揺れ)で、中心的なレビュー(Spriggs2016)も95点と65点に割れた。
+    除外を一度で確定させず、中間帯だけをバッチの顔ぶれを変えて判定し直し、
+    どちらかで採用相当なら採用する(二人で選別し、片方が残せば残す方式)。
+    0〜OFF_SCORE(別分野・同名異義語)は見直さない。
+    (戻した数, 見直した数) を返す。
+    """
+    if not config.SECOND_LOOK or not llm.have_api_key():
+        return 0, 0
+    lo, hi = config.OFF_SCORE, config.RELEVANCE_THRESHOLD
+    targets = [it for it in items if it.get("relevance_score") is not None
+               and lo < it["relevance_score"] < hi and not it.get("second_looked")]
+    if not targets:
+        return 0, 0
+    # 1回目と同じ並びで送ると、同じ顔ぶれのバッチになり同じ判定になりやすい
+    targets.sort(key=lambda it: hashlib.md5(
+        (it.get("title") or "").encode("utf-8")).hexdigest())
+    first = {id(it): {k: it.get(k) for k in ("relevance_score", "cluster", "measured",
+                                              "exclusion_reason", "judge_model")}
+             for it in targets}
+    print(f"\n   除外した中間帯({lo + 1}〜{hi - 1}点)の {len(targets)}件を、"
+          "組み合わせを変えてもう一度判定します...")
+    _run(targets, config.FILTER_BATCH_SIZE, topic, definition, homonyms, model,
+         "除外の再確認", save)
+    back = 0
+    for it in targets:
+        before = first[id(it)]
+        it["second_looked"] = True
+        s2 = it.get("relevance_score")
+        if s2 is not None and s2 >= hi:
+            back += 1
+            it["exclusion_reason"] = (f"(再確認で採用。1回目は{before['relevance_score']}点) "
+                                      + (it.get("exclusion_reason") or ""))
+        else:
+            it.update(before)
+    print(f"   → 再確認で採用に戻した {back}件 / 除外のまま {len(targets) - back}件")
+    return back, len(targets)
+
+
+def consensus_judge(kept, topic, definition, homonyms, save=None) -> dict:
+    """採用した文献を2本目・3本目のモデルでも判定し、中央値でクラスタを決め直す。
+
+    実測: 1つのモデルの点数で中心クラスタの線を引くと、同じ検索計画で
+    続けて2回収集しても、中心12件のうち両方で core だったのは4件だけだった
+    (活動スケジュールの単一事例研究に70〜85点が回ごとに付け分けられる)。
+    平均ではなく中央値にしたのは、1つのモデルの外れた点数に引かれないため。
+    実測: 平均で決めた回に、在宅高齢者の介護計画の論文(1本目75・3本目70)が
+    2本目の95点で平均80になり core に入った。続けて2回収集した中心クラスタの
+    重なり(Jaccard)は、平均80点以上では0.23、中央値80点以上では0.50だった。
+
+    採否(RELEVANCE_THRESHOLD)は1本目の判定のまま変えない(取りこぼしを
+    増やさないため)。書き込む項目:
+      score_b/measured_b/reason_b/model_b, score_c/… … 各モデルの判定
+      score_consensus  … 得られた点数(1本目を含む)の中央値(整数)
+      measured_consensus … 実測ありの多数決(得られた判定の過半数)
+    2本目は再判定の切り替え順(ENSEMBLE_FALLBACK_ORDER)で代わりのモデルへ
+    切り替わる。3つ目は切り替えない(run_ensemble と同じ)。
+    既に score_b / score_c がある文献は飛ばす(--resume で続きから)。
+    戻り値は {"model_b", "model_c", "got_b", "got_c"}。行わなければ空。
+    """
+    if not config.CONSENSUS_CORE or not kept or not llm.have_api_key():
+        return {}
+    hom = homonym_note(homonyms)
+    first = {it.get("judge_model") for it in kept if it.get("judge_model")}
+    order = config.fallback_models("ensemble")
+    model_b = config.ENSEMBLE_MODEL
+    if model_b in first:
+        model_b = llm.pick_model(model_b, avoid=first, order=order) or ""
+    if not model_b:
+        print("   [警告] 2本目に使えるモデルが無いため、中心クラスタは1本目の"
+              "点数で決めます。")
+        return {}
+    print(f"\n   採用した {len(kept)}件を、別系統のモデルでも判定します"
+          "(中心クラスタを3つのモデルの中央値で決めるため)...")
+
+    def judge_with(model, prefix, avoid, use_order, desc):
+        todo = [it for it in kept if f"score_{prefix}" not in it]
+        if not todo:
+            return
+
+        def work(batch):
+            return judge_batch(batch, topic, definition, hom, model,
+                               max_tokens=config.ENSEMBLE_MAX_TOKENS, avoid=avoid,
+                               order=use_order)
+
+        def on_result(batch, results):
+            for it, r in zip(batch, results or []):
+                if r and "error" not in r:
+                    it.update({f"score_{prefix}": r["score"],
+                               f"measured_{prefix}": r["measured"],
+                               f"reason_{prefix}": r["reason"],
+                               f"model_{prefix}": r.get("model") or model})
+
+        size = config.FILTER_BATCH_SIZE
+        llm.run_parallel(work, [todo[i:i + size] for i in range(0, len(todo), size)],
+                         desc, on_result=on_result, checkpoint=save,
+                         checkpoint_every=config.JUDGE_CHECKPOINT_EVERY)
+        # 欠落は1度だけ少数ずつやり直す(run_ensemble と同じ)。切り替えない
+        # 3つ目は、止まっていれば何度送っても同じなのでやり直さない
+        left = [it for it in kept if f"score_{prefix}" not in it]
+        if left and use_order and llm.pick_model(model, avoid, use_order):
+            size = config.RESCUE_BATCH_SIZE
+            llm.run_parallel(work, [left[i:i + size] for i in range(0, len(left), size)],
+                             f"{desc}(やり直し)", on_result=on_result,
+                             checkpoint=save,
+                             checkpoint_every=config.JUDGE_CHECKPOINT_EVERY)
+
+    judge_with(model_b, "b", first - {model_b}, order, "2本目の判定")
+    used_b = {it["model_b"] for it in kept if it.get("model_b")}
+    model_c = config.ENSEMBLE_SECOND_MODEL
+    if model_c and (model_c in first or model_c in used_b):
+        print(f"   [情報] 3つ目のモデル {model_c} は1本目か2本目で使われたため、"
+              "2つのモデルの点数で決めます。")
+        model_c = ""
+    if model_c:
+        judge_with(model_c, "c", first | used_b, (), "3つ目の判定")
+
+    for it in kept:
+        scores = [v for v in (it.get("relevance_score"), it.get("score_b"),
+                              it.get("score_c")) if isinstance(v, int)]
+        votes = [v for v in (it.get("measured"), it.get("measured_b"),
+                             it.get("measured_c")) if isinstance(v, bool)]
+        if len(scores) < 2:
+            continue      # 他のモデルの判定が得られなかった文献は1本目のまま
+        it["score_consensus"] = int(round(statistics.median(scores)))
+        it["n_raters"] = len(scores)
+        it["measured_consensus"] = sum(votes) * 2 > len(votes) if votes else None
+        if it.get("cluster") in ("core", "related"):
+            it["cluster"] = ("core" if it["measured_consensus"] is True
+                             and it["score_consensus"] >= config.CORE_SCORE
+                             else "related")
+    outvoted = 0
+    if config.CONSENSUS_EXCLUDE:
+        thr = config.RELEVANCE_THRESHOLD
+        for it in kept:
+            b, c = it.get("score_b"), it.get("score_c")
+            if (isinstance(b, int) and isinstance(c, int) and b < thr and c < thr
+                    and not it.get("outvoted")):
+                it["outvoted"] = True
+                it["exclusion_reason"] = (f"(多数決で除外: 2本目{b}点・3本目{c}点) "
+                                          + (it.get("reason_c") or it.get("reason_b")
+                                             or it.get("exclusion_reason") or ""))
+                outvoted += 1
+    got_b = sum(1 for it in kept if "score_b" in it)
+    got_c = sum(1 for it in kept if "score_c" in it)
+    print(f"   → 2本目 {got_b}/{len(kept)}件"
+          + (f" / 3つ目 {got_c}/{len(kept)}件" if model_c else "")
+          + " の判定を得て、中央値でクラスタを決め直しました。")
+    if outvoted:
+        print(f"   → 2本目・3本目が共に{config.RELEVANCE_THRESHOLD}点未満とした "
+              f"{outvoted}件を除外しました(CONSENSUS_EXCLUDE)。")
+    return {"model_b": catalog.models_label(Counter(
+                it["model_b"] for it in kept if it.get("model_b"))),
+            "model_c": model_c if got_c else "", "got_b": got_b, "got_c": got_c,
+            "outvoted": outvoted}
+
+
+def eff_score(it):
+    """クラスタを決める点数。3つのモデルの中央値があればそれ、無ければ1本目。"""
+    m = it.get("score_consensus")
+    return m if m is not None else it.get("relevance_score")
+
+
+def eff_measured(it):
+    """クラスタを決める「実測あり」。3つのモデルの多数決があればそれ。"""
+    if "measured_consensus" in it:
+        return it["measured_consensus"]
+    return it.get("measured")
+
+
 def rebalance_clusters(kept) -> str:
     """core が少なすぎるとき、最高スコア帯を中心として扱う。戻り値は注記。
 
@@ -585,32 +959,63 @@ def rebalance_clusters(kept) -> str:
     以降、交差が薄いテーマでは90点が空集合になりうる(実測で47件すべてが
     related になった)。core が CORE_MIN_ITEMS 件未満のときだけ、最高スコア
     から順に帯を広げる。基準を変えた事実は注記としてカタログに明記する。
+
+    広げるのは、実測を伴い(core の本来の条件の半分)、関連度が core と
+    採用の閾値の中間以上のものに限る。実測: 隣接する研究の帯を70〜89点に
+    してから、隣接する研究がほぼ一律に75点になり、帯を広げると75点の30件
+    (総説・本の章・対象の違う研究を含む)がまとめて core になった。
+
+    3つのモデルの中央値(consensus_judge)があるときは、中央値が中間以上で
+    過半数のモデルが実測ありとしたものを、件数によらずすべて core とする。
+    上の帯から件数で切ると、85点の文献が5件あるかどうかで80点の帯がまるごと
+    出入りし、回ごとの顔ぶれが大きく変わる。中間より下へは広げない(中央値は
+    5点刻みなので、75点に下りると隣接する研究がまとめて入る)。
     """
-    scored = [it for it in kept if it.get("relevance_score") is not None]
+    scored = [it for it in kept if eff_score(it) is not None]
     if not scored:
         return ""
     core_now = sum(1 for it in kept if it.get("cluster") == "core")
     if core_now >= config.CORE_MIN_ITEMS:
         return ""
-    levels = sorted({it["relevance_score"] for it in scored}, reverse=True)
-    cut, n = levels[0], 0
-    for lv in levels:
-        n = sum(1 for it in scored if it["relevance_score"] >= lv)
-        cut = lv
-        if n >= config.CORE_MIN_ITEMS:
-            break
-    if n <= core_now:
-        return ""
-    for it in scored:
-        if it["relevance_score"] >= cut:
+    cons = any(it.get("score_consensus") is not None for it in kept)
+    floor = (config.CORE_SCORE + config.RELEVANCE_THRESHOLD) // 2
+    cands = [it for it in scored if it.get("cluster") != "core"
+             and eff_measured(it) is True and eff_score(it) >= floor]
+    top = max(eff_score(it) for it in scored)
+    n_models = max((it.get("n_raters") or 0) for it in kept) if cons else 0
+    what = f"{n_models}つのモデルの中央値で" if cons else ""
+    if not cands:
+        if core_now:
+            return ""
+        note = (f"{what}関連度{config.CORE_SCORE}以上かつ実測ありの文献が無く、"
+                f"{floor}点以上で実測を伴う文献も無かったため、中心クラスタは"
+                f"空とした(最高は{top}点)。テーマの中核を直接扱った研究が"
+                "見当たらない可能性が高い。周辺クラスタの隣接する研究が主な材料になる。")
+        print(f"   → {note}")
+        return note
+    levels = sorted({eff_score(it) for it in cands}, reverse=True)
+    if cons:
+        cut = floor
+    else:
+        cut = levels[0]
+        for lv in levels:
+            cut = lv
+            if core_now + sum(1 for it in cands
+                              if eff_score(it) >= lv) >= config.CORE_MIN_ITEMS:
+                break
+    n = 0
+    for it in cands:
+        if eff_score(it) >= cut:
             it["cluster"] = "core"
-    reason = (f"関連度{config.CORE_SCORE}以上の文献が1件も無かった" if core_now == 0
-              else f"本来の基準(関連度{config.CORE_SCORE}以上かつ実測あり)を満たす"
+            n += 1
+    reason = (f"{what}関連度{config.CORE_SCORE}以上の文献が1件も無かった" if core_now == 0
+              else f"{what}本来の基準(関連度{config.CORE_SCORE}以上かつ実測あり)を満たす"
                    f"文献が{core_now}件しか無かった")
-    note = (f"{reason}ため、最高スコア帯({cut}点以上・{n}件)を"
-            "中心クラスタとして扱った。テーマの交差が薄く、全条件を満たす"
-            "文献が存在しない可能性がある。中心クラスタの文献も、交差の"
-            "一部しか満たしていないことがある。")
+    band = (f"中央値{cut}点以上で、過半数のモデルが実測ありとした{n}件" if cons
+            else f"実測を伴う最高スコア帯({cut}点以上・{n}件)")
+    note = (f"{reason}ため、{band}を中心クラスタとして扱った。テーマの交差が"
+            "薄く、全条件を満たす文献が存在しない可能性がある。中心クラスタの"
+            "文献も、交差の一部しか満たしていないことがある。")
     print(f"   → {note}")
     return note
 
@@ -720,13 +1125,18 @@ markers - an array of codes for methodological details EXPLICITLY stated in
   effect         an effect size is reported
   Empty array if none are stated.
 
+t - the first three words of that paper's title, copied exactly as listed
+  (for a Japanese title, its first 10 characters). It shows which paper the
+  entry is about, so take it from the paper you are reading at that moment.
+
 [Output]
 Output only the following JSON array. Exactly one entry per paper, no
-omissions, no explanatory text, no code fences.
-[{{"index": 0, "design": "SCED", "detail": "多層ベースライン", "n": 3,
+omissions, no explanatory text, no code fences. The values below show the
+format only; "〇〇" is a slot to fill in.
+[{{"index": 0, "t": "〇〇", "design": "SCED", "detail": "多層ベースライン", "n": 3,
   "setting": "SCHOOL", "pop": "自閉症児(5〜8歳)",
   "markers": ["baseline", "ioa", "maintenance"]}},
- {{"index": 1, "design": "SR", "detail": "メタ分析", "n": null,
+ {{"index": 1, "t": "〇〇", "design": "SR", "detail": "メタ分析", "n": null,
   "setting": "NA", "pop": "", "markers": ["effect"]}}]"""
 
 EXTRACT_SCHEMA = {
@@ -735,6 +1145,7 @@ EXTRACT_SCHEMA = {
         "type": "object",
         "properties": {
             "index": {"type": "integer"},
+            "t": {"type": "string"},
             "design": {"type": "string", "enum": list(catalog.DESIGN_LABELS)},
             "detail": {"type": "string"},
             "n": {"type": ["integer", "null"]},
@@ -801,7 +1212,7 @@ def extract_records(papers, topic, definition, model, retries=2) -> dict:
     本文ラベルは抄録なら "Abstract"、全文由来なら Methods の抜粋である旨を
     書く(fulltext.py が使う)。読めなかった分は含まれない。items には書き込まない。
     """
-    listing = "\n".join(f"{i}. {t}\n   {label}: {body}"
+    listing = "\n".join(f"{i}. {_flat(t)}\n   {label}: {_flat(body)}"
                         for i, (t, label, body) in enumerate(papers))
     prompt = EXTRACT_PROMPT.format(topic=topic, definition=definition,
                                    listing=listing)
@@ -818,6 +1229,10 @@ def extract_records(papers, topic, definition, model, retries=2) -> dict:
             return {}
         recs, mode = llm.parse_json_array(raw)
         m = llm.index_records(recs, len(papers))
+        moved, dropped = _realign(m, [p[0] for p in papers])
+        if moved or dropped:
+            tqdm.write(f"  [i] 抽出と論文の番号がずれていました(付け替え {moved}件"
+                       f" / 抽出し直し {dropped}件)。")
         if len(m) >= len(papers):
             return m
         if attempt < retries:
@@ -897,6 +1312,53 @@ def _bucket(cluster: str, score) -> str:
     return cluster
 
 
+def _bias_note(bias: float, mean_gap) -> str:
+    """スコアの差が一方向に偏っていれば、κ の読み方の注記を返す。
+
+    実測: 2本目が42件中40件を「除外相当」とし、κ=-0.07 になった回がある。
+    スコアの差は平均36点で、ほぼすべて2本目のほうが低かった。この場合の
+    不一致は判定の揺れではなく、テーマの定義(除外条件)の当てはめ方の
+    違いであり、見直すべきは個々の抄録より定義のほうになる。
+    """
+    if mean_gap is None or abs(bias) < config.ENSEMBLE_SCORE_GAP / 2 \
+            or abs(bias) < mean_gap * 0.7:
+        return ""
+    who = "2本目" if bias > 0 else "1本目"
+    return (f"スコアの差はほぼ一方向で、{who}のほうが一貫して厳しく付けています"
+            f"(平均 {abs(bias):.1f}点)。κ の低さは判定の揺れというより、テーマの"
+            "定義の当てはめ方の違いによる可能性があります。定義が文献の実態より"
+            "狭くないか(除外条件が近い研究まで外していないか)を確かめてください。")
+
+
+def _core_cut(idx: dict, entries) -> int:
+    """1本目の core の下限。基準を緩めた回(rebalance_clusters)はその点数。
+
+    実測: 1本目の core が「実測ありかつ80点以上」に緩めて作られた回に、
+    2本目は90点以上だけを core とした。2本目が85点(1本目より高い)を
+    付けた5件が「core→related の不一致」として並び、一致率と κ も下がった。
+    比べるなら同じ基準で分ける。
+
+    ただし緩めた基準を使うのは、1本目が core とした文献の一致の判定だけ。
+    実測: 全件に当てはめると、2本目は隣接する研究の多くに85点を付けるため、
+    1本目が related とした46件が昇格候補に並んだ(緩めた基準は1本目の
+    点数の分布から決めたもので、2本目の分布には合わない)。昇格候補は
+    本来の基準(CORE_SCORE 以上かつ実測あり)で選ぶ。
+    """
+    core = [e["score_a"] for e in entries
+            if e["cluster_a"] == "core" and e["score_a"] is not None]
+    if idx.get("cluster_note") and core and min(core) < config.CORE_SCORE:
+        return min(core)
+    return config.CORE_SCORE
+
+
+def _kappa_skew(pairs):
+    """1本目の分類の偏り(最多の区分, 割合)。κ が構造的に低く出るかの目安。"""
+    if not pairs:
+        return "", 0.0
+    top, n = Counter(a for a, _ in pairs).most_common(1)[0]
+    return top, n / len(pairs)
+
+
 def cohen_kappa(pairs):
     """[(評定A, 評定B), ...] から Cohen の κ を返す。計算できなければ None。
 
@@ -938,16 +1400,51 @@ def _ensemble_entries(theme: dict) -> tuple:
                  if theme["catalog"] else {})
     entries = []
     for key, rec in idx["items"].items():
-        entries.append({
+        # score_a は1本目自身の点数。3つのモデルの中央値で中心クラスタを決めた回
+        # (consensus_judge。score_b がある)は score が中央値
+        own = rec["score_a"] if "score_a" in rec else rec.get("score")
+        e = {
             "key": key, "title": rec.get("title") or "",
             "src": rec.get("src") or "",
             "content": abstracts.get(key, ""),
-            "score_a": rec.get("score") if isinstance(rec.get("score"), int) else None,
+            "score_a": own if isinstance(own, int) else None,
+            "measured_a": rec["measured_a"] if "measured_a" in rec else rec.get("measured"),
             "cluster_a": (rec.get("cluster") or UNJUDGED).strip(),
             "reason_a": rec.get("reason") or "",
             "model_a": rec.get("judge_model") or "",
-        })
+            "mean": rec.get("score") if isinstance(rec.get("score_b"), int) else None,
+        }
+        for p in ("b", "c"):
+            if isinstance(rec.get(f"score_{p}"), int):
+                e[f"stored_{p}"] = {k: rec.get(f"{k}_{p}")
+                                    for k in ("score", "measured", "reason", "model")}
+        entries.append(e)
     return idx, entries
+
+
+def _second_pass(entries, topic, definition, hom, model, avoid) -> int:
+    """再判定の3つ目のモデルで全件を判定し、score_c 等を書き込む。得られた件数を返す。
+
+    代わりのモデルへの切り替えはしない(3つ目が止まったら、その分は報告に
+    載せない。別のモデルが混ざると「別系統の2つ」でなくなる)。
+    """
+    size = config.FILTER_BATCH_SIZE
+    todo = [e for e in entries if "cluster_c" not in e]
+    batches = [todo[i:i + size] for i in range(0, len(todo), size)]
+
+    def work(batch):
+        return judge_batch(batch, topic, definition, hom, model,
+                           max_tokens=config.ENSEMBLE_MAX_TOKENS, avoid=avoid,
+                           order=())
+
+    def on_result(batch, results):
+        for e, r in zip(batch, results or []):
+            if r and "error" not in r:
+                e.update(score_c=r["score"], cluster_c=r["cluster"],
+                         reason_c=r["reason"], model_c=r.get("model") or model)
+
+    llm.run_parallel(work, batches, "確認の再判定中", on_result=on_result)
+    return sum(1 for e in entries if "cluster_c" in e)
 
 
 def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
@@ -999,12 +1496,31 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
     if not entries:
         print("[アンサンブル] 対象がありません。")
         return ""
-    if preflight:
+    # 3つのモデルの中央値で中心クラスタを決めた回は、収集時の2本目・3つ目の
+    # 判定が索引にある。--model で別のモデルと比べるとき以外は使い回す
+    consensus = any(e.get("mean") is not None for e in entries)
+    m3 = config.ENSEMBLE_SECOND_MODEL
+    if consensus and not explicit:
+        for e in entries:
+            for p, name in (("b", model), ("c", m3)):
+                st = e.get(f"stored_{p}")
+                if st:
+                    e.update({f"score_{p}": st["score"],
+                              f"cluster_{p}": classify(st["score"], st["measured"]),
+                              f"reason_{p}": st["reason"] or "",
+                              f"measured_{p}": st["measured"],
+                              f"model_{p}": st["model"] or name})
+        reused = sum(1 for e in entries if "cluster_b" in e)
+        if reused:
+            print(f"[アンサンブル] 収集時に別系統のモデルで判定した結果を使います"
+                  f"({reused}/{len(entries)}件)。")
+    todo = [e for e in entries if "cluster_b" not in e]
+    if preflight and todo:
         llm.preflight([model])
 
     hom = homonym_note(homonyms)
     size = config.FILTER_BATCH_SIZE
-    batches = [entries[i:i + size] for i in range(0, len(entries), size)]
+    batches = [todo[i:i + size] for i in range(0, len(todo), size)]
 
     def work(batch):
         return judge_batch(batch, topic, definition, hom, model,
@@ -1018,15 +1534,23 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                          reason_b=r["reason"], measured_b=r["measured"],
                          model_b=r.get("model") or model)
 
-    llm.run_parallel(work, batches, "再判定中", on_result=on_result)
+    if batches:
+        llm.run_parallel(work, batches, "再判定中", on_result=on_result)
 
-    # 途中でモデルが切り替わった回は、切り替わる前に失敗したバッチが欠落の
-    # まま残る(実測: 52件中24件)。切り替え先のモデルで一度だけやり直す。
+    # 欠落を一度だけやり直す。途中でモデルが切り替わった回は、切り替わる
+    # 前に失敗したバッチが欠落のまま残る(実測: 52件中24件)ので切り替え先で。
+    # 切り替わっていなければ、例文の写し・読めない応答で欠けた分なので、
+    # 本判定の未判定の拾い直しと同じく少数ずつ送る。
     left = [e for e in entries if "cluster_b" not in e]
     now = llm.pick_model(model, avoid, order) if left else None
-    if left and now and now != model:
-        print(f"\n[アンサンブル] 切り替え前に判定できなかった {len(left)}件を、"
-              f"{now} で判定し直します。")
+    if left and now:
+        if now != model:
+            print(f"\n[アンサンブル] 切り替え前に判定できなかった {len(left)}件を、"
+                  f"{now} で判定し直します。")
+        else:
+            size = config.RESCUE_BATCH_SIZE
+            print(f"\n[アンサンブル] 判定できなかった {len(left)}件を、"
+                  f"{size}件ずつ判定し直します。")
         retry = [left[i:i + size] for i in range(0, len(left), size)]
         llm.run_parallel(work, retry, "再判定(やり直し)", on_result=on_result)
 
@@ -1041,12 +1565,25 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
         print(f"[警告] 判定を得られたのは {got}/{len(entries)}件だけです。"
               "κ係数などは参考程度に見てください。")
 
+    # 中央値で決めた回の中心クラスタは2本目の判定も含んでいるので、1本目と
+    # 2本目の比較には1本目自身の分類(本来の基準)を使う
+    cut = config.CORE_SCORE if consensus else _core_cut(idx, entries)
+    wide = 0    # 1本目は related、2本目は緩めた基準なら core に当たる件数
     demote, promote, other, missing, pairs = [], [], [], [], []
     for e in entries:
+        e["cluster_cmp"] = (classify(e["score_a"], e.get("measured_a"))
+                            if consensus and e["score_a"] is not None
+                            else e["cluster_a"])
         if "cluster_b" not in e:
             missing.append(e)
             continue
-        a, b = e["cluster_a"], e["cluster_b"]
+        relaxed = (cut < config.CORE_SCORE and e["cluster_b"] == "related"
+                   and e.get("measured_b") is True and e["score_b"] >= cut)
+        if relaxed and e["cluster_cmp"] == "core":
+            e["cluster_b"] = "core"
+        elif relaxed:
+            wide += 1
+        a, b = e["cluster_cmp"], e["cluster_b"]
         e["gap"] = (abs(e["score_a"] - e["score_b"])
                     if e["score_a"] is not None else None)
         e["bucket_b"] = _bucket(b, e["score_b"])
@@ -1062,16 +1599,53 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
 
     model_b = catalog.models_label(Counter(e["model_b"] for e in entries
                                            if e.get("model_b")))
+    # 3つ目のモデル(--model を指定した比較のときは使わない)
+    model_c, both = "", []
+    if m3 and not explicit:
+        used_b = {e["model_b"] for e in entries if e.get("model_b")}
+        if m3 in first_pass or m3 in used_b:
+            print(f"[アンサンブル] 3つ目のモデル {m3} は1本目か2本目で使われたため、"
+                  "3つ目の判定は行いません。")
+        else:
+            if any("cluster_c" not in e for e in entries):
+                print(f"\n[アンサンブル] 3つ目のモデル {m3} でも判定します...")
+            got3 = _second_pass(entries, topic, definition, hom, m3,
+                                avoid=set(first_pass) | used_b | {model})
+            if got3:
+                model_c = catalog.models_label(Counter(
+                    e["model_c"] for e in entries if e.get("model_c")))
+                both = [e for e in entries
+                        if "cluster_c" in e and e.get("bucket_b") == EXCLUDED
+                        and _bucket(e["cluster_c"], e["score_c"]) == EXCLUDED]
+            else:
+                print(f"[警告] {m3} から判定を得られなかったため、3つ目の判定は"
+                      "報告に載せません。")
+    # 1本目と2本目・3本目が共に外したものは最優先の節にだけ、中央値で決めた
+    # 中心クラスタは内訳の節にだけ載せる
+    core_rows = ([e for e in entries if e["cluster_a"] == "core"]
+                 if consensus else [])
+    shown = {e["key"] for e in both} | {e["key"] for e in core_rows}
+    promote = [e for e in promote if e["key"] not in shown]
+    demote = [e for e in demote if e["key"] not in shown]
+    other = [e for e in other if e["key"] not in shown]
     agree = sum(1 for a, b in pairs if a == b)
+    kept_b = sum(1 for _, b in pairs if b != EXCLUDED)
     kappa = cohen_kappa(pairs)
+    skew_cls, skew = _kappa_skew(pairs)
     gaps = [e["gap"] for e in entries if e.get("gap") is not None]
     mean_gap = sum(gaps) / len(gaps) if gaps else None
+    signed = [e["score_a"] - e["score_b"] for e in entries
+              if e.get("gap") is not None]
+    bias = sum(signed) / len(signed) if signed else 0.0
+    bias_note = _bias_note(bias, mean_gap)
 
     out_path = os.path.join(theme["dir"], f"_ensemble__{theme['name']}.md")
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("---\n")
         f.write(f"catalog_source: \"{os.path.basename(theme['catalog'] or '')}\"\n")
         f.write(f"model_a: \"{model_a}\"\nmodel_b: \"{model_b}\"\n")
+        if model_c:
+            f.write(f"model_c: \"{model_c}\"\n")
         f.write(f"checked_at: {datetime.datetime.now().isoformat(timespec='seconds')}\n")
         f.write(f"kappa: {round(kappa, 3) if kappa is not None else 'null'}\n")
         f.write("---\n\n")
@@ -1079,6 +1653,9 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
         f.write(f"- 対象抄録: {len(entries)}件 / 2本目の判定取得: "
                 f"{len(entries) - len(missing)}件 / 応答欠落: {len(missing)}件\n")
         if pairs:
+            f.write(f"- 採否の一致: 1本目が残した{len(pairs)}件のうち、2本目も残した"
+                    f"(関連度{config.RELEVANCE_THRESHOLD}以上)のは{kept_b}件"
+                    f"({kept_b / len(pairs):.1%})\n")
             line = f"- 分類の一致: {agree}/{len(pairs)}件({agree / len(pairs):.1%})"
             if kappa is not None:
                 line += f" / Cohen の κ = {kappa:.2f}({kappa_label(kappa)})"
@@ -1086,12 +1663,35 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                 line += (" / κ は算出不可(どちらかの判定が1種類だけ。"
                          "応答欠落が多い回に起きやすい)")
             f.write(line + "\n")
+            if kappa is not None and skew >= 0.85:
+                f.write(f"  - κ は低く出やすい: 1本目が残した文献だけで比べており、"
+                        f"1本目の分類の{skew:.0%}が {skew_cls} に偏っている。"
+                        "このとき κ は一致が多くても0付近になる(κ のパラドックス)。"
+                        "採否の一致と合わせて読む\n")
         if mean_gap is not None:
-            f.write(f"- 関連度スコアの差: 平均 {mean_gap:.1f}点\n")
-        f.write(f"- 判定モデル: 1本目 {model_a} / 2本目 {model_b}\n")
+            side = ("方向の偏りなし" if abs(bias) < 1 else
+                    f"2本目のほうが平均 {abs(bias):.1f}点{'低い' if bias > 0 else '高い'}")
+            f.write(f"- 関連度スコアの差: 平均 {mean_gap:.1f}点({side})\n")
+        f.write(f"- 判定モデル: 1本目 {model_a} / 2本目 {model_b}"
+                + (f" / 3本目 {model_c}" if model_c else "") + "\n")
         f.write(f"- 判定基準: 両モデルとも同じプロンプト(関連度{config.CORE_SCORE}以上"
                 "かつ実測あり→core、関連度"
-                f"{config.RELEVANCE_THRESHOLD}未満→除外相当)\n\n")
+                f"{config.RELEVANCE_THRESHOLD}未満→除外相当)\n")
+        if consensus:
+            f.write("  - 中心クラスタは、収集時に複数のモデルの点数の中央値と「実測あり」"
+                    "の多数決で決めた(カタログの関連度は中央値)。下の表の「1本目」は"
+                    "1本目自身の点数と、本来の基準での分類\n")
+        if cut < config.CORE_SCORE:
+            f.write(f"  - 1本目の中心クラスタは基準を緩めて(実測ありかつ{cut}点以上)"
+                    "作られているため、1本目の core の文献は、2本目もこの基準を"
+                    "満たせば一致とした。昇格候補は本来の基準で選んだ\n")
+            if wide:
+                f.write(f"  - 1本目が related とした文献のうち{wide}件は、2本目では"
+                        f"実測ありかつ{cut}点以上だった。中心クラスタの境界は"
+                        "モデルによって動く\n")
+        f.write("\n")
+        if bias_note:
+            f.write(f"> [!note] 判定の厳しさの違い\n> {bias_note}\n\n")
         f.write("> [!warning] 不一致は誤りの証拠ではなく、抄録を読み直すべき"
                 "箇所の手がかりです。どちらのモデルも「正解」ではありません。\n\n")
 
@@ -1107,32 +1707,90 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                 ra = catalog.cell(e["reason_a"] or "-", 40)
                 rb = catalog.cell(e.get("reason_b") or "-", 40)
                 sa = e["score_a"] if e["score_a"] is not None else "-"
-                f.write(f"| [{e['key']}] | {e['cluster_a']} {sa} "
+                f.write(f"| [{e['key']}] | {e['cluster_cmp']} {sa} "
                         f"| {e['bucket_b']} {e['score_b']} | {ra} | {rb} | {t} |\n")
             f.write("\n")
 
-        dump(demote, "1. 最優先: 中心クラスタからの除外候補",
+        sec = 0
+
+        def num(title):
+            nonlocal sec
+            sec += 1
+            return f"{sec}. {title}"
+
+        if model_c:
+            f.write(f"## {num('最優先: 別系統の2つのモデルが、どちらも除外相当と判定')}"
+                    f"({len(both)}件)\n\n"
+                    "1本目は残したのに、2本目と3本目が共に除外相当と判定した抄録。"
+                    "2つの点数の高い方が低い順に並べた。上ほど主題と無関係の"
+                    "可能性が高く、下に行くほど同じ介入を別の対象・単位で行った"
+                    "近縁の研究が多い。抄録を読み、無関係なら対象外、近縁なら周辺の"
+                    "補助根拠とする。ここに挙げた抄録は以降の節には載せない。\n\n")
+            if not both:
+                f.write("なし。\n\n")
+            else:
+                f.write("| 引用キー | 1本目 | 2本目 | 3本目 | 1本目のメモ | "
+                        "3本目のメモ | タイトル |\n|---|---|---|---|---|---|---|\n")
+                for e in sorted(both, key=lambda x: (max(x["score_b"], x["score_c"]),
+                                                     x["score_b"] + x["score_c"],
+                                                     -(x.get("score_a") or 0))):
+                    sa = e["score_a"] if e["score_a"] is not None else "-"
+                    f.write(f"| [{e['key']}] | {e['cluster_cmp']} {sa} "
+                            f"| {e['score_b']} | {e['score_c']} "
+                            f"| {catalog.cell(e['reason_a'] or '-', 40)} "
+                            f"| {catalog.cell(e.get('reason_c') or '-', 40)} "
+                            f"| {catalog.cell(e['title'], 50)} |\n")
+                f.write("\n")
+        if consensus:
+            f.write(f"## {num('中心クラスタの内訳(複数のモデルの中央値で決めた)')}"
+                    f"({len(core_rows)}件)\n\n"
+                    "各モデルの点数と中央値。⚠️ は、中央値では中心に入ったが、1つの"
+                    f"モデルが採用の閾値({config.RELEVANCE_THRESHOLD}点)を下回った"
+                    "もの。中心の根拠に使う前に抄録を読む。\n\n")
+            if not core_rows:
+                f.write("なし。\n\n")
+            else:
+                f.write("| 引用キー | 1本目 | 2本目 | 3本目 | 中央値 | 確認 | タイトル |\n"
+                        "|---|---|---|---|---|---|---|\n")
+                for e in sorted(core_rows, key=lambda x: -(x.get("mean") or 0)):
+                    vals = [e["score_a"], (e.get("stored_b") or {}).get("score"),
+                            (e.get("stored_c") or {}).get("score")]
+                    low = any(isinstance(v, int) and v < config.RELEVANCE_THRESHOLD
+                              for v in vals)
+                    cells = " | ".join(str(v) if v is not None else "-" for v in vals)
+                    f.write(f"| [{e['key']}] | {cells} | {e['mean']} "
+                            f"| {'⚠️' if low else ''} | {catalog.cell(e['title'], 50)} |\n")
+                f.write("\n")
+        dump(demote, num("中心クラスタからの除外候補"),
              "1本目は core、2本目は無関係または関連度不足と判定した抄録。"
              "中心的な根拠に使う前に抄録を読み直す。")
-        dump(promote, "2. 中心クラスタへの昇格候補",
+        dump(promote, num("中心クラスタへの昇格候補"),
              "1本目は related、2本目は core と判定した抄録。"
              "測定を伴う研究だと確認できたものだけを主要な根拠に加える。")
-        dump(other, "3. その他の不一致",
+        dump(other, num("その他の不一致"),
              f"周辺クラスタからの除外候補、およびスコア差"
              f"{config.ENSEMBLE_SCORE_GAP}点以上の不一致。")
-        f.write("## 4. 応答が得られなかった抄録\n\n")
+        f.write(f"## {num('応答が得られなかった抄録')}\n\n")
         if not missing:
             f.write("なし。\n")
         for e in missing:
-            f.write(f"- [{e['key']}](1本目: {e['cluster_a']})\n")
+            f.write(f"- [{e['key']}](1本目: {e['cluster_cmp']})\n")
 
     print(f"[アンサンブル] 出力: {out_path}")
+    if pairs:
+        print(f"[アンサンブル] 採否の一致 {kept_b}/{len(pairs)}"
+              "(1本目が残したもののうち2本目も残した数)")
     if kappa is not None:
         print(f"[アンサンブル] 一致率 {agree}/{len(pairs)} / κ={kappa:.2f}"
-              f"({kappa_label(kappa)})")
+              f"({kappa_label(kappa)})"
+              + ("(1本目の分類が偏っているため低く出やすい)" if skew >= 0.85 else ""))
     elif pairs:
         print(f"[アンサンブル] 一致率 {agree}/{len(pairs)} / κ は算出不可"
               "(どちらかの判定が1種類だけ)")
+    if bias_note:
+        print(f"[アンサンブル] {bias_note}")
+    if model_c:
+        print(f"[アンサンブル] 別系統の2つが両方とも除外相当: {len(both)}件 ← 最優先で確認")
     print(f"[アンサンブル] 除外候補(core→除外相当) {len(demote)}件 ← 最優先で確認 / "
           f"昇格候補 {len(promote)}件 / その他 {len(other)}件 / 欠落 {len(missing)}件")
     return out_path

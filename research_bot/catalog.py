@@ -17,12 +17,14 @@ config.py(PROMPT_*)で変えられる。
 import datetime
 import glob
 import hashlib
+import html
 import json
 import os
 import re
 import shutil
 import time
 import unicodedata
+from collections import Counter
 
 import requests
 from tqdm import tqdm
@@ -217,6 +219,55 @@ def list_themes(root: str = None) -> list:
     return out
 
 
+def find_previous_plan(topic: str, root: str = None) -> tuple:
+    """同じテーマ文を前に収集したときの検索計画。(計画, フォルダ名) を返す。
+
+    フォルダ名は「テーマ」「テーマ_1」…と変わるので、索引の topic で照合し、
+    最も新しいものを使う。見つからなければ (None, "")。
+    """
+    want = (topic or "").strip()
+    if not want:
+        return None, ""
+    core = _sanitize_core(want.splitlines()[0])
+    same = re.compile(re.escape(core) + r"(_\d+)?")
+    best = ("", None, "")
+    for name in list_themes(root):
+        if not same.fullmatch(name):
+            continue
+        path = _find_kind(os.path.join(root or config.CATALOG_ROOT, name), "index", name)
+        try:
+            with open(path, encoding="utf-8") as f:
+                d = json.load(f)
+        except (OSError, TypeError, ValueError):
+            continue
+        plan = d.get("search_plan")
+        if (d.get("topic") or "").strip() != want or not plan or not plan.get("facets"):
+            continue
+        stamp = d.get("generated_at") or ""
+        if stamp >= best[0]:
+            best = (stamp, plan, name)
+    return best[1], best[2]
+
+
+def plan_of_theme(arg: str, root: str = None) -> tuple:
+    """指定したテーマのフォルダの索引から検索計画を読む。
+
+    戻り値は (計画, フォルダ名, その回のテーマ文)。見つからない・検索計画が
+    残っていなければ FileNotFoundError。
+    """
+    t = resolve_theme(arg, root)
+    try:
+        with open(t["index"] or "", encoding="utf-8") as f:
+            d = json.load(f)
+        plan, topic = d.get("search_plan"), (d.get("topic") or "").strip()
+    except (OSError, ValueError):
+        plan, topic = None, ""
+    if not plan or not plan.get("facets"):
+        raise FileNotFoundError(f"{t['name']} の索引に検索計画が残っていません"
+                                "(検索計画を索引に残すようにした版より前の収集)")
+    return plan, t["name"], topic
+
+
 def read_catalog_abstracts(catalog_path: str) -> dict:
     """カタログ本文から {引用キー: 抄録} を読む。
 
@@ -293,9 +344,9 @@ def clean_abstract(text) -> str:
     s = re.sub(r"<h[1-6]>\s*([^<]{1,60}?)\s*</h[1-6]>", r" 【\1】 ", s, flags=re.I)
     s = re.sub(r"<(p|br|div)\s*/?>", " ", s, flags=re.I)
     s = re.sub(r"<[^>]{1,200}>", "", s)
-    for a, b in (("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"),
-                 ("&quot;", '"'), ("&#39;", "'"), ("&nbsp;", " ")):
-        s = s.replace(a, b)
+    # 実体参照はすべて戻す。実測: ERIC のタイトルが「Teachers&apos;」のまま残り、
+    # 同じ論文の Crossref 版(Teachers’)とタイトルの指紋が食い違って二重に収録された
+    s = html.unescape(s)
     return re.sub(r"\s+", " ", s).strip()
 
 
@@ -411,6 +462,21 @@ def title_key(title: str) -> str:
     """
     nt = re.sub(r"[^a-zA-Z0-9ぁ-んァ-ン一-龥]", "", clean_abstract(title or "").lower())
     return f"t:{hashlib.md5(nt.encode()).hexdigest()[:16]}" if nt else ""
+
+
+def _title_key_variants(title) -> list:
+    """レジストリを引くときのタイトル指紋。今の形と、実体参照を戻す前の形。
+
+    以前は &apos; を戻さずに指紋を取っていた(ERIC のタイトル)。今は ' に
+    戻してから取るので、同じ論文でも指紋が変わる。古い形でも引けるようにする。
+    """
+    keys = [title_key(str(title or ""))]
+    if "'" in str(title or ""):
+        nt = re.sub(r"[^a-zA-Z0-9ぁ-んァ-ン一-龥]", "",
+                    clean_abstract(title).replace("'", "apos").lower())
+        if nt:
+            keys.append(f"t:{hashlib.md5(nt.encode()).hexdigest()[:16]}")
+    return [k for k in keys if k]
 
 
 def load_keyring(output_dir: str) -> tuple:
@@ -711,8 +777,15 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
     fallback = unresolved = 0
     src_counts, cluster_counts = {}, {}
 
+    # クラスタの中は関連度(中央値があれば中央値)の高い順。実測: 1本目が寛大な
+    # モデルに切り替わった回に、周辺クラスタ203件の7割が2本目・3本目の除外
+    # 相当で、年順だと関連の深い文献がその中に埋もれた
+    def _eff(x):
+        m = x.get("score_consensus")
+        m = m if m is not None else x.get("relevance_score")
+        return m if isinstance(m, int) else -1
     ordered = sorted(final_items,
-                     key=lambda x: (_cluster_rank(x.get("cluster")),
+                     key=lambda x: (_cluster_rank(x.get("cluster")), -_eff(x),
                                     -_year_int(x.get("year"))))
 
     for it in tqdm(ordered, desc="カタログ生成中", dynamic_ncols=True):
@@ -743,7 +816,13 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
 
         doi_norm = (it.get("doi") or "").strip().lower()
         tkey = "" if doi_norm else title_key(it.get("title"))
-        known = keyring.get(doi_norm) if doi_norm else title_ring.get(tkey)
+        known = keyring.get(doi_norm) if doi_norm else None
+        if not known:
+            # DOI を後から得た文献(ERIC の URL から拾うようにした等)は、以前は
+            # タイトル指紋で登録されている。実測: その切り替えで7件のキーが
+            # 変わった(Chan2014a → Chan2014b など)
+            known = next((title_ring[k] for k in _title_key_variants(it.get("title"))
+                          if k in title_ring), None)
         if known and known not in used_keys:
             used_keys.add(known)
             keyring_hits += 1
@@ -759,7 +838,15 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
             "src": src, "doi": it.get("doi") or "なし",
             "url": it.get("url") or "なし",
             "oa_url": it.get("oa_url"), "cited_by": it.get("cited_by"),
-            "score": it.get("relevance_score"), "cluster": cluster,
+            # 3つのモデルの中央値があればそれがクラスタを決めた点数(judge.consensus_judge)
+            "score": (it["score_consensus"] if it.get("score_consensus") is not None
+                      else it.get("relevance_score")),
+            "score_a": it.get("relevance_score"),
+            "measured_a": it.get("measured"),
+            "raters": {k: it.get(k) for k in (
+                "score_b", "measured_b", "reason_b", "model_b",
+                "score_c", "measured_c", "reason_c", "model_c") if k in it},
+            "cluster": cluster,
             "design": it.get("design") or "不明",
             "design_code": it.get("design_code") or "NA",
             "design_detail": it.get("design_detail") or "",
@@ -773,7 +860,8 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
             "fulltext_used": bool(it.get("fulltext_used")),
             "fulltext_source": it.get("fulltext_source") or "",
             "pmcid": it.get("pmcid") or "",
-            "measured": it.get("measured"),
+            "measured": (it["measured_consensus"] if "measured_consensus" in it
+                         else it.get("measured")),
             "judge_model": it.get("judge_model") or "",
             "reason": (it.get("exclusion_reason") or "").strip(),
             "abstract": clean_abstract(it.get("content", "")),
@@ -895,6 +983,13 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
                   "自動判定に失敗し、関連度による選別を一度も通っていない"
                   "抄録です。本カタログの引用キー索引には載せていないため、"
                   "レポートから引用することはできません。", ""]
+    rater_models = _rater_models(entries, main_model)
+    if rater_models:
+        lines += ["**関連度**: " + " / ".join(rater_models) + f" の{len(rater_models)}つのモデルの"
+                  "点数の中央値(各項目の「関連度の内訳」に個別の点数)。採否は1本目の"
+                  f"判定({config.RELEVANCE_THRESHOLD}点以上)で決め、クラスタは中央値と"
+                  "「実測あり」の多数決で決めた。中央値が採用の閾値を大きく下回る"
+                  "文献は、2本目・3本目が主題と無関係と見たもの。", ""]
     if meta.get("cluster_note"):
         lines += [f"**⚠️ 中心クラスタの基準について** {meta['cluster_note']}", ""]
     if len(judge_models) > 1:
@@ -989,6 +1084,8 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
             + ((" | 📄本文で確認済み"
                 + (f"({e['fulltext_source']})" if e["fulltext_source"] else ""))
                if e["fulltext_used"] else ""))
+        if e["raters"]:
+            lines.append(f"- **関連度の内訳**: {_rater_line(e, main_model)}")
         if e["reason"]:
             lines.append(f"- **判定メモ**: {e['reason']}")
         if e["judge_model"] and main_model and e["judge_model"] != main_model:
@@ -1038,6 +1135,33 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
             "unjudged": len(unjudged), "unjudged_path": paths["unjudged"]}
 
 
+def _short_model(m: str) -> str:
+    return (m or "").split("/")[-1]
+
+
+def _rater_models(entries, main_model) -> list:
+    """3つのモデルの平均を使った回なら、使ったモデルの短い名前の並び。"""
+    if not any(e["raters"] for e in entries):
+        return []
+    out = [_short_model(main_model) or "1本目"]
+    for k in ("model_b", "model_c"):
+        names = Counter(e["raters"][k] for e in entries if e["raters"].get(k))
+        if names:
+            out.append("・".join(_short_model(m) for m, _ in names.most_common()))
+    return out
+
+
+def _rater_line(e, main_model) -> str:
+    """「super 75 / gpt-oss 85 / diffusiongemma 70(中央値 75)」の形。"""
+    r = e["raters"]
+    parts = [f"{_short_model(e['judge_model'] or main_model) or '1本目'} "
+             f"{e['score_a'] if e['score_a'] is not None else '-'}"]
+    for p in ("b", "c"):
+        if r.get(f"score_{p}") is not None:
+            parts.append(f"{_short_model(r.get(f'model_{p}'))} {r[f'score_{p}']}")
+    return " / ".join(parts) + f"(中央値 {e['score']})"
+
+
 def _write_index(path, catalog_path, meta, entries):
     with open(path, "w", encoding="utf-8") as f:
         json.dump({
@@ -1049,12 +1173,17 @@ def _write_index(path, catalog_path, meta, entries):
             "filter_model": meta.get("filter_model", ""),
             "judge_models": meta.get("judge_models") or {},
             "homonyms": meta.get("homonyms") or [],
+            # 次回の収集で同じ検索計画を使えるように(config.REUSE_SEARCH_PLAN)
+            "search_plan": meta.get("plan") or {},
             "core_score": meta.get("core_score"),
             "cluster_note": meta.get("cluster_note", ""),
             "counts": meta.get("counts", {}),
             "items": {e["ref_key"]: {"title": e["title"], "year": e["year"],
                                      "doi": e["doi"], "score": e["score"],
                                      "measured": e["measured"],
+                                     "score_a": e["score_a"],
+                                     "measured_a": e["measured_a"],
+                                     **e["raters"],
                                      "reason": e["reason"],
                                      "cluster": e["cluster"], "src": e["src"],
                                      "design": e["design"],
@@ -1159,14 +1288,31 @@ ATTACHED_FILES_BLOCK = """<attached_files>
 判定させ、分類が一致しなかったものだけを並べたファイル。どちらの判定が
 正しいかを決めるものではなく、「自分で抄録を読み直すべきものはどれか」を
 示す手がかりとして使う。
+- 「別系統の2つのモデルが、どちらも除外相当」の節がある場合、その抄録は
+  1本目が残したのに2本目・3本目が共に外したもの。主題と無関係なものが多いが、
+  同じ介入を別の対象で行った近縁の研究(例: 自閉症児の活動スケジュール)も
+  含まれる。抄録を読み、無関係なら対象外、近縁なら周辺の補助根拠(中心の
+  根拠にはしない)として扱い、その判断を書く。
+- 「中心クラスタの内訳」の節がある場合、カタログの中心クラスタは複数の
+  モデルの点数の中央値で決めたもの。⚠️ が付いた抄録は、1つのモデルが採用の
+  閾値を下回っている。中心的な根拠に使う前に抄録を読んで確かめる。
 - 除外候補(core→off/除外相当)に挙がった抄録は、中心的な根拠に使う前に
   抄録本文を読み、テーマの定義が示す交差を実際に満たしているか確かめる。
   満たしていなければ補助に落とすか対象外にし、そう判断した理由を書く。
 - 昇格候補(related→core)は、抄録を読んで測定を伴う研究だと確認できた
   ものだけを主要な根拠に加える。まとめて昇格させない。
-- 冒頭の一致率とκ係数は、自動分類の確からしさを示す情報として
-  「エビデンスの限界」に書いてよい(κが0.4未満なら、分類はモデルに
-  よって大きく揺れる、と読める)。
+- 冒頭の採否の一致・分類の一致・κ係数は、自動分類の確からしさを示す
+  情報として「エビデンスの限界」に書いてよい。「κ は低く出やすい」の
+  注記があるときは、1本目の分類が偏っているために κ が0付近になって
+  いるだけなので、κ を取り上げず採否の一致を使う。注記が無く κ が0.4
+  未満なら、分類はモデルによって大きく揺れる、と読める。
+  「中心クラスタの境界はモデルによって動く」の注記があれば、中心
+  クラスタの顔ぶれが自動判定に左右されることも「エビデンスの限界」に
+  書いてよい。中心と周辺の線引きは、抄録を読んだ自分の判断で決める。
+  「判定の厳しさの違い」の注記が
+  あるときは、片方のモデルがテーマの定義を一貫して厳しく当てはめた
+  結果であり、揺れではない。その場合は、定義を厳密に満たす研究が
+  どれだけあるか(テーマの中核を直接扱った研究の乏しさ)として書く。
 
 ■ `{fulltext_file}` — 中心クラスタの全文アクセス可否
 各文献のオープンアクセス全文に到達できるか(A=APIで取得可 / B=閲覧可 /
@@ -1222,7 +1368,8 @@ ClaudeでもGeminiでも同じ手順で使える。
 <how_to_read_the_catalog>
 1. カタログ冒頭の「引用キー索引」に載っている引用キーだけを使う。
    索引に無いキーを作ってはならない。
-2. 抄録はクラスタ順(core → related)に並んでいる。
+2. 抄録はクラスタ順(core → related)、各クラスタの中は関連度の高い順に
+   並んでいる。
    関連度スコアとクラスタは機械的な事前判定であり、出発点として参照して
    よいが、抄録の内容と矛盾する場合は自分の判断を優先し、その旨を書く。
 {core_tier_note}3. 索引表の「確認」欄に⚠️がある抄録は、判定とスコアが矛盾している。
@@ -1907,6 +2054,9 @@ def compare_indexes(old: dict, new: dict) -> dict:
     for ok, nk in pairs:
         orec, nrec = o_items[ok], n_items[nk]
         os_, ns_ = orec.get("score"), nrec.get("score")
+        if ("score_a" in orec) != ("score_a" in nrec):
+            # 一方だけが3つのモデルの平均(score)。1本目自身の点数どうしで比べる
+            os_, ns_ = orec.get("score_a", os_), nrec.get("score_a", ns_)
         if _cluster_of(orec) != _cluster_of(nrec):
             cluster_changed.append((ok, nk, orec, nrec))
         elif (isinstance(os_, int) and isinstance(ns_, int)

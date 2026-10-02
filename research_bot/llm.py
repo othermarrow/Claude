@@ -43,6 +43,13 @@ ERROR_PREFIX = "【"
 
 # Ctrl-C 等で処理全体を止めるときに立てる。送信前・待機中・受信中に見る。
 STOP = threading.Event()
+# どのモデルも試し直しても応答しない状態が続いたときに立てる。並列処理は
+# Ctrl-C と同じくチェックポイントを残して止まる(--resume で続きから)。
+API_DOWN = threading.Event()
+
+
+class ApiUnavailable(KeyboardInterrupt):
+    """API がどのモデルでも使えない状態が続いた。Ctrl-C と同じ扱いで止める。"""
 
 _client = None
 _client_lock = threading.Lock()
@@ -50,6 +57,7 @@ _client_lock = threading.Lock()
 _rl_lock = threading.Lock()
 _next_slot = 0.0
 _rpm_now = None               # 今の送信上限(429 が返ると下げ、成功が続くと戻す)
+_rpm_shown = None             # 下げたと表示した最も低い上限(同じ表示を繰り返さない)
 _last_cut = 0.0               # 最後に送信上限を下げた時刻
 _busy_count = 0               # 429・混雑の応答を受けた回数(表示用)
 
@@ -65,6 +73,10 @@ _no_thinking_param = set()    # 思考制御パラメータを拒否した (モ�
 _no_stream = set()            # ストリーミングで何も返ってこなかったモデル(以後まとめて受け取る)
 _giveups = {}                 # モデル → 続けて諦めたバッチ数
 _dead = set()                 # 応答していないとみなしたモデル(以後は問い合わせない)
+_retry_at = {}                # 休ませているモデル → 試し直してよい時刻(monotonic)
+_trial = {}                   # 試し直し中のモデル → (試しているスレッド, 見切る時刻)
+_revived = set()              # 休ませたあと試し直したモデル(表示の言い分けに使う)
+_failed_trials = 0            # どのモデルも応答しないまま、試し直しが失敗した回数
 _switched = set()             # 切り替えを知らせた (元のモデル, 代わりのモデル)
 _switch_lock = threading.Lock()
 _runaway_noted = set()        # 「思考を止められない」と知らせたモデル
@@ -124,7 +136,7 @@ def _slow_down() -> None:
     なる。429 が返るたびに上限を3割下げ、成功が続けば少しずつ戻す。
     同時に返ってきた 429 で何段も下げないよう、10秒に1回までにする。
     """
-    global _rpm_now, _last_cut, _busy_count
+    global _rpm_now, _last_cut, _busy_count, _rpm_shown
     if not config.ADAPTIVE_RPM:
         return
     with _rl_lock:
@@ -136,18 +148,26 @@ def _slow_down() -> None:
         old = current_rpm()
         new = max(float(config.RPM_FLOOR), old * 0.7)
         _rpm_now = new
-    if round(new) < round(old):
+        # 実測: 下限近くで「8 → 6」「7 → 6」が数十行並んだ。少し戻しては
+        # 下げる往復なので、それまでに表示したより低くなったときだけ出す。
+        show = round(new) < round(old) and (_rpm_shown is None
+                                            or round(new) < _rpm_shown)
+        if show:
+            _rpm_shown = round(new)
+    if show:
         tqdm.write(f"  [送信間隔] 429・混雑の応答が返ったため、送信上限を"
                    f" {old:.0f} → {new:.0f} 回/分に下げます。")
 
 
 def _speed_up() -> None:
     """成功したら送信上限を少しずつ戻す(REQUESTS_PER_MINUTE まで)。"""
-    global _rpm_now
+    global _rpm_now, _rpm_shown
     if _rpm_now is None:
         return
     with _rl_lock:
         _rpm_now = min(float(config.REQUESTS_PER_MINUTE), _rpm_now + 0.5)
+        if _rpm_now >= config.REQUESTS_PER_MINUTE:
+            _rpm_shown = None
 
 
 def _sleep(sec: float) -> bool:
@@ -240,51 +260,118 @@ def preflight(models, fallbacks=None) -> None:
             tqdm.write(f"[モデル確認] {label}の切り替え先: " + " → ".join(usable))
 
 
-def probe(models, limit: int = 60) -> None:
+def probe(models, limit: int = 60, max_tokens: int = 64) -> None:
     """モデルが今応答するかを、短い問い合わせで確かめて表示する。
 
     無料枠のモデルは時間帯によって全く応答しないことがある。長い処理を
     始める前に、1分ほどで確かめられるようにする。
+    応答があっても本文が空のモデルがある(思考だけで max_tokens を使い切る、
+    思考を止める指定を無視する等)。その区別がつくよう、終了の理由と、
+    本文・思考の量も表示する。
     """
     client = get_client()
-    print(f"短い問い合わせで応答を確かめます(1回あたり最大{limit}秒)\n")
+    print(f"短い問い合わせで応答を確かめます(1回あたり最大{limit}秒 / "
+          f"max_tokens={max_tokens})\n")
     for m in models:
         body = _thinking_body(m, None)
         msgs = [{"role": "user", "content": "Reply with the single word OK."}]
         row = [m]
+        empty = False
+        print(f"■ {m}  (確認中。応答しないモデルは最大{limit * 2}秒かかります)", flush=True)
         # まとめて受け取る方式
         t0 = time.monotonic()
         try:
             r = _with_deadline(lambda: client.chat.completions.create(
-                model=m, messages=msgs, max_tokens=64, temperature=0,
+                model=m, messages=msgs, max_tokens=max_tokens, temperature=0,
                 stream=False, timeout=float(limit), extra_body=body), limit)
-            txt = ((r.choices[0].message.content or "").strip()
-                   if r.choices else "")
-            row.append(f"まとめて: {time.monotonic() - t0:.1f}秒 ({txt[:12]!r})")
+            ch = r.choices[0] if r.choices else None
+            txt = ((ch.message.content or "").strip() if ch else "")
+            u = getattr(r, "usage", None)
+            det = getattr(u, "completion_tokens_details", None) if u else None
+            rt = getattr(det, "reasoning_tokens", None)
+            extra = (f" finish={getattr(ch, 'finish_reason', None)}"
+                     f" 出力{getattr(u, 'completion_tokens', '?')}tok"
+                     f"(思考{rt if rt is not None else '?'})")
+            row.append(f"まとめて: {time.monotonic() - t0:.1f}秒 ({txt[:12]!r}){extra}")
+            empty = not txt
         except Exception as e:
             row.append(f"まとめて: 失敗 {time.monotonic() - t0:.0f}秒 "
                        f"({type(e).__name__}: {str(e)[:60]})")
+        print(f"    {row[1]}", flush=True)
         # ストリーミング
         t0, first = time.monotonic(), None
+        n_content = n_reason = 0
+        fin = None
         try:
             def run_stream():
-                nonlocal first
+                nonlocal first, n_content, n_reason, fin
                 s = client.chat.completions.create(
-                    model=m, messages=msgs, max_tokens=64, temperature=0,
+                    model=m, messages=msgs, max_tokens=max_tokens, temperature=0,
                     stream=True, timeout=float(limit), extra_body=body)
-                for _ in s:
+                for chunk in s:
                     if first is None:
                         first = time.monotonic() - t0
+                    if not chunk.choices:
+                        continue
+                    c = chunk.choices[0]
+                    fin = getattr(c, "finish_reason", None) or fin
+                    d = c.delta
+                    n_reason += len(getattr(d, "reasoning_content", None) or "")
+                    n_content += len(getattr(d, "content", None) or "")
                 return True
             _with_deadline(run_stream, limit)
             row.append(f"ストリーミング: 最初の応答 {first or 0:.1f}秒 / "
-                       f"完了 {time.monotonic() - t0:.1f}秒")
+                       f"完了 {time.monotonic() - t0:.1f}秒 / 本文{n_content}字 "
+                       f"思考{n_reason}字 finish={fin}")
         except Exception as e:
             row.append(f"ストリーミング: 失敗 {time.monotonic() - t0:.0f}秒 "
                        f"({type(e).__name__})")
-        print(f"■ {row[0]}\n    {row[1]}\n    {row[2]}")
+        print(f"    {row[2]}", flush=True)
+        if empty:
+            print("    → 応答は来ましたが本文が空です。思考だけで使い切った(思考が多い)か、"
+                  "思考を止める指定が合わないか、このモデルの出力形式が違う可能性が"
+                  "あります。--tokens 512 で再度確かめると区別できます。")
     print("\n両方失敗するモデルは、今は使えません。時間をおくか別のモデルを"
           "選んでください(一覧: python research_bot.py models)。")
+
+
+def probe_variants(models, limit: int = 120) -> None:
+    """応答はあるのに本文が空のモデルについて、本文が出る設定を探す。
+
+    思考(あり/なし) × 返答の長さ(64/4096) × temperature(0/1) の8通りを
+    1回ずつ送る。実測: diffusiongemma は思考なし・temperature 0 で、
+    出力1トークン(終了の合図だけ)で終わり、返答を長くしても変わらなかった。
+    """
+    client = get_client()
+    msgs = [{"role": "user", "content": "Reply with the single word OK."}]
+    for m in models:
+        print(f"\n■ {m}", flush=True)
+        good = []
+        for think, tokens, temp in itertools.product((False, True), (64, 4096), (0, 1)):
+            label = f"思考={'あり' if think else 'なし'} tokens={tokens:<5} temp={temp}"
+            t0 = time.monotonic()
+            try:
+                r = _with_deadline(
+                    lambda th=think, tk=tokens, tp=temp: client.chat.completions.create(
+                        model=m, messages=msgs, max_tokens=tk, temperature=tp,
+                        stream=False, timeout=float(limit),
+                        extra_body={"chat_template_kwargs": {"enable_thinking": th}}),
+                    limit)
+            except Exception as e:
+                print(f"  {label}: 失敗 {time.monotonic() - t0:.0f}秒 "
+                      f"({type(e).__name__}: {str(e)[:60]})", flush=True)
+                continue
+            ch = r.choices[0] if r.choices else None
+            txt = ((ch.message.content or "").strip() if ch else "")
+            u = getattr(r, "usage", None)
+            print(f"  {label}: {time.monotonic() - t0:.1f}秒 "
+                  f"finish={getattr(ch, 'finish_reason', None)} "
+                  f"出力{getattr(u, 'completion_tokens', '?')}tok "
+                  f"{('本文 ' + repr(txt[:20])) if txt else '本文は空'}", flush=True)
+            if txt:
+                good.append(f"思考{'あり' if think else 'なし'}/{tokens}tok/temp{temp}")
+        print("  → 本文が出た組み合わせ: " + (", ".join(good) if good
+                                          else "なし(どの設定でも空か失敗)"))
 
 
 # ==========================================
@@ -298,7 +385,11 @@ def _thinking_body(model: str, effort) -> dict:
       gpt-oss はこれを無視して考え続ける。gpt-oss は reasoning_effort で
       思考の量を指定する(low が最小。完全には止められない)。
     effort に "low" 等を渡すと、その量で考えさせる(1段目の粗選別が使う)。
+    config.THINKING_REQUIRED_MODELS のモデルは、思考を止めると本文が空になる
+    ので、effort によらず思考ありで呼ぶ。
     """
+    if model in config.THINKING_REQUIRED_MODELS:
+        return {"chat_template_kwargs": {"enable_thinking": True}}
     if effort or "gpt-oss" in model.lower():
         return {"reasoning_effort": effort or "low"}
     return {"chat_template_kwargs": {"enable_thinking": False}}
@@ -349,19 +440,73 @@ def _kill_stream(stream, info):
             pass
 
 
-def _record_giveup(model: str) -> None:
-    n = _giveups.get(model, 0) + 1
-    _giveups[model] = n
-    if n >= config.DEAD_MODEL_AFTER and model not in _dead:
+def _responded(model: str) -> None:
+    global _failed_trials
+    _giveups[model] = 0
+    with _switch_lock:
+        _failed_trials = 0
+        _trial.pop(model, None)
+        _revived.discard(model)
+    _speed_up()
+
+
+def _record_giveup(model: str, why: str = "応答しなかった") -> None:
+    global _failed_trials
+    with _switch_lock:
+        n = _giveups.get(model, 0) + 1
+        _giveups[model] = n
+        if n < config.DEAD_MODEL_AFTER or model in _dead:
+            return
         _dead.add(model)
-        tqdm.write(f"  [!] {model} が{n}バッチ続けて応答しなかったため、このモデルへの"
-                   "残りの問い合わせを打ち切ります。NVIDIA 側で混雑しているか停止して"
-                   "いる可能性があります(config.FALLBACK_ORDER に代わりのモデルが"
-                   "あれば、そちらで続けます)。")
+        _trial.pop(model, None)
+        again = model in _revived
+        _revived.discard(model)
+        if again:
+            _failed_trials += 1
+        cool = config.DEAD_MODEL_COOLDOWN
+        if cool > 0:
+            _retry_at[model] = time.monotonic() + cool
+    later = (f"{cool / 60:.0f}分後に1回だけ試し直します"
+             if cool > 0 else "このモデルへの残りの問い合わせを打ち切ります")
+    if again:
+        tqdm.write(f"  [!] {model} は試し直しても{why}ため、{later}。")
+        return
+    tqdm.write(f"  [!] {model} が{n}バッチ続けて{why}ため、{later}。"
+               "NVIDIA 側で混雑しているか停止している可能性があります"
+               "(config.FALLBACK_ORDER に代わりのモデルがあれば、そちらで続けます)。")
 
 
 def is_dead(model: str) -> bool:
-    return model in _dead
+    """model を今は呼ばないか。休ませたモデルは、時間が来たら1回だけ戻す。
+
+    戻したモデルは「あと1バッチ諦めたら再び休ませる」状態にしておく。
+    応答しないままのモデルで、待ち時間を何度も重ねないため。試し直しの
+    1件が応答するまで、他の並列の問い合わせは代わりのモデルで続ける
+    (まだ止まっていたときに、並列の全部が時間切れを待たないように)。
+    """
+    now = time.monotonic()
+    me = threading.get_ident()
+    with _switch_lock:
+        t = _trial.get(model)
+        if t:
+            owner, until = t
+            if now >= until:
+                del _trial[model]
+            elif owner != me:
+                return True
+        if model not in _dead:
+            return False
+        at = _retry_at.get(model)
+        if at is None or now < at:
+            return True
+        _dead.discard(model)
+        del _retry_at[model]
+        _giveups[model] = max(0, config.DEAD_MODEL_AFTER - 1)
+        _trial[model] = (me, now + config.REQUEST_TIMEOUT * config.MAX_TIMEOUTS)
+        _revived.add(model)
+    tqdm.write(f"  [復帰] {model} を試し直します(休ませてから"
+               f"{config.DEAD_MODEL_COOLDOWN / 60:.0f}分経ったため)。")
+    return False
 
 
 def activity_summary() -> str:
@@ -417,7 +562,7 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
     """
     if not have_api_key():
         return f"{ERROR_PREFIX}エラー】{KEY_NAME} が設定されていません。"
-    if model in _dead:
+    if is_dead(model):
         return f"{ERROR_PREFIX}通信エラー】{model} は応答していないため省略"
     client = get_client()
     messages = ([{"role": "system", "content": system}] if system else []) + \
@@ -450,7 +595,9 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
         if use_think:
             body = _thinking_body(model, reasoning_effort)
             extra_body.update(body)
-            expect_no_thinking = "chat_template_kwargs" in body
+            # 思考を止める指定をしたときだけ、思考の暴走を見張る
+            expect_no_thinking = (body.get("chat_template_kwargs", {})
+                                  .get("enable_thinking") is False)
         if use_guided:
             extra_body["nvext"] = {"guided_json": schema}
         use_stream = model not in _no_stream
@@ -471,8 +618,7 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                 if ch and getattr(ch, "finish_reason", None) == "length":
                     tqdm.write(f"    [!] max_tokens({max_tokens})に達し、応答が途中で"
                                "打ち切られました。")
-                _giveups[model] = 0
-                _speed_up()
+                _responded(model)
                 return text
             stream = client.chat.completions.create(
                 model=model, messages=messages, timeout=read_timeout,
@@ -510,7 +656,10 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                                 and info["reasoning"] > config.THINKING_RUNAWAY_CHARS):
                             raise ThinkingRunaway(
                                 f"思考だけで{info['reasoning']:,}字(本文 0字)")
-                        continue
+                    # 思考の終わりと本文の書き出しが同じチャンクで届くことがある。
+                    # 以前はここで次のチャンクへ進めていたため、本文の最初の数文字が
+                    # 落ちた(実測: ultra に思考させた検索計画で先頭の { が消え、
+                    # JSON として読めなかった)。
                     piece = getattr(delta, "content", None)
                     if piece:
                         parts.append(piece)
@@ -528,8 +677,7 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                     except Exception:
                         pass
             text = "".join(parts)
-            _giveups[model] = 0
-            _speed_up()
+            _responded(model)
             if finish == "length":
                 tqdm.write(f"    [!] max_tokens({max_tokens})に達し、応答が途中で"
                            "打ち切られました。")
@@ -627,10 +775,16 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                 return f"{ERROR_PREFIX}通信エラー】context length exceeded"
 
             attempt += 1
-            if attempt >= config.MAX_RETRIES:
-                break
             is_rate = type(e).__name__ == "RateLimitError" or status == 429 or "429" in msg
             is_busy = "overloaded" in low or status in (502, 503)
+            if attempt >= config.MAX_RETRIES:
+                # 実測: 送信上限を最低(6回/分)まで下げても 429 が続き、再試行を
+                # 使い切ったバッチが未判定になっていった。混雑はモデルごとなので、
+                # 時間切れと同じく「諦めた」に数え、続けば別のモデルへ切り替える
+                # (DEAD_MODEL_COOLDOWN のあとで元のモデルを試し直す)。
+                if (is_rate or is_busy) and mark_dead:
+                    _record_giveup(model, "429・混雑で断られた")
+                break
             if is_rate or is_busy:
                 _slow_down()
             if is_rate:
@@ -669,7 +823,7 @@ def pick_model(model: str, avoid=(), order=None):
     候補が尽きたら None。
     """
     for m in [model] + (config.fallback_models() if order is None else list(order)):
-        if m in _dead or m in avoid:
+        if m in avoid or is_dead(m):
             continue
         if m != model:
             with _switch_lock:
@@ -697,6 +851,10 @@ def ask_fallback(prompt: str, model: str, *, avoid=(), order=None,
     while True:
         use = pick_model(model, skip, order)
         if use is None:
+            if _wait_for_revival(model, skip, order):
+                continue
+            if STOP.is_set():
+                return f"{ERROR_PREFIX}中断】", model
             return f"{ERROR_PREFIX}通信エラー】応答するモデルが残っていません", model
         raw = ask(prompt, use, **kw)
         if not is_error(raw) or "中断" in raw:
@@ -705,6 +863,44 @@ def ask_fallback(prompt: str, model: str, *, avoid=(), order=None,
             skip.add(use)
         elif use not in _dead:
             return raw, use
+
+
+_waiting_shown = 0.0          # 「全部休んでいるので待つ」を最後に表示した時刻
+
+
+def _wait_for_revival(model, skip, order) -> bool:
+    """候補のモデルがすべて休んでいるとき、どれかを試し直せるまで待つ。
+
+    待つ意味が無い(候補が戻らない理由で止まっている)か、止める指示が
+    出たら False。実測: 混雑で候補を使い尽くすと、残りのバッチが一瞬で
+    すべて未判定になる。休ませたモデルが戻るのを待てば判定を続けられる。
+    """
+    global _waiting_shown
+    cands = [model] + (config.fallback_models() if order is None else list(order))
+    cands = [m for m in dict.fromkeys(cands) if m not in skip]
+    now = time.monotonic()
+    with _switch_lock:
+        until = [_retry_at[m] for m in cands if m in _retry_at]
+        until += [_trial[m][1] for m in cands if m in _trial]
+    if not until:
+        return False
+    # 候補のどれもが試し直しても応答しなかった(その間どのモデルも応答して
+    # いない)なら、NVIDIA 側が全体に止まっているとみて待つのをやめる。
+    # 待ち続けると、スリープ防止を掛けたまま何時間も止まってしまう。
+    if _failed_trials >= max(2, len(cands)):
+        if not API_DOWN.is_set():
+            API_DOWN.set()
+            STOP.set()
+            tqdm.write(f"\n  [!] どのモデルも、休ませてから試し直しても応答しません"
+                       f"(試し直し{_failed_trials}回)。ここで止めます。時間をおいて"
+                       " --resume を付けて続けてください。")
+        return False
+    wait = max(1.0, min(until) - now)
+    if now - _waiting_shown > 300:
+        _waiting_shown = now
+        tqdm.write(f"  [待機] 切り替え先のモデルがすべて休止中のため、試し直せるまで"
+                   f"待ちます(約{wait / 60:.0f}分)。")
+    return _sleep(min(wait, 30.0))
 
 
 def ask_ai(prompt: str, model_id: str) -> str:
@@ -731,6 +927,7 @@ def run_parallel(func, jobs, desc: str, on_result=None, concurrency: int = None,
     if not jobs:
         return 0
     STOP.clear()
+    API_DOWN.clear()
     ex = concurrent.futures.ThreadPoolExecutor(
         max_workers=concurrency or config.CONCURRENCY)
     done = 0
@@ -745,6 +942,10 @@ def run_parallel(func, jobs, desc: str, on_result=None, concurrency: int = None,
             finished, pending = concurrent.futures.wait(
                 pending, timeout=config.HEARTBEAT_SECONDS,
                 return_when=concurrent.futures.FIRST_COMPLETED)
+            if API_DOWN.is_set():
+                # 中断で返ってきた結果を「判定失敗」として書き込まないよう、
+                # 結果を渡す前に止める(書き込まなければ --resume で判定し直す)
+                raise ApiUnavailable()
             if not finished:
                 line = activity_summary()
                 if line:

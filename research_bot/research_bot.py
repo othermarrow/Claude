@@ -306,6 +306,12 @@ def add_item(src, title, year, content, url=None, doi=None, authors=None,
     # タイトルもHTMLタグ・実体参照を含むことがある(Wiley系の <scp> 等)。
     # クリーニングしないと正規化ハッシュが食い違い、重複排除をすり抜ける。
     title = catalog.clean_abstract(title) or None
+    if not doi and url:
+        # ERIC 等は DOI 欄が空で、URL が doi.org を指していることがある。
+        # 拾わないと、同じ論文の Crossref 版と DOI で突き合わせられない
+        m = fulltext.DOI_IN_URL.search(str(url).strip())
+        if m and str(url).strip().lower().startswith(("http://", "https://")):
+            doi = m.group(1).rstrip(".")
     doi_norm, title_key = _dedupe_keys(title, doi)
     if not doi_norm and not title_key:
         return False
@@ -417,6 +423,30 @@ def cmd_search(args):
     do_check = config.RUN_CHECK_AFTER_SEARCH and not args.no_check
 
     topic = args.topic or read_topic()
+    named_plan = None
+    if isinstance(args.reuse_plan, str):
+        # --reuse-plan <フォルダ名>: その回の検索計画で取り直す。テーマ文も
+        # その回のものにそろえる。実測: テーマファイルが別のテーマに書き
+        # 換わっていて、「インフォーマルなアセスメント」の名前のカタログに
+        # 週間スケジュールの検索計画で集めた文献が入った。
+        try:
+            named_plan = catalog.plan_of_theme(args.reuse_plan, args.output_dir)
+        except FileNotFoundError as e:
+            raise SystemExit(f"[エラー] --reuse-plan: {e}\n"
+                             "        テーマの一覧: python research_bot.py themes")
+        plan_topic = named_plan[2]
+        if plan_topic and plan_topic != topic.strip():
+            if args.topic:
+                raise SystemExit(
+                    f"[エラー] --reuse-plan で指定した回({named_plan[1]})のテーマ文と、"
+                    "指定したテーマ文が違います。\n"
+                    f"        その回のテーマ文: {plan_topic.splitlines()[0]}\n"
+                    "        その回を取り直すならテーマ文を省き、別のテーマなら "
+                    "--reuse-plan を外してください。")
+            print(f"[情報] --reuse-plan で指定した回({named_plan[1]})のテーマ文で"
+                  "収集します(テーマファイルの「"
+                  f"{topic.splitlines()[0]}」ではなく)。\n")
+            topic = plan_topic
     print("=== 学術リサーチ ===")
     print(f"\n【テーマ】\n{topic}\n")
     # 古いファイルのコピーを使っていて修正が反映されていなかった事例が
@@ -484,27 +514,36 @@ def cmd_search(args):
         plan.setdefault("definition", f"{topic} に関する研究")
         print("[1-3] 検索と引用連鎖はチェックポイントから復元しました。")
     else:
-        # --- 1. ファセット抽出 ---
-        print("[1/7] テーマを検索のファセットへ分解しています...")
-        # 1回しか呼ばないので、失敗したらすぐ代わりのモデルへ移る
-        facet_raw, _used = llm.ask_fallback(searchplan.facet_prompt(topic),
-                                            active_planning_model(), any_error=True)
-        if llm.is_error(facet_raw):
-            print(f"[警告] ファセット抽出に失敗しました: {facet_raw}")
-            print("       テーマ文をそのまま検索語として使う縮退動作になります。")
-        plan = searchplan.parse_facet_response(facet_raw, topic)
-        facets = plan.get("facets") or []
-        if (not llm.is_error(facet_raw) and len(facets) == 1
-                and facets[0].get("name") == "topic"
-                and topic in (facets[0].get("en") or [])):
-            print(f"[警告] ファセット抽出の応答がJSONとして解釈できず、単一"
-                  f"ファセットへ縮退しました。AIの生応答(先頭300字): "
-                  f"{facet_raw[:300]!r}")
-        mesh_cand = [m for f in facets for m in (f.get("mesh") or [])]
-        if mesh_cand:
-            kept_mesh = searchplan.apply_validated_mesh(
-                plan, sources.validate_mesh_terms(mesh_cand))
-            print(f"[統制語] MeSH候補 {len(mesh_cand)}件のうち {kept_mesh}件を採用しました。")
+        reuse = (args.reuse_plan if args.reuse_plan is not None
+                 else config.REUSE_SEARCH_PLAN)
+        if named_plan:
+            prev_plan, prev_from = named_plan[0], named_plan[1]
+        else:
+            prev_plan, prev_from = (catalog.find_previous_plan(topic, args.output_dir)
+                                    if reuse else (None, ""))
+        if prev_plan:
+            # 同じ計画で検索すれば、前回との差分が「新しく出た文献」になる
+            print(f"[1/7] 前回の収集({prev_from})の検索計画を使います"
+                  "(作り直すには --replan)。")
+            plan = prev_plan
+            search_log.append(f"検索計画: 前回の収集({prev_from})のものを使用")
+        else:
+            if reuse:
+                print("[情報] このテーマ文で前に収集した検索計画が見つからないため、"
+                      "新しく作ります。")
+            # --- 1. ファセット抽出 ---
+            print("[1/7] テーマを検索のファセットへ分解しています...")
+            plan = make_plan(topic, active_planning_model(), config.PLANNING_THINKING,
+                             config.PLANNING_TIMEOUT)
+            facets = plan.get("facets") or []
+            if searchplan.is_degenerate(plan, topic):
+                print("[警告] 検索計画を作れず、テーマ文をそのまま検索語として使う"
+                      "縮退動作になります。時間をおいて作り直すことを勧めます。")
+            mesh_cand = [m for f in facets for m in (f.get("mesh") or [])]
+            if mesh_cand:
+                kept_mesh = searchplan.apply_validated_mesh(
+                    plan, sources.validate_mesh_terms(mesh_cand))
+                print(f"[統制語] MeSH候補 {len(mesh_cand)}件のうち {kept_mesh}件を採用しました。")
 
         passes = searchplan.build_query_passes(plan)
         plan_text = searchplan.describe_plan(plan, passes[0][1])
@@ -572,6 +611,16 @@ def cmd_search(args):
                 judge.rescue_unjudged(collected, topic, plan["definition"],
                                       plan.get("homonyms"), active_filter_model(),
                                       save=lambda: _save("judging"))
+            back, looked = judge.second_look(
+                collected, topic, plan["definition"], plan.get("homonyms"),
+                active_filter_model(), save=lambda: _save("judging"))
+            if looked:
+                search_log.append(
+                    f"除外の再確認: {config.OFF_SCORE + 1}〜"
+                    f"{config.RELEVANCE_THRESHOLD - 1}点の {looked}件を判定し直し、"
+                    f"{back}件を採用に戻した(2回のどちらかで"
+                    f"{config.RELEVANCE_THRESHOLD}点以上なら採用。判定メモに"
+                    "「再確認で採用」と残る)")
             kept, excluded = judge.split_by_threshold(collected)
             used = {}
             for it in collected:
@@ -584,6 +633,28 @@ def cmd_search(args):
             if not kept:
                 print("\n【終了】判定の結果、論文が残りませんでした。")
                 return
+            cons = judge.consensus_judge(kept, topic, plan["definition"],
+                                         plan.get("homonyms"),
+                                         save=lambda: _save("judging"))
+            if cons:
+                search_log.append(
+                    f"中心クラスタ: 採用した{len(kept)}件を {cons['model_b']}"
+                    + (f" と {cons['model_c']}" if cons["model_c"] else "")
+                    + " でも判定し、点数の中央値と「実測あり」の多数決で決めた"
+                    f"(2本目 {cons['got_b']}件"
+                    + (f" / 3つ目 {cons['got_c']}件" if cons["model_c"] else "")
+                    + "の判定を得た。"
+                    + ("採否は1本目の判定と下の多数決)" if config.CONSENSUS_EXCLUDE
+                       else "採否は1本目の判定のまま)"))
+            if cons and cons.get("outvoted"):
+                search_log.append(
+                    f"多数決で除外: 1本目は採用したが2本目・3本目が共に"
+                    f"{config.RELEVANCE_THRESHOLD}点未満とした {cons['outvoted']}件"
+                    "(CONSENSUS_EXCLUDE。除外ログに「多数決で除外」と残る)")
+                kept, excluded = judge.split_by_threshold(collected)
+                if not kept:
+                    print("\n【終了】多数決で除外した結果、論文が残りませんでした。")
+                    return
             cluster_note = judge.rebalance_clusters(kept)
             _save("judged")
         current = "judged"
@@ -606,7 +677,7 @@ def cmd_search(args):
             print("\n[6/7] 撤回の有無とOA全文の所在を調べています...")
             sources.annotate_retractions(kept)
             core_first = sorted(kept, key=lambda x: (x.get("cluster") != "core",
-                                                     -(x.get("relevance_score") or 0)))
+                                                     -(judge.eff_score(x) or 0)))
             oa = sources.annotate_open_access(core_first, limit=config.OA_LOOKUP_LIMIT)
             if oa:
                 print(f"   → {oa}件はオープンアクセス全文が読めます。")
@@ -635,14 +706,17 @@ def cmd_search(args):
     stats = catalog.build_catalog(kept, {
         "topic": topic, "definition": plan["definition"],
         "homonyms": plan.get("homonyms") or [],
-        "filter_model": active_filter_model(),
+        "filter_model": active_filter_model(), "plan": plan,
         "plan_text": plan_text, "search_log": search_log,
         "cluster_note": cluster_note, "core_score": config.CORE_SCORE,
         "counts": {"collected": collected_count, "excluded": len(excluded),
                    "final": len(kept)},
     }, paths)
-    judge.write_reject_log(paths["excluded"], excluded,
-                           f"# 関連度不足による除外 (スコア {config.RELEVANCE_THRESHOLD} 未満)")
+    judge.write_reject_log(
+        paths["excluded"], excluded,
+        f"# 関連度不足による除外 (スコア {config.RELEVANCE_THRESHOLD} 未満"
+        + ("、または2本目・3本目が共に未満" if any(it.get("outvoted") for it in excluded)
+           else "") + ")")
     clear_checkpoint(args.output_dir, topic)
 
     theme_name = os.path.basename(paths["_folder"])
@@ -796,7 +870,86 @@ def cmd_probe(args):
     _require_key()
     models = [config.resolve_model(m) for m in (args.model or [])] or \
         list(dict.fromkeys([config.FILTER_MODEL, config.ENSEMBLE_MODEL]))
-    llm.probe(models, args.timeout)
+    if args.variants:
+        llm.probe_variants(models, args.timeout)
+        return
+    llm.probe(models, args.timeout, args.tokens)
+
+
+def _save_plan_raw(raw: str, model: str) -> str:
+    """読めなかった計画の応答を ~/rb_logs に残す(原因を調べるため)。"""
+    d = os.path.expanduser("~/rb_logs")
+    try:
+        os.makedirs(d, exist_ok=True)
+        p = os.path.join(d, "plan_raw_" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+                         + ".txt")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(f"model: {model}\n\n{raw}")
+        return p
+    except OSError:
+        return ""
+
+
+def make_plan(topic: str, model: str, think: bool, timeout: float,
+              fallback: bool = True) -> dict:
+    """検索計画を作る。応答が読めなければ、思考なしでもう一度作る。
+
+    実測: ultra に思考させた計画は、同じテーマで1回目は読めたが、2回目は
+    JSON として読めず、テーマ文だけの1ファセットに縮退した(検索がほぼ機能
+    しなくなる)。原因は本文の先頭 { の取りこぼし(llm.py で修正済み)だったが、
+    別の理由で読めないときの保険として、思考なしでもう一度作る。
+    fallback=False なら代わりのモデルへ切り替えない(plan コマンドでの比較用)。
+    """
+    raw = ""
+    for i, th in enumerate([think, False] if think else [False]):
+        if i:
+            print("[計画] 思考なしでもう一度作ります...")
+        if fallback:
+            raw, used = llm.ask_fallback(searchplan.facet_prompt(topic), model,
+                                         any_error=True, disable_thinking=not th,
+                                         timeout=timeout)
+        else:
+            raw, used = llm.ask(searchplan.facet_prompt(topic), model,
+                                disable_thinking=not th, timeout=timeout), model
+        if llm.is_error(raw):
+            print(f"[警告] 検索計画の作成に失敗しました({used}): {raw[:200]}")
+            continue
+        plan = searchplan.parse_facet_response(raw, topic)
+        if not searchplan.is_degenerate(plan, topic):
+            return plan
+        saved = _save_plan_raw(raw, used)
+        print(f"[警告] 計画の応答を JSON として読めませんでした({used}・思考"
+              f"{'あり' if th else 'なし'}・{len(raw)}字)。"
+              + (f"応答を {saved} に保存しました。" if saved else ""))
+        print(f"       先頭: {raw[:150]!r}")
+        print(f"       末尾: {raw[-150:]!r}")
+    return searchplan.parse_facet_response("" if llm.is_error(raw) else raw, topic)
+
+
+def cmd_plan(args):
+    """検索計画だけを作って表示する(検索も判定もしない)。モデルの比較用。"""
+    _require_key()
+    topic = (args.topic or read_topic()).strip()
+    model = config.resolve_model(args.model) or config.PLANNING_MODEL
+    think = args.think or config.PLANNING_THINKING
+    print(f"[計画] テーマ: {topic}")
+    print(f"[計画] モデル: {model} / 思考: {'あり' if think else 'なし'}")
+    t0 = time.time()
+    plan = make_plan(topic, model, think, args.timeout, fallback=False)
+    took = time.time() - t0
+    if searchplan.is_degenerate(plan, topic):
+        print(f"[計画] 失敗({took:.0f}秒): 計画を作れませんでした。")
+        return
+    mesh_cand = [m for f in plan["facets"] for m in (f.get("mesh") or [])]
+    if mesh_cand:
+        searchplan.apply_validated_mesh(plan, sources.validate_mesh_terms(mesh_cand))
+    passes = searchplan.build_query_passes(plan)
+    print("\n" + "=" * 60)
+    print(searchplan.describe_plan(plan, passes[0][1] if args.queries else {}))
+    print("=" * 60)
+    n_terms = sum(len(f["en"]) + len(f["ja"]) for f in plan["facets"])
+    print(f"[計画] {took:.0f}秒 / ファセット {len(plan['facets'])}個 / 検索語 {n_terms}語"
+          + (f" / 外した語 {len(plan['pruned'])}語" if plan.get("pruned") else ""))
 
 
 def cmd_bench(args):
@@ -818,8 +971,10 @@ def cmd_models(args):
         m = getattr(config, name)
         print(f"  {'✓' if m in avail else '✗ 見つからない'}  {name:15} {m}")
     print("\n■ --model の短い名前")
+    in_order = set(config.fallback_models()) | set(config.fallback_models("ensemble"))
     for k, m in config.MODEL_PRESETS.items():
-        print(f"  {'✓' if m in avail else '✗'}  {k}  {m}")
+        note = "" if m in in_order else "  (自動の切り替え先には入れていない)"
+        print(f"  {'✓' if m in avail else '✗'}  {k}  {m}{note}")
     if args.all or args.grep:
         pat = (args.grep or "").lower()
         rows = sorted(m for m in avail if pat in m.lower())
@@ -834,7 +989,7 @@ def cmd_models(args):
 # エントリポイント
 # ==========================================
 SUBCOMMANDS = ("search", "relink", "check", "ensemble", "fulltext", "diff",
-               "unwikilink", "themes", "models", "probe", "bench")
+               "unwikilink", "themes", "models", "probe", "bench", "plan")
 
 
 def main():
@@ -858,6 +1013,13 @@ def main():
                     help="未判定の抄録を判定し直す処理を行わない")
     ps.add_argument("--resume", action="store_true",
                     help="前回の中断地点から再開する")
+    ps.add_argument("--reuse-plan", dest="reuse_plan", nargs="?", const=True,
+                    default=None, metavar="フォルダ名",
+                    help="同じテーマ文の前回の検索計画を使う(差分を見たいとき)。"
+                         "フォルダ名を続けると、その回の検索計画を使う")
+    ps.add_argument("--replan", dest="reuse_plan", action="store_const", const=False,
+                    help="検索計画を AI に作り直させる(config.REUSE_SEARCH_PLAN が"
+                         " True でも)")
     ps.add_argument("--model", default="", metavar="名前",
                     help="判定モデルを差し替える(短い名前: "
                          + " / ".join(config.MODEL_PRESETS)
@@ -922,7 +1084,25 @@ def main():
     pp.add_argument("--model", action="append", metavar="名前",
                     help="確かめるモデル(複数回指定可)。省略時は判定用と再判定用")
     pp.add_argument("--timeout", type=int, default=60, help="1回あたりの上限秒数")
+    pp.add_argument("--variants", action="store_true",
+                    help="本文が空のモデル向け。思考・返答の長さ・temperature を"
+                         "変えた8通りを試し、本文が出る設定を探す")
+    pp.add_argument("--tokens", type=int, default=64,
+                    help="返答の長さの上限(既定64。本文が空なら増やして確かめる)")
     pp.set_defaults(func=cmd_probe)
+
+    pn = sub.add_parser("plan", help="検索計画だけを作って表示する(モデルの比較用)")
+    pn.add_argument("topic", nargs="?", default=None,
+                    help="テーマ文(省略時はテーマファイル)")
+    pn.add_argument("--model", default="", metavar="名前",
+                    help="計画を作るモデル(省略時は PLANNING_MODEL)")
+    pn.add_argument("--think", action="store_true",
+                    help="思考させる(思考を止められないモデルには必須)")
+    pn.add_argument("--timeout", type=float, default=config.PLANNING_TIMEOUT,
+                    help="上限秒数")
+    pn.add_argument("--queries", action="store_true",
+                    help="データベース別の検索式も表示する(長い)")
+    pn.set_defaults(func=cmd_plan)
 
     pb = sub.add_parser("bench", help="1段目(prefilter)の候補モデルを同じ問題で比べる")
     pb.add_argument("--model", action="append", metavar="名前",
