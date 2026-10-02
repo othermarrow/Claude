@@ -219,14 +219,50 @@ def _facet_matches(facet: dict, key: str, syns: list) -> bool:
     return any(key in j for j in (facet.get("ja") or []))
 
 
+_THINK_RE = re.compile(r"<think>.*?</think>", re.S | re.I)
+
+
+def extract_plan_json(raw: str) -> dict:
+    """応答から計画の JSON を取り出す。見つからなければ空の辞書。
+
+    以前は最初の { から最後の } までを1つの JSON として読んでいた。思考させた
+    応答では、本文の前に思考(<think>…</think> や、形式を検討する文に含まれる
+    { })が混ざることがあり、そこから読み始めると全体が壊れていた。
+    ここでは { の位置ごとに JSON として読める範囲を試し、facets を持つ最初の
+    オブジェクトを使う。末尾の余計なカンマ({"a": 1,})も直してから読む。
+    """
+    s = re.sub(r"```(?:json)?", "", raw or "")
+    s = _THINK_RE.sub("", s)
+    if "</think>" in s.lower():
+        s = s[s.lower().rindex("</think>") + len("</think>"):]
+    s = s.strip()
+    dec = json.JSONDecoder()
+    for text in (s, re.sub(r",\s*([}\]])", r"\1", s)):
+        try:
+            v = json.loads(text)
+            if isinstance(v, dict) and v.get("facets"):
+                return v
+        except ValueError:
+            pass
+        for m in re.finditer(r"\{", text):
+            try:
+                v, _ = dec.raw_decode(text, m.start())
+            except ValueError:
+                continue
+            if isinstance(v, dict) and isinstance(v.get("facets"), list):
+                return v
+    return {}
+
+
+def is_degenerate(plan: dict, topic: str) -> bool:
+    """応答を読めず、テーマ文だけの1ファセットに縮退した計画か。"""
+    f = plan.get("facets") or []
+    return len(f) == 1 and f[0].get("name") == "topic" and topic in (f[0].get("en") or [])
+
+
 def parse_facet_response(raw: str, topic: str) -> dict:
     """LLM応答をファセット計画に変換する。壊れていてもテーマ文だけで動かす。"""
-    cleaned = re.sub(r"```json|```", "", raw or "").strip()
-    m = re.search(r"\{.*\}", cleaned, re.S)
-    try:
-        plan = json.loads(m.group(0) if m else cleaned)
-    except Exception:
-        plan = {}
+    plan = extract_plan_json(raw)
 
     facets = []
     for f in plan.get("facets") or []:

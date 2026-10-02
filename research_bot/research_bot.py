@@ -533,22 +533,12 @@ def cmd_search(args):
                       "新しく作ります。")
             # --- 1. ファセット抽出 ---
             print("[1/7] テーマを検索のファセットへ分解しています...")
-            # 1回しか呼ばないので、失敗したらすぐ代わりのモデルへ移る
-            facet_raw, _used = llm.ask_fallback(
-                searchplan.facet_prompt(topic), active_planning_model(),
-                any_error=True, disable_thinking=not config.PLANNING_THINKING,
-                timeout=config.PLANNING_TIMEOUT)
-            if llm.is_error(facet_raw):
-                print(f"[警告] ファセット抽出に失敗しました: {facet_raw}")
-                print("       テーマ文をそのまま検索語として使う縮退動作になります。")
-            plan = searchplan.parse_facet_response(facet_raw, topic)
+            plan = make_plan(topic, active_planning_model(), config.PLANNING_THINKING,
+                             config.PLANNING_TIMEOUT)
             facets = plan.get("facets") or []
-            if (not llm.is_error(facet_raw) and len(facets) == 1
-                    and facets[0].get("name") == "topic"
-                    and topic in (facets[0].get("en") or [])):
-                print(f"[警告] ファセット抽出の応答がJSONとして解釈できず、単一"
-                      f"ファセットへ縮退しました。AIの生応答(先頭300字): "
-                      f"{facet_raw[:300]!r}")
+            if searchplan.is_degenerate(plan, topic):
+                print("[警告] 検索計画を作れず、テーマ文をそのまま検索語として使う"
+                      "縮退動作になります。時間をおいて作り直すことを勧めます。")
             mesh_cand = [m for f in facets for m in (f.get("mesh") or [])]
             if mesh_cand:
                 kept_mesh = searchplan.apply_validated_mesh(
@@ -886,6 +876,55 @@ def cmd_probe(args):
     llm.probe(models, args.timeout, args.tokens)
 
 
+def _save_plan_raw(raw: str, model: str) -> str:
+    """読めなかった計画の応答を ~/rb_logs に残す(原因を調べるため)。"""
+    d = os.path.expanduser("~/rb_logs")
+    try:
+        os.makedirs(d, exist_ok=True)
+        p = os.path.join(d, "plan_raw_" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+                         + ".txt")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(f"model: {model}\n\n{raw}")
+        return p
+    except OSError:
+        return ""
+
+
+def make_plan(topic: str, model: str, think: bool, timeout: float,
+              fallback: bool = True) -> dict:
+    """検索計画を作る。応答が読めなければ、思考なしでもう一度作る。
+
+    実測: ultra に思考させた計画は、同じテーマで1回目は読めたが、2回目は
+    JSON として読めず、テーマ文だけの1ファセットに縮退した(検索がほぼ機能
+    しなくなる)。思考なしの計画は読めていたので、2回目はそちらで作る。
+    fallback=False なら代わりのモデルへ切り替えない(plan コマンドでの比較用)。
+    """
+    raw = ""
+    for i, th in enumerate([think, False] if think else [False]):
+        if i:
+            print("[計画] 思考なしでもう一度作ります...")
+        if fallback:
+            raw, used = llm.ask_fallback(searchplan.facet_prompt(topic), model,
+                                         any_error=True, disable_thinking=not th,
+                                         timeout=timeout)
+        else:
+            raw, used = llm.ask(searchplan.facet_prompt(topic), model,
+                                disable_thinking=not th, timeout=timeout), model
+        if llm.is_error(raw):
+            print(f"[警告] 検索計画の作成に失敗しました({used}): {raw[:200]}")
+            continue
+        plan = searchplan.parse_facet_response(raw, topic)
+        if not searchplan.is_degenerate(plan, topic):
+            return plan
+        saved = _save_plan_raw(raw, used)
+        print(f"[警告] 計画の応答を JSON として読めませんでした({used}・思考"
+              f"{'あり' if th else 'なし'}・{len(raw)}字)。"
+              + (f"応答を {saved} に保存しました。" if saved else ""))
+        print(f"       先頭: {raw[:150]!r}")
+        print(f"       末尾: {raw[-150:]!r}")
+    return searchplan.parse_facet_response("" if llm.is_error(raw) else raw, topic)
+
+
 def cmd_plan(args):
     """検索計画だけを作って表示する(検索も判定もしない)。モデルの比較用。"""
     _require_key()
@@ -895,15 +934,11 @@ def cmd_plan(args):
     print(f"[計画] テーマ: {topic}")
     print(f"[計画] モデル: {model} / 思考: {'あり' if think else 'なし'}")
     t0 = time.time()
-    raw = llm.ask(searchplan.facet_prompt(topic), model,
-                  disable_thinking=not think, timeout=args.timeout)
+    plan = make_plan(topic, model, think, args.timeout, fallback=False)
     took = time.time() - t0
-    if llm.is_error(raw):
-        print(f"[計画] 失敗({took:.0f}秒): {raw[:300]}")
-        if not think:
-            print("       思考を止められないモデルなら --think を付けて試してください。")
+    if searchplan.is_degenerate(plan, topic):
+        print(f"[計画] 失敗({took:.0f}秒): 計画を作れませんでした。")
         return
-    plan = searchplan.parse_facet_response(raw, topic)
     mesh_cand = [m for f in plan["facets"] for m in (f.get("mesh") or [])]
     if mesh_cand:
         searchplan.apply_validated_mesh(plan, sources.validate_mesh_terms(mesh_cand))
