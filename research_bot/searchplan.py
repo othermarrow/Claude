@@ -67,6 +67,10 @@ facets (clusters of concepts) for use in search.
      the nearest evidence. For a weekly visual schedule: visual schedule,
      activity schedule, picture schedule, picture prompt. A search limited
      to "weekly schedule" misses the whole activity-schedule literature.
+   - List the core term on its own too, not only joined to a generic word
+     such as support, model, program or intervention. "functional
+     assessment intervention" misses every paper that writes just
+     "functional assessment". The same holds for the Japanese terms.
    - Include both controlled-vocabulary terms (the kind you would expect in
      MeSH or the ERIC thesaurus) and free-text terms
    - Give an abbreviation together with its full spelled-out form (e.g.,

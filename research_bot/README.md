@@ -65,6 +65,7 @@ python research_bot.py models               # 使えるモデルの一覧
 python research_bot.py probe                # モデルが今応答するか(1分ほど)
 python research_bot.py bench                # 1段目の候補モデルを同じ問題で比べる
 python research_bot.py plan "テーマ" --model 6      # 検索計画だけ作る(計画のモデルの比較用。検索・判定はしない。--queries で検索式も)
+                                                  # 作った計画は残り、同じテーマ文の次の収集はその計画で検索する(作り直すなら --replan)
 ```
 
 `<テーマ>` はフォルダ名・フォルダのパス・カタログのパスのどれでもよい。
