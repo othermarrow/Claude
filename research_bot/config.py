@@ -63,7 +63,12 @@ PLANNING_MODEL = "nvidia/nemotron-3-ultra-550b-a55b"
 # 計画の質が上がるなら True でよい。思考を止められないモデル(glm-5.3 など)を
 # PLANNING_MODEL にするときは True にする(False だと思考の暴走として打ち切られる)。
 # 比べるには: python research_bot.py plan "テーマ" --model 6 --think
-PLANNING_THINKING = False
+# 2026-10 の実測(成人の知的障害者へのキーパーソン支援、ultra): 思考ありの計画は、
+# 指示どおり広すぎる診断名を出さず(思考なしは neurodevelopmental disorder と
+# 発達障害を出して後処理で落とされた)、「キーパーソン」の同名異義語(経営用語・
+# 質的研究の情報提供者)を挙げ、3つ目のファセットを家族・介護者にした
+# (思考なしは「地域・在宅・サービス」という、テーマに無い場面を AND で足した)。
+PLANNING_THINKING = True
 PLANNING_TIMEOUT = 600        # 検索計画の1回の問い合わせの上限(秒)。思考させると長い
 FILTER_MODEL = "nvidia/nemotron-3-super-120b-a12b"
 ENSEMBLE_MODEL = "openai/gpt-oss-20b"

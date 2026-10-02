@@ -80,6 +80,11 @@ facets (clusters of concepts) for use in search.
      theme itself names it.
    - Search terms are for what the theme includes. Do not add terms for
      something the theme places outside it.
+   - Terms in one facet are joined with OR. Do not put an age word (adult,
+     adults, children, 成人) alone into a facet that names a condition:
+     "adult" OR "intellectual disability" matches every study of adults,
+     whatever the condition. Write it as a phrase (adults with intellectual
+     disability) or leave the age restriction to the definition.
    - When the facet names a population, a disorder, or a diagnosis, include
      the terms that were standard in earlier editions of the diagnostic
      manuals and are now obsolete. A search for intellectual disability
@@ -286,23 +291,45 @@ _BROAD_FOR_ID = {
 }
 
 
+# 年齢だけを表す語。障害名と同じファセットに OR で並ぶと、その年齢の研究が
+# 障害を問わずすべて当たる。実測(成人の知的障害者へのキーパーソン支援):
+# 対象のファセットが (adult OR adults OR "intellectual disability" …) になり、
+# PubMed では "Adult"[Mesh] も同じ OR に入った。
+_AGE_EN = {"adult", "adults", "adulthood", "child", "children", "childhood",
+           "adolescent", "adolescents", "adolescence", "youth", "youths",
+           "aged", "elderly", "older adult", "older adults", "infant", "infants"}
+_AGE_JA = {"成人", "成人期", "成年", "児童", "子ども", "子供", "小児", "青年",
+           "青年期", "思春期", "高齢者", "高齢期", "乳幼児", "幼児"}
+_AGE_MESH = {"Adult", "Young Adult", "Middle Aged", "Aged", "Aged, 80 and over",
+             "Child", "Child, Preschool", "Infant", "Adolescent"}
+
+
 def prune_terms(facets: list, topic: str) -> list:
     """検索語から、無関係な文献を招く語を落とす。落とした語を返す。
 
     - 2文字以下の略語(ID など)。実測: 知的障害の略として ID が検索式に入った。
       identity や identifier にも当たる
     - 知的障害のテーマの対象のファセットに入った、より広い診断名(_BROAD_FOR_ID)
+    - 年齢だけを表す語(_AGE_EN 等)。ほかの語と同じファセットにあるときだけ。
+      年齢だけのファセットなら AND で効くので残す
     語を全部落とすとファセットが空になる場合は落とさない。
     """
     dropped = []
     low_topic = (topic or "").lower()
     for f in facets:
+        mixed = (any(t.lower() not in _AGE_EN for t in f["en"])
+                 or any(t not in _AGE_JA for t in f["ja"]))
+        if mixed:
+            mesh = [m for m in f.get("mesh") or [] if m not in _AGE_MESH]
+            dropped += [m for m in f.get("mesh") or [] if m not in mesh]
+            f["mesh"] = mesh
         en = [t for t in f["en"]
-              if len(re.sub(r"[^0-9A-Za-z]", "", t)) > 2 or not t.isascii()]
+              if (len(re.sub(r"[^0-9A-Za-z]", "", t)) > 2 or not t.isascii())
+              and not (mixed and t.lower() in _AGE_EN)]
         is_id = any("知的" in t for t in f["ja"]) or any(
             "intellectual" in t.lower() or "mental retardation" in t.lower()
             for t in f["en"])
-        ja = list(f["ja"])
+        ja = [t for t in f["ja"] if not (mixed and t in _AGE_JA)]
         if is_id:
             en = [t for t in en if t.lower() not in _BROAD_FOR_ID["en"]
                   or t.lower() in low_topic]
@@ -312,7 +339,7 @@ def prune_terms(facets: list, topic: str) -> list:
         dropped += [t for t in f["en"] if t not in en]
         dropped += [t for t in f["ja"] if t not in ja]
         f["en"], f["ja"] = en, ja
-    return dropped
+    return list(dict.fromkeys(dropped))
 
 
 def apply_validated_mesh(plan: dict, valid) -> int:
@@ -602,6 +629,8 @@ def describe_plan(plan: dict, queries: dict) -> str:
         lines.append("  - 測定特性フィルタを適用(信頼性・妥当性を扱う研究に限定)")
     if plan.get("intervention"):
         lines.append("  - 研究デザインフィルタを適用(介入研究に限定)")
+    if not queries:
+        return "\n".join(lines)
     lines.append("")
     lines.append("実際に投げた検索式:")
     for k in ("openalex", "pubmed", "europepmc", "eric",

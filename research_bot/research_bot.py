@@ -909,7 +909,7 @@ def cmd_plan(args):
         searchplan.apply_validated_mesh(plan, sources.validate_mesh_terms(mesh_cand))
     passes = searchplan.build_query_passes(plan)
     print("\n" + "=" * 60)
-    print(searchplan.describe_plan(plan, passes[0][1]))
+    print(searchplan.describe_plan(plan, passes[0][1] if args.queries else {}))
     print("=" * 60)
     n_terms = sum(len(f["en"]) + len(f["ja"]) for f in plan["facets"])
     print(f"[計画] {took:.0f}秒 / ファセット {len(plan['facets'])}個 / 検索語 {n_terms}語"
@@ -1064,6 +1064,8 @@ def main():
                     help="思考させる(思考を止められないモデルには必須)")
     pn.add_argument("--timeout", type=float, default=config.PLANNING_TIMEOUT,
                     help="上限秒数")
+    pn.add_argument("--queries", action="store_true",
+                    help="データベース別の検索式も表示する(長い)")
     pn.set_defaults(func=cmd_plan)
 
     pb = sub.add_parser("bench", help="1段目(prefilter)の候補モデルを同じ問題で比べる")
