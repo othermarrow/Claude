@@ -76,7 +76,11 @@ PLANNING_MODEL = "nvidia/nemotron-3-ultra-550b-a55b"
 # 捨てていた)だった。llm.py で直したので、思考ありのままでよい。
 PLANNING_THINKING = True
 PLANNING_TIMEOUT = 600        # 検索計画の1回の問い合わせの上限(秒)。思考させると長い
-FILTER_MODEL = "nvidia/nemotron-3-super-120b-a12b"
+# 2026-10-03 に nemotron-3-super-120b-a12b の提供が終わった(410 Gone)。同じ
+# Nemotron 3 の系統で、検索計画で使っていた ultra に替えた。super と点の付け方が
+# 近いかは、前の回のカタログを ultra で再判定して確かめる(README の「判定モデルの
+# 替えどき」)。ultra は super より大きく、1回の応答が遅い。
+FILTER_MODEL = "nvidia/nemotron-3-ultra-550b-a55b"
 ENSEMBLE_MODEL = "openai/gpt-oss-20b"
 # 再判定の3つ目のモデル。2本目と別系統にし、1本目が残した文献を両方が「除外相当」と
 # 判定したものを、再判定の報告の最優先に出す(別系統の2つが共に外したものは、
@@ -84,7 +88,7 @@ ENSEMBLE_MODEL = "openai/gpt-oss-20b"
 # 取れても「近縁だが対象が違う」研究まで外していた。空文字で3つ目を使わない。
 # --model で再判定のモデルを指定したときは、比較のため3つ目は使わない。
 ENSEMBLE_SECOND_MODEL = "google/diffusiongemma-26b-a4b-it"
-PREFILTER_MODEL = "nvidia/nemotron-3-super-120b-a12b"
+PREFILTER_MODEL = "nvidia/nemotron-3-ultra-550b-a55b"
 
 # 1段目の粗選別。軽い問い合わせで「明らかに無関係」だけを先に弾き、
 # 2段目の判定件数を減らす。
@@ -108,7 +112,7 @@ RUN_CHECK_AFTER_SEARCH = True
 # "ベンダー/モデル名" で直接渡せる。`python research_bot.py models` で、
 # どれが今使えるかを確認できる。
 MODEL_PRESETS = {
-    "1": "nvidia/nemotron-3-super-120b-a12b",
+    "1": "nvidia/nemotron-3-ultra-550b-a55b",   # 2026-10-03 まで super(提供終了)
     "2": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "3": "openai/gpt-oss-20b",
     "4": "google/gemma-4-31b-it",
@@ -139,10 +143,10 @@ MODEL_PRESETS = {
 #                         プロンプトの例の「同名異義語」をそのまま写した
 #                         (再判定の247件を担当し、κ が意味を持たなくなった)
 #
-# 関連度判定は、本判定のモデル(super)が休んでいる間は代わりを使わず、戻るのを
+# 関連度判定は、本判定のモデル(1)が休んでいる間は代わりを使わず、戻るのを
 # 待つ(DEAD_MODEL_COOLDOWN ごとに試し直し、それでも戻らなければ止めて
 # --resume で続ける)。代わりのモデルは判定の付け方が違い、どちらに外れても
-# カタログの質が落ちる:
+# カタログの質が落ちる(以下の実測は、本判定が super だったころのもの):
 #   2 nemotron-3.5-lightning  寛大すぎる。2026-10 の実測で、429 が続いた回に
 #                         212件中133件を判定した。2本目・3本目が共に除外相当と
 #                         した107件のうち90件がこのモデルの採用分で(super は
@@ -153,7 +157,7 @@ MODEL_PRESETS = {
 #                         2本目の判定にも使うので、ここに置くと別系統の確認が減る
 #   4 gemma-4-31b         判定の傾向を確かめていない
 FALLBACK_ORDER = (
-    "1",   # nemotron-3-super     本判定と同じ。ファセット抽出が失敗したときの代わり
+    "1",   # nemotron-3-ultra     本判定と同じ。ファセット抽出が失敗したときの代わり
 )
 # 再判定(アンサンブル)の代わり。見落としが重ならないよう別系統を先にする。
 # 1本目の判定に使ったモデルは、ここに書いてあっても飛ばす。
@@ -161,7 +165,7 @@ ENSEMBLE_FALLBACK_ORDER = (
     "3",   # gpt-oss-20b          既定の再判定モデル。実測で再判定できた
     "8",   # diffusiongemma       82件を37秒で判定。正解付き9件で gpt-oss と同じ結果(無関係4/4を除外、関連0/5を除外)。思考ありで呼ぶ
     "4",   # gemma-4-31b          応答しない状態が続いたので後ろ
-    "1",   # nemotron-3-super     1本目に使っていれば飛ばされる
+    "1",   # nemotron-3-ultra     1本目に使っていれば飛ばされる
 )
 # (2 lightning は寛大すぎるため外した。上の FALLBACK_ORDER の説明を参照。
 #  2本目が寛大だと中央値が上がり、中心クラスタに無関係な文献が入りうる)
@@ -284,7 +288,7 @@ PREFILTER_BENCH_MODELS = (
     "openai/gpt-oss-20b",
     "z-ai/glm-5.3-flash",
     "meta/llama-3.3-70b-instruct",
-    "nvidia/nemotron-3-super-120b-a12b",
+    "nvidia/nemotron-3-ultra-550b-a55b",
 )
 # --- 2段目(関連度判定) ---
 FILTER_BATCH_SIZE = 6         # 1回の問い合わせで判定する件数

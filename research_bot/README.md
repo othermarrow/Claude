@@ -121,7 +121,7 @@ python research_bot.py --reuse-plan 重度知的障害者に対する1週間の�
 
 | 番号 | モデル |
 |---|---|
-| 1 | nvidia/nemotron-3-super-120b-a12b |
+| 1 | nvidia/nemotron-3-ultra-550b-a55b(2026-10-03 まで super。super は提供終了) |
 | 2 | nvidia/nemotron-3.5-lightning-30b-a3b |
 | 3 | openai/gpt-oss-20b |
 | 4 | google/gemma-4-31b-it |
@@ -133,13 +133,31 @@ python research_bot.py --reuse-plan 重度知的障害者に対する1週間の�
 判定の途中でモデルが応答しなくなると、`config.py` の切り替えの順番に従って
 次のモデルへ自動で切り替え、残りを続ける。
 
-- 関連度判定・抽出(`FALLBACK_ORDER`): 1 だけ。super が休んでいる間は代わりを
+- 関連度判定・抽出(`FALLBACK_ORDER`): 1 だけ。1 が休んでいる間は代わりを
   使わず、10分ごとに試し直して戻るのを待つ(戻らなければ止まるので `--resume`)。
   2(lightning)に切り替えた回は寛大すぎて、カタログが無関係な文献で膨らんだ
   (2本目・3本目が共に除外相当とした107件のうち90件が lightning の採用分)。
-  3(gpt-oss)は厳しすぎて、切り替えた分だけ取りこぼす
+  3(gpt-oss)は厳しすぎて、切り替えた分だけ取りこぼす(どちらも 1 が super だったころの実測)
 - 再判定(`ENSEMBLE_FALLBACK_ORDER`): 3 → 8 → 4 → 1(別系統を先に。1本目に使ったモデルは飛ばす)
 - 8 は、思考を止めると本文が空になるため、思考ありで呼ぶ
+
+### 判定モデルの替えどき
+
+NVIDIA 側でモデルの提供が終わると、呼び出しが 410 Gone になり、収集の最初の
+モデル確認で止まる(2026-10-03 に nemotron-3-super がこうなった)。`config.py` の
+該当する設定を `python research_bot.py models` で ✓ の付くモデルに替える。
+
+1本目(`FILTER_MODEL`)を替えたら、前の回のカタログを新しいモデルで再判定し、
+前のモデルと点の付け方が近いかを確かめる。再判定は前の結果を上書きするので、
+先に控えを取る:
+
+```
+rb ensemble <前の回のテーマ名> --model 1
+```
+
+再判定の報告の「採否の一致」「関連度スコアの差」を見る。差が大きいと、同じ
+テーマでも前の回と採用の線がずれる(参考: 2本目の gpt-oss は super より平均
+16〜30点厳しかった)。
   (`THINKING_REQUIRED_MODELS`)。再判定の切り替え先と、3つ目の判定
   (`ENSEMBLE_SECOND_MODEL`)に使う。1本目の切り替え先には入れていない
 - 5・6・7 はどちらの順番にも入れていない(`--model` では使える)。5 は思考を
@@ -194,7 +212,7 @@ python research_bot.py --reuse-plan 重度知的障害者に対する1週間の�
 | 項目 | 既定 | 意味 |
 |---|---|---|
 | `CATALOG_ROOT` | …/Vault/Abstract/catalog | カタログの保存先 |
-| `FILTER_MODEL` | nemotron-3-super-120b-a12b | 関連度判定・抽出のモデル |
+| `FILTER_MODEL` | nemotron-3-ultra-550b-a55b | 関連度判定・抽出のモデル(2026-10-03 に super の提供が終わり、ultra に替えた) |
 | `ENSEMBLE_MODEL` | gpt-oss-20b | 再判定のモデル(判定モデルとは別系統にする) |
 | `ENSEMBLE_SECOND_MODEL` | diffusiongemma | 再判定の3つ目のモデル。2本目と3本目が両方とも除外相当にした文献を報告の最優先に出す(`--model` を指定した再判定では使わない。空文字で無効) |
 | `PREFILTER_MODE` | off | 1段目の粗選別。dryrun で試す、on で除外(取りこぼしが出たため既定は off) |

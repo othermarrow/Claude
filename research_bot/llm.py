@@ -233,6 +233,13 @@ def preflight(models, fallbacks=None) -> None:
             continue
         near = difflib.get_close_matches(m, sorted(available or []), n=3, cutoff=0.6)
         hint = ("\n        近い名前: " + " / ".join(near)) if near else ""
+        if "Error code: 410" in err or "end of life" in err.lower():
+            # 実測: 2026-10-03 に nemotron-3-super の提供が終わり、410 Gone になった
+            raise SystemExit(
+                f"[エラー] モデル '{m}' は NVIDIA での提供が終わりました(410 Gone)。\n"
+                "        config.py でこのモデルを指定している設定(FILTER_MODEL など)を、"
+                "別のモデルに替えてください。" + hint + "\n"
+                "        使えるモデルの一覧: python research_bot.py models")
         raise SystemExit(
             f"[エラー] モデル '{m}' を呼び出せません: {err}{hint}\n"
             "        config.py のモデル名を確認するか、--model で別のモデルを"

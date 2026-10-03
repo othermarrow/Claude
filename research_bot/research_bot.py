@@ -1025,9 +1025,11 @@ def cmd_models(args):
         sys.exit(1)
     print(f"利用できるモデル: {len(avail)}件\n")
     print("■ config.py の設定")
-    for name in ("PLANNING_MODEL", "FILTER_MODEL", "ENSEMBLE_MODEL", "PREFILTER_MODEL"):
+    for name in ("PLANNING_MODEL", "FILTER_MODEL", "ENSEMBLE_MODEL",
+                 "ENSEMBLE_SECOND_MODEL", "PREFILTER_MODEL"):
         m = getattr(config, name)
-        print(f"  {'✓' if m in avail else '✗ 見つからない'}  {name:15} {m}")
+        if m:
+            print(f"  {'✓' if m in avail else '✗ 見つからない'}  {name:21} {m}")
     print("\n■ --model の短い名前")
     in_order = set(config.fallback_models()) | set(config.fallback_models("ensemble"))
     for k, m in config.MODEL_PRESETS.items():
