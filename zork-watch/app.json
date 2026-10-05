@@ -1,0 +1,30 @@
+{
+  "configVersion": "v3",
+  "app": {
+    "appId": 1098766,
+    "appName": "Zork I",
+    "appType": "app",
+    "version": { "code": 1, "name": "1.0.0" },
+    "icon": "icon.png",
+    "vender": "zepp",
+    "description": "Zork I with Japanese and English text"
+  },
+  "permissions": ["data:os.device.info"],
+  "runtime": {
+    "apiVersion": { "compatible": "3.0", "target": "3.0", "minVersion": "3.0" }
+  },
+  "targets": {
+    "common": {
+      "module": {
+        "page": { "pages": ["page/game/index"] }
+      },
+      "platforms": [{ "st": "r", "dw": 480 }]
+    }
+  },
+  "i18n": {
+    "ja-JP": { "appName": "Zork I" },
+    "en-US": { "appName": "Zork I" }
+  },
+  "defaultLanguage": "en-US",
+  "debug": false
+}
