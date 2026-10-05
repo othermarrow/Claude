@@ -2,7 +2,8 @@
 const FIELDS = [
   { key: 'owner', label: 'Owner (ユーザー名)', placeholder: 'othermarrow' },
   { key: 'repo', label: 'Repository', placeholder: 'Psychology' },
-  { key: 'branch', label: 'Branch (空欄=デフォルト)', placeholder: 'main' }
+  { key: 'branch', label: 'Branch (空欄=デフォルト)', placeholder: 'main' },
+  { key: 'offline', label: 'オフライン用フォルダ', placeholder: 'Abstract/report' }
 ]
 
 AppSettingsPage({
@@ -44,7 +45,7 @@ AppSettingsPage({
     rows.push(
       Text(
         { paragraph: true, style: { fontSize: '12px', color: '#888', marginTop: '16px' } },
-        'トークンは GitHub > Settings > Developer settings > Fine-grained tokens で、対象リポジトリのみ・Contents: Read-only で作成してください。'
+        'トークンは GitHub > Settings > Developer settings > Fine-grained tokens で、対象リポジトリのみ・Contents: Read-only で作成してください。作成日順の並べ替えにはトークンが必要です。'
       )
     )
 

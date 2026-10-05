@@ -33,7 +33,7 @@ export function addText(y, text, opt = {}) {
 }
 
 export function addButton(y, text, onClick, color = 0x0366d6) {
-  const bw = Math.round(W * 0.5)
+  const bw = Math.round(W * 0.56)
   hmUI.createWidget(hmUI.widget.BUTTON, {
     x: (W - bw) / 2, y, w: bw, h: 64, radius: 32,
     normal_color: color, press_color: 0x444444,
@@ -43,6 +43,53 @@ export function addButton(y, text, onClick, color = 0x0366d6) {
   return y + 64 + 14
 }
 
+export function formatDate(ms) {
+  if (!ms) return ''
+  const d = new Date(ms)
+  const z = (n) => (n < 10 ? '0' : '') + n
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`
+}
+
+// 一覧の1行（名前 + 作成日）。タップで onClick。次の y を返す
+export function addItem(y, { name, dir, date, color }, onClick) {
+  const size = 28
+  const label = (dir ? '▸ ' : '') + name
+  const th = textHeight(label, size, CW - 24)
+  const dh = date ? 26 : 0
+  const h = th + dh + 30
+  const bg = hmUI.createWidget(hmUI.widget.FILL_RECT, {
+    x: MARGIN, y, w: CW, h, radius: 16, color: color !== undefined ? color : dir ? 0x1f2d3d : 0x222222
+  })
+  const t = hmUI.createWidget(hmUI.widget.TEXT, {
+    x: MARGIN + 12, y: y + 15, w: CW - 24, h: th,
+    text: label, text_size: size,
+    color: dir ? 0x79c0ff : 0xffffff,
+    text_style: hmUI.text_style.WRAP
+  })
+  const ws = [bg, t]
+  if (date) {
+    ws.push(hmUI.createWidget(hmUI.widget.TEXT, {
+      x: MARGIN + 12, y: y + 15 + th, w: CW - 24, h: dh,
+      text: date, text_size: 20, color: 0x8b949e
+    }))
+  }
+  for (const w of ws) w.addEventListener(hmUI.event.CLICK_UP, onClick)
+  return y + h + 12
+}
+
+// 丸画面の下端で最後の項目が切れないよう余白
+export function addBottomSpace(y) {
+  hmUI.createWidget(hmUI.widget.FILL_RECT, { x: 0, y, w: W, h: 140, color: 0x000000 })
+}
+
 export function toast(text) {
   hmUI.showToast({ text })
+}
+
+export function parseParams(params) {
+  try {
+    return JSON.parse(params || '{}') || {}
+  } catch (e) {
+    return {}
+  }
 }

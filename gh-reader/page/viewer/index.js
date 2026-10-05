@@ -1,7 +1,9 @@
 import * as hmUI from '@zos/ui'
 import { replace } from '@zos/router'
 import { BasePage } from '@zeppos/zml/base-page'
-import { W, H, MARGIN, CW, addText, addButton } from '../../shared/ui'
+import { H, MARGIN, CW, addText, addButton, addBottomSpace, parseParams } from '../../shared/ui'
+import { parseMarkdown, paginate } from '../../shared/markdown'
+import { readText } from '../../shared/offline'
 
 const STYLE = {
   h1: { size: 36, color: 0xffd33d, gap: 16 },
@@ -15,21 +17,28 @@ const STYLE = {
 
 Page(
   BasePage({
-    state: { path: '', page: 0, status: null },
+    state: { path: '', page: 0, f: '', status: null },
     onInit(params) {
-      let p = {}
-      try {
-        p = JSON.parse(params || '{}')
-      } catch (e) {}
+      const p = parseParams(params)
       this.state.path = p.path || ''
       this.state.page = p.page || 0
       this.state.reload = !!p.reload
+      this.state.f = p.f || '' // 指定があれば時計内のファイル（オフライン）
     },
     build() {
       const name = this.state.path.split('/').pop().replace(/\.md$/i, '')
       this.state.titleY = addText(50, name, { size: 24, color: 0x8b949e, center: true, gap: 0 }).y
       this.state.status = addText(H / 2 - 30, '読み込み中…', { size: 28, color: 0x999999, center: true }).widget
-      this.load()
+      if (this.state.f) this.loadLocal()
+      else this.load()
+    },
+    loadLocal() {
+      const { f, path, page } = this.state
+      const text = readText(f)
+      if (!text) return this.showError('端末内のファイルを読めません\nもう一度同期してください', false)
+      const pages = paginate(parseMarkdown(text, /\.(md|markdown)$/i.test(path)))
+      const p = Math.max(0, Math.min(page, pages.length - 1))
+      this.render({ blocks: pages[p], page: p, pages: pages.length })
     },
     load() {
       const { path, page, reload } = this.state
@@ -40,12 +49,13 @@ Page(
         })
         .catch((e) => this.showError('スマホと通信できません\n' + ((e && e.message) || '')))
     },
-    showError(msg) {
+    showError(msg, retry = true) {
       this.state.status.setProperty(hmUI.prop.TEXT, msg)
-      addButton(H / 2 + 110, '再読込', () => this.go(this.state.page, true))
+      if (retry) addButton(H / 2 + 110, '再読込', () => this.go(this.state.page, true))
     },
     go(page, reload = false) {
-      replace({ url: 'page/viewer/index', params: JSON.stringify({ path: this.state.path, page, reload }) })
+      const { path, f } = this.state
+      replace({ url: 'page/viewer/index', params: JSON.stringify({ path, f, page, reload }) })
     },
     render({ blocks, page, pages }) {
       this.state.status.setProperty(hmUI.prop.VISIBLE, false)
@@ -73,8 +83,7 @@ Page(
       addText(y, `${page + 1} / ${pages}`, { size: 24, color: 0x8b949e, center: true, gap: 10 })
       y += 44
       if (page < pages - 1) y = addButton(y, '次へ ▶', () => this.go(page + 1))
-      // 丸画面の下端で切れないよう余白
-      hmUI.createWidget(hmUI.widget.FILL_RECT, { x: 0, y, w: W, h: 140, color: 0x000000 })
+      addBottomSpace(y)
     }
   })
 )

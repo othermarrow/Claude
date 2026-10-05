@@ -1,9 +1,9 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # GH Reader (Amazfit Balance 2 用 GitHub 閲覧ミニアプリ) を ~/gh-reader に作成する
-# 使い方: bash gh_reader_setup.sh && cd ~/gh-reader && npm i && zeus preview
+# 使い方: bash setup.sh && cd ~/gh-reader && npm i && zeus preview
 set -e
 APP=~/gh-reader
-mkdir -p $APP/page/index $APP/page/viewer $APP/app-side $APP/setting $APP/shared $APP/assets/common.r
+mkdir -p $APP/page/index $APP/page/viewer $APP/page/offline $APP/app-side $APP/setting $APP/shared $APP/assets/common.r
 cd $APP
 
 cat > app.json <<'EOF'
@@ -13,28 +13,57 @@ cat > app.json <<'EOF'
     "appId": 1098765,
     "appName": "GH Reader",
     "appType": "app",
-    "version": { "code": 1, "name": "1.0.0" },
+    "version": {
+      "code": 2,
+      "name": "1.1.0"
+    },
     "icon": "icon.png",
     "vender": "zepp",
     "description": "Read GitHub repository files on the watch"
   },
-  "permissions": ["data:os.device.info", "device:os.local_storage"],
+  "permissions": [
+    "data:os.device.info",
+    "device:os.local_storage"
+  ],
   "runtime": {
-    "apiVersion": { "compatible": "3.0", "target": "3.0", "minVersion": "3.0" }
+    "apiVersion": {
+      "compatible": "3.0",
+      "target": "3.0",
+      "minVersion": "3.0"
+    }
   },
   "targets": {
     "common": {
       "module": {
-        "page": { "pages": ["page/index/index", "page/viewer/index"] },
-        "app-side": { "path": "app-side/index" },
-        "setting": { "path": "setting/index" }
+        "page": {
+          "pages": [
+            "page/index/index",
+            "page/viewer/index",
+            "page/offline/index"
+          ]
+        },
+        "app-side": {
+          "path": "app-side/index"
+        },
+        "setting": {
+          "path": "setting/index"
+        }
       },
-      "platforms": [{ "st": "r", "dw": 480 }]
+      "platforms": [
+        {
+          "st": "r",
+          "dw": 480
+        }
+      ]
     }
   },
   "i18n": {
-    "ja-JP": { "appName": "GH Reader" },
-    "en-US": { "appName": "GH Reader" }
+    "ja-JP": {
+      "appName": "GH Reader"
+    },
+    "en-US": {
+      "appName": "GH Reader"
+    }
   },
   "defaultLanguage": "en-US",
   "debug": false
@@ -69,14 +98,21 @@ import { parseMarkdown, paginate } from '../shared/markdown'
 const API = 'https://api.github.com'
 const TEXT_EXT = /\.(md|markdown|txt|py|js|ts|json|sh|ya?ml|csv|html?|css|toml|ini|log)$/i
 const cache = {} // path -> pages (サイドサービスが生きている間だけ)
+let treeCache = null // { key, at, entries }
+let ctimes = null // path -> 作成日時(ms)。作成日は変わらないので settingsStorage に永続化
 
 function conf() {
   return {
     owner: (settingsLib.getItem('owner') || 'othermarrow').trim(),
     repo: (settingsLib.getItem('repo') || 'Psychology').trim(),
     branch: (settingsLib.getItem('branch') || '').trim(),
-    token: (settingsLib.getItem('token') || '').trim()
+    token: (settingsLib.getItem('token') || '').trim(),
+    offline: (settingsLib.getItem('offline') || 'Abstract/report').trim().replace(/^\/+|\/+$/g, '')
   }
+}
+
+function repoUrl(c) {
+  return `${API}/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}`
 }
 
 function encPath(path) {
@@ -87,12 +123,20 @@ function encPath(path) {
     .join('/')
 }
 
-async function gh(path, raw) {
+function header(h, name) {
+  if (!h) return undefined
+  if (typeof h.get === 'function') return h.get(name)
+  for (const k of Object.keys(h)) if (k.toLowerCase() === name) return h[k]
+  return undefined
+}
+
+function json(body) {
+  return typeof body === 'string' ? JSON.parse(body) : body
+}
+
+async function request(url, raw) {
   const c = conf()
   if (!c.owner || !c.repo) throw new Error('スマホのZeppアプリで owner/repo を設定してください')
-  const sub = encPath(path)
-  let url = `${API}/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents${sub ? '/' + sub : ''}`
-  if (c.branch) url += `?ref=${encodeURIComponent(c.branch)}`
   const headers = {
     Accept: raw ? 'application/vnd.github.raw' : 'application/vnd.github+json',
     'User-Agent': 'zepp-gh-reader',
@@ -105,27 +149,150 @@ async function gh(path, raw) {
   if (res.status === 403) throw new Error('アクセス拒否/回数制限 (403)')
   if (res.status === 404) throw new Error('見つかりません (404)\n非公開リポジトリならトークンが必要')
   if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status}`)
-  return res.body
+  return res
 }
 
-async function listDir(path) {
-  let body = await gh(path, false)
-  if (typeof body === 'string') body = JSON.parse(body)
+async function contents(path, raw) {
+  const c = conf()
+  const sub = encPath(path)
+  let url = `${repoUrl(c)}/contents${sub ? '/' + sub : ''}`
+  if (c.branch) url += `?ref=${encodeURIComponent(c.branch)}`
+  return (await request(url, raw)).body
+}
+
+// ---- 作成日 ----
+function ctKey() {
+  const c = conf()
+  return `ctime:${c.owner}/${c.repo}`
+}
+
+function loadCt() {
+  if (!ctimes) {
+    try {
+      ctimes = JSON.parse(settingsLib.getItem(ctKey()) || '{}')
+    } catch (e) {
+      ctimes = {}
+    }
+  }
+  return ctimes
+}
+
+function saveCt() {
+  settingsLib.setItem(ctKey(), JSON.stringify(ctimes))
+}
+
+// そのパスを最初に追加したコミットの日時（フォルダは中身が最初に入った日時）
+async function fetchCreated(path) {
+  const c = conf()
+  let url = `${repoUrl(c)}/commits?path=${encodeURIComponent(path)}&per_page=1`
+  if (c.branch) url += `&sha=${encodeURIComponent(c.branch)}`
+  let res = await request(url)
+  const h = res.headers
+  if (!h || (typeof h.get !== 'function' && !Object.keys(h).length)) {
+    // ヘッダーが取れない環境では、直近100件の中で一番古いものを使う
+    res = await request(url.replace('per_page=1', 'per_page=100'))
+  } else {
+    const m = String(header(res.headers, 'link') || '').match(/[?&]page=(\d+)[^>]*>;\s*rel="last"/)
+    if (m) res = await request(`${url}&page=${m[1]}`)
+  }
+  const list = json(res.body)
+  if (!Array.isArray(list) || !list.length) return 0
+  const cm = list[list.length - 1].commit
+  return Date.parse((cm.author && cm.author.date) || cm.committer.date) || 0
+}
+
+async function pool(items, n, fn) {
+  let i = 0
+  const worker = async () => {
+    while (i < items.length) {
+      const it = items[i++]
+      try {
+        await fn(it)
+      } catch (e) {}
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, worker))
+}
+
+// 未取得の作成日を取ってきて保存する
+async function fillCreated(paths) {
+  const ct = loadCt()
+  const missing = paths.filter((p) => !ct[p])
+  if (!missing.length || !conf().token) return
+  await pool(missing, 6, async (p) => {
+    const t = await fetchCreated(p)
+    if (t) ct[p] = t
+  })
+  saveCt()
+}
+
+// フォルダが先、それぞれ作成日の新しい順（不明は最後）、同じなら名前順
+function sortItems(items) {
+  items.sort((a, b) => b.d - a.d || (b.c || 0) - (a.c || 0) || a.n.localeCompare(b.n))
+  return items
+}
+
+// ---- フォルダ一覧 ----
+async function listDir(path, withDates) {
+  const body = json(await contents(path, false))
   if (!Array.isArray(body)) throw new Error('フォルダではありません')
-  const items = body
+  const entries = body
     .filter((e) => !e.name.startsWith('.'))
     .filter((e) => e.type === 'dir' || (e.type === 'file' && TEXT_EXT.test(e.name)))
-    .map((e) => ({ n: e.name, d: e.type === 'dir' ? 1 : 0 }))
-  items.sort((a, b) => b.d - a.d || a.n.localeCompare(b.n))
-  return items
+  if (withDates) await fillCreated(entries.map((e) => e.path))
+  const ct = loadCt()
+  const items = entries.map((e) => ({ n: e.name, d: e.type === 'dir' ? 1 : 0, c: ct[e.path] || 0 }))
+  const pending = conf().token ? items.filter((i) => !i.c).length : 0
+  return { items: sortItems(items), pending }
+}
+
+// ---- リポジトリ全体のファイル一覧（ランダム・オフライン用） ----
+async function tree() {
+  const c = conf()
+  const key = `${c.owner}/${c.repo}@${c.branch}`
+  if (treeCache && treeCache.key === key && Date.now() - treeCache.at < 5 * 60 * 1000) return treeCache.entries
+  let ref = c.branch
+  if (!ref) ref = json((await request(repoUrl(c))).body).default_branch
+  const body = json((await request(`${repoUrl(c)}/git/trees/${encodeURIComponent(ref)}?recursive=1`)).body)
+  const entries = (body.tree || [])
+    .filter((e) => e.type === 'blob')
+    .map((e) => e.path)
+    .filter((p) => !p.split('/').some((s) => s.startsWith('.')))
+  treeCache = { key, at: Date.now(), entries }
+  return entries
+}
+
+function under(paths, folder) {
+  return folder ? paths.filter((p) => p.startsWith(folder + '/')) : paths
+}
+
+async function randomNote(folder) {
+  const notes = under(await tree(), folder).filter((p) => /\.(md|markdown)$/i.test(p))
+  if (!notes.length) throw new Error('ノートがありません')
+  return { path: notes[Math.floor(Math.random() * notes.length)] }
+}
+
+// オフライン用フォルダの全ファイル（folder からの相対パスと作成日）
+async function offlineList() {
+  const { offline } = conf()
+  const files = under(await tree(), offline).filter((p) => TEXT_EXT.test(p))
+  await fillCreated(files)
+  const ct = loadCt()
+  return {
+    folder: offline,
+    items: files.map((p) => ({ p: offline ? p.slice(offline.length + 1) : p, c: ct[p] || 0 }))
+  }
+}
+
+async function rawText(path) {
+  const body = await contents(path, true)
+  return typeof body === 'string' ? body : JSON.stringify(body, null, 2)
 }
 
 async function readFile(path, page) {
   if (!cache[path]) {
-    let body = await gh(path, true)
-    if (typeof body !== 'string') body = JSON.stringify(body, null, 2)
     const isMd = /\.(md|markdown)$/i.test(path)
-    cache[path] = paginate(parseMarkdown(body, isMd))
+    cache[path] = paginate(parseMarkdown(await rawText(path), isMd))
   }
   const pages = cache[path]
   const p = Math.max(0, Math.min(page || 0, pages.length - 1))
@@ -137,17 +304,26 @@ AppSideService(
     onInit() {},
     onRun() {},
     onDestroy() {},
-    onSettingsChange() {
+    onSettingsChange({ key } = {}) {
+      if (key && key.startsWith('ctime:')) return
       for (const k of Object.keys(cache)) delete cache[k]
+      treeCache = null
+      ctimes = null
     },
     onRequest(req, res) {
       const p = req.params || {}
       let job
       if (req.method === 'LIST') {
-        job = listDir(p.path || '').then((items) => ({ items, repo: conf().repo }))
+        job = listDir(p.path || '', !!p.dates)
       } else if (req.method === 'FILE') {
         if (p.reload) delete cache[p.path]
         job = readFile(p.path, p.page)
+      } else if (req.method === 'RANDOM') {
+        job = randomNote(p.path || '')
+      } else if (req.method === 'OFFLINE_LIST') {
+        job = offlineList()
+      } else if (req.method === 'RAW') {
+        job = rawText(p.path).then((text) => ({ text }))
       } else {
         res('unknown method')
         return
@@ -165,7 +341,8 @@ cat > setting/index.js <<'EOF'
 const FIELDS = [
   { key: 'owner', label: 'Owner (ユーザー名)', placeholder: 'othermarrow' },
   { key: 'repo', label: 'Repository', placeholder: 'Psychology' },
-  { key: 'branch', label: 'Branch (空欄=デフォルト)', placeholder: 'main' }
+  { key: 'branch', label: 'Branch (空欄=デフォルト)', placeholder: 'main' },
+  { key: 'offline', label: 'オフライン用フォルダ', placeholder: 'Abstract/report' }
 ]
 
 AppSettingsPage({
@@ -207,7 +384,7 @@ AppSettingsPage({
     rows.push(
       Text(
         { paragraph: true, style: { fontSize: '12px', color: '#888', marginTop: '16px' } },
-        'トークンは GitHub > Settings > Developer settings > Fine-grained tokens で、対象リポジトリのみ・Contents: Read-only で作成してください。'
+        'トークンは GitHub > Settings > Developer settings > Fine-grained tokens で、対象リポジトリのみ・Contents: Read-only で作成してください。作成日順の並べ替えにはトークンが必要です。'
       )
     )
 
@@ -403,7 +580,7 @@ export function addText(y, text, opt = {}) {
 }
 
 export function addButton(y, text, onClick, color = 0x0366d6) {
-  const bw = Math.round(W * 0.5)
+  const bw = Math.round(W * 0.56)
   hmUI.createWidget(hmUI.widget.BUTTON, {
     x: (W - bw) / 2, y, w: bw, h: 64, radius: 32,
     normal_color: color, press_color: 0x444444,
@@ -413,30 +590,130 @@ export function addButton(y, text, onClick, color = 0x0366d6) {
   return y + 64 + 14
 }
 
+export function formatDate(ms) {
+  if (!ms) return ''
+  const d = new Date(ms)
+  const z = (n) => (n < 10 ? '0' : '') + n
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`
+}
+
+// 一覧の1行（名前 + 作成日）。タップで onClick。次の y を返す
+export function addItem(y, { name, dir, date, color }, onClick) {
+  const size = 28
+  const label = (dir ? '▸ ' : '') + name
+  const th = textHeight(label, size, CW - 24)
+  const dh = date ? 26 : 0
+  const h = th + dh + 30
+  const bg = hmUI.createWidget(hmUI.widget.FILL_RECT, {
+    x: MARGIN, y, w: CW, h, radius: 16, color: color !== undefined ? color : dir ? 0x1f2d3d : 0x222222
+  })
+  const t = hmUI.createWidget(hmUI.widget.TEXT, {
+    x: MARGIN + 12, y: y + 15, w: CW - 24, h: th,
+    text: label, text_size: size,
+    color: dir ? 0x79c0ff : 0xffffff,
+    text_style: hmUI.text_style.WRAP
+  })
+  const ws = [bg, t]
+  if (date) {
+    ws.push(hmUI.createWidget(hmUI.widget.TEXT, {
+      x: MARGIN + 12, y: y + 15 + th, w: CW - 24, h: dh,
+      text: date, text_size: 20, color: 0x8b949e
+    }))
+  }
+  for (const w of ws) w.addEventListener(hmUI.event.CLICK_UP, onClick)
+  return y + h + 12
+}
+
+// 丸画面の下端で最後の項目が切れないよう余白
+export function addBottomSpace(y) {
+  hmUI.createWidget(hmUI.widget.FILL_RECT, { x: 0, y, w: W, h: 140, color: 0x000000 })
+}
+
 export function toast(text) {
   hmUI.showToast({ text })
+}
+
+export function parseParams(params) {
+  try {
+    return JSON.parse(params || '{}') || {}
+  } catch (e) {
+    return {}
+  }
+}
+EOF
+
+cat > shared/offline.js <<'EOF'
+// 時計の中（ミニアプリの /data）に保存したオフライン用データ
+import { readFileSync, writeFileSync, rmSync, statSync } from '@zos/fs'
+
+const INDEX = 'off_index.json'
+
+export function readIndex() {
+  try {
+    const s = readFileSync({ path: INDEX, options: { encoding: 'utf8' } })
+    return s ? JSON.parse(s) : null
+  } catch (e) {
+    return null
+  }
+}
+
+export function readText(f) {
+  try {
+    return readFileSync({ path: f, options: { encoding: 'utf8' } }) || ''
+  } catch (e) {
+    return ''
+  }
+}
+
+function removeGen(gen) {
+  for (let i = 0; i < 10000; i++) {
+    const f = `off_${gen}_${i}.txt`
+    if (!statSync({ path: f })) break
+    rmSync({ path: f })
+  }
+}
+
+// スマホ経由でオフライン用フォルダを丸ごと取り込む。
+// 世代を交互に使い、索引を書き終えてから古い世代を消すので、途中で切れても前のデータは残る
+export async function sync(vm, onProgress) {
+  const list = await vm.request({ method: 'OFFLINE_LIST', params: {} }, { timeout: 180000 })
+  if (list.error) throw new Error(list.error)
+  const old = readIndex()
+  const gen = old && old.gen === 1 ? 0 : 1
+  removeGen(gen) // 前回中断したときの残り
+  const items = []
+  for (let i = 0; i < list.items.length; i++) {
+    const it = list.items[i]
+    onProgress && onProgress(i + 1, list.items.length, it.p)
+    const r = await vm.request({ method: 'RAW', params: { path: list.folder + '/' + it.p } }, { timeout: 120000 })
+    if (r.error) throw new Error(`${it.p}: ${r.error}`)
+    const f = `off_${gen}_${i}.txt`
+    writeFileSync({ path: f, data: r.text, options: { encoding: 'utf8' } })
+    items.push({ p: it.p, c: it.c, f })
+  }
+  writeFileSync({
+    path: INDEX,
+    data: JSON.stringify({ gen, folder: list.folder, at: Date.now(), items }),
+    options: { encoding: 'utf8' }
+  })
+  if (old) removeGen(old.gen === 1 ? 1 : 0)
+  return items.length
 }
 EOF
 
 cat > page/index/index.js <<'EOF'
 import * as hmUI from '@zos/ui'
-import { push } from '@zos/router'
+import { push, replace } from '@zos/router'
 import { BasePage } from '@zeppos/zml/base-page'
-import { W, H, MARGIN, CW, addText, addButton, textHeight, toast } from '../../shared/ui'
-
-function parse(params) {
-  try {
-    return JSON.parse(params || '{}')
-  } catch (e) {
-    return {}
-  }
-}
+import { H, addText, addButton, addItem, addBottomSpace, formatDate, parseParams, toast } from '../../shared/ui'
 
 Page(
   BasePage({
-    state: { path: '', status: null },
+    state: { path: '', noDates: false, status: null },
     onInit(params) {
-      this.state.path = parse(params).path || ''
+      const p = parseParams(params)
+      this.state.path = p.path || ''
+      this.state.noDates = !!p.nd
     },
     build() {
       const { path } = this.state
@@ -449,48 +726,57 @@ Page(
       this.request({ method: 'LIST', params: { path: this.state.path } })
         .then((data) => {
           if (data.error) return this.showError(data.error)
-          this.render(data.items || [])
+          this.render(data.items || [], data.pending || 0)
         })
         .catch((e) => this.showError('スマホと通信できません\n' + ((e && e.message) || '')))
     },
     showError(msg) {
       this.state.status.setProperty(hmUI.prop.TEXT, msg)
-      addButton(H / 2 + 110, '再読込', () => {
-        this.state.status.setProperty(hmUI.prop.TEXT, '読み込み中…')
-        this.load()
-      })
+      let y = addButton(H / 2 + 110, '再読込', () => replace({ url: 'page/index/index', params: JSON.stringify({ path: this.state.path }) }))
+      addButton(y, 'オフラインで読む', () => push({ url: 'page/offline/index', params: '{}' }), 0x2d333b)
     },
-    render(items) {
+    // 作成日が未取得のものがあれば取りに行き、取れたら並べ直す
+    fetchDates() {
+      this.request({ method: 'LIST', params: { path: this.state.path, dates: 1 } }, { timeout: 180000 })
+        .then((data) => {
+          if (data.error) return toast(data.error)
+          replace({ url: 'page/index/index', params: JSON.stringify({ path: this.state.path, nd: 1 }) })
+        })
+        .catch(() => toast('作成日を取得できませんでした'))
+    },
+    render(items, pending) {
       this.state.status.setProperty(hmUI.prop.VISIBLE, false)
-      if (!items.length) {
-        addText(H / 2 - 30, '(表示できるファイルなし)', { size: 28, color: 0x999999, center: true })
-        return
-      }
       let y = 100
-      const size = 28
+      if (pending && !this.state.noDates) {
+        y = addText(y, `作成日を取得中… (${pending}件)`, { size: 22, color: 0xd29922, center: true }).y
+        this.fetchDates()
+      }
+      if (!this.state.path) {
+        y = addItem(y, { name: 'オフライン (端末内)', color: 0x2d333b }, () =>
+          push({ url: 'page/offline/index', params: '{}' })
+        )
+      }
+      if (!items.length) {
+        y = addText(y + 20, '(表示できるファイルなし)', { size: 28, color: 0x999999, center: true }).y
+      }
       for (const it of items) {
-        const label = (it.d ? '▸ ' : '') + it.n
-        const h = textHeight(label, size, CW - 24) + 30
-        const bg = hmUI.createWidget(hmUI.widget.FILL_RECT, {
-          x: MARGIN, y, w: CW, h, radius: 16, color: it.d ? 0x1f2d3d : 0x222222
-        })
-        const t = hmUI.createWidget(hmUI.widget.TEXT, {
-          x: MARGIN + 12, y: y + 15, w: CW - 24, h: h - 30,
-          text: label, text_size: size,
-          color: it.d ? 0x79c0ff : 0xffffff,
-          text_style: hmUI.text_style.WRAP
-        })
         const full = this.state.path ? this.state.path + '/' + it.n : it.n
-        const open = () => {
+        y = addItem(y, { name: it.n, dir: it.d, date: formatDate(it.c) }, () => {
           if (it.d) push({ url: 'page/index/index', params: JSON.stringify({ path: full }) })
           else push({ url: 'page/viewer/index', params: JSON.stringify({ path: full, page: 0 }) })
-        }
-        bg.addEventListener(hmUI.event.CLICK_UP, open)
-        t.addEventListener(hmUI.event.CLICK_UP, open)
-        y += h + 12
+        })
       }
-      // 丸画面の下端で最後の項目が切れないよう余白
-      hmUI.createWidget(hmUI.widget.FILL_RECT, { x: 0, y, w: W, h: 120, color: 0x000000 })
+      y = addButton(y + 10, 'ランダムノート', () => this.random(), 0x6e40c9)
+      addBottomSpace(y)
+    },
+    random() {
+      toast('選んでいます…')
+      this.request({ method: 'RANDOM', params: { path: this.state.path } })
+        .then((data) => {
+          if (data.error) return toast(data.error)
+          push({ url: 'page/viewer/index', params: JSON.stringify({ path: data.path, page: 0 }) })
+        })
+        .catch(() => toast('スマホと通信できません'))
     }
   })
 )
@@ -500,7 +786,9 @@ cat > page/viewer/index.js <<'EOF'
 import * as hmUI from '@zos/ui'
 import { replace } from '@zos/router'
 import { BasePage } from '@zeppos/zml/base-page'
-import { W, H, MARGIN, CW, addText, addButton } from '../../shared/ui'
+import { H, MARGIN, CW, addText, addButton, addBottomSpace, parseParams } from '../../shared/ui'
+import { parseMarkdown, paginate } from '../../shared/markdown'
+import { readText } from '../../shared/offline'
 
 const STYLE = {
   h1: { size: 36, color: 0xffd33d, gap: 16 },
@@ -514,21 +802,28 @@ const STYLE = {
 
 Page(
   BasePage({
-    state: { path: '', page: 0, status: null },
+    state: { path: '', page: 0, f: '', status: null },
     onInit(params) {
-      let p = {}
-      try {
-        p = JSON.parse(params || '{}')
-      } catch (e) {}
+      const p = parseParams(params)
       this.state.path = p.path || ''
       this.state.page = p.page || 0
       this.state.reload = !!p.reload
+      this.state.f = p.f || '' // 指定があれば時計内のファイル（オフライン）
     },
     build() {
       const name = this.state.path.split('/').pop().replace(/\.md$/i, '')
       this.state.titleY = addText(50, name, { size: 24, color: 0x8b949e, center: true, gap: 0 }).y
       this.state.status = addText(H / 2 - 30, '読み込み中…', { size: 28, color: 0x999999, center: true }).widget
-      this.load()
+      if (this.state.f) this.loadLocal()
+      else this.load()
+    },
+    loadLocal() {
+      const { f, path, page } = this.state
+      const text = readText(f)
+      if (!text) return this.showError('端末内のファイルを読めません\nもう一度同期してください', false)
+      const pages = paginate(parseMarkdown(text, /\.(md|markdown)$/i.test(path)))
+      const p = Math.max(0, Math.min(page, pages.length - 1))
+      this.render({ blocks: pages[p], page: p, pages: pages.length })
     },
     load() {
       const { path, page, reload } = this.state
@@ -539,12 +834,13 @@ Page(
         })
         .catch((e) => this.showError('スマホと通信できません\n' + ((e && e.message) || '')))
     },
-    showError(msg) {
+    showError(msg, retry = true) {
       this.state.status.setProperty(hmUI.prop.TEXT, msg)
-      addButton(H / 2 + 110, '再読込', () => this.go(this.state.page, true))
+      if (retry) addButton(H / 2 + 110, '再読込', () => this.go(this.state.page, true))
     },
     go(page, reload = false) {
-      replace({ url: 'page/viewer/index', params: JSON.stringify({ path: this.state.path, page, reload }) })
+      const { path, f } = this.state
+      replace({ url: 'page/viewer/index', params: JSON.stringify({ path, f, page, reload }) })
     },
     render({ blocks, page, pages }) {
       this.state.status.setProperty(hmUI.prop.VISIBLE, false)
@@ -572,8 +868,101 @@ Page(
       addText(y, `${page + 1} / ${pages}`, { size: 24, color: 0x8b949e, center: true, gap: 10 })
       y += 44
       if (page < pages - 1) y = addButton(y, '次へ ▶', () => this.go(page + 1))
-      // 丸画面の下端で切れないよう余白
-      hmUI.createWidget(hmUI.widget.FILL_RECT, { x: 0, y, w: W, h: 140, color: 0x000000 })
+      addBottomSpace(y)
+    }
+  })
+)
+EOF
+
+cat > page/offline/index.js <<'EOF'
+import * as hmUI from '@zos/ui'
+import { push, replace } from '@zos/router'
+import { setPageBrightTime } from '@zos/display'
+import { BasePage } from '@zeppos/zml/base-page'
+import { addText, addButton, addItem, addBottomSpace, formatDate, parseParams, toast } from '../../shared/ui'
+import { readIndex, sync } from '../../shared/offline'
+
+Page(
+  BasePage({
+    state: { path: '', syncing: false, status: null },
+    onInit(params) {
+      this.state.path = parseParams(params).path || ''
+    },
+    build() {
+      const idx = readIndex()
+      const { path } = this.state
+      const title = path ? path.split('/').pop() : (idx && idx.folder.split('/').pop()) || 'オフライン'
+      let y = addText(40, title, { size: 30, color: 0x58a6ff, center: true, gap: 0 }).y
+      y = Math.max(y + 10, 100)
+
+      if (!path) {
+        const info = idx ? `端末内 ${idx.items.length}件・同期 ${formatDate(idx.at)}` : 'まだ同期していません'
+        y = addText(y, info, { size: 22, color: 0x8b949e, center: true }).y
+        this.state.status = addText(y, ' ', { size: 22, color: 0xd29922, center: true, gap: 0 }).widget
+        y += 34
+        y = addButton(y, '同期する', () => this.doSync(), 0x238636)
+      }
+      if (!idx) {
+        addText(y + 10, 'スマホとつながっているときに「同期する」を押すと、設定したフォルダを時計に保存します。', {
+          size: 24, color: 0x999999
+        })
+        return
+      }
+
+      // このフォルダ直下のフォルダとファイル
+      const prefix = path ? path + '/' : ''
+      const dirs = {}
+      const files = []
+      for (const it of idx.items) {
+        if (!it.p.startsWith(prefix)) continue
+        const rest = it.p.slice(prefix.length)
+        const i = rest.indexOf('/')
+        if (i >= 0) {
+          // フォルダの作成日 = 中身で一番古いもの
+          const d = rest.slice(0, i)
+          const c = it.c || Infinity
+          dirs[d] = dirs[d] === undefined ? c : Math.min(dirs[d], c)
+        } else {
+          files.push(it)
+        }
+      }
+      const dirList = Object.keys(dirs).map((n) => ({ n, c: dirs[n] === Infinity ? 0 : dirs[n] }))
+      dirList.sort((a, b) => b.c - a.c || a.n.localeCompare(b.n))
+      files.sort((a, b) => (b.c || 0) - (a.c || 0) || a.p.localeCompare(b.p))
+
+      for (const d of dirList) {
+        y = addItem(y, { name: d.n, dir: 1, date: formatDate(d.c) }, () =>
+          push({ url: 'page/offline/index', params: JSON.stringify({ path: prefix + d.n }) })
+        )
+      }
+      for (const it of files) {
+        y = addItem(y, { name: it.p.slice(prefix.length), date: formatDate(it.c) }, () => this.open(it))
+      }
+      const notes = idx.items.filter((it) => it.p.startsWith(prefix) && /\.(md|markdown)$/i.test(it.p))
+      if (notes.length) {
+        y = addButton(y + 10, 'ランダムノート', () => this.open(notes[Math.floor(Math.random() * notes.length)]), 0x6e40c9)
+      }
+      addBottomSpace(y)
+    },
+    open(it) {
+      push({ url: 'page/viewer/index', params: JSON.stringify({ path: it.p, f: it.f, page: 0 }) })
+    },
+    doSync() {
+      if (this.state.syncing) return
+      this.state.syncing = true
+      setPageBrightTime({ brightTime: 600000 }) // 同期中は画面を消さない
+      const st = this.state.status
+      st.setProperty(hmUI.prop.TEXT, '一覧を取得中…')
+      sync(this, (i, n) => st.setProperty(hmUI.prop.TEXT, `同期中 ${i} / ${n}`))
+        .then((n) => {
+          toast(`${n}件を保存しました`)
+          replace({ url: 'page/offline/index', params: '{}' })
+        })
+        .catch((e) => {
+          this.state.syncing = false
+          toast('同期に失敗しました')
+          st.setProperty(hmUI.prop.TEXT, '失敗: ' + ((e && e.message) || 'スマホと通信できません'))
+        })
     }
   })
 )
