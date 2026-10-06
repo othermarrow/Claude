@@ -129,7 +129,7 @@ claude.ai のページとして公開してあり、Termux を起動しなくて
 
 `web/zork-ja-standalone.html` を Tasker のシーンの Webビューで開く。claude.ai の外なので、
 辞書にない文の翻訳は Gemini API キー(≡ の設定で入れる)があれば Gemini で行う。キーがなければ英語のまま出る。
-セーブと途中の画面は `Tasker/zork-ja/` フォルダに保存する(「電話へのアクセスを許可」が必要)。
+セーブと途中の画面は `Tasker/zork-ja/zork-ja-data.json` に保存する(「電話へのアクセスを許可」が必要)。一度保存すると、Tasker の変数 `%ZORKJA` が `1` になる。この変数がある間に `zork-ja-data.json` を消すと、起動時に Tasker のエラーが出るので、消すときは変数も消す。
 
 1. ファイルを置く。Termux で次を実行する。
 

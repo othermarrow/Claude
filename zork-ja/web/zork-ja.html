@@ -194,7 +194,7 @@ body.mode-en .row .en { color: var(--phosphor); font-size: 1em; line-height: var
           <button class="key" type="button" id="restart-no" hidden>やめる</button>
         </div>
       </div>
-      <p>命令は日本語でも英語でも入力できます。例：郵便受けを開ける／チラシを読む／ランプをつける／剣でトロールを攻撃。セーブは1か所に保存され、ロードで戻れます（claude.ai では claude.ai に、Tasker では Tasker/zork-ja/ に保存）。途中の画面は自動で残り、次に開いたときに続きから遊べます。</p>
+      <p>命令は日本語でも英語でも入力できます。例：郵便受けを開ける／チラシを読む／ランプをつける／剣でトロールを攻撃。セーブは1か所に保存され、ロードで戻れます（claude.ai では claude.ai に、Tasker では Tasker/zork-ja/zork-ja-data.json に保存）。途中の画面は自動で残り、次に開いたときに続きから遊べます。</p>
       <p>ZORK I © Infocom（MIT ライセンスで公開されたゲームファイルを使用）</p>
       <button class="key" type="button" id="close-sheet">閉じる</button>
     </div>
@@ -961,28 +961,54 @@ if (typeof module !== "undefined") module.exports = { Translator, CommandParser,
   const $ = id => document.getElementById(id);
   const logEl = $("log"), screenEl = $("screen"), cmdEl = $("cmd");
   // Tasker のシーン（Webビュー、「電話へのアクセスを許可」あり）で開いたときは、
-  // Tasker の readFile / writeFile で Tasker/zork-ja/ にも保存する
+  // Tasker の readFile / writeFile で Tasker/zork-ja/zork-ja-data.json にも保存する。
+  // Tasker はないファイルを読むとエラーを出してページの処理を止めるので、
+  // 一度書いたことを Tasker の変数 %ZORKJA（またはブラウザの記憶）に残し、書いたあとでだけ読む。
   const TK = (() => {
     try {
       if (typeof tk !== "undefined" && tk && typeof tk.readFile === "function" && typeof tk.writeFile === "function") return tk;
-      if (typeof readFile === "function" && typeof writeFile === "function") return { readFile, writeFile };
+      if (typeof readFile === "function" && typeof writeFile === "function") {
+        return {
+          readFile, writeFile,
+          global: typeof global === "function" ? global : undefined,
+          setGlobal: typeof setGlobal === "function" ? setGlobal : undefined,
+        };
+      }
     } catch (e) { /* Tasker の外 */ }
     return null;
   })();
-  const TK_DIR = "/storage/emulated/0/Tasker/zork-ja/";
+  const TK_FILE = "/storage/emulated/0/Tasker/zork-ja/zork-ja-data.json";
+  const MARK = "zorkja.tkfile";
+  function tkWritten() {
+    try { if (TK.global && String(TK.global("ZORKJA")) === "1") return true; } catch (e) { /* 変数を読めない */ }
+    try { return localStorage.getItem(MARK) === "1"; } catch (e) { return false; }
+  }
+  let tkData = {};
+  if (TK && tkWritten()) {
+    try { tkData = JSON.parse(String(TK.readFile(TK_FILE) || "{}")) || {}; } catch (e) { tkData = {}; }
+  }
+  let tkTimer = null;
+  function tkFlush() {
+    tkTimer = null;
+    try {
+      TK.writeFile(TK_FILE, JSON.stringify(tkData), false);
+      try { if (TK.setGlobal) TK.setGlobal("ZORKJA", "1"); } catch (e) { /* 変数に書けない */ }
+      try { localStorage.setItem(MARK, "1"); } catch (e) { /* 同上 */ }
+    } catch (e) { /* 書けなくても遊べる */ }
+  }
+  function tkSchedule() { if (!tkTimer) tkTimer = setTimeout(tkFlush, 400); }
+  document.addEventListener("visibilitychange", () => { if (TK && tkTimer && document.hidden) { clearTimeout(tkTimer); tkFlush(); } });
   const LS = {
     get(k) {
-      if (TK) {
-        try { const v = TK.readFile(TK_DIR + k + ".json"); if (v) return String(v); } catch (e) { /* ファイルがない */ }
-      }
+      if (TK && typeof tkData[k] === "string") return tkData[k];
       try { return localStorage.getItem(k); } catch (e) { return null; }
     },
     set(k, v) {
-      if (TK) { try { TK.writeFile(TK_DIR + k + ".json", v, false); } catch (e) { /* 書けなくても遊べる */ } }
+      if (TK) { tkData[k] = v; tkSchedule(); }
       try { localStorage.setItem(k, v); } catch (e) { /* 保存できなくても遊べる */ }
     },
     del(k) {
-      if (TK) { try { TK.writeFile(TK_DIR + k + ".json", "", false); } catch (e) { /* 同上 */ } }
+      if (TK) { delete tkData[k]; tkSchedule(); }
       try { localStorage.removeItem(k); } catch (e) { /* 同上 */ }
     },
   };
