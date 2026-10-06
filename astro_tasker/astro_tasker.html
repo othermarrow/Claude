@@ -97,6 +97,7 @@ canvas#sf{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.35}
   pointer-events:none;
 }
 #vr-bearing{font-family:'Orbitron',monospace;font-size:14px;font-weight:700;color:rgba(120,200,255,0.95);letter-spacing:3px;pointer-events:none}
+#vr-sub{font-family:'Orbitron',monospace;font-size:9px;color:rgba(110,160,220,0.75);letter-spacing:1px;margin-top:2px;pointer-events:none;white-space:nowrap}
 #vr-btns{display:flex;gap:6px}
 #vr-close,#vr-sensor-btn{pointer-events:all}
 
@@ -172,15 +173,11 @@ section{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1
 <!-- Taskerが書き込む座標ファイル（なくてもエラーにならない） -->
 <script>
 
-/* === TRUE NORTH CORRECTION (Osaka) === */
-const MAG_DECLINATION = 7.3;
-function trueHeading(h){
-  if(isNaN(h)) return h;
-  let v = h + MAG_DECLINATION;
-  if(v<0) v+=360;
-  if(v>=360) v-=360;
-  return v;
-}
+/* === 磁気偏角（真北補正）===
+   東偏をプラス、西偏をマイナスで書く。日本は西偏なのでマイナス。
+   平群町 2026年: 約 8.1°西偏（WMM2025）。
+   方位センサー（deviceorientationabsolute）は磁北基準なので、この値を足して真北にする。 */
+const MAG_DECLINATION = -8.1;
 window._TLAT=undefined;window._TLON=undefined;</script>
 <script src="astro_loc.js" onerror="void 0"></script>
 </head>
@@ -192,7 +189,7 @@ window._TLAT=undefined;window._TLON=undefined;</script>
   <div id="vr-canvas-wrap">
     <canvas id="vrc-main"></canvas>
     <div id="vr-bar">
-      <div id="vr-bearing">---°</div>
+      <div><div id="vr-bearing">---°</div><div id="vr-sub"></div></div>
       <div id="vr-btns">
         <button class="cbtn" id="vr-sensor-btn" onclick="toggleSensor(true)">⊕ SENSOR</button>
         <button class="cbtn" id="vr-cal-btn" onclick="calibrate()" style="display:none">◎ CAL</button>
@@ -304,13 +301,33 @@ function ecl2eq(lam,bet,eps){
   return{ra:norm(Math.atan2(Math.sin(lr)*Math.cos(er)-Math.tan(br)*Math.sin(er),Math.cos(lr))*R2D),
          dec:Math.asin(Math.sin(br)*Math.cos(er)+Math.cos(br)*Math.sin(er)*Math.sin(lr))*R2D};
 }
+/* 赤道座標 → 地平座標。東・北・天頂の成分から atan2 で方位を出す
+   （acos 方式は真北・真南の付近で数分角ずれるため） */
 function eq2hor(ra,dec,l,lat){
-  const H=((l-ra)%360+360)%360,Hr=(H>180?H-360:H)*D2R,dr=dec*D2R,lr=lat*D2R;
-  const sA=Math.sin(dr)*Math.sin(lr)+Math.cos(dr)*Math.cos(lr)*Math.cos(Hr);
-  const alt=Math.asin(Math.max(-1,Math.min(1,sA)))*R2D;
-  const cA=(Math.sin(dr)-Math.sin(lr)*sA)/(Math.cos(lr)*Math.cos(Math.abs(alt)*D2R+.0001));
-  const Az=Math.acos(Math.max(-1,Math.min(1,cA)))*R2D;
-  return{alt,az:norm(Math.sin(Hr)>0?360-Az:Az)};
+  const Hr=(l-ra)*D2R,dr=dec*D2R,lr=lat*D2R;
+  const cd=Math.cos(dr),sd=Math.sin(dr),cl=Math.cos(lr),sl=Math.sin(lr),cH=Math.cos(Hr);
+  const E=-cd*Math.sin(Hr),N=sd*cl-cd*cH*sl,U=sd*sl+cd*cH*cl;
+  return{alt:Math.asin(Math.max(-1,Math.min(1,U)))*R2D,az:norm(Math.atan2(E,N)*R2D)};
+}
+/* 歳差: J2000.0 の赤経・赤緯 → 観測日の平均分点（Meeus 21章） */
+function precess(ra,dec,jd){
+  const t=(jd-2451545)/36525,as=1/3600;
+  const zeta=(2306.2181*t+.30188*t*t+.017998*t*t*t)*as;
+  const z=(2306.2181*t+1.09468*t*t+.018203*t*t*t)*as;
+  const th=(2004.3109*t-.42665*t*t-.041833*t*t*t)*as*D2R;
+  const a=(ra+zeta)*D2R,d=dec*D2R;
+  const A=Math.cos(d)*Math.sin(a);
+  const B=Math.cos(th)*Math.cos(d)*Math.cos(a)-Math.sin(th)*Math.sin(d);
+  const C=Math.sin(th)*Math.cos(d)*Math.cos(a)+Math.cos(th)*Math.sin(d);
+  return{ra:norm(Math.atan2(A,B)*R2D+z),dec:Math.asin(Math.max(-1,Math.min(1,C)))*R2D};
+}
+/* 大気差（見かけの高度 − 真の高度、度）。Sæmundsson の式。
+   空の表示（VR・コンパス）だけに使う。地平線の下ではなめらかに 0 にする */
+function refraction(alt){
+  if(alt<-3) return 0;
+  const h=Math.max(alt,-1);
+  const R=1.02/Math.tan((h+10.3/(h+5.11))*D2R)/60;
+  return alt>=-1?R:R*(alt+3)/2;
 }
 const C16E=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
 const C16J=['北','北北東','北東','東北東','東','東南東','南東','南南東','南','南南西','南西','西南西','西','西北西','北西','北北西'];
@@ -352,18 +369,25 @@ function getMoon(jd){
     +.015327*Math.sin((2*D-2*F)*D2R)+.010675*Math.sin((4*D-M1)*D2R)
     +.010034*Math.sin(3*M1R)+.008548*Math.sin((4*D-2*M1)*D2R)
     -.007888*Math.sin((2*D+M-M1)*D2R)-.006766*Math.sin((2*D+M)*D2R)
-    -.005163*Math.sin((M1-D)*D2R)+.004987*Math.sin((M+D)*D2R)
-    +.004036*Math.sin((2*D-M+M1)*D2R)+.003994*Math.sin(2*M1R)
-    +.003861*Math.sin(4*DR)+.003665*Math.sin((2*D-3*M1)*D2R);
+    -.005163*Math.sin((D-M1)*D2R)+.004987*Math.sin((M+D)*D2R)
+    +.004036*Math.sin((2*D-M+M1)*D2R)+.003994*Math.sin((2*D+2*M1)*D2R)
+    +.003861*Math.sin(4*DR)+.003665*Math.sin((2*D-3*M1)*D2R)
+    -.012528*Math.sin((M1+2*F)*D2R)+.010980*Math.sin((M1-2*F)*D2R);
   const db=5.128122*Math.sin(FR)+.280602*Math.sin((M1+F)*D2R)+.277693*Math.sin((M1-F)*D2R)
     +.173237*Math.sin((2*D-F)*D2R)+.055413*Math.sin((2*D-M1+F)*D2R)
     +.046271*Math.sin((2*D-M1-F)*D2R)+.032573*Math.sin((2*D+F)*D2R)
     +.017198*Math.sin((2*M1+F)*D2R)+.009266*Math.sin((2*D+M1-F)*D2R)
-    +.008822*Math.sin(2*(M1-F)*D2R)-.008216*Math.sin((2*D-M-F)*D2R)
-    -.006675*Math.sin((M1+2*F)*D2R);
+    +.008822*Math.sin((2*M1-F)*D2R)+.008216*Math.sin((2*D-M-F)*D2R);
+  /* 地平視差（度）: 月は近いので、見る場所によって最大約1°下に見える */
+  const hp=.9508+.0518*Math.cos(M1R)+.0095*Math.cos((2*D-M1)*D2R)
+    +.0078*Math.cos(2*DR)+.0028*Math.cos(2*M1R);
   const lambda=norm(L1+dl);
   const{ra,dec}=ecl2eq(lambda,db,getObl(T));
-  return{ra,dec,lambda,beta:db};
+  return{ra,dec,lambda,beta:db,hp};
+}
+/* 地心の高度 → 観測地点から見た高度（視差の補正） */
+function topoAlt(alt,hp){
+  return alt-Math.asin(Math.sin(hp*D2R)*Math.cos(alt*D2R))*R2D;
 }
 function moonPhase(jd){
   const s=getSun(jd),m=getMoon(jd),e=norm(m.lambda-s.lambda);
@@ -387,17 +411,37 @@ function moonName(age){
   if(age<28.5)return{jp:'有明月',en:'Waning Crescent'};
   return             {jp:'新月前',en:'Waning Crescent'};
 }
-/* ── Planets ── */
+/* ── Planets ──
+   JPL「Keplerian Elements for Approximate Positions of the Major Planets」Table 1
+   （1800–2050年用、J2000.0 黄道・分点）。
+   el: [a(AU), e, i, L(平均黄経), ϖ(近日点黄経), Ω(昇交点黄経)]
+   rt: 1ユリウス世紀あたりの変化量 */
 const PL=[
-  {id:'Mercury',jp:'水星',en:'Mercury',col:'mercury',L0:252.250906,dL:4.092338796,a:.38709927,e:.20563593,i:7.00497902,O:48.33076593,w:77.45779628},
-  {id:'Venus',  jp:'金星',en:'Venus',  col:'venus',  L0:181.979801,dL:1.602130474,a:.72333566,e:.00677672,i:3.39467605,O:76.67984255,w:131.60246718},
-  {id:'Mars',   jp:'火星',en:'Mars',   col:'mars',   L0:355.433000,dL:.524033044, a:1.52371034,e:.09339410,i:1.84969142,O:49.55953891,w:286.50218824},
-  {id:'Jupiter',jp:'木星',en:'Jupiter',col:'jupiter',L0:34.351519, dL:.083086740, a:5.20288700,e:.04838624,i:1.30439695,O:100.47390909,w:14.72847983},
-  {id:'Saturn', jp:'土星',en:'Saturn', col:'saturn', L0:50.077444, dL:.033459733, a:9.53667594,e:.05386179,i:2.48599187,O:113.66242448,w:92.59887831},
-  {id:'Uranus', jp:'天王星',en:'Uranus',col:'uranus',L0:314.055005,dL:.011724036, a:19.18916464,e:.04725744,i:.77263783,O:74.01692503,w:170.95427630},
-  {id:'Neptune',jp:'海王星',en:'Neptune',col:'neptune',L0:304.348665,dL:.005981985,a:30.06992276,e:.00859048,i:1.77004347,O:131.78422574,w:44.96476227},
+  {id:'Mercury',jp:'水星',en:'Mercury',col:'mercury',
+    el:[.38709927,.20563593,7.00497902,252.25032350,77.45779628,48.33076593],
+    rt:[.00000037,.00001906,-.00594749,149472.67411175,.16047689,-.12534081]},
+  {id:'Venus',  jp:'金星',en:'Venus',  col:'venus',
+    el:[.72333566,.00677672,3.39467605,181.97909950,131.60246718,76.67984255],
+    rt:[.00000390,-.00004107,-.00078890,58517.81538729,.00268329,-.27769418]},
+  {id:'Mars',   jp:'火星',en:'Mars',   col:'mars',
+    el:[1.52371034,.09339410,1.84969142,-4.55343205,-23.94362959,49.55953891],
+    rt:[.00001847,.00007882,-.00813131,19140.30268499,.44441088,-.29257343]},
+  {id:'Jupiter',jp:'木星',en:'Jupiter',col:'jupiter',
+    el:[5.20288700,.04838624,1.30439695,34.39644051,14.72847983,100.47390909],
+    rt:[-.00011607,-.00013253,-.00183714,3034.74612775,.21252668,.20469106]},
+  {id:'Saturn', jp:'土星',en:'Saturn', col:'saturn',
+    el:[9.53667594,.05386179,2.48599187,49.95424423,92.59887831,113.66242448],
+    rt:[-.00125060,-.00050991,.00193609,1222.49362201,-.41897216,-.28867794]},
+  {id:'Uranus', jp:'天王星',en:'Uranus',col:'uranus',
+    el:[19.18916464,.04725744,.77263783,313.23810451,170.95427630,74.01692503],
+    rt:[-.00196176,-.00004397,-.00242939,428.48202785,.40805281,.04240589]},
+  {id:'Neptune',jp:'海王星',en:'Neptune',col:'neptune',
+    el:[30.06992276,.00859048,1.77004347,-55.12002969,44.96476227,131.78422574],
+    rt:[.00026291,.00005105,.00035372,218.45945325,-.32241464,-.00508664]},
 ];
-const EL={L0:100.464457,dL:.985647360,a:1.00000261,e:.01671022,w:102.93768193};
+/* 地球（地球・月の重心） */
+const EMB={el:[1.00000261,.01671123,-.00001531,100.46457166,102.93768193,0],
+           rt:[.00000562,-.00004392,-.01294668,35999.37244981,.32327364,0]};
 function sk(Md,e){let M=Md*D2R,E=M;for(let i=0;i<15;i++)E-=(E-e*Math.sin(E)-M)/(1-e*Math.cos(E));return E}
 function kxyz(a,e,i,O,w,M){
   const E=sk(M,e),v=2*Math.atan2(Math.sqrt(1+e)*Math.sin(E/2),Math.sqrt(1-e)*Math.cos(E/2));
@@ -406,18 +450,21 @@ function kxyz(a,e,i,O,w,M){
          y:r*(Math.sin(Or)*Math.cos(u)+Math.cos(Or)*Math.sin(u)*Math.cos(ir)),
          z:r*Math.sin(u)*Math.sin(ir)};
 }
-function getEarth(jd){
-  const n=jd-2451545,L=norm(EL.L0+EL.dL*n),M=norm(L-EL.w),E=sk(M,EL.e);
-  const v=2*Math.atan2(Math.sqrt(1+EL.e)*Math.sin(E/2),Math.sqrt(1-EL.e)*Math.cos(E/2))*R2D;
-  const r=EL.a*(1-EL.e*Math.cos(E)),lam=norm(v+EL.w);
-  return{x:r*Math.cos(lam*D2R),y:r*Math.sin(lam*D2R)};
+/* 日心の位置（J2000 黄道座標, AU） */
+function helio(o,T){
+  const k=i=>o.el[i]+o.rt[i]*T;
+  const wb=k(4);
+  return kxyz(k(0),k(1),k(2),k(5),wb,norm(k(3)-wb));
 }
 function getPlanet(pl,jd){
-  const n=jd-2451545,L=norm(pl.L0+pl.dL*n),M=norm(L-pl.w);
-  const{x,y,z}=kxyz(pl.a,pl.e,pl.i,pl.O,pl.w,M);
-  const E=getEarth(jd),xg=x-E.x,yg=y-E.y,dist=Math.sqrt(xg*xg+yg*yg+z*z);
-  const lam=norm(Math.atan2(yg,xg)*R2D),bet=Math.asin(z/dist)*R2D;
-  const{ra,dec}=ecl2eq(lam,bet,getObl(getT(jd)));
+  const T=getT(jd),E=helio(EMB,T);
+  let p=helio(pl,T),x=p.x-E.x,y=p.y-E.y,z=p.z-E.z,dist=Math.sqrt(x*x+y*y+z*z);
+  /* 光が届くまでの時間だけ前の位置にする */
+  p=helio(pl,T-dist*.0057755183/36525);
+  x=p.x-E.x;y=p.y-E.y;z=p.z-E.z;dist=Math.sqrt(x*x+y*y+z*z);
+  const lam=norm(Math.atan2(y,x)*R2D),bet=Math.asin(z/dist)*R2D;
+  const q=ecl2eq(lam,bet,23.4392911);   /* J2000 赤道座標 */
+  const{ra,dec}=precess(q.ra,q.dec,jd); /* → 観測日 */
   return{ra,dec,lambda:lam};
 }
 /* ── Stars ── */
@@ -530,6 +577,7 @@ function buildAll(){
       z0:zodiac(getSun(jd-.5).lambda),z1:zodiac(s.lambda),z2:zodiac(getSun(jd+1).lambda)}});
 
   const m=getMoon(jd),mh=eq2hor(m.ra,m.dec,lst,LAT);
+  mh.alt=topoAlt(mh.alt,m.hp);
   const mRST=getRST(m.ra,m.dec,jd,LAT,LON,.125);
   const{phase,age}=moonPhase(jd);
   bodies.push({label:'☽ 月',enLabel:'☽ Moon',az:mh.az,alt:mh.alt,r:6,color:'#ccdcf4',
@@ -545,7 +593,7 @@ function buildAll(){
   }
 
   for(const st of STARS){
-    const h=eq2hor(st.ra,st.dec,lst,LAT);
+    const sp=precess(st.ra,st.dec,jd),h=eq2hor(sp.ra,sp.dec,lst,LAT);
     const lbl=st.jp.replace('（牽牛星）','').replace('（織女星）','');
     bodies.push({label:lbl,enLabel:st.en,az:h.az,alt:h.alt,r:2.5,color:'#e8e8a8',
       rim:'rgba(235,235,180,0.45)',lc:'rgba(220,220,175,0.8)',bold:false,type:'star',
@@ -588,62 +636,107 @@ function buildAll(){
 }
 
 /* ══════════════════════════════════════
-   TWO-LAYER COMPASS RENDERER
-   Layer 1 (bg): sky/ground gradient + grid + direction labels  → redraws on size change only
-   Layer 2 (bodies): celestial objects                          → redraws every rAF when dirty
+   SKY VIEW: CAMERA + PROJECTION
+   視線の向きを3本の単位ベクトル（東・北・天頂の成分）で持つ。
+     f: 画面の奥（スマホの背面が向く方向） r: 画面の右  u: 画面の上
+   天体・黄道・地平線・高度線・方位線を、すべて同じ中心投影（心射図法）で描く。
+   同じ式で描くので、天体と目盛りが互いにずれない。
 ══════════════════════════════════════ */
-let compassCenter=180;
-let tiltCenter=0;
+let compassCenter=180;   /* 画面中央の方位（度） */
+let tiltCenter=0;        /* 画面中央の高度（度） */
 let zoomLevel=1.0;
 const BASE_DEG_PER_PX=0.38;
-const BASE_VFOV=110;
+let CAM=null;
 
-
-
-function altToY(alt,H){
-  return H/2-(alt-tiltCenter)*(H/(BASE_VFOV/zoomLevel));
-}
 function degPerPx(){return BASE_DEG_PER_PX/zoomLevel;}
+function focalPx(){return R2D/degPerPx();}   /* 画面中央での 1ラジアンあたりのピクセル数 */
 
-/* ── 正射影（Gnomonic projection）── 天体・黄道の正確な投影 */
+function vdot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
+function vcross(a,b){return[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
+function vlen(a){return Math.sqrt(vdot(a,a));}
+function vunit(a){const l=vlen(a);return l>1e-9?[a[0]/l,a[1]/l,a[2]/l]:a;}
+
+function azAltVec(az,alt){
+  const a=az*D2R,h=alt*D2R,ch=Math.cos(h);
+  return[ch*Math.sin(a),ch*Math.cos(a),Math.sin(h)];
+}
+/* 方位・高度だけで決める視線（ドラッグ操作用。画面は傾けない） */
+function camFromAzAlt(az,alt){
+  const a=az*D2R,h=alt*D2R,ca=Math.cos(a),sa=Math.sin(a),ch=Math.cos(h),sh=Math.sin(h);
+  return{f:[ch*sa,ch*ca,sh],r:[ca,-sa,0],u:[-sh*sa,-sh*ca,ch]};
+}
+function curCam(){return(sensorMode&&SENS.cam)?SENS.cam:camFromAzAlt(compassCenter,tiltCenter);}
+
+/* 世界のベクトル → カメラ座標 [右, 上, 奥] */
+function toCam(v){
+  const c=CAM;
+  return[v[0]*c.r[0]+v[1]*c.r[1]+v[2]*c.r[2],
+         v[0]*c.u[0]+v[1]*c.u[1]+v[2]*c.u[2],
+         v[0]*c.f[0]+v[1]*c.f[1]+v[2]*c.f[2]];
+}
+const ZNEAR=0.02;   /* 視線から約89°より後ろは描かない */
+function camToScreen(p,W,H){
+  const F=focalPx();
+  return{x:W/2+p[0]/p[2]*F,y:H/2-p[1]/p[2]*F};
+}
 function project(az,alt,W,H){
-  var D2R_=Math.PI/180;
-  var az0=compassCenter*D2R_, alt0=tiltCenter*D2R_;
-  var azR=az*D2R_, altR=alt*D2R_;
-  /* 対象天体の単位ベクトル (East, North, Up) */
-  var vE=Math.cos(altR)*Math.sin(azR);
-  var vN=Math.cos(altR)*Math.cos(azR);
-  var vU=Math.sin(altR);
-  /* 中心方向の単位ベクトル */
-  var cE=Math.cos(alt0)*Math.sin(az0);
-  var cN=Math.cos(alt0)*Math.cos(az0);
-  var cU=Math.sin(alt0);
-  /* 中心方向との内積（分母） */
-  var dot_c=vE*cE+vN*cN+vU*cU;
-  if(dot_c<=0.01)return null; /* 画面外（背面） */
-  /* 画面右方向の基底ベクトル（方位角増加方向） */
-  var rE= Math.cos(alt0)*Math.cos(az0);
-  var rN=-Math.cos(alt0)*Math.sin(az0);
-  /* 画面上方向の基底ベクトル（高度増加方向） */
-  var uE=-Math.sin(alt0)*Math.sin(az0);
-  var uN=-Math.sin(alt0)*Math.cos(az0);
-  var uU= Math.cos(alt0);
-  /* 正射影座標（ラジアン） */
-  var xg=(vE*rE+vN*rN)/dot_c;
-  var yg=(vE*uE+vN*uN+vU*uU)/dot_c;
-  /* ピクセルスケール: 中心付近で1°=1/degPerPx()px */
-  var sc=(180/Math.PI)/degPerPx();
-  return{x:W/2+xg*sc, y:H/2-yg*sc};
+  const p=toCam(azAltVec(az,alt));
+  return p[2]>ZNEAR?camToScreen(p,W,H):null;
 }
-/* 後方互換: 地平線グリッド用（高度のみ、水平線近似） */
-function azToX(az,W){
-  var d=((az-compassCenter)%360+360)%360;
-  if(d>180)d-=360;
-  return W/2+d/degPerPx();
-}
+/* 天体は大気差で浮き上がった位置（見かけの位置）に描く */
+function projectApparent(az,alt,W,H){return project(az,alt+refraction(alt),W,H);}
 
-let cachedEcliptic=[];
-let cachedZodiac=[];
+/* カメラ座標の点列を線でつなぐ。視線の後ろに回る区間は手前で切る */
+function cut3(a,b){
+  const t=(ZNEAR-a[2])/(b[2]-a[2]);
+  return[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,ZNEAR];
+}
+function pathCam(ctx,pts,W,H,closed){
+  const n=pts.length,m=closed?n:n-1;
+  let pen=false;
+  ctx.beginPath();
+  for(let i=0;i<m;i++){
+    let a=pts[i],b=pts[(i+1)%n];
+    const ina=a[2]>ZNEAR,inb=b[2]>ZNEAR;
+    if(!ina&&!inb){pen=false;continue;}
+    if(!ina){a=cut3(a,b);pen=false;}
+    else if(!inb){b=cut3(a,b);}
+    if(!pen){const s=camToScreen(a,W,H);ctx.moveTo(s.x,s.y);pen=true;}
+    const s=camToScreen(b,W,H);ctx.lineTo(s.x,s.y);
+    if(!inb)pen=false;
+  }
+}
+function circlePts(alt,step){
+  const pts=[];
+  for(let az=0;az<360;az+=step)pts.push(toCam(azAltVec(az,alt)));
+  return pts;
+}
+function meridianPts(az,step){
+  const pts=[];
+  for(let h=-90;h<=90;h+=step)pts.push(toCam(azAltVec(az,h)));
+  return pts;
+}
+/* 線の上で、画面内のいちばん左の点（目盛りの数字を置く場所） */
+function leftmostOnScreen(pts,W,H){
+  let best=null;
+  for(const p of pts){
+    if(p[2]<=ZNEAR)continue;
+    const s=camToScreen(p,W,H);
+    if(s.x<0||s.x>W||s.y<10||s.y>H-4)continue;
+    if(!best||s.x<best.x)best=s;
+  }
+  return best;
+}
+/* 凸多角形を「s(p)>=0 の側」で切り取る */
+function clipHalf(poly,s){
+  const out=[];
+  for(let i=0;i<poly.length;i++){
+    const a=poly[i],b=poly[(i+1)%poly.length],sa=s(a),sb=s(b);
+    if(sa>=0)out.push(a);
+    if((sa>=0)!==(sb>=0)){const t=sa/(sa-sb);out.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]);}
+  }
+  return out;
+}
 
 const DIRS=[
   {az:0,s:'N',t:2},{az:22.5,s:'NNE',t:0},{az:45,s:'NE',t:1},{az:67.5,s:'ENE',t:0},
@@ -651,94 +744,137 @@ const DIRS=[
   {az:180,s:'S',t:2},{az:202.5,s:'SSW',t:0},{az:225,s:'SW',t:1},{az:247.5,s:'WSW',t:0},
   {az:270,s:'W',t:2},{az:292.5,s:'WNW',t:0},{az:315,s:'NW',t:1},{az:337.5,s:'NNW',t:0},
 ];
+const ALT_CIRCLES=[-75,-60,-45,-30,-15,15,30,45,60,75];
+
+let cachedEcliptic=[];
+let cachedZodiac=[];
 
 /* ══════════════════════════════════════
    RENDERER  —  Single canvas per view
-   Background: OffscreenCanvas (only rebuilt on tilt/zoom/size change)
-   Bodies+labels: drawn on top each frame, but capped at 30fps
-   No measureText, no canvas compositing overhead
+   描画は 30fps まで。VR を開いている間は VR だけ描く
 ══════════════════════════════════════ */
-
 let bgDirty=true;
 let frameDirty=true;
 let lastFrameT=-9999;            // 初回フレームを確実に描画させる
 const FRAME_MS=1000/30;
 
 function setDirty(){bgDirty=true;frameDirty=true;}
-function setHeadingDirty(){frameDirty=true;}
 
-/* ── BG描画（グラデーション・グリッド）── */
+/* ── 背景: 空と地面・高度線・方位線・地平線 ── */
 function drawBG(ctx,W,H){
-  const hy=altToY(0,H), hy90=altToY(90,H), hyn90=altToY(-90,H);
+  const c=CAM,F=focalPx(),L=Math.max(W,H);
+  /* 画面の点(x,y)を通る視線の「天頂向きの成分」。正なら空、負なら地面。x,y の1次式 */
+  const g=(x,y)=>c.f[2]+(x-W/2)/F*c.r[2]-(y-H/2)/F*c.u[2];
 
   ctx.fillStyle='#010614'; ctx.fillRect(0,0,W,H);
-
-  const skyT=Math.max(0,Math.min(H,hy90)), skyB=Math.max(0,Math.min(H,hy));
-  if(skyB>skyT){
-    const sg=ctx.createLinearGradient(0,skyT,0,skyB);
-    sg.addColorStop(0,'#010614');sg.addColorStop(.55,'#081a3c');sg.addColorStop(1,'#0c2058');
-    ctx.fillStyle=sg; ctx.fillRect(0,skyT,W,skyB-skyT);
+  const gx=c.r[2]/F,gy=-c.u[2]/F,gl=Math.hypot(gx,gy);
+  if(gl*F>1e-4){
+    const ux=gx/gl,uy=gy/gl;               /* 画面上で「空の高い方」へ向かう向き */
+    const t0=-g(W/2,H/2)/gl;
+    const hx=W/2+ux*t0,hy=H/2+uy*t0;       /* 地平線上で画面中央にいちばん近い点 */
+    const span=Math.max(F*Math.PI/2,L*.5);
+    const sg=ctx.createLinearGradient(hx,hy,hx+ux*span,hy+uy*span);
+    sg.addColorStop(0,'#0c2058');sg.addColorStop(.45,'#081a3c');sg.addColorStop(1,'#010614');
+    ctx.fillStyle=sg; ctx.fillRect(0,0,W,H);
+    const poly=clipHalf([[0,0],[W,0],[W,H],[0,H]],p=>-g(p[0],p[1]));
+    if(poly.length>=3){
+      const ug=ctx.createLinearGradient(hx,hy,hx-ux*span*.7,hy-uy*span*.7);
+      ug.addColorStop(0,'#0a100a');ug.addColorStop(.4,'#060a06');ug.addColorStop(1,'#020405');
+      ctx.fillStyle=ug;
+      ctx.beginPath(); poly.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath(); ctx.fill();
+    }
+  } else if(c.f[2]<0){
+    ctx.fillStyle='#020405'; ctx.fillRect(0,0,W,H);
   }
-  const gndT=Math.max(0,Math.min(H,hy)), gndB=Math.max(0,Math.min(H,hyn90));
-  if(gndB>gndT){
-    const ug=ctx.createLinearGradient(0,gndT,0,gndB);
-    ug.addColorStop(0,'#0a100a');ug.addColorStop(.4,'#060a06');ug.addColorStop(1,'#020405');
-    ctx.fillStyle=ug; ctx.fillRect(0,gndT,W,gndB-gndT);
-  }
-  if(gndB<H){ ctx.fillStyle='#020405'; ctx.fillRect(0,gndB,W,H-gndB); }
 
+  ctx.font='7px Orbitron,monospace'; ctx.textAlign='left';
   ctx.setLineDash([3,7]);
-  for(const a of [-90,-75,-60,-45,-30,-15,15,30,45,60,75,90]){
-    const y=altToY(a,H); if(y<0||y>H) continue;
-    const major=Math.abs(a)%30===0, above=a>0;
-    ctx.strokeStyle=above?('rgba(30,70,155,'+(major?.28:.11)+')'):'rgba(20,55,20,'+(major?.22:.09)+')';
+  /* 高度線（15°ごと） */
+  for(const a of ALT_CIRCLES){
+    const pts=circlePts(a,4),major=Math.abs(a)%30===0,above=a>0;
+    ctx.strokeStyle=above?('rgba(30,70,155,'+(major?.28:.11)+')'):('rgba(20,55,20,'+(major?.22:.09)+')');
     ctx.lineWidth=major?.9:.5;
-    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
-    ctx.fillStyle=above?'rgba(35,75,140,0.5)':'rgba(30,65,30,0.45)';
-    ctx.font='7px Orbitron,monospace'; ctx.textAlign='left';
-    ctx.fillText(a+'°',3,y-2);
+    pathCam(ctx,pts,W,H,true); ctx.stroke();
+    const lp=leftmostOnScreen(pts,W,H);
+    if(lp){
+      ctx.fillStyle=above?'rgba(35,75,140,0.5)':'rgba(30,65,30,0.45)';
+      ctx.fillText(a+'°',Math.max(3,lp.x+3),lp.y-2);
+    }
+  }
+  /* 方位線（45°ごと。天頂と天底で1点に集まる） */
+  for(let az=0;az<360;az+=45){
+    const main=az%90===0;
+    ctx.strokeStyle=main?'rgba(50,110,210,0.30)':'rgba(40,90,170,0.16)';
+    ctx.lineWidth=main?.8:.5;
+    pathCam(ctx,meridianPts(az,3),W,H,false); ctx.stroke();
   }
   ctx.setLineDash([]);
 
-  if(hy>=0&&hy<=H){
-    ctx.strokeStyle='rgba(55,120,250,0.7)'; ctx.lineWidth=1.5;
-    ctx.beginPath(); ctx.moveTo(0,hy); ctx.lineTo(W,hy); ctx.stroke();
-    ctx.fillStyle='rgba(55,120,250,0.4)'; ctx.font='7px Orbitron,monospace'; ctx.textAlign='left';
-    ctx.fillText('HORIZON  0°',4,hy-3);
+  /* 地平線 */
+  const hp=circlePts(0,2);
+  ctx.strokeStyle='rgba(55,120,250,0.7)'; ctx.lineWidth=1.5;
+  pathCam(ctx,hp,W,H,true); ctx.stroke();
+  const hl=leftmostOnScreen(hp,W,H);
+  if(hl){ctx.fillStyle='rgba(55,120,250,0.4)';ctx.fillText('HORIZON  0°',Math.max(4,hl.x+4),hl.y-3);}
+
+  /* 天頂・天底 */
+  [[90,'ZENITH  +90°','rgba(40,80,150,0.55)'],[-90,'NADIR  −90°','rgba(30,70,30,0.45)']].forEach(z=>{
+    const p=project(0,z[0],W,H);
+    if(!p||p.x<-40||p.x>W+40||p.y<-40||p.y>H+40)return;
+    ctx.strokeStyle=z[2]; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(p.x-5,p.y); ctx.lineTo(p.x+5,p.y); ctx.moveTo(p.x,p.y-5); ctx.lineTo(p.x,p.y+5); ctx.stroke();
+    ctx.fillStyle=z[2]; ctx.fillText(z[1],p.x+7,p.y+10);
+  });
+}
+
+/* ── 方位の文字（地平線の上。地平線が画面の外なら、その方位の線が画面に入るところ） ── */
+function drawDirs(ctx,W,H,isVR){
+  ctx.textAlign='center';
+  const yMax=H-(isVR?64:30);   /* 下のボタン帯に隠れない高さ */
+  for(const d of DIRS){
+    const hc=toCam(azAltVec(d.az,0));
+    if(hc[2]<=ZNEAR)continue;
+    const p=camToScreen(hc,W,H);
+    let x,y,onHorizon=true;
+    if(p.x>-22&&p.x<W+22&&p.y>-20&&p.y<H+20){
+      x=p.x; y=Math.max(8,Math.min(H-18,p.y));
+    } else {
+      if(d.t<1)continue;
+      /* その方位の線のうち、画面に入っているいちばん低い点 */
+      let best=null;
+      for(let h=2;h<=80&&!best;h+=2){
+        const q=project(d.az,h,W,H);
+        if(q&&q.x>=10&&q.x<=W-10&&q.y>=14&&q.y<=yMax)best=q;
+      }
+      if(!best)continue;
+      x=best.x; y=best.y-14; onHorizon=false;
+    }
+    if(d.t===2){
+      ctx.fillStyle='rgba(105,195,255,0.95)'; ctx.font='bold '+(isVR?14:12)+'px Orbitron,monospace';
+      ctx.fillText(d.s,x,y+16);
+      if(onHorizon){
+        ctx.strokeStyle='rgba(90,180,255,0.7)'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,y+8); ctx.stroke();
+      }
+    } else if(d.t===1){
+      ctx.fillStyle='rgba(60,130,210,0.6)'; ctx.font=(isVR?11:9)+'px Orbitron,monospace';
+      ctx.fillText(d.s,x,y+13);
+    } else {
+      ctx.fillStyle='rgba(38,88,155,0.4)'; ctx.font=(isVR?9:7)+'px Orbitron,monospace';
+      ctx.fillText(d.s,x,y+11);
+    }
   }
-  if(hy90>=0&&hy90<=H){ ctx.fillStyle='rgba(40,80,150,0.35)'; ctx.font='7px Orbitron,monospace'; ctx.fillText('ZENITH  +90°',4,hy90+9); }
-  if(hyn90>=0&&hyn90<=H){ ctx.fillStyle='rgba(20,55,20,0.3)'; ctx.font='7px Orbitron,monospace'; ctx.fillText('NADIR  −90°',4,hyn90-3); }
+  ctx.textAlign='left';
 }
 
 /* ── フレーム全描画（BG+天体 → 単一canvas） ── */
 function drawFrame(ctx,W,H,bodies,isVR){
+  CAM=curCam();
   drawBG(ctx,W,H);
+  drawDirs(ctx,W,H,isVR);
 
   const margin=isVR?120:80;
-  const hy=altToY(0,H);
   const fontSize=isVR?12:9;
-
-  /* 方位ラベル */
-  ctx.textAlign='center';
-  const hyC=Math.max(8,Math.min(H-18,hy));
-  if(hy>-20&&hy<H+20){
-    for(const d of DIRS){
-      const x=azToX(d.az,W); if(x<-22||x>W+22) continue;
-      if(d.t===2){
-        ctx.fillStyle='rgba(105,195,255,0.95)'; ctx.font='bold '+(isVR?14:12)+'px Orbitron,monospace';
-        ctx.fillText(d.s,x,hyC+16);
-        ctx.strokeStyle='rgba(90,180,255,0.7)'; ctx.lineWidth=1.5;
-        ctx.beginPath(); ctx.moveTo(x,Math.min(H,hy)); ctx.lineTo(x,Math.min(H,hy+8)); ctx.stroke();
-      } else if(d.t===1){
-        ctx.fillStyle='rgba(60,130,210,0.6)'; ctx.font=(isVR?11:9)+'px Orbitron,monospace';
-        ctx.fillText(d.s,x,hyC+13);
-      } else {
-        ctx.fillStyle='rgba(38,88,155,0.4)'; ctx.font=(isVR?9:7)+'px Orbitron,monospace';
-        ctx.fillText(d.s,x,hyC+11);
-      }
-    }
-  }
-  ctx.textAlign='left';
 
   /* チルトインジケーター */
   {
@@ -765,19 +901,8 @@ function drawFrame(ctx,W,H,bodies,isVR){
   if(cachedEcliptic.length>0){
     ctx.strokeStyle='rgba(255,200,50,0.26)'; ctx.lineWidth=isVR?1.8:1.2;
     ctx.setLineDash([4,5]);
-    let pen=false,px=0;
-    for(let i=0;i<=cachedEcliptic.length;i++){
-      const pt=cachedEcliptic[i%cachedEcliptic.length];
-      const p=project(pt.az,pt.alt,W,H);
-      if(!p||p.x<-margin||p.x>W+margin){
-        if(pen){ ctx.stroke(); pen=false; }
-        continue;
-      }
-      if(pen&&Math.abs(p.x-px)>W*.65){ ctx.stroke(); pen=false; }
-      if(!pen){ ctx.beginPath(); ctx.moveTo(p.x,p.y); pen=true; } else ctx.lineTo(p.x,p.y);
-      px=p.x;
-    }
-    if(pen) ctx.stroke();
+    pathCam(ctx,cachedEcliptic.map(pt=>toCam(azAltVec(pt.az,pt.alt+refraction(pt.alt)))),W,H,true);
+    ctx.stroke();
     ctx.setLineDash([]);
   }
 
@@ -785,8 +910,8 @@ function drawFrame(ctx,W,H,bodies,isVR){
   if(cachedZodiac.length>0){
     const sr=isVR?8:6, sf=isVR?14:11, lf=isVR?10:8;
     for(const z of cachedZodiac){
-      const p=project(z.az,z.alt,W,H);
-      if(!p||p.x<-margin||p.x>W+margin) continue;
+      const p=projectApparent(z.az,z.alt,W,H);
+      if(!p||p.x<-margin||p.x>W+margin||p.y<-margin||p.y>H+margin) continue;
       ctx.globalAlpha=.78;
       ctx.fillStyle='rgba(255,195,40,0.16)'; ctx.beginPath(); ctx.arc(p.x,p.y,sr,0,6.28); ctx.fill();
       ctx.strokeStyle='rgba(255,200,60,0.5)'; ctx.lineWidth=.8; ctx.beginPath(); ctx.arc(p.x,p.y,sr,0,6.28); ctx.stroke();
@@ -812,8 +937,8 @@ function drawFrame(ctx,W,H,bodies,isVR){
 
   /* 天体プロット */
   for(const b of bodies){
-    const p=project(b.az,b.alt,W,H);
-    if(!p||p.x<-margin||p.x>W+margin) continue;
+    const p=projectApparent(b.az,b.alt,W,H);
+    if(!p||p.x<-margin||p.x>W+margin||p.y<-margin||p.y>H+margin) continue;
     const x=p.x, y=p.y;
     const above=b.alt>=-0.5;
     const label=isVR?b.enLabel:b.label;
@@ -850,6 +975,15 @@ function drawFrame(ctx,W,H,bodies,isVR){
     ctx.restore();
   }
   ctx.textAlign='left';
+
+  /* VR: 画面中央の照準（スマホの背面が向いている方向） */
+  if(isVR){
+    ctx.strokeStyle='rgba(140,210,255,0.6)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(W/2,H/2,10,0,6.28); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(W/2-18,H/2); ctx.lineTo(W/2-12,H/2); ctx.moveTo(W/2+12,H/2); ctx.lineTo(W/2+18,H/2);
+    ctx.stroke();
+  }
 }
 
 function getCanvas(id,W,H){
@@ -858,6 +992,8 @@ function getCanvas(id,W,H){
   if(cv.height!==H) cv.height=H;
   return cv;
 }
+
+function altStr(a){return(a>=0?'+':'−')+Math.abs(Math.round(a))+'°';}
 
 function redrawWidget(){
   var wrap=document.getElementById('cw');
@@ -870,7 +1006,7 @@ function redrawWidget(){
   bgDirty=false;
   const comp=az2c(compassCenter);
   document.getElementById('compass-bearing').textContent=
-    Math.round(norm(compassCenter))+'°  '+comp.en+' / '+comp.jp;
+    Math.round(norm(compassCenter))%360+'°  '+comp.en+' / '+comp.jp+'  '+altStr(tiltCenter);
 }
 
 function redrawVR(){
@@ -883,33 +1019,40 @@ function redrawVR(){
   drawFrame(ctx,W,H,cachedBodies,true);
   const comp=az2c(compassCenter);
   document.getElementById('vr-bearing').textContent=
-    Math.round(norm(compassCenter))+'°  '+comp.en;
+    Math.round(norm(compassCenter))%360+'°  '+comp.en+'  '+altStr(tiltCenter);
+  const info=sensorInfo(), el=document.getElementById('vr-sub');
+  if(el&&el.textContent!==info) el.textContent=info;
 }
 
 /* ══════════════════════════════════════
    SENSOR + DRAG  (shared state)
 ══════════════════════════════════════ */
-const DRAG={active:false,startX:0,startY:0,startCenter:180,startTilt:0};
-const DEG_PER_PX_Y=0.25;
-
+const DRAG={active:false,startX:0,startY:0,startCenter:180,startTilt:0,startOffset:0};
 
 function startDrag(x,y){
   DRAG.active=true;
   DRAG.startX=x; DRAG.startY=y;
   DRAG.startCenter=compassCenter;
   DRAG.startTilt=tiltCenter;
+  DRAG.startOffset=headingOffset;
 }
 function moveDrag(x,y){
-  if(!DRAG.active||sensorMode)return;
-  const newAz=norm(DRAG.startCenter+(DRAG.startX-x)*degPerPx());
-  const newTilt=Math.max(-85,Math.min(85,
-    DRAG.startTilt + (y-DRAG.startY)*DEG_PER_PX_Y/zoomLevel)); // ← 上下反転（正符号）
-  const azChanged=Math.abs(newAz-compassCenter)>.01;
-  const tiltChanged=Math.abs(newTilt-tiltCenter)>.01;
+  if(!DRAG.active)return;
+  /* 画面中央の空が指に 1:1 でついてくるように、高度が高いほど方位を大きく回す */
+  const dAz=(DRAG.startX-x)*degPerPx()/Math.max(.25,Math.cos(DRAG.startTilt*D2R));
+  if(sensorMode){
+    /* センサー中: 左右のドラッグで方位のずれだけを手で合わせる */
+    headingOffset=norm(DRAG.startOffset+dAz+180)-180;
+    SENS.calibrated=true;
+    updateCam();
+    return;
+  }
+  const newAz=norm(DRAG.startCenter+dAz);
+  const newTilt=Math.max(-90,Math.min(90,
+    DRAG.startTilt+(y-DRAG.startY)*degPerPx())); // 下へドラッグで上を見る
   compassCenter=newAz;
   tiltCenter=newTilt;
-  if(tiltChanged) setDirty();         // tilt変化: BG(グリッド位置)も更新
-  else if(azChanged) setHeadingDirty(); // 方位のみ: Bodies層だけ更新
+  setDirty();
 }
 ['mouseup','touchend'].forEach(ev=>document.addEventListener(ev,()=>DRAG.active=false));
 
@@ -962,143 +1105,192 @@ function addPinchZoom(el){
 
 /* Widget drag */
 const CW=document.getElementById('cw');
-CW.addEventListener('mousedown',e=>{if(!sensorMode)startDrag(e.clientX,e.clientY);});
-CW.addEventListener('touchstart',e=>{if(!sensorMode&&e.touches.length===1)startDrag(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
+CW.addEventListener('mousedown',e=>startDrag(e.clientX,e.clientY));
+CW.addEventListener('touchstart',e=>{if(e.touches.length===1)startDrag(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
 CW.addEventListener('mousemove',e=>moveDrag(e.clientX,e.clientY));
 CW.addEventListener('touchmove',e=>{if(e.touches.length===1)moveDrag(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
 addPinchZoom(CW);
 
 /* VR drag */
 const VW=document.getElementById('vr-canvas-wrap');
-VW.addEventListener('mousedown',e=>{if(!sensorMode)startDrag(e.clientX,e.clientY);});
-VW.addEventListener('touchstart',e=>{if(!sensorMode&&e.touches.length===1)startDrag(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
+VW.addEventListener('mousedown',e=>startDrag(e.clientX,e.clientY));
+VW.addEventListener('touchstart',e=>{if(e.touches.length===1)startDrag(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
 VW.addEventListener('mousemove',e=>moveDrag(e.clientX,e.clientY));
 VW.addEventListener('touchmove',e=>{if(e.touches.length===1)moveDrag(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
 addPinchZoom(VW);
 
-/* ── センサー状態 ── */
+/* ── センサー ──
+   alpha/beta/gamma から端末の回転行列を作り、スマホの背面が向く方向を視線にする。
+   方位を alpha だけで出すと、スマホを立てた姿勢（beta≈90°）で値が跳ぶ（ジンバルロック）。
+   行列で扱えば、空に向けても横に傾けても正しい向きになる。 */
 let sensorMode=false;
-let smoothHeading=null, smoothTilt=null;
-let headingOffset=0;
-let sensorHeadingDirty=false, sensorTiltDirty=false;
+let headingOffset=0;   /* ドラッグ・CAL で足す方位の補正（度、時計回りが正） */
+const SENS={cam:null,fS:null,uS:null,dF:[0,0,0],dU:[0,0,0],t:0,
+            abs:false,needInit:false,calibrated:false,listeners:[],timer:0};
 
-/* ══ 適応EMA (Adaptive EMA) ══════════════════════════════
-   α = 動き量に応じて 0 → MAX_ALPHA へ滑らかにランプアップ
-   ・ノイズフロア以下 → α=0 → smoothは一切動かない（静止ノイズ完全抑制）
-   ・少し動く       → α小 → 滑らかに追従
-   ・速く動く       → α大 → レスポンス重視
-   ハードデッドバンドと違い閾値前後でのカクつきが発生しない
-   ════════════════════════════════════════════════════════ */
-const H_NOISE   = 0.9;   // 方位ノイズフロア(度) — これ未満は完全静止
-const H_SCALE   = 18.0;  // この差(度)でαがMAXに達する
-const H_MAX     = 0.40;  // 方位αの上限（大きいほど速追従）
-const T_NOISE   = 0.5;   // 傾きノイズフロア(度)
-const T_SCALE   = 20.0;
-const T_MAX     = 0.45;
+/* 1€フィルタ（One Euro Filter）:
+   ・止めているとき → 強くなめらかにして手ぶれ・センサーのノイズを消す
+   ・速く振ったとき → 遅れを小さくする
+   止めれば必ずセンサーの値に追いつく（前の不感帯のように数度ずれたまま残らない） */
+const OEF={minCut:0.4,beta:0.02,dCut:1.0};
+function oeAlpha(cut,dt){const tau=1/(2*Math.PI*cut);return 1/(1+tau/dt);}
 
-function adaptiveAlpha(absDelta, noise, scale, maxA){
-  if(absDelta<=noise) return 0;                        // ノイズ → 完全停止
-  var t=Math.min(1,(absDelta-noise)/(scale-noise));    // 0→1 線形ランプ
-  return t*t*maxA;                                     // 二乗でなめらかに加速
+function screenAngle(){
+  let a=0;
+  if(screen.orientation&&typeof screen.orientation.angle==='number') a=screen.orientation.angle;
+  else if(typeof window.orientation==='number') a=window.orientation;
+  return norm(a);
+}
+/* 天頂の軸のまわりに回す（方位が deg 増える向き） */
+function rotUp(v,deg){
+  const d=deg*D2R,c=Math.cos(d),s=Math.sin(d);
+  return[v[0]*c+v[1]*s,-v[0]*s+v[1]*c,v[2]];
+}
+/* 端末の向き → 視線 f（背面の向き）と画面の上 u（東・北・天頂の成分） */
+function deviceCam(alpha,beta,gamma,angle){
+  const a=alpha*D2R,b=beta*D2R,g=gamma*D2R;
+  const ca=Math.cos(a),sa=Math.sin(a),cb=Math.cos(b),sb=Math.sin(b),cg=Math.cos(g),sg=Math.sin(g);
+  /* 端末の x(右)・y(上)・z(画面の手前) の向き。W3C の Z-X'-Y'' 回転 */
+  const X=[ca*cg-sa*sb*sg, sa*cg+ca*sb*sg, -cb*sg];
+  const Y=[-sa*cb, ca*cb, sb];
+  const Z=[ca*sg+sa*sb*cg, sa*sg-ca*sb*cg, cb*cg];
+  /* 横持ちのときは画面の上が端末の横になる */
+  const th=angle*D2R,ct=Math.cos(th),st=Math.sin(th);
+  return{f:[-Z[0],-Z[1],-Z[2]],
+         u:[st*X[0]+ct*Y[0],st*X[1]+ct*Y[1],st*X[2]+ct*Y[2]]};
 }
 
-/* onOrient: 適応EMAをここで完結。rafLoopはフラグ消費のみ */
 function onOrient(e){
   if(!sensorMode) return;
+  if(e.alpha==null||e.beta==null||e.gamma==null||isNaN(e.alpha)) return;
+  const abs=e.type==='deviceorientationabsolute'||e.absolute===true;
+  let{f,u}=deviceCam(e.alpha,e.beta,e.gamma,screenAngle());
+  if(abs){
+    /* 磁北 → 真北 */
+    f=rotUp(f,MAG_DECLINATION); u=rotUp(u,MAG_DECLINATION);
+  } else if(SENS.needInit){
+    /* 相対センサー（北がわからない）: 最初は、いま画面に出ている方位に合わせる */
+    headingOffset=norm(compassCenter-Math.atan2(f[0],f[1])*R2D+180)-180;
+  }
+  SENS.abs=abs; SENS.needInit=false;
+  filterStep(f,u,e.timeStamp||performance.now());
+}
 
-  /* 方位 */
-  var h=null;
-  if(typeof e.webkitCompassHeading==='number'&&!isNaN(e.webkitCompassHeading)){
-    h=e.webkitCompassHeading;
-  } else if(e.alpha!==null&&!isNaN(e.alpha)){
-    h=norm(360-e.alpha);
-  }
-  if(h!==null){
-    h=norm(h+headingOffset);
-    if(smoothHeading===null){
-      smoothHeading=h; sensorHeadingDirty=true;
-    } else {
-      var dh=h-smoothHeading;
-      if(dh>180) dh-=360; if(dh<-180) dh+=360;
-      var ah=adaptiveAlpha(Math.abs(dh),H_NOISE,H_SCALE,H_MAX);
-      if(ah>0){
-        smoothHeading=norm(smoothHeading+dh*ah);
-        sensorHeadingDirty=true;
-      }
+function filterStep(f,u,t){
+  if(!SENS.fS){
+    SENS.fS=f; SENS.uS=u; SENS.dF=[0,0,0]; SENS.dU=[0,0,0];
+  } else {
+    let dt=(t-SENS.t)/1000;
+    if(!(dt>.001&&dt<.5)) dt=1/60;
+    const ad=oeAlpha(OEF.dCut,dt);
+    for(let i=0;i<3;i++){
+      SENS.dF[i]+=((f[i]-SENS.fS[i])/dt-SENS.dF[i])*ad;
+      SENS.dU[i]+=((u[i]-SENS.uS[i])/dt-SENS.dU[i])*ad;
     }
+    const speed=Math.max(vlen(SENS.dF),vlen(SENS.dU))*R2D;   /* 度/秒 */
+    const a=oeAlpha(OEF.minCut+OEF.beta*speed,dt);
+    const fS=SENS.fS,uS=SENS.uS;
+    SENS.fS=vunit([fS[0]+(f[0]-fS[0])*a,fS[1]+(f[1]-fS[1])*a,fS[2]+(f[2]-fS[2])*a]);
+    SENS.uS=[uS[0]+(u[0]-uS[0])*a,uS[1]+(u[1]-uS[1])*a,uS[2]+(u[2]-uS[2])*a];
   }
+  SENS.t=t;
+  /* u を f に直交させる */
+  const fS=SENS.fS,d=vdot(SENS.uS,fS);
+  SENS.uS=vunit([SENS.uS[0]-d*fS[0],SENS.uS[1]-d*fS[1],SENS.uS[2]-d*fS[2]]);
+  updateCam();
+}
 
-  /* 傾き */
-  if(e.beta!==null&&!isNaN(e.beta)){
-    var tv=Math.max(-85,Math.min(85,e.beta-90));
-    if(smoothTilt===null){
-      smoothTilt=tv; sensorTiltDirty=true;
-    } else {
-      var dt=tv-smoothTilt;
-      var at=adaptiveAlpha(Math.abs(dt),T_NOISE,T_SCALE,T_MAX);
-      if(at>0){
-        smoothTilt+=dt*at;
-        sensorTiltDirty=true;
-      }
-    }
-  }
+/* フィルタ後の向きに方位補正をかけて、表示用のカメラを作る */
+function updateCam(){
+  if(!SENS.fS) return;
+  const f=rotUp(SENS.fS,headingOffset),u=rotUp(SENS.uS,headingOffset);
+  SENS.cam={f,u,r:vcross(f,u)};
+  compassCenter=norm(Math.atan2(f[0],f[1])*R2D);
+  tiltCenter=Math.asin(Math.max(-1,Math.min(1,f[2])))*R2D;
+  frameDirty=true;
+}
+
+function sensorInfo(){
+  if(!sensorMode) return 'DRAG';
+  if(!SENS.cam) return 'SENSOR …';
+  const sg=v=>(v>=0?'+':'−')+Math.abs(v).toFixed(1)+'°';
+  let s=SENS.abs?'MAG '+sg(MAG_DECLINATION):'REL';
+  if(SENS.calibrated) s+='  CAL '+sg(headingOffset);
+  else if(!SENS.abs) s+='  天体に向けて CAL';
+  return s;
+}
+
+/* 方位センサーを登録する。deviceorientationabsolute（北が基準）を優先し、
+   来なければ deviceorientation（北が不明）に切り替える。両方は同時に登録しない */
+function sensorStart(){
+  sensorStop();
+  let gotAbs=false;
+  const onAbs=e=>{ if(e.alpha==null)return; gotAbs=true; onOrient(e); };
+  window.addEventListener('deviceorientationabsolute',onAbs,true);
+  SENS.listeners=[['deviceorientationabsolute',onAbs]];
+  SENS.timer=setTimeout(()=>{
+    if(gotAbs) return;
+    window.removeEventListener('deviceorientationabsolute',onAbs,true);
+    window.addEventListener('deviceorientation',onOrient,true);
+    SENS.listeners=[['deviceorientation',onOrient]];
+  },400);
+}
+function sensorStop(){
+  clearTimeout(SENS.timer);
+  SENS.listeners.forEach(l=>window.removeEventListener(l[0],l[1],true));
+  SENS.listeners=[];
 }
 
 /* キャリブレーション:
-   ① SENSORをOFFのままドラッグで北を画面中央に合わせる
-   ② SENSORをONにする
-   ③ CALボタン → センサー生値にオフセットを設定し表示方位を合わせる  */
+   スマホの背面を月・惑星・明るい星（昼は太陽）に向け、照準の円に入れて CAL を押す。
+   いちばん近い天体（20°以内）の方位にぴったり合わせる。
+   大きくずれているときは、先に左右ドラッグで大まかに合わせてから CAL。 */
+const CAL_MAX_SEP=20;
 function calibrate(){
-  if(!sensorMode||smoothHeading===null)return;
-  const rawNow=norm(smoothHeading-headingOffset);
-  headingOffset=norm(compassCenter-rawNow);
-  smoothHeading=compassCenter;
+  if(!sensorMode||!SENS.cam) return;
+  const f=SENS.cam.f;
+  let best=null,bs=CAL_MAX_SEP;
+  for(const b of cachedBodies){
+    if(b.alt<-1) continue;
+    const s=Math.acos(Math.max(-1,Math.min(1,vdot(azAltVec(b.az,b.alt+refraction(b.alt)),f))))*R2D;
+    if(s<bs){bs=s;best=b;}
+  }
+  let msg;
+  if(best){
+    headingOffset=norm(headingOffset+best.az-Math.atan2(f[0],f[1])*R2D+180)-180;
+    SENS.calibrated=true;
+    updateCam();
+    msg='✓ '+best.enLabel.replace(/^[☀☽] /,'');
+  } else msg='✕ NO TARGET';
   document.querySelectorAll('#cal-btn,#vr-cal-btn').forEach(b=>{
-    const prev=b.textContent;
-    b.textContent='✓ OK'; b.style.color='#22e888';
-    setTimeout(()=>{ b.textContent=prev; b.style.color=''; },1400);
+    b.textContent=msg; b.style.color=best?'#22e888':'#ff7766';
+    clearTimeout(b._t);
+    b._t=setTimeout(()=>{ b.textContent='◎ CAL'; b.style.color=''; },1600);
   });
 }
 
-function toggleSensor(fromVR){
-  const btn     =document.getElementById(fromVR?'vr-sensor-btn':'sensor-btn');
-  const otherBtn=document.getElementById(fromVR?'sensor-btn':'vr-sensor-btn');
-  const calBtns =document.querySelectorAll('#cal-btn,#vr-cal-btn');
+function toggleSensor(){
+  const btns=document.querySelectorAll('#sensor-btn,#vr-sensor-btn');
+  const calBtns=document.querySelectorAll('#cal-btn,#vr-cal-btn');
   if(!sensorMode){
     const enable=()=>{
-      sensorMode=true; smoothHeading=null; smoothTilt=null;
-      sensorHeadingDirty=false; sensorTiltDirty=false;
-
-      /* deviceorientationabsolute を優先登録。
-         200ms 以内に1度も発火しなければ deviceorientation にフォールバック。
-         絶対に両方同時登録しない → EMA二重適用を防ぐ */
-      var usedAbsolute=false;
-      function onAbsolute(e){ usedAbsolute=true; onOrient(e); }
-      window.addEventListener('deviceorientationabsolute',onAbsolute,true);
-      setTimeout(function(){
-        if(!usedAbsolute){
-          window.removeEventListener('deviceorientationabsolute',onAbsolute,true);
-          window.addEventListener('deviceorientation',onOrient,true);
-        }
-      },200);
-
-      btn.textContent='⊙ SENSOR'; btn.classList.add('on');
-      otherBtn.textContent='⊙ SENSOR'; otherBtn.classList.add('on');
+      sensorMode=true; headingOffset=0;
+      SENS.fS=null; SENS.cam=null; SENS.abs=false; SENS.needInit=true; SENS.calibrated=false;
+      sensorStart();
+      btns.forEach(b=>{ b.textContent='⊙ SENSOR'; b.classList.add('on'); });
       calBtns.forEach(b=>b.style.display='');
     };
     if(typeof DeviceOrientationEvent!=='undefined'&&
        typeof DeviceOrientationEvent.requestPermission==='function'){
       DeviceOrientationEvent.requestPermission()
-        .then(s=>{ if(s==='granted')enable(); else btn.textContent='✕ DENIED'; })
-        .catch(()=>btn.textContent='✕ ERR');
+        .then(s=>{ if(s==='granted')enable(); else btns.forEach(b=>b.textContent='✕ DENIED'); })
+        .catch(()=>btns.forEach(b=>b.textContent='✕ ERR'));
     }else enable();
   }else{
-    sensorMode=false; headingOffset=0;
-    /* どちらが登録されていても確実に解除 */
-    window.removeEventListener('deviceorientationabsolute',onOrient,true);
-    window.removeEventListener('deviceorientation',onOrient,true);
-    [btn,otherBtn].forEach(b=>{ b.textContent='⊕ SENSOR'; b.classList.remove('on'); });
+    sensorMode=false; headingOffset=0; sensorStop(); SENS.cam=null;
+    btns.forEach(b=>{ b.textContent='⊕ SENSOR'; b.classList.remove('on'); });
     calBtns.forEach(b=>b.style.display='none');
+    setDirty();
   }
 }
 
@@ -1106,11 +1298,18 @@ function toggleSensor(fromVR){
 function openVR(){
   document.getElementById('vr-overlay').classList.add('active');
   setDirty();
-  if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
+  const de=document.documentElement;
+  if(de.requestFullscreen) de.requestFullscreen().then(lockOrientation).catch(()=>{});
+}
+/* 空に向けて傾けたとき画面が勝手に回らないよう、今の向きで固定する（全画面のときだけ効く） */
+function lockOrientation(){
+  try{ if(screen.orientation&&screen.orientation.lock) screen.orientation.lock(screen.orientation.type).catch(()=>{}); }catch(e){}
 }
 function closeVR(){
+  try{ if(screen.orientation&&screen.orientation.unlock) screen.orientation.unlock(); }catch(e){}
   document.getElementById('vr-overlay').classList.remove('active');
   if(document.fullscreenElement&&document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+  setDirty();
 }
 
 /* ── Resize handle ── */
@@ -1134,20 +1333,10 @@ const vrActive=()=>document.getElementById('vr-overlay').classList.contains('act
 
 function rafLoop(ts){
   var now=(ts&&ts>0)?ts:Date.now();
-
-  /* ── センサー → 描画フラグ消費（EMAはonOrient済み） */
-  if(sensorMode){
-    if(sensorTiltDirty){
-      tiltCenter=smoothTilt; sensorTiltDirty=false; setDirty();
-    } else if(sensorHeadingDirty){
-      compassCenter=smoothHeading; sensorHeadingDirty=false; setHeadingDirty();
-    }
-  }
   if(frameDirty&&(now-lastFrameT>=FRAME_MS)){
     lastFrameT=now;
     frameDirty=false;
-    redrawWidget();
-    if(vrActive()) redrawVR();
+    if(vrActive()) redrawVR(); else redrawWidget();
   }
   requestAnimationFrame(rafLoop);
 }
@@ -1591,6 +1780,8 @@ function startApp(){
   updateClock();
   setInterval(updateClock,1000);
   setInterval(function(){if(LOC_READY)computeAndRender();},UPD);
+  /* 空の表示用の位置は10秒ごとに計算し直す（空は1分で0.25°動く。1時間おきだと最大15°ずれる） */
+  setInterval(function(){if(LOC_READY){cachedBodies=buildAll();setDirty();}},10000);
   requestAnimationFrame(rafLoop);
   initLoc();
 }

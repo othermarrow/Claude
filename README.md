@@ -5,3 +5,4 @@
 | [research_bot](research_bot/) | 抄録カタログ作成ツール |
 | [claude_guide](claude_guide/) | オススメのコネクタとスキルの使い方 |
 | [zork-ja](zork-ja/) | Zork I を日本語で遊ぶ(Termux) |
+| [astro_tasker](astro_tasker/) | 天文データと空の VR 表示(スマホのブラウザ) |
