@@ -5,8 +5,7 @@
 日本語で入力した命令を英語に直してゲームに渡す。
 
 - ゲームの文章は、辞書(`data/`)で日本語にする。
-- 辞書にない文は、Gemini API キーがあれば AI で訳す。訳した文は保存しておき、2回目からは通信しない。
-- キーがなければ、辞書にない文だけ英語のまま表示される。
+- 辞書にない文は、英語のまま表示する(claude.ai 版だけは Claude で訳せる。下の「ブラウザ版」)。
 - ゲーム本体は、Microsoft が 2025年に MIT ライセンスで公開した
   [historicalsource/zork1](https://github.com/historicalsource/zork1) のものを使う。
 
@@ -23,7 +22,7 @@
 | `data/nouns.tsv` | 日本語の名詞→英単語 |
 
 `setup.sh` を実行すると、`bin/dfrotz` と `game/zork1.z3` ができる(どちらも Git には入れない)。
-セーブデータと AI 翻訳の保存先は `~/.zork-ja/` にある。
+セーブデータの保存先は `~/.zork-ja/save/` にある。
 
 ## 準備(初回だけ)
 
@@ -54,26 +53,6 @@ EOF
 source ~/.bashrc
 ```
 
-### AI 翻訳を使う場合(任意)
-
-[Google AI Studio](https://aistudio.google.com/apikey) で Gemini API キーを作り、
-次のファイルに保存する。Gemini アプリの有料プランとは別物で、API キーが必要になる。
-無料枠のキーで送った文は、Google のサービス改善に使われることがある。
-
-```bash
-mkdir -p ~/.zork-ja
-cat > ~/.zork-ja/gemini_key <<'EOF'
-ここにAPIキー
-EOF
-chmod 600 ~/.zork-ja/gemini_key
-```
-
-モデルは `gemini-2.5-flash` を使う。使えない場合は、`GEMINI_MODEL` で別のモデル名を指定する。
-
-```bash
-GEMINI_MODEL=gemini-2.5-flash-lite python ~/zork-ja/zork_ja.py
-```
-
 ## 遊び方
 
 ```bash
@@ -95,12 +74,12 @@ python ~/zork-ja/zork_ja.py      # alias を作っていれば zork
 - はじめは日本語と英語を併記する。訳した行のすぐ下に、英語の原文が灰色で出る。部屋の名前も「家の西(West of House)」のように両方出る。
 - `:both` … 日本語と英語を併記する(はじめはこれ)。
 - `:ja` … 日本語だけにする。
-- `:en` … 英語だけにする(AI 翻訳も使わない)。
+- `:en` … 英語だけにする。
 - 起動時から切り替えたいときは `ZORK_JA_MODE=ja python ~/zork-ja/zork_ja.py` のように指定する(`both`・`ja`・`en`)。
 - 灰色が見えにくいときは `NO_COLOR=1` を付けて起動すると、色なしで出る。
 - `:help` … 遊び方を表示する。
 - セーブ・ロードでファイル名を聞かれたら、英数字で入力する。何も入れずに Enter を押すと既定の名前(`zork1.qzl`)になる。
-- 日本語の命令が変換できないときは、AI 翻訳が使えればそれで変換する。だめなら言い方を変えるか、英語で入力する。
+- 日本語の命令が変換できないときは、言い方を変えるか、英語で入力する。
 
 ## 辞書を育てる
 
@@ -110,8 +89,6 @@ python ~/zork-ja/zork_ja.py      # alias を作っていれば zork
 
 - 訳がおかしい文や英語のまま出る文は、`data/messages.tsv` に
   `英語の一文<TAB>日本語` の形で足す。文の単位で照合する。
-- AI で訳した文は `~/.zork-ja/cache.tsv` にたまる。よい訳はそこから `messages.tsv` に移すと、
-  キーがなくても日本語で出るようになる。
 - 通じない日本語の命令は、`data/verbs.tsv`(動詞)と `data/nouns.tsv`(名詞)に足す。
 
 ## ブラウザ版(Termux 不要)
@@ -132,9 +109,7 @@ claude.ai のページとして公開してあり、Termux を起動しなくて
 ### Tasker のシーンで遊ぶ(ホーム画面から起動)
 
 `web/zork-ja-standalone.html` を Tasker のシーンの Webビューで開く。claude.ai の外なので、
-辞書にない文の翻訳は Gemini API キー(≡ の設定で入れる)があれば Gemini で行う。キーがなければ英語のまま出る。
-キーを入れたら、設定の「接続テスト」でつながるか確かめられる。失敗したときは理由(HTTP の番号とメッセージ)が出る。
-モデルは gemini-2.5-flash から順に試し、使えないもの(404)は飛ばして、使えたものを覚える。
+辞書にない文は英語のまま出る(外部の翻訳サービスは使わない。通信するのは文字の書体の読み込みだけ)。
 セーブと途中の画面は `Tasker/zork-ja/zork-ja-data.json` に保存する(「電話へのアクセスを許可」が必要)。一度保存すると、Tasker の変数 `%ZORKJA` が `1` になる。この変数がある間に `zork-ja-data.json` を消すと、起動時に Tasker のエラーが出るので、消すときは変数も消す。
 
 1. ファイルを置く。Termux で次を実行する。
@@ -178,11 +153,9 @@ Tasker にファイルへのアクセス(すべてのファイルの管理)を�
 - ブラウザ版は、開発環境の Chromium で、命令の入力・翻訳表示・表示の切り替え・セーブとロードまで動いた。
   ゲームを動かす部分は、Termux 版(dfrotz)と同じ命令で同じ出力になることを確かめた。
   claude.ai の中での Claude による翻訳と、claude.ai へのセーブは、まだ実機で確かめていない。
-- Tasker 向けの保存(readFile / writeFile)と Gemini での翻訳は、開発環境で偽の Tasker 関数・偽の Gemini 応答を
-  使って流れを確かめただけで、Tasker の実機と本物の Gemini API ではまだ確かめていない。
-- Gemini API で訳す部分は、実際の API にはつないで確かめていない(偽の応答で処理の流れだけ確認した)。
-- 辞書で訳せるのは、ゲームの序盤(家のまわり・地下室・トロールの部屋あたり)と、部屋・物の名前、
-  よく出る応答が中心。それ以外は AI 翻訳か英語になる。
+- Tasker 版は、利用者の報告では実機のシーンで起動して遊べた。保存(readFile / writeFile)が次の起動まで
+  残るかは、開発環境で偽の Tasker 関数を使って確かめただけで、実機ではまだ確かめていない。
+- 辞書にない文は英語のまま出る。開発環境で通しで遊ばせた範囲では、およそ99%以上の文が日本語になった。
 
 ## ライセンス
 

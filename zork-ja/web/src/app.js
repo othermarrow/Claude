@@ -56,7 +56,7 @@
       try { localStorage.removeItem(k); } catch (e) { /* 同上 */ }
     },
   };
-  const K = { auto: "zorkja.autosave", log: "zorkja.log", save: "zorkja.save", cache: "zorkja.tcache", mode: "zorkja.mode", ai: "zorkja.ai", gemini: "zorkja.gemini", model: "zorkja.gmodel" };
+  const K = { auto: "zorkja.autosave", log: "zorkja.log", save: "zorkja.save", cache: "zorkja.tcache", mode: "zorkja.mode", ai: "zorkja.ai" };
   const IN_CLAUDE = !!(window.claude && window.claude.use);
 
   // ---- 準備 ----
@@ -69,8 +69,8 @@
   let mode = LS.get(K.mode) || "both";
   let aiWanted = LS.get(K.ai) !== "off";
   let sample = null, aiDisabled = false;
-  let geminiKey = LS.get(K.gemini) || "";
-  let aiErrorShown = false;
+  // 以前の版で保存した Gemini のキーとモデル名は、もう使わないので消す
+  for (const old of ["zorkja.gemini", "zorkja.gmodel"]) if (LS.get(old) !== null) LS.del(old);
   let db = null, uid = null;
   let savedGame = null;           // ロード用に読み込んでおいたセーブ
   let rows = [];                  // 画面の記録 {t, ja, en, cls}
@@ -176,47 +176,9 @@
     if (fresh.length) translateRows(fresh);
   }
 
-  // ---- 辞書にない文を訳す（claude.ai では Claude、ほかでは Gemini API キーがあれば Gemini） ----
-  const aiReady = () => !aiDisabled && aiWanted && (sample || geminiKey);
-  // Gemini のモデルは、使えないもの（404）があれば次の候補を試し、使えたものを覚えておく
-  const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
-  async function askGemini(prompt) {
-    const saved = LS.get(K.model);
-    const order = saved ? [saved, ...GEMINI_MODELS.filter(m => m !== saved)] : GEMINI_MODELS;
-    let last = null;
-    for (const model of order) {
-      let res;
-      try {
-        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
-          }),
-        });
-      } catch (e) {
-        throw { code: "network", message: "Gemini に接続できませんでした（" + (e && e.message ? e.message : e) + "）" };
-      }
-      const j = await res.json().catch(() => null);
-      const msg = (j && j.error && j.error.message) || "";
-      if (res.status === 404) { last = { code: "upstream_error", message: `モデル ${model} が見つかりません` }; continue; }
-      if (!res.ok) {
-        const code = res.status === 429 ? "rate_limited" : (res.status === 400 || res.status === 401 || res.status === 403 ? "bad_key" : "upstream_error");
-        throw { code, message: `HTTP ${res.status} ${msg}`.trim() };
-      }
-      const parts = (j && j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
-      const text = parts.filter(p => !p.thought).map(p => p.text || "").join("");
-      if (!text) throw { code: "upstream_error", message: "Gemini の答えが空でした" };
-      if (saved !== model) LS.set(K.model, model);
-      return JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, ""));
-    }
-    throw last || { code: "upstream_error", message: "使える Gemini のモデルが見つかりません" };
-  }
-  async function askJson(prompt) {
-    if (sample) return sample.json(prompt, { modelTier: "quick" });
-    return askGemini(prompt);
-  }
+  // ---- 辞書にない文を訳す（claude.ai の中だけ。Claude を使う） ----
+  const aiReady = () => !aiDisabled && aiWanted && !!sample;
+  const askJson = prompt => sample.json(prompt, { modelTier: "quick" });
   let aiQueue = Promise.resolve();
   function translateRows(list) {
     if (!aiReady() || mode === "en") return;
@@ -262,15 +224,8 @@
     if (["not_granted", "sampling_disabled", "not_declared", "capability_disabled", "capability_removed"].includes(code)) {
       aiDisabled = true;
       push({ t: "note", ja: "（辞書にない文の翻訳は使えないため、英語のまま表示します）" });
-    } else if (code === "bad_key") {
-      aiDisabled = true;
-      push({ t: "note", ja: "（Gemini API キーが使えませんでした：" + (e.message || "").replace(/[.。]$/, "") + "。≡ の設定でキーを確かめてください）" });
     } else if (code === "rate_limited") {
       push({ t: "note", ja: "（翻訳の回数が上限に達しました。しばらくしてから続きを訳します）" });
-    } else if (!sample && !aiErrorShown) {
-      // Gemini のそのほかの失敗は、一度だけ理由を出す
-      aiErrorShown = true;
-      push({ t: "note", ja: "（Gemini で訳せませんでした：" + ((e && e.message) || "原因不明") + "）" });
     }
   }
 
@@ -381,33 +336,8 @@
     if (!b) return;
     aiWanted = b.dataset.ai === "on"; LS.set(K.ai, aiWanted ? "on" : "off"); applyMode();
   });
-  // claude.ai の外（Tasker のシーンなど）では、Gemini API キーを入れられるようにする
-  $("opt-gemini").hidden = IN_CLAUDE;
-  function showKeyState() {
-    $("gemini-state").textContent = geminiKey ? "キーを保存してあります（末尾 " + geminiKey.slice(-4) + "）" : "キーは未設定です。辞書にない文は英語のまま出ます。";
-  }
-  showKeyState();
-  $("gemini-save").addEventListener("click", () => {
-    const v = $("gemini-key").value.trim();
-    if (!v) return;
-    geminiKey = v; aiDisabled = false; LS.set(K.gemini, v);
-    $("gemini-key").value = ""; showKeyState();
-  });
-  $("gemini-test").addEventListener("click", async () => {
-    const st = $("gemini-state");
-    if (!geminiKey) { st.textContent = "先にキーを保存してください。"; return; }
-    st.textContent = "テスト中…";
-    try {
-      const out = await askGemini('次の JSON 配列の英文を日本語に訳し、同じ件数の JSON 文字列配列だけを返してください。\n["There is a small mailbox here."]');
-      st.textContent = "つながりました（モデル " + (LS.get(K.model) || "?") + "）：" + (Array.isArray(out) ? out[0] : JSON.stringify(out));
-      aiDisabled = false; aiErrorShown = false;
-    } catch (e) {
-      st.textContent = "失敗しました：" + ((e && e.message) || e);
-    }
-  });
-  $("gemini-clear").addEventListener("click", () => {
-    geminiKey = ""; LS.del(K.gemini); $("gemini-key").value = ""; showKeyState();
-  });
+  // 辞書にない文の翻訳は claude.ai の中でしか使えないので、外では設定を出さない
+  $("opt-ai").hidden = !IN_CLAUDE;
   $("restart-btn").addEventListener("click", () => {
     $("restart-btn").hidden = true;
     $("restart-yes").hidden = $("restart-no").hidden = false;
@@ -438,10 +368,6 @@
   try { savedGame = JSON.parse(LS.get(K.save) || "null"); } catch (e) { savedGame = null; }
 
   // claude.ai の中で開いたときだけ使える機能
-  if (!IN_CLAUDE && geminiKey) {
-    const fresh = rows.filter(r => r.t === "out" && r.parts && !tr.jaOf({ parts: r.parts }).complete);
-    if (fresh.length) translateRows(fresh.slice(-30));
-  }
   if (IN_CLAUDE) {
     window.claude.use("sample").then(s => {
       sample = s;
