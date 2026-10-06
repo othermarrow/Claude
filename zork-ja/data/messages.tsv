@@ -411,3 +411,725 @@ A furious exchange, and the troll is knocked out!	激しい打ち合いの末、
 Clang! Crash! The troll parries.	ガキン！ガシャン！トロールが受け流した。
 You are still recovering from that last blow, so your attack is ineffective.	さっきの一撃からまだ立ち直っておらず、攻撃は効かなかった。
 The troll stirs, quickly resuming a fighting stance.	トロールが身じろぎし、すぐに身構え直した。
+# ---- ゲーム内の文（ソースから取り出して訳したもの）----
+A beautiful rainbow can be seen over the falls and to the west.	滝の上、西の方に美しい虹が見える。
+A booming voice says "Wrong, cretin!"	とどろく声が言う。「違うぞ、間抜けめ！」
+A brilliant maneuver destroys the bottle.	見事な動きで、びんは粉々になった。
+A burned-out lamp won't light.	燃え尽きたランプはつかない。
+A dazzling display of color briefly emanates from the sceptre.	王笏から、まばゆい色の光が一瞬あふれ出た。
+A force keeps you from taking the bodies.	何かの力に阻まれて、死体を取ることができない。
+A glancing blow from the Cyclops' fist.	サイクロプスのこぶしがかすめた。
+A good trick, as you are currently invisible.	大した芸当だ。なにしろ今のあなたは姿が見えないのだから。
+A gust of wind blows out your candles!	突風が吹いて、ろうそくの火が消えた！
+A hungry cyclops is standing at the foot of the stairs.	腹をすかせたサイクロプスが、階段の下に立っている。
+A large vampire bat, hanging from the ceiling, swoops down at you!	天井からぶら下がっていた大きな吸血コウモリが、あなためがけて急降下してきた！
+A long, theatrical slash.	芝居がかった大振りの一撃。
+A pathetically babbling troll is here.	みじめにわめき散らすトロールがいる。
+A pile of leaves falls onto your head and to the ground.	落ち葉の山があなたの頭の上に落ち、地面に散らばった。
+A quick punch, but it was only a glancing blow.	すばやいパンチだが、かすっただけだ。
+A savage blow on the thigh!	太ももへの猛烈な一撃！
+A shimmering pot of gold appears at the end of the rainbow.	虹のふもとに、きらめく金の壺が現れた。
+A solid rainbow spans the falls.	滝の上に、しっかりとした虹が架かっている。
+A sound, like that of flowing water, starts to come from below.	水の流れるような音が、下から聞こえ始めた。
+A stairway leads down.	下へ続く階段がある。
+A strong odor of chocolate permeates the room.	チョコレートの強いにおいが部屋に満ちている。
+A tan label is lying inside the boat.	黄褐色のラベルがボートの中に落ちている。
+A terrific throw!	見事な投げっぷりだ！
+A troll is here.	トロールがいる。
+Aaaarrrrgggghhhh!	うわあああああっ！
+Above you is a large dome.	頭上に大きなドームがある。
+Alas, there's not much left of the candles.	ああ、ろうそくはもうほとんど残っていない。
+All of a sudden, an alarmingly loud roaring sound fills the room.	突然、恐ろしく大きなとどろきが部屋に満ちた。
+All such attacks are vain in your condition.	今のあなたの状態では、そんな攻撃はすべて無駄だ。
+Although there is no light, the room seems dimly illuminated.	明かりはないのに、部屋はぼんやりと明るいようだ。
+An axe stroke makes a deep wound in your leg.	斧の一撃で、脚に深い傷を負った。
+An interesting idea...	おもしろい考えだ……
+An unconscious troll is sprawled on the floor.	気を失ったトロールが床に伸びている。
+And you're not one.	そしてあなたは、そうではない。
+Another pathetic sputter, this time from you, heralds your drowning.	またしても哀れなゴボゴボという音。今度はあなたの口からだ。あなたは溺れてしまった。
+Are you blind or something?	目が見えないのか？
+Are you out of your mind?	気でも違ったのか？
+Are you the little Dutch boy, then?	じゃあ、あなたはオランダの少年なのかい？
+As a result, your mouth gets glued together (with your nose)	その結果、あなたの口は（鼻と一緒に）くっついてしまい、
+As hard as you try, the book cannot be closed.	どんなにがんばっても、本は閉じられない。
+As he licks his chops, he says "Mmm.	彼は舌なめずりしながら言う。「うーん。
+As you enter the barrow, the door closes inexorably behind you.	塚の中に入ると、背後で扉が容赦なく閉まった。
+As you sit, you notice an irregularity underneath it.	座ってみると、下に何か違和感があることに気づいた。
+At your service!	なんなりとお申しつけを！
+Auto-cannibalism is not the answer.	自分を食べるのは答えにならない。
+Bad luck, huh?	運が悪かったね。
+Beaches can be seen north and south.	北と南に浜が見える。
+Beats me.	さっぱりわからない。
+Become dinner.	夕食になってしまえ。
+Between the rocks and waves, you wouldn't last a minute!	岩と波の間では、1分も持たないぞ！
+Bizarre!	奇妙な！
+Bug?	バグ？
+Bye.	さようなら。
+Can you walk on water vapor?	水蒸気の上を歩けるのかい？
+Clang!	ガキン！
+Click.	カチッ。
+Climbing the walls is to no avail.	壁を登ろうとしても無駄だ。
+Come on, now!	おいおい、勘弁してくれ！
+Congratulations!	おめでとう！
+Conquering his fears, the troll puts you to death.	恐れを振り払ったトロールが、あなたにとどめを刺した。
+Control Dam #3.	第3治水ダム。
+Crash!	ガシャン！
+Dam.	ダム。
+Ding, dong.	ディン、ドン。
+Do you know how big this dam is?	このダムがどれだけ大きいか知っているのか？
+Do you wish to leave the game?	ゲームを終了しますか？
+Do you wish to restart?	最初からやり直しますか？
+Don't be silly.	ばかなことを言うな。
+Don't tell me, I'll get it.	言わないで、当ててみせるから。
+Don't you believe me?	信じてくれないのか？
+Dost thou know the magnitude of thy sin before the gods?	汝、神々の前での己の罪の重さを知っておるのか？
+Dozen of lurking grues attack and devour you!	潜んでいた何十匹ものグルーが襲いかかり、あなたを食べ尽くした！
+Even such an action is beyond your capabilities.	そんなことさえ、あなたにはできない。
+Filched!	くすねたぞ！
+Filled with fear, you scramble away.	恐怖に駆られて、あなたは慌てて逃げ出した。
+Finding nothing of value, he left disgruntled.	価値のあるものが見つからず、彼は不機嫌そうに去っていった。
+Finishing you off, the thief inserts his blade into your heart.	とどめとばかりに、盗賊はあなたの心臓に刃を突き立てた。
+Flathead the Excessive.	暴君フラットヘッド。
+Foo!	ちぇっ！
+Fortunately, he took nothing.	幸い、彼は何も取らなかった。
+Fortunately, there is justice in the world.	幸い、この世には正義がある。
+From here?!?	ここからだって？！
+From out of the greenery flies a lovely songbird.	茂みの中から、かわいらしい鳥が飛び立った。
+From the distance the sound of a lone trumpet is heard.	遠くから、一本のトランペットの音が聞こえてくる。
+Fweep!	フィープ！
+GUE Tech can't promise these fantastic results to everyone.	GUEテックは、誰にでもこのすばらしい結果をお約束できるわけではありません。
+Geronimo...	ジェロニモー……
+Getting close enough would be a good trick.	そこまで近づけたら大したものだ。
+Getting tired?	疲れたかい？
+Give up.	あきらめな。
+Go jump in a lake!	湖にでも飛び込んでこい！
+Going up empty-handed is a bad idea.	手ぶらで上がるのはやめたほうがいい。
+Good Luck!	幸運を祈る！
+Gulp!	ゴクッ！
+Haven't you done enough damage already?	もう十分に壊したんじゃないか？
+He is armed with a vicious-looking stiletto.	彼は凶悪そうな短剣で武装している。
+He looks like a sailor.	彼は船乗りのように見える。
+He's fast asleep.	彼はぐっすり眠っている。
+He's wide awake, or haven't you noticed...	彼はばっちり目を覚ましている。気づかなかったのか……
+Hello, Sailor!	ハロー、セーラー！
+His booty remains.	彼の戦利品は残っている。
+His enflamed tongue protrudes from his man-sized mouth.	人の口ほどもある大きな口から、燃えるような舌が突き出ている。
+Hmm.	ふむ。
+How can you attack a spirit with material objects?	物で霊を攻撃なんてできるものか。
+How can you do that?	どうやってそんなことを？
+How can you drink that?	そんなもの、どうやって飲むんだ？
+How can you inflate that?	そんなもの、どうやって膨らませるんだ？
+How can you think of your score?	こんなときに得点のことを考えるとは？
+How peculiar!	妙だな！
+How romantic!	なんてロマンチックな！
+How singularly useless.	なんとまあ役に立たない。
+How, I can't imagine.	どうやってか、想像もつかない。
+How, exactly, can you ring that?	いったいどうやって、それを鳴らすんだ？
+Huh?	え？
+I am not such a talent.	私にはそんな才能はない。
+I can't help you there....	それについては力になれない……
+I don't see what you are referring to.	何のことを言っているのかわからない。
+I doubt you could do that without damaging it.	壊さずにそれをするのは無理だと思う。
+I feel really important and can obfuscate and confuse with the best."	私は自分がとても偉い気がするし、最高の人たちと一緒に煙に巻いて混乱させることもできるんだ」
+I love hot peppers!	私は唐辛子が大好きなんだ！
+I suppose you think it's a magic carpet?	それが魔法のじゅうたんだとでも思っているのかい？
+I think that phrase is getting a bit worn out.	その言い回しは、ちょっと使い古されてきたね。
+I would have thought twice about carrying flaming objects in here.	私なら、ここに燃えている物を持ち込むのはよく考えるがね。
+I'd sooner kiss a pig.	豚にキスするほうがまだましだ。
+I'd watch out if I were you.	私があなたなら気をつけるね。
+I'm afraid that the leap you attempted has done you in.	残念ながら、今の跳躍が命取りになったようだ。
+I'm afraid that you have run out of matches.	残念ながら、マッチを使い切ってしまった。
+I'm afraid you have done drowned yourself.	残念ながら、あなたは溺れてしまった。
+If you insist....	どうしてもと言うなら……
+If you pray enough, your prayers may be answered.	十分に祈れば、祈りは届くかもしれない。
+If you wish, but heaven only knows why.	お望みなら。どうしてなのかは神のみぞ知るだが。
+In disturbing the pile of leaves, a grating is revealed.	落ち葉の山をどかすと、格子が現れた。
+In other words, fighting the fierce currents of the Frigid River.	言い換えれば、フリジッド川の激しい流れと戦うということだ。
+In the movies, your life would be passing before your eyes.	映画なら、今ごろ走馬灯が見えているところだ。
+In your confusion, the candles drop to the ground (and they are out).	混乱のあまり、ろうそくを地面に落としてしまった（火は消えている）。
+Including this one.	これも含めて。
+Inflating it further would probably burst it.	これ以上膨らませると、たぶん破裂してしまう。
+Insults of this nature won't help you.	そんなふうに罵っても役に立たない。
+Is suicide painless?	自殺は痛くないのか？
+It appears that that last blow was too much for you.	今の一撃は、あなたには重すぎたようだ。
+It appears that the smell coming from this room was coal gas.	この部屋からしていたにおいは、石炭ガスだったらしい。
+It appears the tube contained glue, not oil.	チューブの中身は油ではなく接着剤だったようだ。
+It can't be followed.	それはたどれない。
+It could very well be too late!	もう手遅れかもしれない！
+It doesn't seem to work.	うまくいかないようだ。
+It falls to the floor.	それは床に落ちた。
+It is already off.	もう消えている。
+It is already on.	もうついている。
+It is an integral part of the control panel.	それは操作盤と一体になっている。
+It is clear that the owners must have been extremely wealthy.	持ち主はよほどの金持ちだったに違いない。
+It is far too large to carry.	大きすぎて持ち運べない。
+It is impossible to read in the dark.	暗い中では読めない。
+It is not tied to anything.	それは何にも結ばれていない。
+It is now completely dark.	完全に真っ暗になった。
+It is too narrow for most insects.	ほとんどの虫にとっても狭すぎる。
+It makes no sound but is always lurking in the darkness nearby.	音は立てないが、いつも近くの暗闇に潜んでいる。
+It only SAYS "Granite Wall".	「花崗岩の壁」と書いてあるだけだ。
+It really hit the spot.	本当においしかった。
+It seems rooted to the spot.	その場に根を生やしたように動かない。
+It seems to be to the west.	西の方にあるようだ。
+It sinks into the mud.	それは泥の中に沈んでいった。
+It smells like coal gas in here.	ここは石炭ガスのにおいがする。
+It smells of hot peppers.	唐辛子のにおいがする。
+It takes a talented person to be killed while already dead.	すでに死んでいるのに殺されるとは、大した才能だ。
+It was here just a minute ago....	ついさっきまでここにあったのに……
+It won't fit through the grating.	それは格子を通らない。
+It won't open.	開かない。
+It would be a good trick.	大した芸当だね。
+It's a long way...	遠い道のりだ……
+It's closed.	閉まっている。
+It's floating above your head.	頭の上に浮かんでいる。
+It's here!	ここにある！
+It's in the bottle.	びんの中にある。
+It's nice to be appreciated.	感謝されるのはうれしいものだ。
+It's not a very good chalice, is it?	あまりいい聖杯じゃないだろう？
+It's not attached to that!	それにはつながっていない！
+It's not clear how to turn it on with your bare hands.	素手でどうやってつければいいのかわからない。
+It's not clear what you're referring to.	何のことを言っているのかわからない。
+It's pitch black in here!	ここは真っ暗だ！
+It's really dark in here....	ここは本当に暗い……
+It's really not clear how.	どうやるのか、まったくわからない。
+It's right here!	すぐここにある！
+It's right here.	すぐここにある。
+It's solid granite.	一枚岩の花崗岩だ。
+It's too far to jump, and there's no bridge.	跳ぶには遠すぎるし、橋もない。
+It's too wide to cross.	広すぎて渡れない。
+Just in time you steer away from the rocks.	間一髪で岩をよけた。
+Just like Mom used to make 'em."	母さんがよく作ってくれたのと同じ味だ」
+Leave 2.	左へ2。
+Let's see, how many objects in a pair?	さて、一対はいくつだったかな？
+Might as well.	まあ、いいか。
+Naturally!	もちろん！
+Nice try.	惜しかったね。
+Nice view, lousy place to jump.	眺めはいいが、飛び降りるにはひどい場所だ。
+No chance.	無理だ。
+No use talking to him.	彼に話しかけても無駄だ。
+Nobody seems to be awaiting your answer.	誰もあなたの答えを待っていないようだ。
+Nobody's home.	誰もいない。
+Not a bright idea, especially since you're in it.	いい考えとは言えない。なにしろあなたはその中にいるのだから。
+Not a chance.	まず無理だ。
+Not in a flawless program like this!	こんな完璧なプログラムにバグなんてあるものか！
+Nothing happens anymore.	もう何も起こらない。
+Nothing happens here.	ここでは何も起こらない。
+Nothing happens yet.	まだ何も起こらない。
+Now you can go to the second grade.	これで2年生に進級だ。
+Oh dear.	おやまあ。
+Oh, no!	ああ、なんてこと！
+On its face is a switch which is labelled "START".	表面には「START」と書かれたスイッチがある。
+Once you got him, what would you do with him?	捕まえたとして、どうするつもりだ？
+One of the matches starts to burn.	マッチが1本燃え始めた。
+Only Santa Claus climbs down chimneys.	煙突を降りるのはサンタクロースだけだ。
+Only bats can see in the dark.	暗闇で見えるのはコウモリだけだ。
+Only the ceremony itself has any effect.	効果があるのは儀式そのものだけだ。
+Only you can do that.	それができるのはあなただけだ。
+Oops!	おっと！
+Ouch!	いたっ！
+Perhaps I could drink the blood of that thing."	あいつの血でも飲めるかもしれないな」
+Perhaps even fatal.	命取りにさえなるかもしれない。
+Perhaps you should do that to the basket.	それはかごにするといいかもしれない。
+Perhaps you should take that instead.	それより、そっちを取ったほうがいいかもしれない。
+Please accept this gift.	この贈り物をどうぞ。
+Please give a direction.	方向を言ってほしい。
+Poof, you're dead!	ポンッ、あなたは死んだ！
+Preposterous!	ばかばかしい！
+Read the label for the boat's instructions.	ボートの使い方はラベルを読むこと。
+River past the Falls.	滝を過ぎた先の川。
+Sadly for you, the robber collapsed on top of the bag.	あいにく、盗賊は袋の上に倒れ込んでしまった。
+Say what?	何だって？
+Shaken.	揺さぶられた。
+Shall the angry gods cast thy body into the whirlpool?	怒れる神々に、汝の体を渦に投げ込ませてよいのか？
+Slash!	ザシュッ！
+Some invisible force prevents you from passing through the gate.	見えない力に阻まれて、門を通り抜けられない。
+Some moron punctured it.	どこかのばか者が穴を開けたのだ。
+Some paint chips away, revealing more paint.	絵の具がはがれ落ちたが、下からまた絵の具が出てきた。
+Something sharp seems to have slipped and punctured the boat.	何か鋭いものがすべって、ボートに穴を開けてしまったようだ。
+Sorry, my memory is poor.	すまない、記憶力が悪くてね。
+Sorry, this is a big dam.	すまない、これは大きなダムなんだ。
+Sorry, you can't correct mistakes in quoted text.	すまないが、引用符の中の間違いは直せない。
+Sorry.	すまない。
+Sounds reasonable, but this isn't how.	もっともらしいが、そうやるのではない。
+Staying here seems quite perilous!	ここにとどまるのはかなり危険そうだ！
+Such language in a high-class establishment like this!	このような高級な場所で、そんな言葉づかいとは！
+Suicide is not the answer.	自殺は答えにならない。
+Surely thou shalt repent of thy cunning.	汝、きっとその悪知恵を悔いることになろう。
+Surely you jest!	冗談だろう！
+Surely, thy eye shall be put out with a sharp stick!	汝の目は、きっととがった棒でえぐられるであろう！
+Talking to yourself is a sign of impending mental collapse.	独り言は、心が崩れかけているしるしだ。
+Talking to yourself is said to be a sign of impending mental collapse.	独り言は、心が崩れかけているしるしだと言われている。
+Thank you very much.	どうもありがとう。
+That doesn't make sends.	意味がわからない。
+That hiding place is too obvious.	その隠し場所は見え見えだ。
+That one hit an artery, it could be serious!	今のは動脈に当たった。深刻かもしれない！
+That was just a bit too far down.	ちょっと深すぎたようだ。
+That would be a good trick.	大した芸当だね。
+That would be very unwise.	それはとても賢明とは言えない。
+That would involve quite a contortion!	それにはかなり体をねじらないといけない！
+That would just repeat a mistake.	それでは同じ間違いをくり返すだけだ。
+That wouldn't be smart.	それは利口ではない。
+That's difficult unless your eyes are prehensile.	目でつかめるのでもなければ、難しいね。
+That's only your opinion.	それはあなたの意見にすぎない。
+That's pretty weird.	かなり変だね。
+That's silly!	ばかげている！
+The Cyclops almost knocks the wind out of you with a quick punch.	サイクロプスのすばやいパンチで、息が止まりそうになった。
+The Cyclops breaks your neck with a massive smash.	サイクロプスの強烈な一撃で、あなたの首が折れた。
+The Cyclops lands a punch that knocks the wind out of you.	サイクロプスのパンチを食らい、息が止まった。
+The Cyclops misses, but the backwash almost knocks you over.	サイクロプスの攻撃は外れたが、その風圧であなたは倒れそうになった。
+The Cyclops rushes you, but runs into the wall.	サイクロプスが突進してきたが、壁にぶつかった。
+The Cyclops sends you crashing to the floor, unconscious.	サイクロプスに床へたたきつけられ、あなたは気を失った。
+The Cyclops, no sportsman, dispatches his unconscious victim.	スポーツマン精神のないサイクロプスは、気絶した獲物にとどめを刺した。
+The FROBOZZ Corporation created, owns, and operates this dungeon.	この地下迷宮は、FROBOZZ社が作り、所有し、運営している。
+The Frigid River flows under the rainbow.	フリジッド川が虹の下を流れている。
+The White Cliffs prevent your landing here.	白い崖があって、ここには上陸できない。
+The acoustics of the room change subtly.	部屋の音の響き方が微妙に変わった。
+The all-purpose gunk isn't a lubricant.	万能ねばねばは潤滑油ではない。
+The axe crashes against the rock, throwing sparks!	斧が岩にぶつかり、火花が散った！
+The axe gets you right in the side.	斧があなたの脇腹にまともに当たった。
+The bag will be taken over his dead body.	袋は、彼の死体を越えなければ手に入らない。
+The balloon lands.	気球が着地した。
+The basket is at the other end of the chain.	かごは鎖の反対側の端にある。
+The basket is lowered to the bottom of the shaft.	かごが縦穴の底まで下りた。
+The basket is raised to the top of the shaft.	かごが縦穴のてっぺんまで上がった。
+The bat grabs you by the scruff of your neck and lifts you away....	コウモリがあなたの首根っこをつかみ、運び去っていく……
+The bell appears to have cooled down.	鐘は冷めたようだ。
+The bell is too hot to reach.	鐘が熱すぎて手が届かない。
+The bell is too hot to touch.	鐘が熱すぎて触れない。
+The bell is very hot and cannot be taken.	鐘はとても熱くて取れない。
+The bell suddenly becomes red hot and falls to the ground.	鐘が突然真っ赤に焼け、地面に落ちた。
+The best way to find zorkmids is to go out and look for them.	ゾークミッドを見つけるいちばんの方法は、外に出て探すことだ。
+The blue button appears to be jammed.	青いボタンは動かなくなっているようだ。
+The boat deflates to the sounds of hissing, sputtering, and cursing.	シューッ、プシュプシュ、という音と悪態とともに、ボートがしぼんだ。
+The boat deflates.	ボートがしぼんだ。
+The boat inflates and appears seaworthy.	ボートが膨らみ、航海できそうになった。
+The boat is repaired.	ボートが修理された。
+The boat must be on the ground to be deflated.	しぼませるには、ボートが地面の上にないといけない。
+The boat must be on the ground to be inflated.	膨らませるには、ボートが地面の上にないといけない。
+The bolt won't turn with your best effort.	どんなにがんばっても、ボルトは回らない。
+The book is already open to page 569.	本はすでに569ページが開いている。
+The bottle hits the far wall and shatters.	びんは奥の壁に当たって粉々になった。
+The bottle is closed.	びんは閉まっている。
+The bottle is now full of water.	びんが水でいっぱいになった。
+The cage is securely fastened to the iron chain.	かごは鉄の鎖にしっかり固定されている。
+The canary chirps blithely, if somewhat tinnily, for a short time.	カナリアは、少し金属的な声ながら、しばらく陽気にさえずった。
+The canary chirps, slightly off-key, an aria from a forgotten opera.	カナリアは、少し調子外れに、忘れられたオペラのアリアをさえずった。
+The candles are becoming quite short.	ろうそくがだいぶ短くなってきた。
+The candles are not lighted.	ろうそくには火がついていない。
+The candles grow shorter.	ろうそくが短くなっていく。
+The candles won't last long now.	ろうそくはもう長くはもたない。
+The chain is secure.	鎖はしっかりしている。
+The chain secures a basket within the shaft.	鎖が縦穴の中のかごを支えている。
+The chalice is now safe to take.	これで聖杯を取っても大丈夫だ。
+The channel is too narrow.	水路が狭すぎる。
+The chasm probably leads straight to the infernal regions.	裂け目は、たぶん地獄へまっすぐ通じている。
+The chests are all empty.	工具箱はどれも空っぽだ。
+The chests are already open.	工具箱はもう開いている。
+The cliff is too steep for climbing.	崖が急すぎて登れない。
+The cyclops apparently is not thirsty and refuses your generous offer.	サイクロプスはのどが渇いていないらしく、あなたの気前のいい申し出を断った。
+The cyclops appears to be getting more agitated.	サイクロプスはますますいらだってきたようだ。
+The cyclops doesn't look like he'll let you past.	サイクロプスは、あなたを通してくれそうにない。
+The cyclops doesn't take kindly to being grabbed.	サイクロプスは、つかまれるのが気に入らない。
+The cyclops is moving about the room, looking for something.	サイクロプスは何かを探して部屋の中を動き回っている。
+The cyclops is moving toward you in an unfriendly manner.	サイクロプスが敵意をむき出しにして近づいてくる。
+The cyclops is not so stupid as to eat THAT!	サイクロプスは、そんなものを食べるほどばかではない！
+The cyclops is sleeping blissfully at the foot of the stairs.	サイクロプスは階段の下で幸せそうに眠っている。
+The cyclops is sleeping like a baby, albeit a very ugly one.	サイクロプスは赤ん坊のように眠っている。とても醜い赤ん坊だが。
+The cyclops is standing in the corner, eyeing you closely.	サイクロプスは隅に立ち、あなたをじっと見ている。
+The cyclops may be hungry, but there is a limit.	サイクロプスは腹をすかせているかもしれないが、限度というものがある。
+The cyclops prefers eating to making conversation.	サイクロプスは、おしゃべりより食べるほうが好きだ。
+The cyclops says "Mmm Mmm.	サイクロプスが言う。「うまい、うまい。
+The cyclops seems somewhat agitated.	サイクロプスは少しいらだっているようだ。
+The cyclops shrugs but otherwise ignores your pitiful attempt.	サイクロプスは肩をすくめただけで、あなたの哀れな試みを無視した。
+The cyclops takes the bottle, checks that it's open, and drinks the water.	サイクロプスはびんを受け取り、開いているのを確かめて水を飲んだ。
+The cyclops was looking for salt and pepper.	サイクロプスは塩とこしょうを探していたのだ。
+The cyclops yawns and stares at the thing that woke him up.	サイクロプスはあくびをして、自分を起こしたものをじっと見た。
+The cyclops, having eaten the hot peppers, appears to be gasping.	唐辛子を食べたサイクロプスは、あえいでいるようだ。
+The cyclops, tired of all of your games and trickery, grabs you firmly.	あなたの小細工やごまかしにうんざりしたサイクロプスが、あなたをがっちりつかんだ。
+The dam beckons to you.	ダムがあなたを招いている。
+The dam blocks your way.	ダムが行く手をふさいでいる。
+The dam can be seen downstream.	下流にダムが見える。
+The disk is correct.	ディスクは正常だ。
+The door cannot be opened.	扉は開けられない。
+The door closes and locks.	扉が閉まり、鍵がかかった。
+The door is locked from above.	扉は上から鍵がかけられている。
+The door is too heavy.	扉が重すぎる。
+The door won't budge.	扉はびくともしない。
+The east wall is solid granite here.	ここの東の壁は一枚岩の花崗岩だ。
+The east wall is solid rock.	東の壁は硬い岩だ。
+The east wall, previously solid, now has a cyclops-sized opening in it.	以前は硬い壁だった東の壁に、サイクロプスほどの大きさの穴が開いている。
+The egg falls to the ground and springs open, seriously damaged.	卵は地面に落ちてぱかっと開き、ひどく壊れてしまった。
+The egg is already open.	卵はもう開いている。
+The flame is extinguished.	炎が消えた。
+The flames flicker wildly and appear to dance.	炎が激しく揺らめき、踊っているように見える。
+The flat of the troll's axe skins across your forearm.	トロールの斧の平らな面が、あなたの前腕をこすった。
+The flow of the river carries you downstream.	川の流れに乗って、あなたは下流へ運ばれていく。
+The gate is protected by an invisible force.	門は見えない力で守られている。
+The grate is locked.	格子には鍵がかかっている。
+The grate is unlocked.	格子の鍵が開いた。
+The grating is closed!	格子は閉まっている！
+The grating opens to reveal trees above you.	格子が開き、頭上に木々が見えた。
+The grating opens.	格子が開いた。
+The ground continues to slope upwards away from the lake.	地面は湖から離れるにつれて、さらに上り坂になっている。
+The ground is too hard for digging here.	ここは地面が硬すぎて掘れない。
+The heat from the bell is too intense.	鐘の熱が強すぎる。
+The heat from the torch is so intense that the candles are vaporized.	たいまつの熱があまりに強くて、ろうそくが蒸発してしまった。
+The holder of the large bag just left, looking disgusted.	大きな袋を持った男は、うんざりした様子で去っていった。
+The hole collapses, smothering you.	穴が崩れ、あなたは生き埋めになった。
+The hole is getting deeper, but that's about it.	穴は深くなっていくが、それだけだ。
+The house is a beautiful colonial house which is painted white.	白く塗られた美しいコロニアル様式の家だ。
+The incantation echoes back faintly, but nothing else happens.	呪文がかすかにこだましたが、ほかには何も起こらない。
+The lamp has already burned out.	ランプはもう燃え尽きている。
+The lamp has smashed into the floor, and the light has gone out.	ランプは床にたたきつけられて壊れ、明かりが消えた。
+The leaves burn, and so do you.	落ち葉が燃え、あなたも燃えた。
+The leaves burn.	落ち葉が燃えた。
+The lid closes.	ふたが閉まった。
+The lid opens.	ふたが開いた。
+The machine doesn't seem to want to do anything.	機械は何もしたくないようだ。
+The map shows a forest with three clearings.	地図には、三つの空き地のある森が描かれている。
+The match has gone out.	マッチが燃え尽きた。
+The match is burning.	マッチが燃えている。
+The match is out.	マッチは消えている。
+The matchbook isn't very interesting, except for what's written on it.	マッチは、書いてあること以外は大しておもしろくない。
+The mirror is broken into many pieces.	鏡は粉々に割れている。
+The mirror is many times your size.	鏡はあなたの何倍もの大きさだ。
+The mountains are impassable!	山は越えられない！
+The nails, deeply imbedded in the door, cannot be removed.	扉に深く打ち込まれた釘は抜けない。
+The only path here is on the north end.	ここの道は北の端にしかない。
+The other side is a sheer rock cliff.	反対側は切り立った岩の崖だ。
+The path is too narrow.	道が狭すぎる。
+The pines and the hemlocks seem to be murmuring.	松とツガがささやいているようだ。
+The prayer is inscribed in an ancient script, rarely used today.	祈りの言葉は、今ではめったに使われない古い文字で刻まれている。
+The rainbow seems to have become somewhat run-of-the-mill.	虹は、ありふれたものになってしまったようだ。
+The rank undergrowth prevents eastward movement.	生い茂った下草で、東へは進めない。
+The rest of your commands have been lost in the noise.	残りの命令は、騒音の中に消えてしまった。
+The resulting wound is serious.	深い傷を負った。
+The roar of rushing water is quieter now.	激流のとどろきが静かになった。
+The room is eerie in its quietness.	部屋は不気味なほど静まり返っている。
+The room is full of water and cannot be entered.	部屋は水でいっぱいで、入れない。
+The rope drops gently to the floor below.	ロープは下の床までそっと垂れ下がった。
+The rope is now untied.	ロープがほどけた。
+The rope is tied to the railing.	ロープは手すりに結んである。
+The rug is extremely heavy and cannot be carried.	じゅうたんはとても重くて運べない。
+The seaman looks up and maneuvers the boat toward shore.	船乗りは顔を上げ、ボートを岸へ向けた。
+The slag was rather insubstantial, and crumbles into dust at your touch.	鉱滓はもろく、触れると粉々に崩れた。
+The sluice gates are closed.	水門は閉まっている。
+The sluice gates are open, and water rushes through the dam.	水門が開いていて、水がダムを勢いよく流れ抜けている。
+The sluice gates close and water starts to collect behind the dam.	水門が閉まり、ダムの裏に水がたまり始めた。
+The sluice gates on the dam are closed.	ダムの水門は閉まっている。
+The sluice gates open and water pours through the dam.	水門が開き、水がダムを流れ落ちていく。
+The songbird is not here but is probably nearby.	さえずる鳥はここにはいないが、たぶん近くにいる。
+The spirits cower at your unearthly power.	霊たちは、あなたのこの世ならぬ力に縮み上がった。
+The spirits jeer loudly and ignore you.	霊たちは大声であざけり、あなたを無視した。
+The stream emerges from a spot too small for you to enter.	小川は、あなたには入れないほど小さな所から流れ出ている。
+The sweet smell has dispersed.	甘いにおいは消えた。
+The thief amuses himself by searching your pockets.	盗賊はおもしろがってあなたのポケットを探っている。
+The thief attacks, and you fall back desperately.	盗賊が襲いかかり、あなたは必死に後ずさりした。
+The thief draws blood, raking his stiletto across your arm.	盗賊が短剣であなたの腕を切り裂き、血が流れた。
+The thief entertains himself by rifling your pack.	盗賊はあなたの荷物をあさって楽しんでいる。
+The thief is a strong, silent type.	盗賊は寡黙で力強いタイプだ。
+The thief just left, still carrying his large bag.	盗賊は大きな袋を持ったまま去っていった。
+The thief knocks you out.	盗賊にたたきのめされ、あなたは気を失った。
+The thief says nothing, as you have not been formally introduced.	正式に紹介されていないので、盗賊は何も言わない。
+The thief seems to have left you in the dark.	盗賊はあなたを暗闇に置き去りにしたようだ。
+The thief stabs a deep cut in your upper arm.	盗賊があなたの上腕を深く刺した。
+The thief stabs nonchalantly with his stiletto and misses.	盗賊は無造作に短剣で突いてきたが、外れた。
+The thief strikes like a snake!	盗賊は蛇のように襲いかかってきた！
+The thief tries to sneak past your guard, but you twist away.	盗賊はあなたの守りをすり抜けようとしたが、あなたは身をよじってかわした。
+The thief, a man of superior breeding, pauses for a moment to consider the propriety of finishing you off.	育ちのよい盗賊は、あなたにとどめを刺すのが礼儀にかなうかどうか、少し考えた。
+The thief, finding nothing of value, left disgusted.	価値のあるものが見つからず、盗賊はうんざりして去っていった。
+The torch is burning.	たいまつが燃えている。
+The troll hesitates, fingering his axe.	トロールは斧をいじりながら、ためらっている。
+The troll isn't much of a conversationalist.	トロールはあまり話し好きではない。
+The troll laughs at your puny gesture.	トロールはあなたのちっぽけなしぐさを笑った。
+The troll neatly removes your head.	トロールは見事にあなたの首をはねた。
+The troll scratches his head in confusion, then takes the axe.	トロールは困ったように頭をかき、斧を受け取った。
+The troll swings his axe, but it misses.	トロールが斧を振ったが、外れた。
+The troll's axe removes your head.	トロールの斧があなたの首をはねた。
+The troll's axe stroke cleaves you from the nave to the chops.	トロールの斧の一撃が、あなたをへそからあごまで切り裂いた。
+The troll's axe swings down, gashing your shoulder.	トロールの斧が振り下ろされ、あなたの肩を切り裂いた。
+The troll's mighty blow drops you to your knees.	トロールの強烈な一撃で、あなたはひざをついた。
+The troll, angered and humiliated, recovers his weapon.	怒りと屈辱に燃えたトロールは、武器を拾い上げた。
+The trophy case is securely fastened to the wall.	トロフィー棚は壁にしっかり固定されている。
+The tube is apparently empty.	チューブは空っぽのようだ。
+The tube refuses to accept anything.	チューブには何も入らない。
+The viscous material oozes into your hand.	ねばねばした物質が手の中にしみ出てきた。
+The wall isn't granite.	その壁は花崗岩ではない。
+The wand glows very brightly for a moment.	杖が一瞬、とても明るく光った。
+The wand stops glowing, but there is no other apparent effect.	杖の光が消えたが、ほかには何の効果もないようだ。
+The wand stops glowing, but there is no other obvious effect.	杖の光が消えたが、ほかには目に見える効果はない。
+The water cools the bell and is evaporated.	水が鐘を冷やし、蒸発した。
+The water evaporates before it gets close.	水は近づく前に蒸発してしまった。
+The water slips through your fingers.	水が指の間からこぼれ落ちた。
+The water spills to the floor and evaporates immediately.	水は床にこぼれ、すぐに蒸発した。
+The water spills to the floor and evaporates.	水は床にこぼれ、蒸発した。
+The water splashes on the walls and evaporates immediately.	水は壁にはねかかり、すぐに蒸発した。
+The west wall is solid granite here.	ここの西の壁は一枚岩の花崗岩だ。
+The window is closed.	窓は閉まっている。
+The windows are boarded and can't be opened.	窓は板でふさがれていて開けられない。
+The zorkmid is the unit of currency of the Great Underground Empire.	ゾークミッドは大地下帝国の通貨の単位だ。
+There are "shores" to the north and south.	北と南に「岸」がある。
+There are 69,105 leaves here.	ここには落ち葉が69,105枚ある。
+There are no climbable trees here.	ここには登れる木がない。
+There are no stairs leading down.	下へ続く階段はない。
+There are sinister gurgling noises in the darkness all around you!	あなたの周りの暗闇で、不気味なゴボゴボという音がしている！
+There is a control panel here, on which a large metal bolt is mounted.	ここには操作盤があり、大きな金属のボルトが取りつけられている。
+There is a matchbook whose cover says "Visit Beautiful FCD#3" here.	「美しい第3治水ダムへお越しください」と表紙に書かれたマッチがある。
+There is a rumble from deep within the earth and the room shakes.	地の底からとどろきが聞こえ、部屋が揺れた。
+There is a slimy stairway leaving the room to the north.	ぬるぬるした階段が、部屋から北へ出ている。
+There is a worthless piece of canvas here.	ここに価値のないキャンバスの切れ端がある。
+There is an ugly person staring back at you.	醜い人物があなたを見つめ返している。
+There is an unpleasant grinding noise from inside the canary.	カナリアの中から、嫌なギシギシという音がした。
+There is no granite wall here.	ここに花崗岩の壁はない。
+There is no safe landing spot here.	ここには安全に上陸できる場所がない。
+There is no sailor to be seen.	船乗りの姿はどこにも見えない。
+There is no tree here suitable for climbing.	ここには登るのに向いた木がない。
+There is nothing but dust there.	そこにはほこりしかない。
+There is nothing special to be seen.	特に見るべきものはない。
+There is nothing to fill it with.	何も満たすものがない。
+There is too much gas to blow away.	ガスが多すぎて吹き払えない。
+There isn't any water here.	ここには水がない。
+There was no word to replace!	置き換える単語がなかった！
+There's no reason to be digging here.	ここを掘る理由はない。
+There's nothing here you can take.	ここには取れるものがない。
+There's nothing to fill it with.	満たすものがない。
+They're greek to you.	あなたにはちんぷんかんぷんだ。
+This boat is made of thin plastic.	このボートは薄いビニールでできている。
+This cannot be tied, so it cannot be untied!	これは結べないので、ほどくこともできない！
+This could be serious!	これは深刻かもしれない！
+This has no effect.	効果がない。
+This is a large, cold room whose sole exit is to the north.	大きくて寒い部屋で、出口は北にしかない。
+This room has an exit on the northwest, and a staircase leading up.	この部屋には北西に出口があり、上へ階段が続いている。
+This room is drafty, and the match goes out instantly.	この部屋はすきま風が強く、マッチがすぐに消えてしまう。
+This was not a very safe place to try jumping.	ここはジャンプを試すには、あまり安全な場所ではなかった。
+Those things aren't here!	そんなものはここにない！
+Three paths leave the large clearing.	大きな空き地から三本の小道が出ている。
+Thrown.	投げた。
+To get into a body of water, say "Launch".	水の上に出るには「漕ぎ出す」（launch）と言うこと。
+Tsk, tsk.	ちっちっ。
+Underneath the pile of leaves is a grating.	落ち葉の山の下に格子がある。
+Underneath the rug is a closed trap door.	じゅうたんの下に閉じた跳ね上げ戸がある。
+Unfortunately, it takes a talented person to deal with it.	残念ながら、それを扱うには才能が要る。
+Unfortunately, the mirror has been destroyed by your recklessness.	残念ながら、あなたの無茶のせいで鏡は壊れてしまった。
+Unfortunately, the troll can't hear you.	残念ながら、トロールにはあなたの声が聞こえない。
+Unto the land of the dead shalt thou be sent at last.	汝はついに死者の国へ送られるであろう。
+Use compass directions for movement.	移動には方角を使うこと。
+Using passages unknown to you, he rushes to its defense.	あなたの知らない通路を使って、彼が守りに駆けつける。
+Verifying disk...	ディスクを確認中……
+Very good.	とてもよろしい。
+Wall" are etched in the rock.	壁」と岩に刻まれている。
+Warning: only the first word after OOPS is used.	注意：OOPS のあとの最初の単語だけが使われる。
+Wasn't he a sailor?	彼は船乗りじゃなかったか？
+Water rushes through the dam and downstream.	水がダムを抜けて下流へ勢いよく流れていく。
+Well done.	よくやった。
+Well, for one, you are playing Zork...	そうだね、まずあなたは Zork を遊んでいる……
+Well, you really did it that time.	いやはや、今回は本当にやってしまったね。
+What a (ahem!) strange idea.	なんとも（えへん！）妙な考えだ。
+What a bizarre concept!	なんと奇妙な発想だ！
+What a loony!	なんて変わり者だ！
+What are you referring to?"	何のことを言っているんだ？」
+What do you think you're doing?	何をしているつもりだ？
+What the heck!	なんてこった！
+What you can see looks pretty much as usual, sorry to say.	残念ながら、見えるものはいつもとほとんど変わらない。
+White Cliffs.	白い崖。
+Whoosh!	ヒューッ！
+Why don't you just walk like normal people?	普通の人のように歩いたらどうだい？
+Why not find your brains?	まず頭を探したらどうだ？
+With a tremendous effort, you scramble out of the room.	ものすごい力をふりしぼって、あなたは部屋から這い出した。
+With luck, your wish will come true.	運がよければ、願いはかなうだろう。
+With the leaves moved, a grating is revealed.	落ち葉をどかすと、格子が現れた。
+YOU too can make BIG MONEY in the exciting field of PAPER SHUFFLING!	あなたも、わくわくする書類整理の世界で大金を稼げます！
+Yea, verily, thou shalt be ground between two stones.	まことに、汝は二つの石の間ですりつぶされるであろう。
+You are already standing, I think.	もう立っていると思うが。
+You are dead.	あなたは死んでいる。
+You are in a large cavernous area.	あなたは大きな洞窟のような場所にいる。
+You are in a large cavernous room, north of a large lake.	あなたは大きな湖の北にある、洞窟のような大きな部屋にいる。
+You are in a large square room with tall ceilings.	あなたは天井の高い、大きな四角い部屋にいる。
+You are in a long room, to the north of which was formerly a lake.	あなたは細長い部屋にいる。その北には、かつて湖があった。
+You are in a long room.	あなたは細長い部屋にいる。
+You are in a small room near the maze.	あなたは迷路の近くの小さな部屋にいる。
+You are in a small room which has doors only to the east and south.	あなたは東と南にしか扉のない小さな部屋にいる。
+You are left in the dark...	あなたは暗闇に取り残された……
+You are lifted up by the rising river!	増水した川に、あなたは持ち上げられた！
+You are on the lake.	あなたは湖の上にいる。
+You are on the south edge of a deep canyon.	あなたは深い峡谷の南の縁にいる。
+You are standing in front of a massive barrow of stone.	あなたは巨大な石の塚の前に立っている。
+You are surrounded by a wall of sand on all sides.	四方を砂の壁に囲まれている。
+You aren't an accomplished enough juggler.	そこまで器用な曲芸師ではない。
+You aren't equipped for an exorcism.	悪魔払いの準備ができていない。
+You aren't even in the forest.	あなたは森の中にさえいない。
+You can hear his stomach rumbling.	彼の腹がグーグー鳴っているのが聞こえる。
+You can hear the sound of flowing water from below.	下から水の流れる音が聞こえる。
+You can land either to the east or the west.	東か西に上陸できる。
+You can see a scarab here in the sand.	ここの砂の中にスカラベが見える。
+You can't blast anything by using words.	言葉で何かを吹き飛ばすことはできない。
+You can't break the windows open.	窓を割って開けることはできない。
+You can't cross that!	それは渡れない！
+You can't deflate the boat while you're in it.	ボートに乗ったままではしぼませられない。
+You can't do that!	それはできない！
+You can't even do that.	それすらできない。
+You can't fit through the crack.	その割れ目は通り抜けられない。
+You can't get up there with what you're carrying.	その荷物を持ったままでは上がれない。
+You can't go more than part way through the curtain.	カーテンの途中までしか進めない。
+You can't go there without a vehicle.	乗り物がなければそこへは行けない。
+You can't hear the songbird now.	もうさえずる鳥の声は聞こえない。
+You can't hold on to it.	それにつかまっていられない。
+You can't launch it here.	ここでは漕ぎ出せない。
+You can't launch that by saying "launch"!	「launch」と言うだけでは、それは漕ぎ出せない！
+You can't lock it from this side.	こちら側からは鍵をかけられない。
+You can't pick that.	それは選べない。
+You can't pick the lock.	錠前はこじ開けられない。
+You can't pour that.	それは注げない。
+You can't push things to that.	それをそちらへ押すことはできない。
+You can't reach him; he's on the ceiling.	天井にいるので、手が届かない。
+You can't reach that.	それには手が届かない。
+You can't reach the lock from here.	ここからでは錠前に手が届かない。
+You can't see any songbird here.	ここにさえずる鳥は見当たらない。
+You can't seem to damage the door.	扉に傷をつけることはできないようだ。
+You can't spin that!	それは回せない！
+You can't swim in the dungeon.	地下迷宮では泳げない。
+You can't swim in the stream.	小川では泳げない。
+You can't swim in this lake.	この湖では泳げない。
+You can't take it; thus, you can't shake it!	取れないのだから、振ることもできない！
+You can't talk to the sailor that way.	船乗りにそんなふうには話しかけられない。
+You can't throw anything off of that!	そこからは何も投げられない！
+You can't tie anything to yourself.	自分に何かを結ぶことはできない。
+You can't tie the rope to that.	ロープをそれに結ぶことはできない。
+You can't turn that off.	それは消せない。
+You can't turn that on.	それはつけられない。
+You can't turn that!	それは回せない！
+You can't.	できない。
+You cannot burn this door.	この扉は燃やせない。
+You cannot close that.	それは閉じられない。
+You cannot enter in your condition.	今の状態では入れない。
+You cannot fit through this passage with that load.	その荷物を持ったままでは、この通路を通れない。
+You cannot go down without fracturing many bones.	骨を何本も折らずに下りることはできない。
+You cannot go upstream due to strong currents.	流れが強くて上流へは行けない。
+You cannot reach the rope.	ロープに手が届かない。
+You cannot see into the dark of the tomb.	暗い墓の中は見えない。
+You cannot see the forest for the trees.	木ばかりで森が見えない。
+You cannot talk to that!	それには話しかけられない！
+You cannot tie the cyclops, though he is fit to be tied.	サイクロプスは縛れない。縛り上げたいくらい怒ってはいるが。
+You clearly are a suicidal maniac.	あなたは明らかに自殺志願の狂人だ。
+You could certainly never tie it with that!	それで結べるわけがない！
+You didn't say with what!	何を使うのか言っていない！
+You dodge as the thief comes in low.	盗賊が低く突っ込んできたが、あなたはかわした。
+You don't have enough lung power to inflate it.	膨らませるほど肺活量がない。
+You evidently frightened the robber, though you didn't hit him.	当たりはしなかったが、盗賊を怖がらせたようだ。
+You find it.	見つけた。
+You have broken the mirror.	鏡を割ってしまった。
+You have it.	持っている。
+You have lost your mind.	あなたは正気を失った。
+You have moved into a dark place.	暗い場所に入った。
+You have neither the tools nor the expertise.	道具も技術もない。
+You have no possessions.	あなたは何も持っていない。
+You have to light them with something that's burning, you know.	燃えている物で火をつけないといけないんだよ。
+You have two choices: 1.	選択肢は二つ：1.
+You have walked into a den of hungry grues and it's dinner time!	腹をすかせたグルーの巣に入り込んでしまった。ちょうど夕食の時間だ！
+You have walked into the slavering fangs of a lurking grue!	あなたは潜んでいたグルーの、よだれを垂らした牙に飛び込んでしまった！
+You haven't a prayer of getting the coffin down there.	棺をあそこまで下ろせる見込みはまったくない。
+You hear a scream of anguish as you violate the robber's hideaway.	あなたが盗賊の隠れ家に踏み込むと、苦悶の叫び声が聞こえた。
+You look before leaping, and realize that you would never survive.	跳ぶ前によく見て、生きては帰れないと気づいた。
+You may know how to do that, but I don't.	あなたはやり方を知っているかもしれないが、私は知らない。
+You missed.	外れた。
+You must be joking.	冗談だろう。
+You must be more specific.	もっと具体的に言ってほしい。
+You must perform the ceremony.	儀式を行わなければならない。
+You must specify a direction to go.	行く方角を言ってほしい。
+You nearly burn your hand trying to extinguish the flame.	火を消そうとして、手をやけどしそうになった。
+You need no light to guide you.	道を照らす明かりは必要ない。
+You notice something funny about the feel of the buoy.	ブイの手ざわりが、何か変なことに気づいた。
+You notice that the water level here is rising rapidly.	ここの水位がどんどん上がっているのに気づいた。
+You probably put spinach in your gas tank, too.	あなたはきっと、車のガソリンタンクにほうれん草も入れるんだろうね。
+You realize that getting out here would be fatal.	ここで降りたら命取りになると気づいた。
+You realize, just in time, that the candles are already lighted.	ろうそくにはもう火がついていることに、間一髪で気づいた。
+You rustle the leaves around, making quite a mess.	落ち葉をがさがさとかき回して、すっかり散らかした。
+You see a rickety staircase descending into darkness.	暗闇へ下るぐらぐらした階段が見える。
+You seem to be digging a hole here.	ここに穴を掘っているようだ。
+You seem to be repeating yourself.	同じことをくり返しているようだ。
+You seem unable to interact with these spirits.	この霊たちとは関わり合えないようだ。
+You should get in the boat then launch it.	ボートに乗ってから漕ぎ出すこと。
+You should have looked before you leaped.	跳ぶ前によく見るべきだった。
+You should say what to light them with.	何で火をつけるのか言ってほしい。
+You should say whether you want to go up or down.	上に行きたいのか下に行きたいのか言ってほしい。
+You should supply a direction!	方角を言ってほしい！
+You splash around for a while, fighting the current, then you drown.	しばらく流れと戦ってもがいたが、あなたは溺れてしまった。
+You stagger back under a hail of axe strokes.	雨のような斧の連撃に、あなたはよろめき後ずさった。
+You tumble down the slide....	あなたは滑り台を転がり落ちていく……
+You will be lost without me!	私がいないと迷子になるぞ！
+You will have to specify a direction.	方角を言わないといけない。
+You would drown.	溺れてしまう。
+You would need a machete to go further west.	これ以上西へ行くには、なたが要る。
+You wouldn't fit and would die if you could.	あなたは入れないし、入れたとしても死んでしまう。
+You'd be stabbed in the back first.	その前に背中を刺されるだろう。
+You'll have to do that on your own.	それは自分でやってもらわないと。
+You'll have to say which way...	どちらへ行くのか言ってもらわないと……
+You'll have to speak up if you expect me to hear you!	聞いてほしいなら、もっと大きな声で話してくれ！
+You're around here somewhere...	あなたはこのあたりのどこかにいる……
+You're dead!	あなたは死んでいる！
+You're inside of it!	あなたはその中にいる！
+You're not holding that.	それは持っていない。
+You're not in anything!	あなたは何にも乗っていない！
+You're not in that!	あなたはそれに乗っていない！
+You're not in the boat!	あなたはボートに乗っていない！
+You're nuts!	どうかしてるよ！
+You've got an eternity.	時間は永遠にある。
+Your bare hands don't appear to be enough.	素手ではどうにもならないようだ。
+Your blow lands!	あなたの一撃が当たった！
+Your hand passes through its object.	あなたの手は相手をすり抜けてしまった。
+Your image in the mirror looks tired.	鏡に映ったあなたは疲れて見える。
+Your prayers are not heard.	あなたの祈りは届かない。
+Your proposed victim suddenly recovers consciousness.	狙っていた相手が、突然意識を取り戻した。
+Your stroke connects!	あなたの一撃が決まった！
+Your stroke lands, but it was only the flat of the blade.	当たったが、刃の平らな面だった。
+Your sword is glowing very brightly.	剣がとても明るく光っている。
+ZORK: The Great Underground Empire.	ZORK：大地下帝国。
+Zorkers were obscure.	ゾーカーたちは無名だった。
+# ---- 戦闘の文（名前が入らないもの）----
+The monster smashes his huge fist into your chest, breaking several ribs.	怪物の巨大なこぶしが胸にめり込み、あばら骨が何本も折れた。
+Heedless of your weapons, the Cyclops tosses you against the rock wall of the room.	武器などおかまいなしに、サイクロプスはあなたを部屋の岩壁へ投げつけた。
+The Cyclops seems unable to decide whether to broil or stew his dinner.	サイクロプスは、夕食を焼くか煮込むか決めかねているようだ。
+The flat of the troll's axe hits you delicately on the head, knocking you out.	トロールの斧の平らな面が、あなたの頭をそっとたたき、あなたは気を失った。
+The troll swings; the blade turns on your armor but crashes broadside into your head.	トロールが斧を振った。刃は鎧で向きを変えたが、側面があなたの頭にまともに当たった。
+The troll scratches his head ruminatively: Might you be magically protected, he wonders?	トロールは考え込むように頭をかいた。こいつは魔法で守られているのだろうか、と。
+You parry a lightning thrust, and the thief salutes you with a grim nod.	稲妻のような突きを受け流すと、盗賊は険しい顔でうなずき、あなたに敬意を表した。
+Shifting in the midst of a thrust, the thief knocks you unconscious with the haft of his stiletto.	突きの途中で身をひるがえし、盗賊は短剣の柄であなたを殴って気絶させた。
+The thief comes in from the side, feints, and inserts the blade into your ribs.	盗賊は横から回り込み、フェイントをかけて、刃をあなたのあばらに突き立てた。
+The thief bows formally, raises his stiletto, and with a wry grin, ends the battle and your life.	盗賊はうやうやしく一礼して短剣を構え、皮肉な笑みを浮かべて、戦いとあなたの命に幕を引いた。
+A quick thrust pinks your left arm, and blood starts to trickle down.	すばやい突きが左腕をかすめ、血がしたたり始めた。
+The stiletto flashes faster than you can follow, and blood wells from your leg.	短剣は目にもとまらぬ速さでひらめき、あなたの脚から血があふれ出た。
+The thief slowly approaches, strikes like a snake, and leaves you wounded.	盗賊はゆっくりと近づき、蛇のように襲いかかって、あなたに傷を負わせた。
+The stiletto touches your forehead, and the blood obscures your vision.	短剣が額をかすめ、流れる血で前が見えなくなった。
+The thief strikes at your wrist, and suddenly your grip is slippery with blood.	盗賊に手首を狙われ、あなたの手は急に血ですべるようになった。
+The butt of his stiletto cracks you on the skull, and you stagger back.	短剣の柄で頭を殴られ、あなたはよろめき後ずさった。
+The thief rams the haft of his blade into your stomach, leaving you out of breath.	盗賊が刃の柄をあなたの腹にたたき込み、あなたは息ができなくなった。
+The thief, forgetting his essentially genteel upbringing, cuts your throat.	盗賊は、根っからの上品な育ちを忘れて、あなたののどをかき切った。
+The thief, a pragmatist, dispatches you as a threat to his livelihood.	現実主義者の盗賊は、自分の稼業の脅威として、あなたを始末した。
+# ---- 体調・その他 ----
+You can expect death soon.	もうすぐ死ぬだろう。
+You can be killed by one more light wound.	あと一度軽い傷を負えば死ぬ。
+You can be killed by a serious wound.	重い傷を一度負えば死ぬ。
+You can survive one serious wound.	重い傷一度なら耐えられる。
+You can survive several wounds.	傷をいくつか負っても耐えられる。
+I'm afraid you are dead.	残念ながら、あなたは死んでいる。
+From his state of health, and the bloodstains on the walls, you gather that he is not very friendly, though he likes people.	その健康状態と壁の血の跡から察するに、彼はあまり友好的ではない。人間は好きなようだが。
+A cyclops, who looks prepared to eat horses (much less mere adventurers), blocks the staircase.	馬でも平らげそうな（ましてやただの冒険者など）サイクロプスが、階段をふさいでいる。
+A seedy-looking individual with a large bag just wandered through the room.	大きな袋を持ったみすぼらしい人物が、部屋を通り抜けていった。
+On the way through, he quietly abstracted some valuables from your possession, mumbling something about "Doing unto others before..."	通りがかりに、彼はあなたの持ち物からこっそり貴重品をくすね、「人にされる前に……」と何やらつぶやいていた。
+On the way through, he quietly abstracted some valuables from the room and from your possession, mumbling something about "Doing unto others before..."	通りがかりに、彼は部屋とあなたの持ち物からこっそり貴重品をくすね、「人にされる前に……」と何やらつぶやいていた。
+On the way through, he quietly abstracted some valuables from the room, mumbling something about "Doing unto others before..."	通りがかりに、彼は部屋からこっそり貴重品をくすね、「人にされる前に……」と何やらつぶやいていた。
+You may not have noticed that he robbed you blind first.	気づかなかったかもしれないが、彼はその前にあなたの持ち物をすっかり奪っていった。
+A "lean and hungry" gentleman just wandered through, carrying a large bag.	「やせて飢えた」紳士が、大きな袋を持って通り過ぎていった。
+Finding nothing of value, he left disgruntled.	価値のあるものが見つからず、彼は不機嫌そうに去っていった。
+Your load is too heavy, especially in light of your condition.	荷物が重すぎる。今の体の状態ではなおさらだ。
+The troll, disarmed, cowers in terror, pleading for his life in the guttural tongue of the trolls.	武器を失ったトロールは恐怖に縮こまり、トロールのしゃがれた言葉で命ごいをしている。
+The unarmed troll cannot defend himself: He dies.	丸腰のトロールは身を守れない。トロールは死んだ。
+The unconscious troll cannot defend himself: He dies.	気絶したトロールは身を守れない。トロールは死んだ。
+The unarmed thief cannot defend himself: He dies.	丸腰の盗賊は身を守れない。盗賊は死んだ。
+The unconscious thief cannot defend himself: He dies.	気絶した盗賊は身を守れない。盗賊は死んだ。
+You may not have noticed that he appropriated the valuables in the room.	気づかなかったかもしれないが、彼は部屋の貴重品を持ち去っていった。
+The troll slowly regains his feet.	トロールがゆっくりと立ち上がった。
+The thief slowly regains his feet.	盗賊がゆっくりと立ち上がった。
+You're not at the house.	あなたは家のそばにいない。
+Release 119 / Serial number 880429	リリース 119／シリアル番号 880429

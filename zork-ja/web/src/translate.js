@@ -46,6 +46,12 @@ class Translator {
     if (!s) return "";
     if (this.msgs.has(s)) return this.msgs.get(s);
     if (this.cache.has(s)) return this.cache.get(s);
+    // 「物の名前: 文」の形（全部取る・全部読む などの結果）を、名前と文に分けて訳す
+    const pm = s.match(/^([^:]{1,60}): (.+)$/);
+    if (pm && this.name(pm[1])) {
+      const rest = this.sentence(pm[2]);
+      if (rest !== null) return this.name(pm[1]) + "：" + rest;
+    }
     for (const [rx, tmpl] of this.patterns) {
       const m = s.match(rx);
       if (!m) continue;
@@ -53,6 +59,7 @@ class Translator {
       for (let i = 1; i < m.length; i++) {
         const g = m[i] || "";
         out = out.split(`{r${i}}`).join(g);
+        if (out.includes(`{s${i}}`)) out = out.split(`{s${i}}`).join(this.name(g) ?? g);
         if (out.includes(`{${i}}`)) {
           const j = this.name(g);
           if (j === null) { ok = false; break; }

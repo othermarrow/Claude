@@ -144,6 +144,11 @@ class Translator:
             return self.msgs[s]
         if s in self.cache:
             return self.cache[s]
+        m = re.match(r"^([^:]{1,60}): (.+)$", s)
+        if m and self.name(m.group(1)):
+            rest = self.sentence(m.group(2))
+            if rest is not None:
+                return self.name(m.group(1)) + "：" + rest
         for rx, tmpl in self.patterns:
             m = rx.match(s)
             if not m:
@@ -152,6 +157,8 @@ class Translator:
             for i, g in enumerate(m.groups(), 1):
                 g = g or ""
                 out = out.replace("{r%d}" % i, g)
+                if "{s%d}" % i in out:
+                    out = out.replace("{s%d}" % i, self.name(g) or g)
                 if "{%d}" % i in out:
                     j = self.name(g)
                     if j is None:
