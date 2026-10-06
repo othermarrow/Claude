@@ -411,3 +411,321 @@ A furious exchange, and the troll is knocked out!	激しい打ち合いの末、
 Clang! Crash! The troll parries.	ガキン！ガシャン！トロールが受け流した。
 You are still recovering from that last blow, so your attack is ineffective.	さっきの一撃からまだ立ち直っておらず、攻撃は効かなかった。
 The troll stirs, quickly resuming a fighting stance.	トロールが身じろぎし、すぐに身構え直した。
+# ---- よくある返事（zork-watch で追加）----
+You can't turn that on.	それはつけられない。
+You can't turn that off.	それは消せない。
+You should supply a direction!	方角を言ってほしい！
+You aren't an accomplished enough juggler.	あなたはそれほど器用なジャグラーではない。
+You have it.	もう持っている。
+You're nuts!	頭がおかしいんじゃないか！
+I'd sooner kiss a pig.	それなら豚にキスしたほうがましだ。
+Go jump in a lake!	湖にでも飛び込んでろ！
+You can't pick that.	それはつまめない。
+How, exactly, can you ring that?	それを、いったいどうやって鳴らすのか？
+Your bare hands don't appear to be enough.	素手では足りないようだ。
+You can't spin that!	それは回せない！
+This cannot be tied, so it cannot be untied!	結べないものだから、ほどくこともできない！
+There is nothing but dust there.	ほこりしかない。
+That's silly!	ばかげている！
+You have lost your mind.	気でも違ったのか。
+How singularly useless.	なんとも無意味だ。
+Come on, now!	おいおい！
+You're not in that!	それに乗ってはいない！
+It's really not clear how.	どうやればいいのか、まるでわからない。
+That would be a good trick.	それができたら大したものだ。
+There is nothing to fill it with.	満たすものがない。
+That would involve quite a contortion!	それにはかなり体をねじ曲げないといけない！
+You can't do that!	それはできない！
+Shaken.	振った。
+It appears that that last blow was too much for you.	さっきの一撃は、あなたには重すぎたようだ。
+I'm afraid you are dead.	残念ながら、あなたは死んでしまった。
+Aaaarrrrgggghhhh!	うわああああああっ！
+It is already on.	もうついている。
+It is already off.	もう消えている。
+A "lean and hungry" gentleman just wandered through, carrying a large bag.	「やせて飢えた」紳士が、大きな袋をかついで通り過ぎていった。
+Finding nothing of value, he left disgruntled.	金目のものが見つからず、彼は不満げに去っていった。
+Such language in a high-class establishment like this!	こんな上品な場所で、なんて言葉づかいだ！
+Preposterous!	ばかばかしい！
+Wasn't he a sailor?	それって船乗りのことじゃなかったか？
+The lamp is on.	ランプはついている。
+The lamp is off.	ランプは消えている。
+It's right here.	すぐここにある。
+It's here!	ここにある！
+Read the label for the boat's instructions.	ボートの使い方はラベルを読むこと。
+He's wide awake, or haven't you noticed...	彼はすっかり目を覚ましている。気づかなかったのか……
+Use compass directions for movement.	移動には方角を使うこと。
+Auto-cannibalism is not the answer.	自分を食べるのは答えではない。
+At your service!	お呼びでしょうか！
+Naturally!	もちろん！
+If you pray enough, your prayers may be answered.	十分に祈れば、祈りは届くかもしれない。
+You can be killed by a serious wound.	重い傷を負えば死ぬかもしれない。
+You can be killed by one more light wound.	あと一つ軽い傷を負えば死ぬかもしれない。
+You can survive one serious wound.	重い傷一つなら耐えられる。
+You can survive several wounds.	傷をいくつか負っても耐えられる。
+It smells of hot peppers.	唐辛子のにおいがする。
+Nice try.	やるだけやってみたね。
+There's nothing here you can take.	ここには取れるものがない。
+It doesn't seem to work.	うまくいかないようだ。
+You seem unable to interact with these spirits.	この霊たちには手出しできないようだ。
+How can you inflate that?	それをどうやってふくらませるのか？
+You are already in the magic boat!	もう魔法のボートに乗っている！
+Ouch!	痛っ！
+You realize that getting out here would be fatal.	ここで降りたら命がないと気づいた。
+You're inside of it!	その中にいる！
+Beats me.	さあね。
+Inflating it further would probably burst it.	これ以上ふくらませたら、たぶん破裂する。
+This was not a very safe place to try jumping.	ここは跳んでみるのに安全な場所ではなかった。
+You would drown.	おぼれてしまう。
+You can't get up there with what you're carrying.	その荷物を持ったままでは、そこへは上がれない。
+Those things aren't here!	それらはここにない！
+(outside the magic boat)	（魔法のボートの外で）
+There is now a puddle in the bottom of the magic boat.	魔法のボートの底に水たまりができた。
+You can't deflate the boat while you're in it.	乗ったままではボートの空気を抜けない。
+In the movies, your life would be passing before your eyes.	映画なら、ここで走馬灯が見えるところだ。
+Give up.	あきらめろ。
+There is an ugly person staring back at you.	醜い人物がこちらを見つめ返している。
+I hope you have a seven years' supply of good luck handy.	七年分の幸運の持ち合わせがあるといいのだが。
+One of the matches starts to burn.	マッチが一本燃えはじめた。
+Fweep!	ピーッ！
+You are on the river, or have you forgotten?	ここは川の上だ。忘れたのか？
+You cannot close that.	それは閉められない。
+Click.	カチッ。
+Some invisible force prevents you from passing through the gate.	見えない力にはばまれて、門を通り抜けられない。
+You cannot fit through this passage with that load.	その荷物では、この通路を通り抜けられない。
+They're greek to you.	あなたにはちんぷんかんぷんだ。
+Nobody's home.	誰もいない。
+You can't turn that!	それは回せない！
+This has no effect.	何も起こらない。
+has no effect.	何も起こらない。
+The stream emerges from a spot too small for you to enter.	流れは、あなたが入るには小さすぎるすき間から出ている。
+There are lots of coins in there.	中には硬貨がたくさん入っている。
+You can't push things to that.	そこへ物を押していくことはできない。
+You have neither the tools nor the expertise.	道具も腕もない。
+You should say what to light them with.	何で火をつけるのか言ってほしい。
+The door cannot be opened.	その扉は開けられない。
+It won't open.	開かない。
+The rug is extremely heavy and cannot be carried.	じゅうたんはとても重く、持ち運べない。
+The rug is too heavy to lift.	じゅうたんは重すぎて持ち上がらない。
+Geronimo...	ジェロニモー……
+You should have looked before you leaped.	跳ぶ前に見るべきだった。
+Sounds reasonable, but this isn't how.	もっともらしいが、そういうやり方ではない。
+The rope drops gently to the floor below.	ロープは下の床へふわりと落ちた。
+As you touch the rusty knife, your sword gives a single pulse of blinding blue light.	錆びたナイフに触れると、剣が一度だけまばゆい青い光を放った。
+The coins are safely inside; there's no need to do that.	硬貨はちゃんと中に入っている。そんなことをする必要はない。
+Nice view, lousy place to jump.	眺めはいいが、跳ぶにはひどい場所だ。
+In a feat of unaccustomed daring, you manage to land on your feet without killing yourself.	珍しく大胆に跳んでみたら、死なずに足から着地できた。
+The matchbook isn't very interesting, except for what's written on it.	マッチ箱は、書いてあることのほかは大しておもしろくない。
+The chests are all empty.	道具箱はみんな空っぽだ。
+The chests are so rusty and corroded that they crumble when you touch them.	道具箱はひどくさびて腐食しており、触ると崩れてしまう。
+How can you attack a spirit with material objects?	物で霊をどうやって攻撃するのか？
+You cannot reach the rope.	ロープに手が届かない。
+Ding, dong.	ディン、ドン。
+The cage is securely fastened to the iron chain.	かごは鉄の鎖にしっかり固定されている。
+The match has gone out.	マッチの火が消えた。
+Oops!	おっと！
+Something sharp seems to have slipped and punctured the boat.	何かとがったものがすべって、ボートに穴をあけてしまったようだ。
+The boat deflates to the sounds of hissing, sputtering, and cursing.	シューッ、プスプス、という音と悪態とともに、ボートはしぼんでいった。
+You have moved into a dark place.	暗い場所に入った。
+Once you got him, what would you do with him?	捕まえたとして、どうするつもりだ？
+The bag will be taken over his dead body.	袋を取りたければ、彼を倒してからにすることだ。
+Getting close enough would be a good trick.	そこまで近づけたら大したものだ。
+You'd be stabbed in the back first.	その前に背中を刺されるだろう。
+You dodge as the thief comes in low.	盗賊が低く突っ込んできたが、あなたはかわした。
+The White Cliffs prevent your landing here.	白い崖があって、ここには上陸できない。
+I suppose you think it's a magic carpet?	魔法のじゅうたんだとでも思っているのか？
+Only Santa Claus climbs down chimneys.	煙突を下りるのはサンタクロースだけだ。
+The chasm probably leads straight to the infernal regions.	この裂け目は、たぶん地獄へ直通だ。
+Are you out of your mind?	正気か？
+You would need a machete to go further west.	これより西へ行くには山刀が要る。
+You probably put spinach in your gas tank, too.	どうせ車のタンクにもほうれん草を入れるんだろう。
+Underneath the pile of leaves is a grating.	落ち葉の山の下に格子がある。
+As you release the leaves, the grating is once again concealed from view.	落ち葉を放すと、格子はまた隠れて見えなくなった。
+There are 69,105 leaves here.	ここには葉が69,105枚ある。
+The rank undergrowth prevents eastward movement.	生い茂ったやぶにはばまれて、東へは進めない。
+It is too narrow for most insects.	ほとんどの虫にとっても狭すぎる。
+You cannot go down without fracturing many bones.	骨をたくさん折らずに下りることはできない。
+It is not tied to anything.	何にも結ばれていない。
+The lights within the room come on.	部屋の明かりがついた。
+The east wall is solid rock.	東の壁は硬い岩だ。
+You can hear his stomach rumbling.	彼の腹が鳴っているのが聞こえる。
+You cannot tie the cyclops, though he is fit to be tied.	サイクロプスはしばり上げたいほど荒れているが、しばることはできない。
+The flame is extinguished.	炎が消えた。
+Let's see, how many objects in a pair?	ええと、一対っていくつだっけ？
+Don't tell me, I'll get it.	言わないで、わかるから。
+The book is already open to page 569.	本はもう569ページが開いている。
+As hard as you try, the book cannot be closed.	どんなにがんばっても、本は閉じられない。
+You wouldn't fit and would die if you could.	入れないし、入れたとしても死んでしまう。
+Just in time you steer away from the rocks.	間一髪で岩をよけた。
+There is no safe landing spot here.	ここには安全に上陸できる場所がない。
+You can land either to the east or the west.	東か西に上陸できる。
+The flow of the river carries you downstream.	川の流れに乗って、下流へ運ばれていく。
+The magic boat comes to a rest on the shore.	魔法のボートは岸に着いた。
+The basket is lowered to the bottom of the shaft.	かごは縦穴の底まで下ろされた。
+The spirits jeer loudly and ignore you.	霊たちは大声であざけり、あなたを無視した。
+I'd watch out if I were you.	私なら気をつけるね。
+The thief is a strong, silent type.	盗賊は寡黙で屈強な男だ。
+The bag is underneath the thief, so one can't say what, if anything, is inside.	袋は盗賊の下敷きになっていて、中に何か入っているのかどうかもわからない。
+The thief swings it out of your reach.	盗賊はそれをさっと振って、あなたの手の届かないところへやった。
+The thief has it.	それは盗賊が持っている。
+The thief gestures mysteriously, and the treasures in the room suddenly vanish.	盗賊が謎めいた身ぶりをすると、部屋の宝物が突然消えてしまった。
+The thief is a slippery character with beady eyes that flit back and forth.	盗賊はつかみどころのない男で、小さな目がきょろきょろ動いている。
+He carries, along with an unmistakable arrogance, a large bag over his shoulder and a vicious stiletto, whose blade is aimed menacingly in your direction.	まぎれもない傲慢さとともに、大きな袋を肩にかつぎ、恐ろしい短剣を持っている。その刃は威嚇するようにこちらへ向けられている。
+A seedy-looking individual with a large bag just wandered through the room.	大きな袋を持ったみすぼらしい男が、部屋を通り過ぎていった。
+On the way through, he quietly abstracted some valuables from the room, mumbling something about "Doing unto others before..."	通りがかりに、彼は「人にされる前に……」などとつぶやきながら、部屋から金目のものをそっと持ち去っていった。
+The robber, somewhat surprised at this turn of events, nimbly retrieves his stiletto.	盗賊はこの成り行きに少し驚いたが、すばやく短剣を拾い上げた。
+A ghost appears in the room and is appalled at your desecration of the remains of a fellow adventurer.	部屋に幽霊が現れ、あなたが冒険者仲間の亡きがらを冒涜したことにあきれ果てている。
+He casts a curse on your valuables and banishes them to the Land of the Living Dead.	幽霊はあなたの宝に呪いをかけ、死者の国へ追放してしまった。
+The ghost leaves, muttering obscenities.	幽霊は悪態をつきながら去っていった。
+# ---- 戦闘・危険（zork-watch で追加）----
+The thief stabs nonchalantly with his stiletto and misses.	盗賊は無造作に短剣で突いてきたが、外れた。
+Shifting in the midst of a thrust, the thief knocks you unconscious with the haft of his stiletto.	盗賊は突きの途中で身をひるがえし、短剣の柄であなたを殴って気絶させた。
+Finishing you off, the thief inserts his blade into your heart.	とどめに、盗賊はあなたの心臓に刃を突き立てた。
+The thief bows formally, raises his stiletto, and with a wry grin, ends the battle and your life.	盗賊はうやうやしく一礼して短剣を掲げ、皮肉な笑みを浮かべて、戦いとあなたの命を終わらせた。
+The thief comes in from the side, feints, and inserts the blade into your ribs.	盗賊は横から迫ってフェイントをかけ、あなたのあばらに刃を差し込んだ。
+The thief attacks, and you fall back desperately.	盗賊が襲いかかり、あなたは必死に後ずさった。
+The thief rams the haft of his blade into your stomach, leaving you out of breath.	盗賊が短剣の柄をあなたの腹に突き込み、あなたは息ができなくなった。
+The butt of his stiletto cracks you on the skull, and you stagger back.	短剣の柄頭で頭を殴られ、あなたはよろめいた。
+A quick thrust pinks your left arm, and blood starts to trickle down.	すばやい突きが左腕をかすめ、血が流れはじめた。
+A long, theatrical slash.	大げさな長い斬りつけだ。
+The troll swings his axe, but it misses.	トロールが斧を振ったが、外れた。
+The axe gets you right in the side.	斧がまともに脇腹に入った。
+The flat of the troll's axe hits you delicately on the head, knocking you out.	トロールの斧の平らな面が頭にそっと当たり、あなたは気を失った。
+The troll's axe stroke cleaves you from the nave to the chops.	トロールの斧があなたをへそからあごまで切り裂いた。
+The troll neatly removes your head.	トロールはあざやかにあなたの首をはねた。
+The troll's axe removes your head.	トロールの斧があなたの首をはねた。
+The troll, disarmed, cowers in terror, pleading for his life in the guttural tongue of the trolls.	武器を失ったトロールは恐怖に縮こまり、トロールのしわがれた言葉で命ごいをしている。
+The cyclops appears to be getting more agitated.	サイクロプスはますますいらだってきたようだ。
+The cyclops is moving about the room, looking for something.	サイクロプスは何かを探して部屋の中を歩き回っている。
+The cyclops was looking for salt and pepper.	サイクロプスは塩とこしょうを探していたのだ。
+No doubt they are condiments for his upcoming snack.	きっと、これから食べるおやつの調味料だろう。
+The cyclops is moving toward you in an unfriendly manner.	サイクロプスが敵意をむき出しにして、こちらへ向かってくる。
+You have two choices: 1. Leave 2. Become dinner.	選択肢は二つ。1. 立ち去る　2. 夕食になる。
+The cyclops, tired of all of your games and trickery, grabs you firmly.	あなたのふざけた小細工にうんざりしたサイクロプスは、あなたをがっちりつかんだ。
+As he licks his chops, he says "Mmm. Just like Mom used to make 'em."	彼は舌なめずりしながら言った。「うーん、おふくろの味だ」
+It's nice to be appreciated.	喜んでもらえるのはうれしいものだ。
+The cyclops, hearing the name of his father's deadly nemesis, flees the room by knocking down the wall on the east of the room.	父の宿敵の名を聞いたサイクロプスは、部屋の東の壁を打ち壊して逃げていった。
+The cyclops doesn't look like he'll let you past.	サイクロプスはあなたを通してくれそうにない。
+A hungry cyclops is standing at the foot of the stairs.	腹をすかせたサイクロプスが、階段の下に立っている。
+The cyclops doesn't take kindly to being grabbed.	サイクロプスはつかまれるのが気に入らないようだ。
+A cyclops, who looks prepared to eat horses (much less mere adventurers), blocks the staircase.	馬でも食べそうな（ただの冒険者ならなおさらだ）サイクロプスが、階段をふさいでいる。
+From his state of health, and the bloodstains on the walls, you gather that he is not very friendly, though he likes people.	その元気そうな様子と壁の血痕からして、彼は人間が好きではあるが、あまり友好的ではなさそうだ。
+Unfortunately, the magic boat doesn't provide protection from the rocks and boulders one meets at the bottom of waterfalls.	残念ながら、魔法のボートは滝つぼの岩や大岩からは守ってくれない。
+Including this one.	この滝も例外ではない。
+A large vampire bat, hanging from the ceiling, swoops down at you!	天井にぶら下がっていた大きな吸血コウモリが、あなためがけて舞い降りてきた！
+The bat grabs you by the scruff of your neck and lifts you away....	コウモリはあなたの首根っこをつかみ、どこかへ運んでいく……。
+There is a rumbling sound and a stream of water appears to burst from the east wall of the room (apparently, a leak has occurred in a pipe).	ゴロゴロと音がして、部屋の東の壁から水が噴き出したようだ（どうやら配管から水漏れが起きたらしい）。
+The water level here is now up to your ankles.	ここの水位は足首まで来ている。
+# ---- 地獄の入口・儀式 ----
+You are outside a large gateway, on which is inscribed	あなたは大きな門の外にいる。門にはこう刻まれている。
+Abandon every hope all ye who enter here!	ここに入る者は、すべての希望を捨てよ！
+The gate is open; through it you can see a desolation, with a pile of mangled bodies in one corner.	門は開いている。その向こうには荒れ果てた光景が広がり、片隅にはずたずたの死体が積み重なっている。
+Thousands of voices, lamenting some hideous fate, can be heard.	恐ろしい運命を嘆く、何千もの声が聞こえる。
+The way through the gate is barred by evil spirits, who jeer at your attempts to pass.	門の通り道は悪霊たちにふさがれていて、通ろうとするあなたをあざ笑っている。
+The bell suddenly becomes red hot and falls to the ground.	鐘が突然真っ赤に焼け、地面に落ちた。
+The wraiths, as if paralyzed, stop their jeering and slowly turn to face you.	亡霊たちはまひしたようにあざけるのをやめ、ゆっくりとこちらを向いた。
+On their ashen faces, the expression of a long-forgotten terror takes shape.	その灰色の顔に、長く忘れていた恐怖の表情が浮かんだ。
+The tension of this ceremony is broken, and the wraiths, amused but shaken at your clumsy attempt, resume their hideous jeering.	儀式の緊張はとぎれ、亡霊たちはあなたのぎこちない試みをおもしろがりつつも動揺し、またおぞましいあざけりを始めた。
+The prayer is inscribed in an ancient script, rarely used today.	祈りの言葉は、今ではめったに使われない古い文字で刻まれている。
+It seems to be a philippic against small insects, absent-mindedness, and the picking up and dropping of small objects.	小さな虫と、うっかりと、小さな物を拾っては落とすことを激しく非難する文章のようだ。
+The final verse consigns trespassers to the land of the dead.	最後の一節は、侵入者を死者の国へ送ると告げている。
+All evidence indicates that the beliefs of the ancient Zorkers were obscure.	どう見ても、古代ゾーク人の信仰はよくわからないものだったようだ。
+Beside page 569, there is only one other page with any legible printing on it.	569ページのほかに、読める文字が印刷されたページは一つしかない。
+Most of it is unreadable, but the subject seems to be the banishment of evil.	ほとんど読めないが、悪を追い払うことについて書かれているようだ。
+Apparently, certain noises, lights, and prayers are efficacious in this regard.	どうやら、ある種の音と光と祈りが効き目があるらしい。
+Commandment #12592	戒律 第12592条
+Oh ye who go about saying unto each: "Hello sailor":	誰彼かまわず「やあ、船乗りさん」と言って回る者よ。
+Dost thou know the magnitude of thy sin before the gods?	汝は神々の前で、おのれの罪の重さを知っているか？
+Yea, verily, thou shalt be ground between two stones.	まことに、汝は二つの石の間ですりつぶされるであろう。
+Shall the angry gods cast thy body into the whirlpool?	怒れる神々は、汝の体を渦に投げ込むであろうか？
+Surely, thy eye shall be put out with a sharp stick!	必ずや、汝の目はとがった棒でつぶされるであろう！
+Even unto the ends of the earth shalt thou wander and	汝は地の果てまでさまよい、
+Unto the land of the dead shalt thou be sent at last.	ついには死者の国へ送られるであろう。
+Surely thou shalt repent of thy cunning.	必ずや、汝はおのれの悪知恵を悔いるであろう。
+# ---- 部屋・案内文 ----
+You are in a large square room with tall ceilings.	あなたは天井の高い、大きな四角い部屋にいる。
+On the south wall is an enormous mirror which fills the entire wall.	南の壁には、壁いっぱいの巨大な鏡がある。
+There are exits on the other three sides of the room.	部屋のほかの三方に出口がある。
+You are standing on the top of the Flood Control Dam #3, which was quite a tourist attraction in times far distant.	あなたは第3治水ダムの上に立っている。遠い昔には、なかなかの観光名所だった。
+There are paths to the north, south, and west, and a scramble down.	北・南・西へ道があり、よじ下りられる所もある。
+The sluice gates on the dam are closed.	ダムの水門は閉まっている。
+The sluice gates are open, and water rushes through the dam.	水門が開いていて、水がダムを勢いよく流れ抜けている。
+Behind the dam, there can be seen a wide reservoir.	ダムの向こうに、広い貯水池が見える。
+Water is pouring over the top of the now abandoned dam.	今は見捨てられたダムの上から、水があふれ落ちている。
+There is a control panel here, on which a large metal bolt is mounted.	ここには操作盤があり、大きな金属のボルトが取り付けられている。
+Directly above the bolt is a small green plastic bubble.	ボルトの真上に、小さな緑色のプラスチックの泡のようなものがある。
+Directly above the bolt is a small green plastic bubble which is glowing serenely.	ボルトの真上に、小さな緑色のプラスチックの泡のようなものがあり、静かに光っている。
+There is a rumble from deep within the earth and the room shakes.	地の底からゴロゴロと音がして、部屋が揺れた。
+You are in a long room on the south shore of a large lake, far too deep and wide for crossing.	あなたは大きな湖の南岸にある細長い部屋にいる。湖は深く広すぎて渡れない。
+You are in a large cavernous room, north of a large lake.	あなたは大きな湖の北にある、ほら穴のような大きな部屋にいる。
+There is a slimy stairway leaving the room to the north.	ぬるぬるした階段が北へ続いている。
+There is a path along the stream to the east or west, a steep pathway climbing southwest along the edge of a chasm, and a path leading into a canyon to the southeast.	流れに沿って東西に道があり、南西には裂け目のふちを登る急な小道、南東には峡谷へ入る道がある。
+You are on the south edge of a deep canyon.	あなたは深い峡谷の南のふちにいる。
+Passages lead off to the east, northwest and southwest.	通路が東・北西・南西へ続いている。
+A stairway leads down.	階段が下へ続いている。
+You can hear the sound of flowing water from below.	下から水の流れる音が聞こえる。
+Some guidebooks entitled "Flood Control Dam #3" are on the reception desk.	受付の机の上に「第3治水ダム」という案内書が何冊かある。
+There is a matchbook whose cover says "Visit Beautiful FCD#3" here.	ここに「美しい第3治水ダムへようこそ」と表紙に書かれたマッチ箱がある。
+This room appears to have been the waiting room for groups touring the dam.	この部屋は、ダムを見学する団体の待合室だったようだ。
+There are open doorways here to the north and east marked "Private", and there is a path leading south over the top of the dam.	北と東に「関係者以外立入禁止」と書かれた開いた出入り口があり、南にはダムの上を通る道がある。
+This is a small chamber, which appears to have been part of a coal mine.	ここは小さな部屋で、炭鉱の一部だったようだ。
+On the south wall of the chamber the letters "Granite Wall" are etched in the rock.	部屋の南の壁の岩に「花崗岩の壁」という文字が刻まれている。
+To the east is a long passage, and there is a steep metal slide twisting downward.	東には長い通路があり、急な金属の滑り台がねじれながら下へ続いている。
+To the north is a small opening.	北に小さな開口部がある。
+This is a large room with a prominent doorway leading to a down staircase.	ここは大きな部屋で、下り階段へ続く目立つ出入り口がある。
+Above you is a large dome.	頭上には大きなドームがある。
+Up around the edge of the dome (20 feet up) is a wooden railing.	ドームのふちの高いところ（20フィート上）に木の手すりがある。
+In the center of the room sits a white marble pedestal.	部屋の中央に白い大理石の台座がある。
+A piece of rope descends from the railing above, ending some five feet above your head.	上の手すりからロープが一本垂れ下がり、頭の5フィートほど上で終わっている。
+You are at the periphery of a large dome, which forms the ceiling of another room below.	あなたは大きなドームのふちにいる。ドームは下の部屋の天井になっている。
+Protecting you from a precipitous drop is a wooden railing which circles the dome.	ドームを囲む木の手すりが、切り立った落下からあなたを守っている。
+This is a large room with a ceiling which cannot be detected from the ground.	ここは大きな部屋で、天井は床から見えないほど高い。
+There is a narrow passage from east to west and a stone stairway leading upward.	東から西へ細い通路があり、石の階段が上へ続いている。
+The room is deafeningly loud with an undetermined rushing sound.	部屋には正体のわからない轟音が鳴り響き、耳をつんざくほどうるさい。
+The sound seems to reverberate from all of the walls, making it difficult even to think.	音は四方の壁から反響しているようで、考えることさえ難しい。
+The acoustics of the room change subtly.	部屋の響きがかすかに変わった。
+You won't be able to get back up to the tunnel you are going through when it gets to the next room.	次の部屋に着いたら、いま通っているトンネルへは戻れないだろう。
+This room has an exit on the northwest, and a staircase leading up.	この部屋は北西に出口があり、上へ続く階段がある。
+You are in a small room which has doors only to the east and south.	あなたは東と南にしか扉のない小さな部屋にいる。
+You see a rickety staircase descending into darkness.	暗闇へ下りていく、がたがたの階段が見える。
+"Flood Control Dam #3	「第3治水ダム
+FCD#3 was constructed in year 783 of the Great Underground Empire to harness the mighty Frigid River.	第3治水ダムは、大地下帝国の783年に、雄大なフリジッド川を治めるために建設された。
+This work was supported by a grant of 37 million zorkmids from your omnipotent local tyrant Lord Dimwit Flathead the Excessive.	この工事は、全能なる地元の暴君、過剰王ディムウィット・フラットヘッド卿からの3700万ゾークミッドの助成金で行われた。
+This impressive structure is composed of 370,000 cubic feet of concrete, is 256 feet tall at the center, and 193 feet wide at the top.	この見事な建造物は37万立方フィートのコンクリートでできており、中央の高さは256フィート、上部の幅は193フィートある。
+The lake created behind the dam has a volume of 1.7 billion cubic feet, an area of 12 million square feet, and a shore line of 36 thousand feet.	ダムの背後にできた湖は、容積17億立方フィート、面積1200万平方フィート、湖岸線3万6千フィートである。
+The construction of FCD#3 took 112 days from ground breaking to the dedication.	第3治水ダムの建設には、着工から竣工まで112日かかった。
+It required a work force of 384 slaves, 34 slave drivers, 12 engineers, 2 turtle doves, and a partridge in a pear tree.	必要とされた人手は、奴隷384人、奴隷監督34人、技術者12人、キジバト2羽、そして梨の木にとまったヤマウズラ1羽である。
+The work was managed by a command team composed of 2345 bureaucrats, 2347 secretaries (at least two of whom could type), 12,256 paper shufflers, 52,469 rubber stampers, 245,193 red tape processors, and nearly one million dead trees.	工事を指揮したのは、官僚2345人、秘書2347人（少なくとも2人はタイプが打てた）、書類係12,256人、判押し係52,469人、お役所仕事の処理係245,193人、そして100万本近い枯れ木からなる司令部である。
+We will now point out some of the more interesting features of FCD#3 as we conduct you on a guided tour of the facilities:	それでは施設をご案内しながら、第3治水ダムの興味深い見どころをご紹介しましょう。
+1) You start your tour here in the Dam Lobby.	1）見学はここ、ダムのロビーから始まります。
+You will notice on your right that....	右手にご覧いただけますのは……。
+---> Frobozz Magic Gunk Company <---	---> フロボッツ・マジック・ガンク社 <---
+All-Purpose Gunk	万能ガンク
+(Close cover before striking)	（すってから表紙を閉じること）
+YOU too can make BIG MONEY in the exciting field of PAPER SHUFFLING!	あなたも、わくわくする書類さばきの世界で大金を稼げる！
+Mr. Anderson of Muddle, Mass. says: "Before I took this course I was a lowly bit twiddler.	マドル在住のアンダーソン氏いわく「この講座を受ける前、私はしがないビットいじりでした。
+Now with what I learned at GUE Tech I feel really important and can obfuscate and confuse with the best."	今ではGUE工科大で学んだおかげで、自分がとても偉くなった気がしますし、誰にも負けずに話をややこしくできます」
+Dr. Blank had this to say: "Ten short days ago all I could look forward to was a dead-end job as a doctor.	ブランク博士はこう語る。「ほんの十日前まで、私の将来は医者という行き止まりの仕事だけでした。
+Now I have a promising future and make really big Zorkmids."	今では前途有望で、本当にたくさんのゾークミッドを稼いでいます」
+GUE Tech can't promise these fantastic results to everyone.	GUE工科大は、誰にでもこのようなすばらしい結果を約束できるわけではありません。
+But when you earn your degree from GUE Tech, your future will be brighter.	しかし、GUE工科大で学位を取れば、あなたの未来はより明るくなるでしょう。
+!!!!FROBOZZ MAGIC BOAT COMPANY!!!!	!!!!フロボッツ・マジック・ボート社!!!!
+Hello, Sailor!	やあ、船乗りさん！
+Instructions for use:	使い方：
+To get into a body of water, say "Launch".	水に出るには「Launch（出発）」と言う。
+To get to shore, say "Land" or the direction in which you want to maneuver the boat.	岸に着けるには「Land（上陸）」か、ボートを進めたい方角を言う。
+Warranty:	保証：
+This boat is guaranteed against all defects for a period of 76 milliseconds from date of purchase or until first used, whichever comes first.	このボートは、購入日から76ミリ秒、または最初に使うまでの、どちらか早いほうの期間、すべての欠陥について保証される。
+Warning:	注意：
+This boat is made of thin plastic.	このボートは薄いプラスチックでできている。
+Good Luck!	幸運を祈る！
+The boat inflates and appears seaworthy.	ボートがふくらみ、水に浮かべられそうになった。
+A tan label is lying inside the boat.	ボートの中に黄褐色のラベルがある。
+Congratulations!	おめでとうございます！
+You are the privileged owner of ZORK I: The Great Underground Empire, a self-contained and self-maintaining universe.	あなたは『ZORK I：大地下帝国』という、自己完結し自己維持する宇宙の、栄えある持ち主です。
+If used and maintained in accordance with normal operating practices for small universes, ZORK will provide many months of trouble-free operation.	小さな宇宙の通常の取り扱い方法に従って使用・保守すれば、ZORK は何か月も問題なく動作します。
+Release 119 / Serial number 880429	リリース 119 / シリアル番号 880429
+Frigid River	フリジッド川
+The robber, rummaging through his bag, dropped a few items he found valueless.	盗賊は袋の中をかき回し、値打ちがないと見た物をいくつか落としていった。
+The thief draws blood, raking his stiletto across your arm.	盗賊の短剣があなたの腕をかすめ、血が流れた。
+This is what appears to have been the maintenance room for Flood Control Dam #3.	ここは第3治水ダムの整備室だったようだ。
+Apparently, this room has been ransacked recently, for most of the valuable equipment is gone.	最近荒らされたらしく、値打ちのある機材はほとんどなくなっている。

@@ -30,6 +30,12 @@ KEY_FILE = os.path.join(HOME_DIR, "gemini_key")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
 STATUS_RE = re.compile(r"^\s*(.*?)\s{2,}Score:\s*(-?\d+)\s+Moves:\s*(\d+)\s*$")
+# 「sword: You can't ...」のような「物の名前: 文」の形
+PREFIX_RE = re.compile(r"^([a-z][a-z' -]{1,30}): (.+)$")
+# 辞書にない名前でも、短い名詞なら英語のままテンプレートに入れる
+SHORT_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z' -]*$")
+# 「Mr.」「1.」などの後では文を区切らない
+NO_SPLIT_RE = re.compile(r"(?:\b(?:Mr|Mrs|Dr|Mass|Mmm)|(?:^|[\s:])\d)\.$")
 SENT_RE = re.compile(r'(?<=[.!?])\s+(?=[A-Z"(\[])|(?<=[.!?]")\s+')
 
 HELP = """\
@@ -89,6 +95,16 @@ def read_tsv(name):
     return rows
 
 
+def split_sentences(s):
+    out = []
+    for part in SENT_RE.split(s):
+        if out and NO_SPLIT_RE.search(out[-1]):
+            out[-1] += " " + part
+        else:
+            out.append(part)
+    return out
+
+
 def norm(s):
     return " ".join(s.split())
 
@@ -96,6 +112,11 @@ def norm(s):
 class Translator:
     def __init__(self):
         self.names = {norm(r[0]).lower(): r[1] for r in read_tsv("names.tsv")}
+        self.suffix = {}
+        for en in sorted(self.names, key=len):
+            w = en.split()
+            for i in range(1, len(w)):
+                self.suffix.setdefault(" ".join(w[i:]), self.names[en])
         self.msgs = {norm(r[0]): r[1] for r in read_tsv("messages.tsv")}
         self.patterns = []
         for r in read_tsv("patterns.tsv"):
@@ -127,6 +148,9 @@ class Translator:
         low = re.sub(r"^(a|an|the|some|your)\s+", "", s.lower())
         if low in self.names:
             return self.names[low]
+        # 「candles」→「pair of candles」のように、名前の最後の部分だけのとき
+        if low in self.suffix:
+            return self.suffix[low]
         parts = re.split(r",\s*(?:and\s+|or\s+)?|\s+and\s+|\s+or\s+", low)
         if len(parts) > 1:
             out = [self.name(p) for p in parts if p]
@@ -143,6 +167,12 @@ class Translator:
             return self.msgs[s]
         if s in self.cache:
             return self.cache[s]
+        m = PREFIX_RE.match(s)
+        if m:
+            j = self.name(m.group(1))
+            rest = self.sentence(m.group(2))
+            if j and rest is not None:
+                return j + "：" + rest
         for rx, tmpl in self.patterns:
             m = rx.match(s)
             if not m:
@@ -153,6 +183,8 @@ class Translator:
                 out = out.replace("{r%d}" % i, g)
                 if "{%d}" % i in out:
                     j = self.name(g)
+                    if j is None and SHORT_NAME_RE.match(g) and len(g.split()) <= 3:
+                        j = g
                     if j is None:
                         ok = False
                         break
@@ -169,7 +201,7 @@ class Translator:
         if stripped.lower() in self.names:
             return [(self.names[stripped.lower()], stripped)]
         parts = []
-        for sent in SENT_RE.split(stripped):
+        for sent in split_sentences(stripped):
             parts.append((self.sentence(sent), sent))
         return parts
 
