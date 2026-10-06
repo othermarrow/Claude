@@ -4,12 +4,34 @@
 (function () {
   const $ = id => document.getElementById(id);
   const logEl = $("log"), screenEl = $("screen"), cmdEl = $("cmd");
+  // Tasker のシーン（Webビュー、「電話へのアクセスを許可」あり）で開いたときは、
+  // Tasker の readFile / writeFile で Tasker/zork-ja/ にも保存する
+  const TK = (() => {
+    try {
+      if (typeof tk !== "undefined" && tk && typeof tk.readFile === "function" && typeof tk.writeFile === "function") return tk;
+      if (typeof readFile === "function" && typeof writeFile === "function") return { readFile, writeFile };
+    } catch (e) { /* Tasker の外 */ }
+    return null;
+  })();
+  const TK_DIR = "/storage/emulated/0/Tasker/zork-ja/";
   const LS = {
-    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
-    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 保存できなくても遊べる */ } },
-    del(k) { try { localStorage.removeItem(k); } catch (e) { /* 同上 */ } },
+    get(k) {
+      if (TK) {
+        try { const v = TK.readFile(TK_DIR + k + ".json"); if (v) return String(v); } catch (e) { /* ファイルがない */ }
+      }
+      try { return localStorage.getItem(k); } catch (e) { return null; }
+    },
+    set(k, v) {
+      if (TK) { try { TK.writeFile(TK_DIR + k + ".json", v, false); } catch (e) { /* 書けなくても遊べる */ } }
+      try { localStorage.setItem(k, v); } catch (e) { /* 保存できなくても遊べる */ }
+    },
+    del(k) {
+      if (TK) { try { TK.writeFile(TK_DIR + k + ".json", "", false); } catch (e) { /* 同上 */ } }
+      try { localStorage.removeItem(k); } catch (e) { /* 同上 */ }
+    },
   };
-  const K = { auto: "zorkja.autosave", log: "zorkja.log", save: "zorkja.save", cache: "zorkja.tcache", mode: "zorkja.mode", ai: "zorkja.ai" };
+  const K = { auto: "zorkja.autosave", log: "zorkja.log", save: "zorkja.save", cache: "zorkja.tcache", mode: "zorkja.mode", ai: "zorkja.ai", gemini: "zorkja.gemini" };
+  const IN_CLAUDE = !!(window.claude && window.claude.use);
 
   // ---- 準備 ----
   const story = Uint8Array.from(atob(ZDATA.story), c => c.charCodeAt(0));
@@ -21,6 +43,7 @@
   let mode = LS.get(K.mode) || "both";
   let aiWanted = LS.get(K.ai) !== "off";
   let sample = null, aiDisabled = false;
+  let geminiKey = LS.get(K.gemini) || "";
   let db = null, uid = null;
   let savedGame = null;           // ロード用に読み込んでおいたセーブ
   let rows = [];                  // 画面の記録 {t, ja, en, cls}
@@ -126,10 +149,25 @@
     if (fresh.length) translateRows(fresh);
   }
 
-  // ---- Claude で訳す ----
+  // ---- 辞書にない文を訳す（claude.ai では Claude、ほかでは Gemini API キーがあれば Gemini） ----
+  const aiReady = () => !aiDisabled && aiWanted && (sample || geminiKey);
+  async function askJson(prompt) {
+    if (sample) return sample.json(prompt, { modelTier: "quick" });
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
+      }),
+    });
+    if (!res.ok) throw { code: res.status === 429 ? "rate_limited" : (res.status === 400 || res.status === 403 ? "bad_key" : "upstream_error") };
+    const j = await res.json();
+    return JSON.parse(j.candidates[0].content.parts[0].text);
+  }
   let aiQueue = Promise.resolve();
   function translateRows(list) {
-    if (!sample || aiDisabled || !aiWanted || mode === "en") return;
+    if (!aiReady() || mode === "en") return;
     const todo = tr.pending(list);
     if (!todo.length) { list.forEach(refreshRow); return; }
     list.forEach(r => { r.pending = true; redrawRow(r); });
@@ -143,7 +181,7 @@
           "同じ順番・同じ件数の JSON 文字列配列だけを返してください。\n" +
           (gloss.length ? "用語集:\n" + gloss.join("\n") + "\n" : "") +
           "英文:\n" + JSON.stringify(todo);
-        const out = await sample.json(prompt, { modelTier: "quick" });
+        const out = await askJson(prompt);
         if (Array.isArray(out) && out.length === todo.length) {
           todo.forEach((en, i) => { const ja = String(out[i] || "").trim(); if (ja) cache.set(en, ja); });
           saveCache();
@@ -172,21 +210,23 @@
     if (["not_granted", "sampling_disabled", "not_declared", "capability_disabled", "capability_removed"].includes(code)) {
       aiDisabled = true;
       push({ t: "note", ja: "（辞書にない文の翻訳は使えないため、英語のまま表示します）" });
+    } else if (code === "bad_key") {
+      aiDisabled = true;
+      push({ t: "note", ja: "（Gemini API キーが使えませんでした。≡ の設定でキーを確かめてください）" });
     } else if (code === "rate_limited") {
       push({ t: "note", ja: "（翻訳の回数が上限に達しました。しばらくしてから続きを訳します）" });
     }
   }
 
   async function aiCommand(text) {
-    if (!sample || aiDisabled || !aiWanted) return null;
+    if (!aiReady()) return null;
     const key = "CMD:" + text;
     if (cache.has(key)) return cache.get(key);
     try {
-      const en = await sample.json(
+      const en = await askJson(
         "テキストアドベンチャー『Zork I』の命令を英語に直します。次の日本語の命令を、" +
         "Zork のパーサが理解できる短い英語の命令（例: open mailbox, take lamp, attack troll with sword, north）" +
-        "1つにして、JSON 文字列だけで返してください。\n命令: " + text,
-        { modelTier: "quick" });
+        "1つにして、JSON 文字列だけで返してください。\n命令: " + text);
       if (typeof en === "string" && en.trim()) {
         const v = en.trim().toLowerCase();
         cache.set(key, v); saveCache();
@@ -285,6 +325,21 @@
     if (!b) return;
     aiWanted = b.dataset.ai === "on"; LS.set(K.ai, aiWanted ? "on" : "off"); applyMode();
   });
+  // claude.ai の外（Tasker のシーンなど）では、Gemini API キーを入れられるようにする
+  $("opt-gemini").hidden = IN_CLAUDE;
+  function showKeyState() {
+    $("gemini-state").textContent = geminiKey ? "キーを保存してあります（末尾 " + geminiKey.slice(-4) + "）" : "キーは未設定です。辞書にない文は英語のまま出ます。";
+  }
+  showKeyState();
+  $("gemini-save").addEventListener("click", () => {
+    const v = $("gemini-key").value.trim();
+    if (!v) return;
+    geminiKey = v; aiDisabled = false; LS.set(K.gemini, v);
+    $("gemini-key").value = ""; showKeyState();
+  });
+  $("gemini-clear").addEventListener("click", () => {
+    geminiKey = ""; LS.del(K.gemini); $("gemini-key").value = ""; showKeyState();
+  });
   $("restart-btn").addEventListener("click", () => {
     $("restart-btn").hidden = true;
     $("restart-yes").hidden = $("restart-no").hidden = false;
@@ -315,7 +370,11 @@
   try { savedGame = JSON.parse(LS.get(K.save) || "null"); } catch (e) { savedGame = null; }
 
   // claude.ai の中で開いたときだけ使える機能
-  if (window.claude && window.claude.use) {
+  if (!IN_CLAUDE && geminiKey) {
+    const fresh = rows.filter(r => r.t === "out" && r.parts && !tr.jaOf({ parts: r.parts }).complete);
+    if (fresh.length) translateRows(fresh.slice(-30));
+  }
+  if (IN_CLAUDE) {
     window.claude.use("sample").then(s => {
       sample = s;
       if (sample) {

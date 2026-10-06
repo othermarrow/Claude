@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ブラウザ版（web/zork-ja.html）を組み立てる。
+"""ブラウザ版（web/zork-ja.html と web/zork-ja-standalone.html）を組み立てる。
 
 src/page.html に、ゲームファイル・辞書（../data/*.tsv）・スクリプトを埋め込んで
 1 枚の HTML にする。ゲームファイルは ../game/zork1.z3 を使い、なければ取ってくる。
@@ -42,10 +42,28 @@ def main():
     # </script> が中に現れると HTML が途中で切れるので避ける
     scripts = scripts.replace("</script", "<\\/script")
     page = read(HERE, "src", "page.html").replace("/*@SCRIPTS@*/", scripts)
-    out = os.path.join(HERE, "zork-ja.html")
+    # zork-ja.html は claude.ai に公開する用（ページの頭は公開時に付く）
+    write("zork-ja.html", page)
+    # zork-ja-standalone.html は Tasker のシーンやブラウザで直接開く用
+    write("zork-ja-standalone.html", STANDALONE_HEAD + page + "\n</body>\n</html>\n")
+
+
+STANDALONE_HEAD = """<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}</style>
+</head>
+<body>
+"""
+
+
+def write(name, text):
+    out = os.path.join(HERE, name)
     with open(out, "w", encoding="utf-8") as f:
-        f.write(page)
-    print(f"{out} ({len(page.encode('utf-8')) // 1024} KB)")
+        f.write(text)
+    print(f"{out} ({len(text.encode('utf-8')) // 1024} KB)")
 
 
 if __name__ == "__main__":

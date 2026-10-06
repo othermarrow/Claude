@@ -110,6 +110,10 @@ body.mode-en .row .en { color: var(--phosphor); font-size: 1em; line-height: var
 .opt { display: flex; flex-wrap: wrap; gap: 0.4em; align-items: center; }
 .opt > span { width: 100%; color: var(--dim); font-size: 0.86em; }
 .opt .key[aria-pressed="true"] { background: var(--phosphor); color: var(--screen); }
+#gemini-key {
+  flex: 1; min-width: 0; font: inherit; font-size: max(16px, 0.9em);
+  background: transparent; color: var(--bright); border: 1px solid var(--faint); padding: 0.3em 0.5em;
+}
 #sheet p { margin: 0; color: var(--dim); font-size: 0.86em; line-height: 1.5; }
 #confirm-row { display: flex; gap: 0.4em; align-items: center; flex-wrap: wrap; }
 
@@ -175,6 +179,13 @@ body.mode-en .row .en { color: var(--phosphor); font-size: 1em; line-height: var
         <button class="key" type="button" data-ai="on">使う</button>
         <button class="key" type="button" data-ai="off">使わない</button>
       </div>
+      <div class="opt" id="opt-gemini" hidden>
+        <span>Gemini API キー（claude.ai の外で、辞書にない文を訳すとき）</span>
+        <input id="gemini-key" type="password" autocomplete="off" placeholder="AIza…">
+        <button class="key" type="button" id="gemini-save">保存</button>
+        <button class="key" type="button" id="gemini-clear">消す</button>
+        <span id="gemini-state"></span>
+      </div>
       <div class="opt">
         <span>ゲーム</span>
         <div id="confirm-row">
@@ -183,7 +194,7 @@ body.mode-en .row .en { color: var(--phosphor); font-size: 1em; line-height: var
           <button class="key" type="button" id="restart-no" hidden>やめる</button>
         </div>
       </div>
-      <p>命令は日本語でも英語でも入力できます。例：郵便受けを開ける／チラシを読む／ランプをつける／剣でトロールを攻撃。セーブは1か所に保存され、ロードで戻れます。途中の画面は自動で残り、次に開いたときに続きから遊べます。</p>
+      <p>命令は日本語でも英語でも入力できます。例：郵便受けを開ける／チラシを読む／ランプをつける／剣でトロールを攻撃。セーブは1か所に保存され、ロードで戻れます（claude.ai では claude.ai に、Tasker では Tasker/zork-ja/ に保存）。途中の画面は自動で残り、次に開いたときに続きから遊べます。</p>
       <p>ZORK I © Infocom（MIT ライセンスで公開されたゲームファイルを使用）</p>
       <button class="key" type="button" id="close-sheet">閉じる</button>
     </div>

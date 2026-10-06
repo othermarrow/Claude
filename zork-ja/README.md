@@ -125,6 +125,33 @@ claude.ai のページとして公開してあり、Termux を起動しなくて
 - セーブは1か所。claude.ai の保存領域に残り、別の端末で開いてもロードできる。
 - 途中の画面はその端末に自動で残り、次に開いたときに続きから始まる。
 
+### Tasker のシーンで遊ぶ(ホーム画面から起動)
+
+`web/zork-ja-standalone.html` を Tasker のシーンの Webビューで開く。claude.ai の外なので、
+辞書にない文の翻訳は Gemini API キー(≡ の設定で入れる)があれば Gemini で行う。キーがなければ英語のまま出る。
+セーブと途中の画面は `Tasker/zork-ja/` フォルダに保存する(「電話へのアクセスを許可」が必要)。
+
+1. ファイルを置く。Termux で次を実行する。
+
+```bash
+mkdir -p /storage/emulated/0/Tasker/zork-ja
+cp /storage/emulated/0/Download/zork-ja-standalone.html /storage/emulated/0/Tasker/zork-ja/zork-ja.html
+```
+
+2. Tasker の「シーン」(Scenes)タブで「＋」を押し、名前を `Zork` にする。
+3. シーンの編集画面で、右下の角をドラッグして画面いっぱいの大きさにする。
+4. 要素を追加して「Webビュー」(Web View)を選び、次のように設定する。
+   - モード(Mode): ファイル(File)
+   - ソース(Source): `/storage/emulated/0/Tasker/zork-ja/zork-ja.html`
+   - 電話へのアクセスを許可(Allow Phone Access): オン
+   設定を閉じたら、Webビューをシーンいっぱいに広げる。
+5. 「タスク」(Tasks)タブで「＋」を押し、名前を `Zorkを遊ぶ` にする。アクション「シーン」→「シーンを表示」(Show Scene)を追加し、
+   名前に `Zork`、表示方法(Display As)に「アクティビティ, 全画面」(Activity, Full Window)などを選ぶ。
+6. ホーム画面を長押し →「ウィジェット」→ Tasker の「タスクショートカット」(Task Shortcut)→ `Zorkを遊ぶ` を選ぶ。
+
+Tasker にファイルへのアクセス(すべてのファイルの管理)を許可していないと、`Tasker/zork-ja/` に保存できない。
+その場合も遊べるが、セーブが残らないことがある。画面の名前は Tasker の版によって少し違うことがある。
+
 作り直すときは `python web/build.py` を実行する。`web/src/` のファイルと `data/*.tsv` を
 1枚の `web/zork-ja.html` にまとめる。
 
@@ -135,6 +162,8 @@ claude.ai のページとして公開してあり、Termux を起動しなくて
 | `web/src/app.js` | 画面・入力・セーブ・Claude による翻訳 |
 | `web/src/page.html` | 画面の作りと見た目 |
 | `web/build.py` | 上のファイルと辞書・ゲームファイルを1枚の HTML にまとめる |
+| `web/zork-ja.html` | claude.ai に公開する版 |
+| `web/zork-ja-standalone.html` | Tasker のシーンやブラウザで直接開く版 |
 
 ## 確認できていること・いないこと
 
@@ -143,6 +172,8 @@ claude.ai のページとして公開してあり、Termux を起動しなくて
 - ブラウザ版は、開発環境の Chromium で、命令の入力・翻訳表示・表示の切り替え・セーブとロードまで動いた。
   ゲームを動かす部分は、Termux 版(dfrotz)と同じ命令で同じ出力になることを確かめた。
   claude.ai の中での Claude による翻訳と、claude.ai へのセーブは、まだ実機で確かめていない。
+- Tasker 向けの保存(readFile / writeFile)と Gemini での翻訳は、開発環境で偽の Tasker 関数・偽の Gemini 応答を
+  使って流れを確かめただけで、Tasker の実機と本物の Gemini API ではまだ確かめていない。
 - Gemini API で訳す部分は、実際の API にはつないで確かめていない(偽の応答で処理の流れだけ確認した)。
 - 辞書で訳せるのは、ゲームの序盤(家のまわり・地下室・トロールの部屋あたり)と、部屋・物の名前、
   よく出る応答が中心。それ以外は AI 翻訳か英語になる。
