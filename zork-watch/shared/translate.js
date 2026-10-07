@@ -1,5 +1,5 @@
 // ゲームの出力を日本語にする（zork-ja/zork_ja.py の Translator を移植。AI 翻訳はなし）
-import { NAMES, MSGS, PATTERNS } from './dict'
+import { NAMES, MSGS, PATTERNS, VERBS_EN } from './dict'
 
 const PATS = PATTERNS.map(([rx, ja]) => [new RegExp(rx), ja])
 
@@ -89,6 +89,8 @@ function sentenceJa(s) {
     for (let i = 1; i < m.length; i++) {
       const g = m[i] || ''
       out = out.split('{r' + i + '}').join(g)
+      // {v1} は動詞。辞書になければ英語を「」に入れる
+      out = out.split('{v' + i + '}').join(VERBS_EN[norm(g).toLowerCase()] || '「' + g + '」')
       if (out.includes('{' + i + '}')) {
         let j = nameJa(g)
         if (j === null && SHORT_NAME_RE.test(g) && g.split(' ').length <= 3) j = g

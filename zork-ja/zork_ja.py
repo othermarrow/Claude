@@ -118,6 +118,7 @@ class Translator:
             for i in range(1, len(w)):
                 self.suffix.setdefault(" ".join(w[i:]), self.names[en])
         self.msgs = {norm(r[0]): r[1] for r in read_tsv("messages.tsv")}
+        self.verbs_en = {norm(r[0]).lower(): r[1] for r in read_tsv("verbs_en.tsv")}
         self.patterns = []
         for r in read_tsv("patterns.tsv"):
             try:
@@ -181,6 +182,8 @@ class Translator:
             for i, g in enumerate(m.groups(), 1):
                 g = g or ""
                 out = out.replace("{r%d}" % i, g)
+                # {v1} は動詞。辞書になければ英語を「」に入れる
+                out = out.replace("{v%d}" % i, self.verbs_en.get(norm(g).lower(), "「%s」" % g))
                 if "{%d}" % i in out:
                     j = self.name(g)
                     if j is None and SHORT_NAME_RE.match(g) and len(g.split()) <= 3:
