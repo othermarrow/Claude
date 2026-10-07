@@ -10,10 +10,9 @@
     },
     "icon": "icon.png",
     "vender": "zepp",
-    "description": "empty application"
+    "description": "Star map with AR, planisphere, time shift and touch look-around"
   },
   "permissions": [
-    "device :os.compas s",
     "device:os.geolocation",
     "device:os.compass",
     "device:os.accelerometer"

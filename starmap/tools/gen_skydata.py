@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
-import json, math, urllib.request, sys
+# utils/skydata.js を作り直す。
+#   python3 tools/gen_skydata.py
+# 星座線と星の等級は d3-celestial（BSD-3-Clause）のデータを使う。
+import json, math, os, sys, unicodedata, urllib.request
 
 BASE = "https://raw.githubusercontent.com/ofrohn/d3-celestial/master/data/"
-OUT  = "../utils/skydata.js"
-THIN = 1.0   # 境界線の間引き閾値(度)
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT  = os.path.join(HERE, "..", "utils", "skydata.js")
 
-NAMES = {
- "Aql":"Aquila","Aqr":"Aquarius","Ari":"Aries","Aur":"Auriga","Boo":"Bootes",
- "Cap":"Capricornus","Car":"Carina","Cen":"Centaurus","CMa":"Canis Major",
- "CMi":"Canis Minor","Cnc":"Cancer","Cru":"Crux","Cyg":"Cygnus","Eri":"Eridanus",
- "Gem":"Gemini","Leo":"Leo","Lib":"Libra","Lyr":"Lyra","Oph":"Ophiuchus",
- "Ori":"Orion","Psc":"Pisces","PsA":"Piscis Austrinus","Sco":"Scorpius",
- "Sgr":"Sagittarius","Tau":"Taurus","Vir":"Virgo"}
+# 線を引く星座。d3-celestial の rank 1・2（主な星座）に、日本で見つけやすい小さな星座を足す
+EXTRA = ["Crv", "Del", "Lep", "Sge", "Tri", "Lac", "CrA", "Lup", "Col", "Com"]
 
-# 1等星 21個 (J2000, 度)
+# 名前を出す明るい星（J2000, 度）。1等星 21個と北極星
 STARS = [
  ("Sirius",101.2871,-16.7161,-1.46),("Canopus",95.9880,-52.6957,-0.74),
  ("Rigil Kentaurus",219.9021,-60.8340,-0.27),("Arcturus",213.9153,19.1824,-0.05),
@@ -25,85 +23,82 @@ STARS = [
  ("Antares",247.3519,-26.4320,0.96),("Spica",201.2983,-11.1613,0.98),
  ("Pollux",116.3289,28.0262,1.14),("Fomalhaut",344.4127,-29.6222,1.16),
  ("Deneb",310.3580,45.2803,1.25),("Mimosa",191.9303,-59.6888,1.25),
- ("Regulus",152.0930,11.9672,1.35)]
+ ("Regulus",152.0930,11.9672,1.35),("Polaris",37.9546,89.2641,1.98)]
 
 def vec(ra, dec):
     r, d = math.radians(ra), math.radians(dec)
     return (math.cos(d)*math.cos(r), math.cos(d)*math.sin(r), math.sin(d))
 
-def rnd(v): return [round(c, 5) for c in v]
+def num(c, n):
+    s = ("%." + str(n) + "f") % c
+    s = s.rstrip("0").rstrip(".")
+    if s.startswith("0."): s = s[1:]
+    elif s.startswith("-0."): s = "-" + s[2:]
+    return s if s not in ("", "-") else "0"
 
 def get(fn):
     url = BASE + fn
     sys.stderr.write("GET %s\n" % url)
     return json.loads(urllib.request.urlopen(url, timeout=90).read().decode())
 
-def fid(f):
-    p = f.get("properties") or {}
-    for k in ("id","n","desig","abbr"):
-        if f.get(k): return f[k]
-        if p.get(k): return p[k]
-    return None
+lines = get("constellations.lines.json")["features"]
+ascii_ = lambda t: unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode()  # Boötes → Bootes
+names = {f["id"]: ascii_(f["properties"]["name"]) for f in get("constellations.json")["features"]}
+cat = get("stars.6.json")["features"]
 
-def rings(geom):
-    t, c = geom["type"], geom["coordinates"]
-    if t == "LineString": return [c]
-    if t in ("MultiLineString","Polygon"): return c
-    if t == "MultiPolygon": return [r for poly in c for r in poly]
-    return []
+# 等級を引くための表（0.1度のます目）
+grid = {}
+for f in cat:
+    ra, dec = f["geometry"]["coordinates"]
+    grid.setdefault((round(ra * 10), round(dec * 10)), []).append((ra, dec, f["properties"]["mag"]))
 
-def thin(pts, mindeg):
-    if len(pts) < 3: return pts
-    out = [pts[0]]
-    lim = math.cos(math.radians(mindeg))
-    for p in pts[1:-1]:
-        a, b = out[-1], p
-        if a[0]*b[0]+a[1]*b[1]+a[2]*b[2] < lim: out.append(p)
-    out.append(pts[-1])
-    return out
+def mag_of(ra, dec):
+    best, bd = 5.0, 0.15
+    for i in (-1, 0, 1):
+        for j in (-1, 0, 1):
+            for r2, d2, m in grid.get((round(ra * 10) + i, round(dec * 10) + j), []):
+                dd = math.hypot((r2 - ra) * math.cos(math.radians(dec)), d2 - dec)
+                if dd < bd: best, bd = m, dd
+    return best
 
-def collect(fn, mindeg=None):
-    data = get(fn)
-    res = {}
-    seen = []
-    for f in data.get("features", []):
-        i = fid(f)
-        seen.append(i)
-        if i not in NAMES: continue
-        polys = []
-        for ring in rings(f["geometry"]):
-            pts = [vec(lon % 360.0, lat) for lon, lat in ring]
-            if mindeg: pts = thin(pts, mindeg)
-            if len(pts) >= 2: polys.append(pts)
-        if polys: res.setdefault(i, []).extend(polys)
-    if not res:
-        sys.stderr.write("!! 該当なし。見つかったid例: %s\n" % seen[:12])
-    return res
+want = [f for f in lines if f["properties"].get("rank") in ("1", "2") or f["id"] in EXTRA]
+dots, dix, cons = [], {}, []
+for f in sorted(want, key=lambda f: f["id"]):
+    polys, pts = [], []
+    for ring in f["geometry"]["coordinates"]:
+        idx = []
+        for ra, dec in ring:
+            key = (round(ra, 3), round(dec, 3))
+            if key not in dix:
+                dix[key] = len(dots)
+                dots.append((vec(ra % 360.0, dec), mag_of(ra, dec)))
+            if not idx or idx[-1] != dix[key]: idx.append(dix[key])
+            pts.append(dots[dix[key]][0])
+        if len(idx) >= 2: polys.append(idx)
+    uniq = {p for p in pts}
+    cx = [sum(p[i] for p in uniq) for i in range(3)]
+    m = math.sqrt(sum(c * c for c in cx)) or 1
+    cons.append((f["id"], names.get(f["id"], f["id"]), [c / m for c in cx], polys))
 
-lines  = collect("constellations.lines.json")
-bounds = collect("constellations.bounds.json", THIN)
-
-out = ["// generated by gen_skydata.py", "export const STARS = ["]
+out = ["// generated by tools/gen_skydata.py",
+       "// 星座線と等級: d3-celestial (https://github.com/ofrohn/d3-celestial, BSD-3-Clause, tools/LICENSE-d3-celestial.txt)",
+       "// STARS: 名前を出す星 [名前,x,y,z,等級]",
+       "export const STARS = ["]
 for n, ra, dec, mag in STARS:
-    x, y, z = rnd(vec(ra, dec))
-    out.append('  ["%s",%s,%s,%s,%s],' % (n, x, y, z, mag))
+    out.append('  ["%s",%s,%s],' % (n, ",".join(num(c, 5) for c in vec(ra, dec)), num(mag, 2)))
 out.append("]")
+out.append("// DOTS: 星座線の星。x,y,z,等級 の4つずつ並ぶ")
+out.append("export const DOTS = [")
+for k in range(0, len(dots), 6):
+    out.append("  " + ",".join(",".join(num(c, 4) for c in v) + "," + num(mg, 1)
+                              for v, mg in dots[k:k + 6]) + ",")
+out.append("]")
+out.append("// CONS: a=略号 n=名前 c=中心 l=線（DOTS の何番目の星をつなぐか）")
 out.append("export const CONS = [")
-tot = 0
-for ab in sorted(NAMES):
-    L, B = lines.get(ab, []), bounds.get(ab, [])
-    flat = lambda ps: "[" + ",".join(
-        "[" + ",".join(str(c) for p in poly for c in rnd(p)) + "]" for poly in ps) + "]"
-    src = L if L else B
-    if src:
-        cx = [sum(p[i] for poly in src for p in poly) for i in range(3)]
-        m = math.sqrt(sum(c*c for c in cx)) or 1
-        ctr = [round(c/m, 5) for c in cx]
-    else:
-        ctr = [1, 0, 0]
-    tot += sum(len(p) for p in L) + sum(len(p) for p in B)
-    out.append('  {a:"%s",n:"%s",c:[%s],l:%s,b:%s},'
-               % (ab, NAMES[ab], ",".join(str(c) for c in ctr), flat(L), flat(B)))
+for ab, nm, c, polys in cons:
+    out.append('  {a:"%s",n:"%s",c:[%s],l:%s},' % (ab, nm, ",".join(num(x, 4) for x in c),
+               json.dumps(polys, separators=(",", ":"))))
 out.append("]")
 open(OUT, "w").write("\n".join(out) + "\n")
-sys.stderr.write("wrote %s / 総頂点数 %d\n" % (OUT, tot))
+segs = sum(len(p) - 1 for c in cons for p in c[3])
+sys.stderr.write("wrote %s / 星座 %d / 星 %d / 線 %d本\n" % (OUT, len(cons), len(dots), segs))

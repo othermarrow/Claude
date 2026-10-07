@@ -6,6 +6,7 @@ import { dayNumber, sunPos, moonPos, planetPos, lstDeg, eqVec, PLANETS } from '.
 import { STARS, CONS } from '../utils/skydata'
 import { OUTER, outerVec } from '../utils/outer'
 import { drawGlyph } from '../utils/glyph'
+import { getState, saveState } from '../utils/state'
 
 const D2R=Math.PI/180,R2D=180/Math.PI
 const EPS=23.4393*D2R
@@ -18,7 +19,7 @@ const SCON={Sirius:'Canis Major',Canopus:'Carina','Rigil Kentaurus':'Centaurus',
  Achernar:'Eridanus',Betelgeuse:'Orion',Hadar:'Centaurus',Altair:'Aquila',
  Acrux:'Crux',Aldebaran:'Taurus',Antares:'Scorpius',Spica:'Virgo',
  Pollux:'Gemini',Fomalhaut:'Piscis Austrinus',Deneb:'Cygnus',Mimosa:'Crux',
- Regulus:'Leo'}
+ Regulus:'Leo',Polaris:'Ursa Minor'}
 const ZB=[[28.7,'Pisces'],[53.5,'Aries'],[90.4,'Taurus'],[118.0,'Gemini'],
  [138.0,'Cancer'],[174.0,'Leo'],[217.8,'Virgo'],[241.1,'Libra'],
  [247.7,'Scorpius'],[266.6,'Ophiuchus'],[299.7,'Sagittarius'],
@@ -35,10 +36,14 @@ const ALLP=PLANETS.concat(OUTER)
 const X=34,WROW=412,RH=40,RH2=26,SH=50,LW=250,RSZ=17
 const C_HI=0xffffff,C_LO=0x515c68,C_LB=0x8fa3b8,C_SEC=0x00cfe0
 const C_SUN=0xffcc33,C_MOON=0xdde6f0,C_PL=0xffd27f,C_CN=0x7fb4dc,C_SUB=0x6d7f91
+const C_SIM=0xffb347   // 時間をずらしているときの色
 
 let lat=34.685,lon=135.805,geo=null
 let rows=[],clkT=null,calcT=null,gcan=null,PY=0,PH=0,zcan=null,ZY=0,ZH=0
 let IX={}
+let simT=null          // 星図ページで時間をずらしていれば、その時刻(ms)
+
+function simNow(){ return simT==null?new Date():new Date(simT) }
 
 function p2(n){return (n<10?'0':'')+n}
 function hm(t){if(t==null)return '--:--';const d=new Date(t);return p2(d.getHours())+':'+p2(d.getMinutes())}
@@ -62,7 +67,7 @@ function vecOf(kind,d,sun){
   const m=moonPos(d,sun); return eqVec(m.ra,m.dec)
 }
 function events(kind,h0){
-  const t0=new Date(); t0.setHours(0,0,0,0)
+  const t0=simNow(); t0.setHours(0,0,0,0)
   const base=t0.getTime(), dt=600000, N=144
   const A=[]
   for(let i=0;i<=N;i++){
@@ -70,9 +75,10 @@ function events(kind,h0){
     const su=sunPos(dd)
     A.push(aa(vecOf(kind,dd,su),lstDeg(dd,su.L,lon)).alt)
   }
-  let rise=null,set=null,mi=0
+  let rise=null,set=null,mi=0,lo=0
   for(let i=1;i<=N;i++){
     if(A[i]>A[mi])mi=i
+    if(A[i]<A[lo])lo=i
     const a=A[i]-h0,b=A[i-1]-h0
     if(b<0&&a>=0&&rise==null)rise=base+(i-1)*dt+dt*(-b)/(a-b)
     if(b>=0&&a<0&&set==null)set=base+(i-1)*dt+dt*(b)/(b-a)
@@ -82,7 +88,7 @@ function events(kind,h0){
     const y1=A[mi-1],y2=A[mi],y3=A[mi+1], den=y1-2*y2+y3
     if(Math.abs(den)>1e-9)tr+=dt*0.5*(y1-y3)/den
   }
-  return {rise:rise,set:set,transit:tr}
+  return {rise:rise,set:set,transit:tr,max:A[mi],min:A[lo]}
 }
 function mk(y,h,size,color,alignH,x,w){
   const t=createWidget(widget.TEXT,{x:x,y:y,w:w,h:h,text:'',
@@ -104,7 +110,8 @@ function layout(){
 
   IX.sunH=mk(y,SH,21,C_SEC,align.CENTER_H,20,440); y+=SH
   IX.sunA=mk(y,RH,20,C_SUN,align.CENTER_H,20,440); y+=RH
-  IX.sunT=mk(y,RH,18,C_LB,align.CENTER_H,20,440); y+=RH+16
+  IX.sunT=mk(y,RH,18,C_LB,align.CENTER_H,20,440); y+=RH
+  IX.dark=mk(y,RH,18,C_LB,align.CENTER_H,20,440); y+=RH+16
 
   IX.moonH=mk(y,SH,21,C_SEC,align.CENTER_H,20,440); y+=SH
   IX.moonP=mk(y,RH,19,C_MOON,align.CENTER_H,20,440); y+=RH
@@ -146,13 +153,14 @@ function layout(){
 }
 
 function clockOnly(){
-  const n=new Date()
+  const n=simNow()
   put(IX.date, n.getFullYear()+'/'+p2(n.getMonth()+1)+'/'+p2(n.getDate())
-      +'  '+p2(n.getHours())+':'+p2(n.getMinutes())+':'+p2(n.getSeconds()), C_LB)
+      +'  '+p2(n.getHours())+':'+p2(n.getMinutes())
+      +(simT==null?':'+p2(n.getSeconds()):''), simT==null?C_LB:C_SIM)
 }
 
 function render(){
-  const now=new Date(), d=dayNumber(now)
+  const now=simNow(), d=dayNumber(now)
   const sun=sunPos(d), lst=lstDeg(d,sun.L,lon)
   const dir=a=>R16[Math.round(a/22.5)%16]+' '+Math.round(a)+'\u00B0'
   const sgn=v=>(v>=0?'+':'')+v.toFixed(1)+'\u00B0'
@@ -164,6 +172,11 @@ function render(){
   put(IX.sunH,'\u2609  SUN',C_SEC)
   put(IX.sunA,dir(sq.az)+'   '+sgn(sq.alt)+'   '+zod(eclLon(sv)),sq.alt>=0?C_SUN:C_LO)
   put(IX.sunT,'Rise '+hm(se.rise)+'   Transit '+hm(se.transit)+'   Set '+hm(se.set),C_LB)
+  // 天文薄明（太陽が地平線の下18度）より暗い時間。朝の時刻は同じ日付の朝のもの
+  const dk=events(0,-18)
+  put(IX.dark,dk.min>=-18?'Dark sky  none (twilight all night)'
+    :(dk.max<-18?'Dark sky  all day'
+    :'Dark sky  '+hm(dk.set)+' - '+hm(dk.rise)),C_LB)
 
   const mo=moonPos(d,sun), mv=eqVec(mo.ra,mo.dec), mq=aa(mv,lst), me=events(1,0.125)
   let el=eclLon(mv)-eclLon(sv); el=((el%360)+360)%360
@@ -207,7 +220,7 @@ function render(){
     put(IX.z[i][1],dir(zz[i].az)+'   '+sgn(zz[i].alt),c)
   }
 
-  put(IX.stH,'\u2605  1ST MAGNITUDE',C_SEC)
+  put(IX.stH,'\u2605  BRIGHT STARS',C_SEC)
   const st=[]
   for(let i=0;i<STARS.length;i++){
     const s=STARS[i], r=aa([s[1],s[2],s[3]],lst)
@@ -225,6 +238,9 @@ function render(){
 Page({
   build(){
     try{setPageBrightTime({brightTime:600000})}catch(e){}
+    const st=getState()
+    if(st.simT!=null)simT=st.simT
+    if(st.lat!=null){lat=st.lat; lon=st.lon}
     createWidget(widget.FILL_RECT,{x:0,y:0,w:480,h:480,color:0x000000})
     layout()
     render()
@@ -236,6 +252,7 @@ Page({
       geo.onChange(()=>{
         if(geo.getStatus()!=='A')return
         lat=geo.getLatitude({format:'DD'}); lon=geo.getLongitude({format:'DD'})
+        saveState({lat:lat,lon:lon})
         geo.stop&&geo.stop(); render()
       })
     }catch(e){}
