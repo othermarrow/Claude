@@ -1,0 +1,25 @@
+{
+  "name": "天文データ / AstroWidget",
+  "short_name": "天文",
+  "description": "平群町の太陽・月・惑星・星の位置情報",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#01030c",
+  "theme_color": "#01030c",
+  "orientation": "portrait",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%2301030c'/%3E%3Ccircle cx='96' cy='96' r='40' fill='none' stroke='%23ffd040' stroke-width='4'/%3E%3Ccircle cx='148' cy='60' r='18' fill='none' stroke='%23ccdcf4' stroke-width='2.5'/%3E%3Ccircle cx='148' cy='60' r='14' fill='%233a3f4a'/%3E%3Cellipse cx='153' cy='60' rx='10' ry='14' fill='%23c8cdd4'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%2301030c'/%3E%3Ccircle cx='256' cy='256' r='110' fill='none' stroke='%23ffd040' stroke-width='10'/%3E%3Ccircle cx='400' cy='160' r='50' fill='none' stroke='%23ccdcf4' stroke-width='6'/%3E%3Ccircle cx='400' cy='160' r='38' fill='%233a3f4a'/%3E%3Cellipse cx='416' cy='160' rx='26' ry='38' fill='%23c8cdd4'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
