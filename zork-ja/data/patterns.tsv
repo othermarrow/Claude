@@ -297,3 +297,45 @@
 ^You have a serious wound, which will be cured after (\d+) move\.$	重い傷を負っている。あと{r1}手で治る。
 ^You have several wounds, which will be cured after (\d+) move\.$	いくつか傷を負っている。あと{r1}手で治る。
 ^You have serious wounds, which will be cured after (\d+) move\.$	重い傷をいくつも負っている。あと{r1}手で治る。
+# ---- ブラウザ版の会話で足した訳（統合）----
+^Your\ (.+?)\ misses\ the\ (.+?)\ by\ an\ inch\.$	あなたの{s1}は、ほんのわずかの差で{s2}に当たらなかった。
+^A\ good\ slash,\ but\ it\ misses\ the\ (.+?)\ by\ a\ mile\.$	見事な斬撃だが、{s1}には大きく外れた。
+^You\ charge,\ but\ the\ (.+?)\ jumps\ nimbly\ aside\.$	突進したが、{s1}は身軽に横へよけた。
+^The\ (.+?)\ parries\.$	{s1}が受け流した。
+^A\ quick\ stroke,\ but\ the\ (.+?)\ is\ on\ guard\.$	すばやい一撃だが、{s1}は身構えている。
+^A\ good\ stroke,\ but\ it's\ too\ slow;\ the\ (.+?)\ dodges\.$	いい一撃だが遅すぎた。{s1}がかわした。
+^Your\ (.+?)\ crashes\ down,\ knocking\ the\ (.+?)\ into\ dreamland\.$	あなたの{s1}が振り下ろされ、{s2}は夢の国へ送られた。
+^The\ (.+?)\ is\ battered\ into\ unconsciousness\.$	{s1}は打ちのめされて気を失った。
+^A\ furious\ exchange,\ and\ the\ (.+?)\ is\ knocked\ out!$	激しい打ち合いの末、{s1}は気絶した！
+^The\ haft\ of\ your\ (.+?)\ knocks\ out\ the\ (.+?)\.$	あなたの{s1}の柄が{s2}を打ち、気絶させた。
+^The\ (.+?)\ is\ knocked\ out!$	{s1}は気絶した！
+^It's\ curtains\ for\ the\ (.+?)\ as\ your\ (.+?)\ removes\ his\ head\.$	あなたの{s2}が{s1}の首をはね、{s1}は一巻の終わりだ。
+^The\ fatal\ blow\ strikes\ the\ (.+?)\ square\ in\ the\ heart:\ He\ dies\.$	致命の一撃が{s1}の心臓をまともにとらえた。{s1}は死んだ。
+^The\ (.+?)\ takes\ a\ fatal\ blow\ and\ slumps\ to\ the\ floor\ dead\.$	{s1}は致命の一撃を受け、床に崩れ落ちて死んだ。
+^The\ (.+?)\ is\ struck\ on\ the\ arm;\ blood\ begins\ to\ trickle\ down\.$	{s1}は腕を打たれ、血がしたたり始めた。
+^Your\ (.+?)\ pinks\ the\ (.+?)\ on\ the\ wrist,\ but\ it's\ not\ serious\.$	あなたの{s1}が{s2}の手首をかすめたが、深い傷ではない。
+^The\ blow\ lands,\ making\ a\ shallow\ gash\ in\ the\ (.+?)'s\ arm!$	一撃が決まり、{s1}の腕に浅い傷をつけた！
+^The\ (.+?)\ receives\ a\ deep\ gash\ in\ his\ side\.$	{s1}は脇腹に深い傷を負った。
+^The\ (.+?)\ is\ stunned\ but\ can\ still\ fight!$	{s1}はよろめいたが、まだ戦える！
+^The\ (.+?)\ is\ staggered,\ and\ drops\ to\ his\ knees\.$	{s1}はよろめき、ひざをついた。
+^The\ (.+?)\ is\ momentarily\ disoriented\ and\ can't\ fight\ back\.$	{s1}は一瞬方向を見失い、反撃できない。
+^The\ force\ of\ your\ blow\ knocks\ the\ (.+?)\ back,\ stunned\.$	あなたの一撃の勢いで{s1}は後ろへ吹き飛び、ふらふらになった。
+^The\ (.+?)\ is\ confused\ and\ can't\ fight\ back\.$	{s1}は混乱して反撃できない。
+^The\ quickness\ of\ your\ thrust\ knocks\ the\ (.+?)\ back,\ stunned\.$	あなたのすばやい突きで{s1}は後ろへ吹き飛び、ふらふらになった。
+^The\ (.+?)'s\ weapon\ is\ knocked\ to\ the\ floor,\ leaving\ him\ unarmed\.$	{s1}の武器が床にたたき落とされ、{s1}は丸腰になった。
+^The\ (.+?)\ is\ disarmed\ by\ a\ subtle\ feint\ past\ his\ guard\.$	巧みなフェイントで守りをかわされ、{s1}は武器を失った。
+^The\ Cyclops\ grabs\ your\ (.+?),\ tastes\ it,\ and\ throws\ it\ to\ the\ ground\ in\ disgust\.$	サイクロプスはあなたの{s1}をつかんでなめると、うんざりした様子で地面に投げ捨てた。
+^The\ monster\ grabs\ you\ on\ the\ wrist,\ squeezes,\ and\ you\ drop\ your\ (.+?)\ in\ pain\.$	怪物に手首をつかまれて締め上げられ、あなたは痛みで{s1}を落とした。
+^The\ troll\ charges,\ and\ his\ axe\ slashes\ you\ on\ your\ (.+?)\ arm\.$	トロールが突進し、斧があなたの{s1}の腕を切り裂いた。
+^The\ axe\ hits\ your\ (.+?)\ and\ knocks\ it\ spinning\.$	斧があなたの{s1}に当たり、はじき飛ばした。
+^The\ troll\ swings,\ you\ parry,\ but\ the\ force\ of\ his\ blow\ knocks\ your\ (.+?)\ away\.$	トロールの一撃を受け流したが、その勢いで{s1}が飛ばされた。
+^The\ axe\ knocks\ your\ (.+?)\ out\ of\ your\ hand\.$	斧があなたの手から{s1}をたたき落とした。
+^You\ catch\ it\ on\ your\ (.+?),\ but\ the\ thief\ twists\ his\ knife,\ and\ the\ (.+?)\ goes\ flying\.$	あなたは{s1}で受け止めたが、盗賊がナイフをひねり、{s1}は宙を舞った。
+^The\ thief\ neatly\ flips\ your\ (.+?)\ out\ of\ your\ hands,\ and\ it\ drops\ to\ the\ floor\.$	盗賊は見事にあなたの手から{s1}をはじき飛ばし、{s1}は床に落ちた。
+^You\ parry\ a\ low\ thrust,\ and\ your\ (.+?)\ slips\ out\ of\ your\ hand\.$	低い突きを受け流したが、{s1}が手からすべり落ちた。
+^You have a light wound, which will be cured after (\d+) moves?\.$	あなたは軽い傷を負っている。あと{r1}手で治る。
+^You have a serious wound, which will be cured after (\d+) moves?\.$	あなたは重い傷を負っている。あと{r1}手で治る。
+^You have several wounds, which will be cured after (\d+) moves?\.$	あなたはいくつも傷を負っている。あと{r1}手で治る。
+^You have serious wounds, which will be cured after (\d+) moves?\.$	あなたはひどい傷をいくつも負っている。あと{r1}手で治る。
+^On the ground below you can see: +(.+)\.$	下の地面に見えるもの：{s1}。
+^The (.+) is now full of water\.$	{s1}が水でいっぱいになった。

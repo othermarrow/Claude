@@ -91,6 +91,8 @@ function sentenceJa(s) {
       out = out.split('{r' + i + '}').join(g)
       // {v1} は動詞。辞書になければ英語を「」に入れる
       out = out.split('{v' + i + '}').join(VERBS_EN[norm(g).toLowerCase()] || '「' + g + '」')
+      // {s1} は名前。辞書になければ英語のまま
+      if (out.includes('{s' + i + '}')) out = out.split('{s' + i + '}').join(nameJa(g) || g)
       if (out.includes('{' + i + '}')) {
         let j = nameJa(g)
         if (j === null && SHORT_NAME_RE.test(g) && g.split(' ').length <= 3) j = g

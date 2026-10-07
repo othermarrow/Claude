@@ -1,0 +1,195 @@
+<title>ZORK I 日本語版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+/* 元祖 ZORK の画面（黒地・灰色の文字・反転した状態行）を、鮮明なドット書体で描き直す。
+   ひとつの見た目に決めているので、明暗テーマは切り替えない。 */
+:root {
+  --screen: #050505;
+  --phosphor: #c9c9c4;
+  --bright: #f2f2ec;
+  --dim: #7d7d78;
+  --faint: #3a3a37;
+  --bar-bg: #c9c9c4;
+  --bar-fg: #050505;
+  --dot: "DotGothic16", "Noto Sans Mono CJK JP", "Osaka-Mono", ui-monospace, monospace;
+  --size: 17px;
+  --line: 1.6;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body {
+  background: var(--screen);
+  color: var(--phosphor);
+  font-family: var(--dot);
+  font-size: var(--size);
+  line-height: var(--line);
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+#app { height: 100%; display: flex; flex-direction: column; }
+
+/* 状態行 */
+#bar {
+  display: flex; align-items: baseline; gap: 1em;
+  background: var(--bar-bg); color: var(--bar-fg);
+  padding: 0.15em 16px; white-space: nowrap;
+}
+#room { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#room .en { font-size: 0.8em; margin-left: 0.6em; color: #3d3d3a; }
+#score { font-variant-numeric: tabular-nums; }
+#menu-btn {
+  font: inherit; background: none; border: 0; color: var(--bar-fg);
+  padding: 0 0.2em; cursor: pointer;
+}
+#menu-btn:focus-visible { outline: 2px solid var(--bar-fg); }
+
+/* 本文 */
+#screen {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding-inline: 16px; padding-block: 1.2em 0.6em;
+  overscroll-behavior: contain;
+}
+#log { max-width: 46em; display: flex; flex-direction: column; }
+.row { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.row .en { display: block; color: var(--dim); font-size: 0.86em; line-height: 1.45; }
+.row.indent { padding-left: 1.5em; }
+.row.room .ja { color: var(--bright); }
+.gap { height: calc(var(--size) * 0.7); }
+.cmd { color: var(--bright); margin-top: 0.4em; }
+.cmd .sent { color: var(--dim); font-size: 0.86em; margin-left: 0.8em; }
+.note { color: var(--dim); font-size: 0.86em; }
+.pending .tag { color: var(--dim); font-size: 0.8em; margin-left: 0.6em; }
+body.mode-ja .row .en, body.mode-ja .cmd .sent { display: none; }
+body.mode-en .row .ja { display: none; }
+body.mode-en .row .ja.en-too { display: inline; }
+body.mode-en .row .en { color: var(--phosphor); font-size: 1em; line-height: var(--line); }
+
+/* 入力 */
+#dock { border-top: 1px solid var(--faint); padding-block: 0.5em calc(0.6em + env(safe-area-inset-bottom, 0px)); }
+#keys {
+  display: flex; gap: 0.4em; overflow-x: auto; padding-inline: 16px; padding-block: 0 0.5em;
+  scrollbar-width: none;
+}
+#keys::-webkit-scrollbar { display: none; }
+.key {
+  flex: none; font: inherit; font-size: 0.9em; line-height: 1.2;
+  background: transparent; color: var(--phosphor);
+  border: 1px solid var(--faint); padding: 0.35em 0.7em; cursor: pointer;
+}
+.key:active { background: var(--phosphor); color: var(--screen); }
+.key:focus-visible { outline: 1px solid var(--bright); }
+.key.sep { border: 0; padding: 0.35em 0.1em; color: var(--faint); cursor: default; }
+#prompt { display: flex; align-items: center; gap: 0.5em; padding-inline: 16px; }
+#prompt label { color: var(--bright); }
+#cmd {
+  flex: 1; min-width: 0; font: inherit; font-size: max(16px, 1em);
+  background: transparent; color: var(--bright); border: 0; outline: 0;
+  caret-color: var(--bright); padding: 0.2em 0;
+}
+#cmd::placeholder { color: var(--faint); }
+#send {
+  font: inherit; background: var(--phosphor); color: var(--screen);
+  border: 0; padding: 0.2em 0.8em; cursor: pointer;
+}
+#send:focus-visible { outline: 2px solid var(--bright); outline-offset: 2px; }
+
+/* メニュー */
+#sheet {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.72);
+  display: flex; align-items: flex-start; justify-content: flex-end;
+  padding: calc(2.4em + env(safe-area-inset-top, 0px)) 16px 16px;
+}
+#sheet .panel {
+  background: var(--screen); border: 1px solid var(--phosphor);
+  width: min(22em, 100%); padding: 1em; display: flex; flex-direction: column; gap: 0.9em;
+}
+#sheet h2 { font: inherit; color: var(--bright); margin: 0; }
+.opt { display: flex; flex-wrap: wrap; gap: 0.4em; align-items: center; }
+.opt > span { width: 100%; color: var(--dim); font-size: 0.86em; }
+.opt .key[aria-pressed="true"] { background: var(--phosphor); color: var(--screen); }
+#sheet p { margin: 0; color: var(--dim); font-size: 0.86em; line-height: 1.5; }
+#confirm-row { display: flex; gap: 0.4em; align-items: center; flex-wrap: wrap; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .row.fresh { animation: type-in 0.18s steps(3, end); }
+  @keyframes type-in { from { opacity: 0.2; } to { opacity: 1; } }
+}
+</style>
+
+<div id="app">
+  <header id="bar">
+    <span id="room">ZORK I</span>
+    <span id="score">得点 0　手数 0</span>
+    <button id="menu-btn" type="button" aria-label="メニュー" aria-expanded="false">≡</button>
+  </header>
+
+  <main id="screen" aria-live="polite">
+    <div id="log"></div>
+  </main>
+
+  <footer id="dock">
+    <div id="keys" aria-label="よく使う命令">
+      <button class="key" type="button" data-cmd="見る">見る</button>
+      <button class="key" type="button" data-cmd="持ち物">持ち物</button>
+      <span class="key sep" aria-hidden="true">|</span>
+      <button class="key" type="button" data-cmd="北">北</button>
+      <button class="key" type="button" data-cmd="南">南</button>
+      <button class="key" type="button" data-cmd="東">東</button>
+      <button class="key" type="button" data-cmd="西">西</button>
+      <button class="key" type="button" data-cmd="上">上</button>
+      <button class="key" type="button" data-cmd="下">下</button>
+      <button class="key" type="button" data-cmd="北東">北東</button>
+      <button class="key" type="button" data-cmd="北西">北西</button>
+      <button class="key" type="button" data-cmd="南東">南東</button>
+      <button class="key" type="button" data-cmd="南西">南西</button>
+      <button class="key" type="button" data-cmd="中に入る">入る</button>
+      <button class="key" type="button" data-cmd="外に出る">出る</button>
+      <span class="key sep" aria-hidden="true">|</span>
+      <button class="key" type="button" data-cmd="全部取る">全部取る</button>
+      <button class="key" type="button" data-cmd="待つ">待つ</button>
+      <button class="key" type="button" data-cmd="得点">得点</button>
+      <button class="key" type="button" data-cmd="セーブ">セーブ</button>
+      <button class="key" type="button" data-cmd="ロード">ロード</button>
+    </div>
+    <form id="prompt" autocomplete="off">
+      <label for="cmd">&gt;</label>
+      <input id="cmd" type="text" enterkeyhint="send" placeholder="郵便受けを開ける" autocapitalize="off" spellcheck="false">
+      <button id="send" type="submit">決定</button>
+    </form>
+  </footer>
+
+  <div id="sheet" hidden>
+    <div class="panel" role="dialog" aria-label="設定">
+      <h2>設定</h2>
+      <div class="opt" id="opt-mode">
+        <span>表示</span>
+        <button class="key" type="button" data-mode="both">日本語＋英語</button>
+        <button class="key" type="button" data-mode="ja">日本語だけ</button>
+        <button class="key" type="button" data-mode="en">英語だけ</button>
+      </div>
+      <div class="opt" id="opt-ai">
+        <span>辞書にない文の翻訳（claude.ai の中だけ。Claude を使う）</span>
+        <button class="key" type="button" data-ai="on">使う</button>
+        <button class="key" type="button" data-ai="off">使わない</button>
+      </div>
+      <div class="opt">
+        <span>ゲーム</span>
+        <div id="confirm-row">
+          <button class="key" type="button" id="restart-btn">はじめから遊ぶ</button>
+          <button class="key" type="button" id="restart-yes" hidden>本当にはじめから</button>
+          <button class="key" type="button" id="restart-no" hidden>やめる</button>
+        </div>
+      </div>
+      <p>命令は日本語でも英語でも入力できます。例：郵便受けを開ける／チラシを読む／ランプをつける／剣でトロールを攻撃。セーブは1か所に保存され、ロードで戻れます（claude.ai では claude.ai に、Tasker では Tasker/zork-ja/zork-ja-data.json に保存）。途中の画面は自動で残り、次に開いたときに続きから遊べます。</p>
+      <p>ZORK I © Infocom（MIT ライセンスで公開されたゲームファイルを使用）</p>
+      <button class="key" type="button" id="close-sheet">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/*@SCRIPTS@*/
+</script>

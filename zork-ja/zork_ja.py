@@ -4,9 +4,8 @@
 dfrotz（文字だけの Z マシン）を裏で動かし、
 - ゲームの出力を辞書で日本語にして表示する
 - 日本語の命令を英語の命令に直してゲームに渡す
-辞書にない文は、Gemini API キーがあれば AI で訳してキャッシュに保存する。
+辞書にない文は英語のまま表示する。
 """
-import json
 import os
 import re
 import select
@@ -14,8 +13,6 @@ import shutil
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 
 try:
     import readline  # noqa: F401  入力欄で矢印キーや履歴を使えるようにする
@@ -25,13 +22,8 @@ except ImportError:
 BASE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(BASE, "data")
 HOME_DIR = os.path.expanduser("~/.zork-ja")
-CACHE_FILE = os.path.join(HOME_DIR, "cache.tsv")
-KEY_FILE = os.path.join(HOME_DIR, "gemini_key")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
 STATUS_RE = re.compile(r"^\s*(.*?)\s{2,}Score:\s*(-?\d+)\s+Moves:\s*(\d+)\s*$")
-# 「sword: You can't ...」のような「物の名前: 文」の形
-PREFIX_RE = re.compile(r"^([a-z][a-z' -]{1,30}): (.+)$")
 # 辞書にない名前でも、短い名詞なら英語のままテンプレートに入れる
 SHORT_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z' -]*$")
 # 「Mr.」「1.」などの後では文を区切らない
@@ -44,8 +36,9 @@ HELP = """\
   例   : 郵便受けを開ける / チラシを読む / ランプをつける / 全部取る
          剣でトロールを攻撃 / 袋をテーブルに置く→「袋を置く」
   特殊 : 見る（周りを見る） / 持ち物 / 待つ / 得点 / セーブ / ロード / 終了
-  ほか : :en … 次の出力を英語のまま表示する切り替え
-         :help … この説明
+  表示 : :both … 日本語と英語を併記（はじめはこれ）
+         :ja … 日本語だけ　　:en … 英語だけ
+  ほか : :help … この説明
 英語の命令（open mailbox など）はそのまま渡します。
 """
 
@@ -112,31 +105,20 @@ def norm(s):
 class Translator:
     def __init__(self):
         self.names = {norm(r[0]).lower(): r[1] for r in read_tsv("names.tsv")}
+        self.msgs = {norm(r[0]): r[1] for r in read_tsv("messages.tsv")}
+        self.verbs_en = {norm(r[0]).lower(): r[1] for r in read_tsv("verbs_en.tsv")}
+        # 「candles」→「pair of candles」のように、名前の最後の部分だけのとき用
         self.suffix = {}
         for en in sorted(self.names, key=len):
             w = en.split()
             for i in range(1, len(w)):
                 self.suffix.setdefault(" ".join(w[i:]), self.names[en])
-        self.msgs = {norm(r[0]): r[1] for r in read_tsv("messages.tsv")}
-        self.verbs_en = {norm(r[0]).lower(): r[1] for r in read_tsv("verbs_en.tsv")}
         self.patterns = []
         for r in read_tsv("patterns.tsv"):
             try:
                 self.patterns.append((re.compile(r[0]), r[1]))
             except re.error as e:
                 print(f"[patterns.tsv の正規表現エラー: {r[0]} ({e})]")
-        self.cache = {}
-        if os.path.exists(CACHE_FILE):
-            with open(CACHE_FILE, encoding="utf-8") as f:
-                for line in f:
-                    if "\t" in line:
-                        en, ja = line.rstrip("\n").split("\t", 1)
-                        self.cache[en] = ja
-        self.key = os.environ.get("GEMINI_API_KEY", "")
-        if not self.key and os.path.exists(KEY_FILE):
-            with open(KEY_FILE, encoding="utf-8") as f:
-                self.key = f.read().strip()
-        self.ai_failed = False
 
     # ---- 名前 ----
     def name(self, s):
@@ -149,7 +131,6 @@ class Translator:
         low = re.sub(r"^(a|an|the|some|your)\s+", "", s.lower())
         if low in self.names:
             return self.names[low]
-        # 「candles」→「pair of candles」のように、名前の最後の部分だけのとき
         if low in self.suffix:
             return self.suffix[low]
         parts = re.split(r",\s*(?:and\s+|or\s+)?|\s+and\s+|\s+or\s+", low)
@@ -166,14 +147,11 @@ class Translator:
             return ""
         if s in self.msgs:
             return self.msgs[s]
-        if s in self.cache:
-            return self.cache[s]
-        m = PREFIX_RE.match(s)
-        if m:
-            j = self.name(m.group(1))
+        m = re.match(r"^([^:]{1,60}): (.+)$", s)
+        if m and self.name(m.group(1)):
             rest = self.sentence(m.group(2))
-            if j and rest is not None:
-                return j + "：" + rest
+            if rest is not None:
+                return self.name(m.group(1)) + "：" + rest
         for rx, tmpl in self.patterns:
             m = rx.match(s)
             if not m:
@@ -184,6 +162,8 @@ class Translator:
                 out = out.replace("{r%d}" % i, g)
                 # {v1} は動詞。辞書になければ英語を「」に入れる
                 out = out.replace("{v%d}" % i, self.verbs_en.get(norm(g).lower(), "「%s」" % g))
+                if "{s%d}" % i in out:
+                    out = out.replace("{s%d}" % i, self.name(g) or g)
                 if "{%d}" % i in out:
                     j = self.name(g)
                     if j is None and SHORT_NAME_RE.match(g) and len(g.split()) <= 3:
@@ -208,93 +188,9 @@ class Translator:
             parts.append((self.sentence(sent), sent))
         return parts
 
-    # ---- AI 翻訳 ----
-    def ai_translate(self, sentences):
-        if not self.key or self.ai_failed or not sentences:
-            return {}
-        gloss = [f"{en} = {ja}" for en, ja in self.names.items()
-                 if any(en in s.lower() for s in sentences)]
-        prompt = (
-            "あなたはテキストアドベンチャー『Zork I』の翻訳者です。"
-            "次の JSON 配列の英文を、ゲームの語り口に合う自然な日本語に訳し、"
-            "同じ順番・同じ件数の JSON 文字列配列だけを返してください。"
-            "二人称は「あなた」、地の文は常体（〜だ・〜である）にしてください。\n"
-            + ("用語集:\n" + "\n".join(gloss) + "\n" if gloss else "")
-            + "英文:\n" + json.dumps(sentences, ensure_ascii=False))
-        body = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.2,
-                                 "responseMimeType": "application/json"},
-        }
-        url = ("https://generativelanguage.googleapis.com/v1beta/models/"
-               f"{GEMINI_MODEL}:generateContent")
-        req = urllib.request.Request(
-            url, data=json.dumps(body).encode("utf-8"),
-            headers={"Content-Type": "application/json",
-                     "x-goog-api-key": self.key})
-        try:
-            with urllib.request.urlopen(req, timeout=40) as r:
-                resp = json.load(r)
-            text = resp["candidates"][0]["content"]["parts"][0]["text"]
-            out = json.loads(text)
-        except urllib.error.HTTPError as e:
-            print(f"[AI翻訳に失敗しました: HTTP {e.code}。以降は英語のまま表示します]")
-            self.ai_failed = True
-            return {}
-        except Exception as e:  # 通信エラーや形式の崩れ
-            print(f"[AI翻訳に失敗しました: {e}]")
-            return {}
-        if not isinstance(out, list) or len(out) != len(sentences):
-            return {}
-        result = {}
-        os.makedirs(HOME_DIR, exist_ok=True)
-        with open(CACHE_FILE, "a", encoding="utf-8") as f:
-            for en, ja in zip(sentences, out):
-                ja = norm(str(ja))
-                if ja:
-                    result[en] = ja
-                    self.cache[en] = ja
-                    f.write(f"{en}\t{ja}\n")
-        return result
-
-    def ai_command(self, ja):
-        """日本語の命令を Zork の英語命令に（AI）。"""
-        key = "CMD:" + ja
-        if key in self.cache:
-            return self.cache[key]
-        if not self.key or self.ai_failed:
-            return None
-        prompt = ("テキストアドベンチャー『Zork I』の命令を英語に直します。"
-                  "次の日本語の命令を、Zork のパーサが理解できる短い英語の命令"
-                  "（例: open mailbox, take lamp, attack troll with sword, go north）"
-                  "1つだけにして、JSON 文字列で返してください。\n命令: " + ja)
-        body = {"contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0,
-                                     "responseMimeType": "application/json"}}
-        url = ("https://generativelanguage.googleapis.com/v1beta/models/"
-               f"{GEMINI_MODEL}:generateContent")
-        req = urllib.request.Request(
-            url, data=json.dumps(body).encode("utf-8"),
-            headers={"Content-Type": "application/json",
-                     "x-goog-api-key": self.key})
-        try:
-            with urllib.request.urlopen(req, timeout=30) as r:
-                resp = json.load(r)
-            en = json.loads(resp["candidates"][0]["content"]["parts"][0]["text"])
-        except Exception:
-            return None
-        if not isinstance(en, str) or not en.strip():
-            return None
-        en = en.strip().lower()
-        os.makedirs(HOME_DIR, exist_ok=True)
-        with open(CACHE_FILE, "a", encoding="utf-8") as f:
-            f.write(f"{key}\t{en}\n")
-        self.cache[key] = en
-        return en
-
     # ---- 出力ブロック全体 ----
     def block(self, raw):
-        """ゲーム出力のかたまりを訳す。(状態行, 本文) を返す。"""
+        """ゲーム出力のかたまりを訳す。(状態行, [(日本語, 英語), ...]) を返す。"""
         status = None
         lines = raw.replace("\r", "").split("\n")
         body = []
@@ -323,33 +219,32 @@ class Translator:
             body[-1] = body[-1].rstrip()[:-1].rstrip()
 
         translated = []
-        pending = []
         for ln in body:
             if not ln.strip():
-                translated.append(("", None))
+                translated.append(("", None, ""))
                 continue
             indent = len(ln) - len(ln.lstrip())
             if indent:
                 j = self.name(ln.strip()) or self.sentence(ln.strip())
                 if j is not None:
-                    translated.append((" " * indent + j, None))
+                    translated.append((" " * indent + j, None, ln.rstrip()))
                     continue
             parts = self.line(ln)
-            translated.append((None, parts))
-            pending += [en for ja, en in parts if ja is None]
+            translated.append((None, parts, ln.rstrip()))
 
-        ai = self.ai_translate(list(dict.fromkeys(pending))) if pending else {}
         out = []
-        for text, parts in translated:
+        for text, parts, en_line in translated:
             if parts is None:
-                out.append(text)
+                out.append((text, en_line))
                 continue
             seg = []
             for ja, en in parts:
-                seg.append(ja if ja is not None else ai.get(en, en))
-            out.append("".join(seg) if all(
-                ja is not None or en in ai for ja, en in parts) else " ".join(seg))
-        return status, "\n".join(out)
+                seg.append(ja if ja is not None else en)
+            # 訳せなかった文が混じる行は、英文の区切りが分かるよう空白でつなぐ
+            ja_line = "".join(seg) if all(
+                ja is not None for ja, en in parts) else " ".join(seg)
+            out.append((ja_line, en_line))
+        return status, out
 
 
 I_TO_U = {"い": "う", "き": "く", "ぎ": "ぐ", "し": "す", "ち": "つ",
@@ -555,21 +450,33 @@ def main():
     tr = Translator()
     cp = CommandParser(tr)
     game = Game(dfrotz, story)
-    english = False
-    if not tr.key:
-        print("[Gemini API キーが未設定のため、辞書にない文は英語のまま表示します]")
+    # 表示のしかた: both＝日本語と英語を併記 / ja＝日本語だけ / en＝英語だけ
+    mode = os.environ.get("ZORK_JA_MODE", "both")
+    if mode not in ("both", "ja", "en"):
+        mode = "both"
+    gray = "" if os.environ.get("NO_COLOR") else "\033[90m"
+    reset = "" if os.environ.get("NO_COLOR") else "\033[0m"
     print(HELP)
 
     def show(raw):
-        if english:
-            print(raw.rstrip().rstrip(">").rstrip())
+        status, lines = tr.block(raw)
+        if mode == "en":
+            if status:
+                print(f"―― {status[0]}　Score {status[1]} / Moves {status[2]} ――")
+            for ja, en in lines:
+                print(en)
             return
-        status, text = tr.block(raw)
         if status:
             room = tr.name(status[0]) or status[0]
+            if mode == "both" and room != status[0]:
+                room = f"{room}（{status[0]}）"
             print(f"―― {room}　得点 {status[1]}／手数 {status[2]} ――")
-        if text.strip():
-            print(text)
+        for ja, en in lines:
+            print(ja)
+            # 併記のときは、訳せた行の下に英語の原文を灰色で出す
+            if mode == "both" and en.strip() and norm(ja) != norm(en):
+                indent = en[: len(en) - len(en.lstrip())]
+                print(f"{indent}{gray}{en.strip()}{reset}")
 
     raw = game.read()
     show(raw)
@@ -584,14 +491,17 @@ def main():
         if line in (":help", ":ヘルプ", "ヘルプ", "help?"):
             print(HELP)
             continue
-        if line in (":en", ":英語"):
-            english = not english
-            print("[英語表示: %s]" % ("オン" if english else "オフ"))
+        new_mode = {":both": "both", ":併記": "both", ":ja": "ja", ":日本語": "ja",
+                    ":en": "en", ":英語": "en"}.get(line)
+        if new_mode:
+            mode = new_mode
+            print("[表示: %s]" % {"both": "日本語と英語を併記", "ja": "日本語だけ",
+                                  "en": "英語だけ"}[mode])
             continue
         if raw_input_next or not line or re.fullmatch(r"[\x20-\x7e]+", line):
             cmd = line
         else:
-            cmd = cp.parse(line) or tr.ai_command(line)
+            cmd = cp.parse(line)
             if not cmd:
                 print("その命令はうまく英語に直せませんでした。"
                       "言い方を変えるか、英語で入力してください（:help で例）。")
