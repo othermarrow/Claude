@@ -162,11 +162,23 @@ class ZMachine {
     const entryLen = this.mem[a++];
     const count = this.w(a); a += 2;
     this.dict = new Map();
+    this.dictAddrs = [];
     for (let i = 0; i < count; i++) {
       const key = Array.from(this.mem.subarray(a, a + 4)).join(",");
       this.dict.set(key, a);
+      this.dictAddrs.push(a);
       a += entryLen;
     }
+    this.wordList = null;
+  }
+  // 単語がゲームの辞書にあるか（6文字までで比べる）
+  lookup(word) { return this.dict.has(this.encodeWord(String(word).toLowerCase())); }
+  // ゲームの辞書の単語（英字だけのもの）。入力の候補に使う
+  dictWords() {
+    if (!this.wordList) {
+      this.wordList = this.dictAddrs.map(a => this.decode(a, 4).text).filter(w => /^[a-z]+$/.test(w));
+    }
+    return this.wordList;
   }
   encodeWord(word) {
     const A2 = "\n0123456789.,!?_#'\"/\\-:()";

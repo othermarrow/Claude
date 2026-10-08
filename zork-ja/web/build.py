@@ -37,6 +37,7 @@ def main():
         "const ZDATA = " + json.dumps(data, ensure_ascii=False) + ";",
         read(HERE, "src", "zmachine.js"),
         read(HERE, "src", "translate.js"),
+        read(HERE, "src", "scene.js"),
         read(HERE, "src", "app.js"),
     ])
     # </script> が中に現れると HTML が途中で切れるので避ける

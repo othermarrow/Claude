@@ -264,13 +264,17 @@
   }
 
   // ---- 入力 ----
-  async function submit(text) {
-    text = text.trim();
+  // text は画面に出す言葉。en があれば、それをそのままゲームに渡す（ボタンや「命令を作る」から）
+  async function submit(text, en) {
+    text = String(text || "").trim();
     if (busy || zm.finished) return;
     busy = true;
     try {
       let cmd = text;
-      if (text && !/^[\x20-\x7e]*$/.test(text)) {
+      if (en) {
+        cmd = en;
+        push({ t: "cmd", ja: text || en, en: text && text !== en ? en : "" });
+      } else if (text && !/^[\x20-\x7e]*$/.test(text)) {
         cmd = cp.parse(text);
         if (!cmd) {
           const note = { t: "note", ja: "（考え中…）" };
@@ -290,7 +294,9 @@
       } else push({ t: "cmd", ja: text, en: "" });
       const out = zm.input(cmd);
       if (zm.saveRequest) { const s = zm.saveRequest; zm.saveRequest = null; writeSave(s); }
+      lastRaw = out;
       showOutput(out);
+      updateSuggest();
       if (zm.finished) {
         push({ t: "note", ja: "ゲームが終わりました。右上の ≡ から「はじめから遊ぶ」を選べます。" });
         LS.del(K.auto);
@@ -310,10 +316,196 @@
     cmdEl.value = "";
     submit(v);
   });
-  $("keys").addEventListener("click", e => {
-    const b = e.target.closest("[data-cmd]");
-    if (b) submit(b.dataset.cmd);
+  $("pad").addEventListener("click", e => {
+    const b = e.target.closest("[data-en]");
+    if (b) submit(b.textContent, b.dataset.en);
   });
+
+  // ---- 入力欄の候補（英単語の続き・はい／いいえ） ----
+  let lastRaw = "";
+  const STARTERS = ["take", "drop", "open", "read", "examine", "turn on", "attack", "with"];
+  function contextWords() {
+    const set = new Set();
+    const text = lastOutputText() + " " + choices().map(c => c.word).join(" ");
+    for (const w of text.toLowerCase().split(/[^a-z]+/)) if (w) set.add(w.slice(0, 6));
+    return set;
+  }
+  function chip(label, onClick, cls) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "key" + (cls ? " " + cls : ""); b.textContent = label;
+    // 押したときに入力欄からフォーカスが外れないようにする
+    b.addEventListener("pointerdown", e => e.preventDefault());
+    b.addEventListener("click", onClick);
+    return b;
+  }
+  function updateSuggest() {
+    const box = $("suggest");
+    box.textContent = "";
+    const v = cmdEl.value;
+    const typing = document.body.classList.contains("typing");
+    if (/RESTART, RESTORE, or QUIT/.test(lastRaw)) {
+      for (const [ja, en] of [["やり直す", "restart"], ["ロード", "restore"], ["終了", "quit"]]) box.append(chip(ja, () => submit(ja, en), "ask"));
+    } else if (/\(Y is affirmative\)/.test(lastRaw)) {
+      for (const [ja, en] of [["はい", "yes"], ["いいえ", "no"]]) box.append(chip(ja, () => submit(ja, en), "ask"));
+    } else if (typing && /^[\x20-\x7e]*$/.test(v)) {
+      const part = (v.match(/[a-z]+$/i) || [""])[0].toLowerCase();
+      let list;
+      if (part) {
+        const ctx = contextWords();
+        list = zm.dictWords().filter(w => w.startsWith(part) && w !== part)
+          .sort((a, b) => (ctx.has(b) ? 1 : 0) - (ctx.has(a) ? 1 : 0) || a.length - b.length || (a < b ? -1 : 1))
+          .slice(0, 10);
+      } else list = v.trim() ? [] : STARTERS;
+      for (const w of list) {
+        box.append(chip(w, () => {
+          cmdEl.value = part ? cmdEl.value.replace(/[a-z]+$/i, w + " ") : cmdEl.value + w + " ";
+          cmdEl.focus(); updateSuggest();
+        }));
+      }
+    }
+    box.hidden = !box.childElementCount;
+  }
+  cmdEl.addEventListener("input", updateSuggest);
+  cmdEl.addEventListener("focus", () => { document.body.classList.add("typing"); updateSuggest(); scrollDown(); });
+  cmdEl.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (document.activeElement !== cmdEl) { document.body.classList.remove("typing"); updateSuggest(); }
+    }, 120);
+  });
+
+  // ---- 命令を作る（動詞 → 物 → 2つ目の物）。時計版 zork-watch と同じ流れ ----
+  // [ボタンの文字, 英語の型, 日本語の型]。% は1つ目の物、# は2つ目の物
+  const VERBS = [
+    ["調べる", "examine %", "%を調べる"], ["取る", "take %", "%を取る"],
+    ["置く", "drop %", "%を置く"], ["開ける", "open %", "%を開ける"],
+    ["閉める", "close %", "%を閉める"], ["読む", "read %", "%を読む"],
+    ["つける", "turn on %", "%をつける"], ["消す", "turn off %", "%を消す"],
+    ["動かす", "move %", "%を動かす"], ["押す", "push %", "%を押す"],
+    ["中を見る", "look in %", "%の中を見る"], ["登る", "climb %", "%に登る"],
+    ["入る・乗る", "enter %", "%に入る"], ["食べる", "eat %", "%を食べる"],
+    ["飲む", "drink %", "%を飲む"], ["振る", "wave %", "%を振る"],
+    ["鳴らす", "ring %", "%を鳴らす"], ["こする", "rub %", "%をこする"],
+    ["攻撃する", "attack % with #", "#で%を攻撃する"], ["入れる", "put % in #", "%を#に入れる"],
+    ["上に置く", "put % on #", "%を#の上に置く"], ["結ぶ", "tie % to #", "%を#に結ぶ"],
+    ["鍵を開ける", "unlock % with #", "#で%の鍵を開ける"], ["火をつける", "light % with #", "#で%に火をつける"],
+    ["投げる", "throw % at #", "%を#に投げる"], ["渡す", "give % to #", "%を#に渡す"],
+    ["ふくらます", "inflate % with #", "#で%をふくらます"], ["掘る", "dig in % with #", "#で%を掘る"],
+  ];
+  // 文章に出てきても、物の一覧には出さない名前
+  const NOT_THINGS = ["you", "me", "myself", "yourself", "it", "them", "all", "ground", "number", "pseudo",
+    "blessings", "kwpxm", "such thing", "random object", "lungs"];
+  let allObjs = null;
+  function lastOutputText() {
+    let i = rows.length - 1;
+    while (i >= 0 && rows[i].t !== "cmd") i--;
+    return rows.slice(i + 1).filter(r => r.t === "out").map(r => r.en).join(" ");
+  }
+  // いま選べる物: [{ ja, en, word, held }]
+  function choices() {
+    const { here, held } = Scene.scene(zm);
+    const out = [], seen = new Set();
+    const add = (en, word, isHeld) => {
+      if (!word || seen.has(word)) return;
+      seen.add(word);
+      out.push({ ja: tr.name(en) || en, en, word, held: isHeld });
+    };
+    for (const o of held) add(o.en, o.word, true);
+    for (const o of here) add(o.en, o.word, false);
+    if (!allObjs) allObjs = Scene.allObjects(zm);
+    for (const o of Scene.mentioned(zm, allObjs, lastOutputText())) {
+      if (NOT_THINGS.includes(o.word) || NOT_THINGS.includes(o.en)) continue;
+      // 名前の最後の単語だけが出てきたときは、その単語で表示する
+      add(o.word === o.last && o.en !== o.last ? o.last : o.en, o.word, false);
+    }
+    return out;
+  }
+  const builder = $("builder");
+  const bs = { step: "verb", verb: null, obj1: null };
+  function fill(tmpl, a, b) { return tmpl.replace("%", a).replace("#", b); }
+  function bButton(main, sub, onClick, cls) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "bk" + (cls ? " " + cls : "");
+    const m = document.createElement("span"); m.textContent = main; b.append(m);
+    if (sub) { const t = document.createElement("span"); t.className = "sub"; t.textContent = sub; b.append(t); }
+    b.addEventListener("click", onClick);
+    return b;
+  }
+  function renderBuilder() {
+    const list = $("b-list");
+    list.textContent = "";
+    list.scrollTop = 0;
+    if (bs.step === "verb") {
+      $("b-title").textContent = "何をする？";
+      $("b-preview").textContent = "";
+      list.className = "verbs";
+      for (const v of VERBS) {
+        list.append(bButton(v[0], v[1].replace(/ ?[%#]/g, "").trim(), () => {
+          bs.verb = v; bs.step = "obj"; renderBuilder();
+        }));
+      }
+      $("b-back").hidden = true;
+      return;
+    }
+    $("b-back").hidden = false;
+    const v = bs.verb, second = bs.step === "obj2";
+    $("b-title").textContent = second ? "何で・何に？" : "何を？";
+    $("b-preview").textContent = second
+      ? fill(v[2], bs.obj1.ja, "…") + "　" + fill(v[1], bs.obj1.word, "…")
+      : fill(v[2], "…", "…") + "　" + fill(v[1], "…", "…");
+    list.className = "one";
+    let items = choices();
+    if (second) items = items.filter(it => it.word !== bs.obj1.word);
+    if (!second && /^(take|drop|put) /.test(v[1])) items.push({ ja: "全部", en: "all", word: "all", held: false });
+    for (const it of items) {
+      const label = it.ja + (it.held ? "（持）" : "");
+      list.append(bButton(label, it.ja !== it.en ? it.en : "", () => {
+        if (!second) {
+          bs.obj1 = it;
+          if (v[1].includes("#")) { bs.step = "obj2"; renderBuilder(); return; }
+          closeBuilder();
+          submit(fill(v[2], it.ja, ""), fill(v[1], it.word, ""));
+        } else {
+          closeBuilder();
+          submit(fill(v[2], bs.obj1.ja, it.ja), fill(v[1], bs.obj1.word, it.word));
+        }
+      }, it.held ? "held" : ""));
+    }
+    if (!items.length) {
+      const p = document.createElement("p");
+      p.className = "empty"; p.textContent = "選べる物がありません。「キーボードで書く」で入力できます。";
+      list.append(p);
+    }
+  }
+  function openBuilder() {
+    if (busy || zm.finished) return;
+    bs.step = "verb"; bs.verb = null; bs.obj1 = null;
+    builder.hidden = false;
+    $("build-btn").setAttribute("aria-expanded", "true");
+    renderBuilder();
+  }
+  function closeBuilder() {
+    builder.hidden = true;
+    $("build-btn").setAttribute("aria-expanded", "false");
+  }
+  $("build-btn").addEventListener("click", openBuilder);
+  $("b-close").addEventListener("click", closeBuilder);
+  builder.addEventListener("click", e => { if (e.target === builder) closeBuilder(); });
+  $("b-back").addEventListener("click", () => {
+    bs.step = bs.step === "obj2" ? "obj" : "verb";
+    renderBuilder();
+  });
+  // 一覧にない物はキーボードで。途中まで組み立てた英語の命令を入力欄に入れる
+  $("b-keys").addEventListener("click", () => {
+    let prefix = "";
+    if (bs.verb) {
+      prefix = bs.step === "obj2" ? fill(bs.verb[1], bs.obj1.word, "") : bs.verb[1].split("%")[0];
+    }
+    closeBuilder();
+    cmdEl.value = prefix;
+    cmdEl.focus();
+    updateSuggest();
+  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !builder.hidden) closeBuilder(); });
 
   // ---- メニュー ----
   const sheet = $("sheet");
@@ -348,7 +540,9 @@
     LS.del(K.auto); LS.del(K.log);
     rows = []; logEl.textContent = "";
     zm.restart();
-    showOutput(zm.run());
+    lastRaw = zm.run();
+    showOutput(lastRaw);
+    updateSuggest();
   });
 
   // ---- 起動 ----
@@ -364,7 +558,9 @@
       resumed = true;
     }
   } catch (e) { /* 壊れた自動保存は使わない */ }
-  if (!resumed) { zm.restart(); showOutput(zm.run()); }
+  if (!resumed) { zm.restart(); lastRaw = zm.run(); showOutput(lastRaw); }
+  else lastRaw = lastOutputText();
+  updateSuggest();
   try { savedGame = JSON.parse(LS.get(K.save) || "null"); } catch (e) { savedGame = null; }
 
   // claude.ai の中で開いたときだけ使える機能
