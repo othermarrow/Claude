@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>脳内バックルーム</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+/* 蛍光灯の下の黄色い部屋。Zork 日本語版と同じ組み立て（状態行・文章・命令を作る・十字キー）で、
+   色を「湿ったカーペットと黄ばんだ壁紙」に寄せる。ひとつの見た目に決めているので、明暗テーマは切り替えない。 */
+:root {
+  --screen: #11100a;
+  --wall: #d9c875;
+  --bright: #fff2b0;
+  --dim: #8c7f48;
+  --faint: #3f3a22;
+  --key: #1b1a10;
+  --bar-bg: #d9c875;
+  --bar-fg: #11100a;
+  --warn: #e0806a;
+  --dot: "DotGothic16", "Noto Sans Mono CJK JP", "Osaka-Mono", ui-monospace, monospace;
+  --size: 17px;
+  --line: 1.65;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--screen);
+  color: var(--wall);
+  font-family: var(--dot);
+  font-size: var(--size);
+  line-height: var(--line);
+}
+#app { height: 100%; display: flex; flex-direction: column; }
+
+#bar {
+  display: flex; align-items: baseline; gap: 0.8em;
+  background: var(--bar-bg); color: var(--bar-fg);
+  padding: 0.15em 16px; white-space: nowrap;
+}
+/* 蛍光灯の明滅。動きを減らす設定の人には出さない */
+@media (prefers-reduced-motion: no-preference) {
+  #bar.flicker { animation: flicker 0.6s steps(2, end) 1; }
+  @keyframes flicker { 0% { opacity: 1; } 30% { opacity: 0.35; } 45% { opacity: 1; } 60% { opacity: 0.6; } 100% { opacity: 1; } }
+  .row.fresh { animation: hum 0.25s steps(3, end); }
+  @keyframes hum { from { opacity: 0.2; } to { opacity: 1; } }
+}
+#room { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#room .en { font-size: 0.78em; margin-left: 0.6em; opacity: 0.7; }
+#score { font-variant-numeric: tabular-nums; font-size: 0.9em; }
+#score .low { color: #7a1f10; }
+#menu-btn { font: inherit; background: none; border: 0; color: var(--bar-fg); padding: 0 0.2em; cursor: pointer; }
+#menu-btn:focus-visible { outline: 2px solid var(--bar-fg); }
+
+#screen {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding-inline: 16px; padding-block: 1.1em 0.6em;
+  overscroll-behavior: contain;
+}
+#log { max-width: 46em; display: flex; flex-direction: column; }
+.row { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.row.title { color: var(--bright); }
+.row.indent { padding-left: 1.5em; }
+.row.note { color: var(--dim); font-size: 0.86em; }
+.row.warn { color: var(--warn); }
+.row.win { color: var(--bright); }
+.row.paper { color: var(--dim); font-size: 0.86em; letter-spacing: 0.04em; }
+.gap { height: calc(var(--size) * 0.7); }
+.cmd { color: var(--bright); margin-top: 0.4em; }
+.cmd .sent { color: var(--dim); font-size: 0.86em; margin-left: 0.8em; }
+
+#dock { border-top: 1px solid var(--faint); padding-block: 0.5em calc(0.6em + env(safe-area-inset-bottom, 0px)); }
+#prompt { display: flex; align-items: center; gap: 0.5em; padding-inline: 16px; }
+#prompt .gt { color: var(--bright); }
+#cmd {
+  flex: 1; min-width: 0; font: inherit; font-size: max(16px, 1em);
+  background: transparent; color: var(--bright); border: 0; outline: 0;
+  caret-color: var(--bright); padding: 0.2em 0;
+}
+#cmd::placeholder { color: var(--faint); }
+#send, #build-btn {
+  flex: none; font: inherit; font-size: 0.9em; background: var(--wall); color: var(--screen);
+  border: 0; padding: 0.35em 0.7em; cursor: pointer;
+}
+#send:focus-visible, #build-btn:focus-visible { outline: 2px solid var(--bright); outline-offset: 2px; }
+
+#pad {
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 0.7em;
+  padding-inline: 16px; padding-top: 0.6em;
+}
+#compass { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+#common { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-content: start; }
+.pk {
+  font: inherit; font-size: 0.9em; line-height: 1.2; min-height: 2.4em;
+  background: transparent; color: var(--wall); border: 1px solid var(--faint);
+  padding: 0.3em 0.1em; cursor: pointer; white-space: nowrap;
+}
+.pk.dir { background: var(--key); color: var(--dim); }
+/* 今いる部屋から行ける方角だけを明るくする */
+.pk.dir.open { color: var(--bright); border-color: var(--dim); }
+.pk.look { border-color: var(--wall); color: var(--bright); }
+.pk.blank { visibility: hidden; }
+.pk:active { background: var(--wall); color: var(--screen); }
+.pk:focus-visible { outline: 1px solid var(--bright); }
+body.typing #pad { display: none; }
+
+.key {
+  font: inherit; font-size: 0.9em; line-height: 1.2;
+  background: transparent; color: var(--wall);
+  border: 1px solid var(--faint); padding: 0.35em 0.7em; cursor: pointer;
+}
+.key:active { background: var(--wall); color: var(--screen); }
+.key:focus-visible { outline: 1px solid var(--bright); }
+
+#builder, #sheet {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6);
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+.panel {
+  background: var(--screen); border-top: 1px solid var(--wall);
+  max-height: 82%; display: flex; flex-direction: column;
+  padding: 0.8em 16px calc(0.8em + env(safe-area-inset-bottom, 0px));
+}
+.bhead { display: flex; flex-direction: column; gap: 0.15em; padding-bottom: 0.6em; }
+#b-title, .panel h2 { color: var(--bright); font: inherit; margin: 0; }
+#b-preview { color: var(--dim); font-size: 0.86em; }
+#b-list {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; align-content: start;
+}
+#b-list.verbs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.bk {
+  font: inherit; text-align: left; background: transparent; color: var(--wall);
+  border: 1px solid var(--faint); padding: 0.45em 0.6em; cursor: pointer; min-width: 0;
+}
+#b-list.verbs .bk { padding: 0.4em 0.45em; }
+.bk.held { border-color: var(--dim); }
+.bk:active { background: var(--wall); color: var(--screen); }
+.bk:focus-visible { outline: 1px solid var(--bright); }
+#b-list .empty { color: var(--dim); }
+.bfoot { display: flex; gap: 0.4em; flex-wrap: wrap; padding-top: 0.7em; }
+#sheet .panel { gap: 0.8em; overflow-y: auto; }
+#sheet p { margin: 0; color: var(--dim); font-size: 0.86em; line-height: 1.6; }
+#confirm-row { display: flex; gap: 0.4em; flex-wrap: wrap; }
+</style>
+
+<div id="app">
+  <header id="bar">
+    <span id="room">脳内バックルーム</span>
+    <span id="score">正気度 10　断片 0/5</span>
+    <button id="menu-btn" type="button" aria-label="メニュー" aria-expanded="false">≡</button>
+  </header>
+
+  <main id="screen" aria-live="polite">
+    <div id="log"></div>
+  </main>
+
+  <footer id="dock">
+    <form id="prompt" autocomplete="off">
+      <button id="build-btn" type="button" aria-haspopup="dialog">命令を作る</button>
+      <label for="cmd" class="gt">&gt;</label>
+      <input id="cmd" type="text" enterkeyhint="send" placeholder="壁紙を読む" autocapitalize="off" spellcheck="false">
+      <button id="send" type="submit">決定</button>
+    </form>
+    <div id="pad">
+      <div id="compass" aria-label="移動">
+        <span class="pk blank" aria-hidden="true"></span>
+        <button class="pk dir" type="button" data-go="n">北</button>
+        <span class="pk blank" aria-hidden="true"></span>
+        <button class="pk dir" type="button" data-go="w">西</button>
+        <button class="pk look" type="button" data-cmd="look">見る</button>
+        <button class="pk dir" type="button" data-go="e">東</button>
+        <span class="pk blank" aria-hidden="true"></span>
+        <button class="pk dir" type="button" data-go="s">南</button>
+        <span class="pk blank" aria-hidden="true"></span>
+      </div>
+      <div id="common" aria-label="よく使う命令">
+        <button class="pk" type="button" data-cmd="inventory">持ち物</button>
+        <button class="pk" type="button" data-cmd="wait">待つ</button>
+        <button class="pk" type="button" data-cmd="listen">耳をすます</button>
+        <button class="pk" type="button" data-cmd="noclip">すり抜ける</button>
+        <button class="pk" type="button" data-cmd="hint">ヒント</button>
+        <button class="pk" type="button" data-cmd="help">遊び方</button>
+      </div>
+    </div>
+  </footer>
+
+  <div id="builder" hidden>
+    <div class="panel" role="dialog" aria-labelledby="b-title">
+      <div class="bhead">
+        <span id="b-title">何をする？</span>
+        <span id="b-preview"></span>
+      </div>
+      <div id="b-list"></div>
+      <div class="bfoot">
+        <button class="key" type="button" id="b-back">戻る</button>
+        <button class="key" type="button" id="b-close">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="sheet" hidden>
+    <div class="panel" role="dialog" aria-label="メニュー">
+      <h2>脳内バックルーム</h2>
+      <p>あなたのものの考え方を、どこまでも続く黄色い部屋（Backrooms）として描いたテキストアドベンチャーです。階層（Level）を降りながら五つの断片を集め、「今後の展望」の扉に差し込むと外へ出られます。</p>
+      <p>「正気度」は、黄色い部屋をさまよったり、明滅する照明にさらされたりすると減ります。待合室で座ると戻ります。0 になっても死にはせず、待合室で目を覚まします。</p>
+      <p>「命令を作る」を押すと、動詞 → 物 →（必要なら）2つ目の物 の順にタップするだけで命令ができます。入力欄には日本語も書けます（例：壁紙を読む／感覚のバルブを回す）。十字キーは、行ける方角だけが明るくなります。</p>
+      <p>素材は、Vault の文献レポートの見出しと、Claude との会話で分かったことです。施設の利用者さんに関わることは入れていません。途中の状態は自動で残り、次に開くと続きから遊べます。</p>
+      <div id="confirm-row">
+        <button class="key" type="button" id="restart-btn">はじめから遊ぶ</button>
+        <button class="key" type="button" id="restart-yes" hidden>本当にはじめから</button>
+        <button class="key" type="button" id="restart-no" hidden>やめる</button>
+      </div>
+      <button class="key" type="button" id="close-sheet">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+(function () {
+  const $ = id => document.getElementById(id);
+  const logEl = $("log"), screenEl = $("screen"), cmdEl = $("cmd");
+
+  // ---- 保存（ブラウザの記憶。Tasker のシーンでは Tasker/brain-zork/ のファイルにも残す） ----
+  const TK = (() => {
+    try {
+      if (typeof tk !== "undefined" && tk && typeof tk.readFile === "function" && typeof tk.writeFile === "function") return tk;
+      if (typeof readFile === "function" && typeof writeFile === "function") {
+        return { readFile, writeFile,
+          global: typeof global === "function" ? global : undefined,
+          setGlobal: typeof setGlobal === "function" ? setGlobal : undefined };
+      }
+    } catch (e) { /* Tasker の外 */ }
+    return null;
+  })();
+  const TK_FILE = "/storage/emulated/0/Tasker/brain-zork/brain-zork-data.json";
+  const KEY = "brainbackrooms.state";
+  // Tasker はないファイルを読むと止まるので、一度書いたことを変数 %BRAINZORK に残し、書いたあとでだけ読む
+  function loadSaved() {
+    if (TK) {
+      let written = false;
+      try { written = TK.global && String(TK.global("BRAINZORK")) === "1"; } catch (e) { /* 読めない */ }
+      try { written = written || localStorage.getItem(KEY + ".tk") === "1"; } catch (e) { /* 同上 */ }
+      if (written) {
+        try { const v = TK.readFile(TK_FILE); if (v) return JSON.parse(String(v)); } catch (e) { /* 壊れている */ }
+      }
+    }
+    try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { return null; }
+  }
+  function writeSaved(obj) {
+    const text = JSON.stringify(obj);
+    try { localStorage.setItem(KEY, text); } catch (e) { /* 残せなくても遊べる */ }
+    if (TK) {
+      try {
+        TK.writeFile(TK_FILE, text, false);
+        try { if (TK.setGlobal) TK.setGlobal("BRAINZORK", "1"); } catch (e) { /* 変数に書けない */ }
+        try { localStorage.setItem(KEY + ".tk", "1"); } catch (e) { /* 同上 */ }
+      } catch (e) { /* 書けなくても遊べる */ }
+    }
+  }
+
+  // ---- 世界 ----
+  // Level 0 の壁紙。どの部屋も同じ見出しがくり返し印刷されている
+  const PAPER = "1. 概観　2. 根拠はどこまで確かか　3. ……　7. 一致点と対立点　8. 実践への示唆　9. エビデンスの限界　10. 今後の展望";
+  const L0_ROOMS = [
+    "同じ黄色の壁紙、同じ湿ったカーペット、同じ蛍光灯のうなり。さっきの部屋と区別がつかない。",
+    "部屋の真ん中に柱が一本だけ立っている。柱にも同じ壁紙が貼ってある。",
+    "天井の蛍光灯がひとつ切れかけて、ジジ、ジジ、と鳴っている。",
+    "カーペットの湿りが、ほかの部屋より少しだけ強い。誰かがここで長く考えごとをしていたようだ。",
+    "壁に、鉛筆で小さく「引用キー索引」と書き込まれている。何の索引なのかは分からない。",
+    "廊下が四方に延びている。どれも同じように見えて、どれも少しずつ違う気がする。",
+  ];
+  const ROOMS = {
+    l0: {
+      name: "Level 0　概観の黄色い部屋", en: "Level 0",
+      desc: () => L0_ROOMS[S.l0i % L0_ROOMS.length] +
+        "\n壁紙には、細かい字の見出しがどこまでもくり返し印刷されている。蛍光灯がブーンとうなっている。",
+      exits: { n: "l0", s: "l0", e: "l0", w: "l0" },
+    },
+    l1: {
+      name: "Level 1　見通しの倉庫", en: "Level 1",
+      desc: () => "コンクリートの柱が並ぶ、だだっ広い倉庫だ。天井の照明が、予告なしに明滅する。" +
+        (O.card.known ? "今はスケジュールカードのおかげで、次に何が起きるか分かっている。明滅しても、もう怖くない。" : "次にいつ暗くなるのか分からず、落ち着かない。") +
+        "\n北の暗がりからは水の滴る音が、東からは電話の呼び出し音が聞こえる。",
+      exits: { n: "l2", e: "l3" },
+    },
+    l2: {
+      name: "Level 2　機能の配管", en: "Level 2",
+      desc: () => "天井も壁も、むき出しの配管で埋めつくされた細い通路だ。" +
+        (O.leak.stopped ? "水漏れは止まり、配管は静かだ。" : "一本の管から、ぽた、ぽた、と水が漏れ続けている。") +
+        "\n漏れている管の根もとに、札のついたバルブが四つ並んでいる。南へ戻ると倉庫、北には病棟のような白い廊下が続く。",
+      exits: { s: "l1", n: "l5" },
+    },
+    l3: {
+      name: "Level 3　代理報告の電話室", en: "Level 3",
+      desc: () => (O.note.filled
+        ? "電話は静まっている。机の上のノートには、あなたが自分の目で見たことが書いてある。"
+        : "壁一面に黒電話が並び、いっせいに鳴っている。受話器からは、同じ出来事についての食い違う報告が聞こえてくる。") +
+        "\n西へ戻ると倉庫、東の扉の向こうは、明かりのついた小さな部屋のようだ。",
+      exits: { w: "l1", e: "l4" },
+    },
+    l4: {
+      name: "Level 4　待合室", en: "Level 4",
+      safe: true,
+      desc: () => "ここだけ蛍光灯のうなりが聞こえない。小さな電気スタンドがあたたかく灯り、使い込まれた椅子がひとつ置いてある。" +
+        "\nこの部屋は安全だ、と体のほうが先に分かる。西へ戻ると電話室だ。",
+      exits: { w: "l3" },
+    },
+    l5: {
+      name: "Level 5　除外診断の病棟", en: "Level 5",
+      desc: () => "白いタイルの廊下に、カルテ棚が並んでいる。突き当たりに「今後の展望」と書かれた扉があり、五つの差し込み口が開いている。" +
+        (O.smiler.gone ? "" : "\n廊下の真ん中に〈確信〉が立っている。顔いっぱいに笑って、「これで説明がつく。もう探さなくていい」とくり返している。") +
+        "\n南へ戻ると配管だ。",
+      exits: { s: "l2" },
+    },
+  };
+
+  // 物。loc は部屋・"player"（持ち物）・別の物の id・null（まだない）
+  const O = {};
+  function thing(id, def) { O[id] = Object.assign({ id, loc: null, take: false }, def); }
+  function initWorld() {
+    for (const k of Object.keys(O)) delete O[k];
+    // Level 0
+    thing("paper", { name: "壁紙", en: "wallpaper", aliases: ["壁紙", "壁", "見出し", "wallpaper", "wall"], loc: "l0", scenery: true,
+      desc: "黄ばんだ壁紙に、細かい字の見出しが印刷されている。", read: () => {
+        say(PAPER, "paper");
+        return "よく見ると、見出しの余白に鉛筆で書き込みがある。「出口はうなりの強いほう。東へ、三つ。」";
+      } });
+    thing("lamp", { name: "蛍光灯", en: "lights", aliases: ["蛍光灯", "照明", "灯り", "lights", "light"], loc: "l0", scenery: true,
+      desc: "天井の蛍光灯がブーンとうなっている。うなりは東のほうで強くなっている気がする。" });
+    thing("stain", { name: "湿ったしみ", en: "stain", aliases: ["しみ", "シミ", "湿ったしみ", "stain"], loc: null, scenery: true,
+      desc: "壁紙の一部が湿って、向こうが透けて見えるほど薄くなっている。ここなら「すり抜け」られそうだ。" });
+    // Level 1
+    thing("card", { name: "スケジュールカード", en: "card", aliases: ["カード", "スケジュール", "スケジュールカード", "card", "schedule"], loc: "l1", take: true, shard: true, known: false,
+      desc: "絵と矢印で、次に何が起きるかが順に描かれたカードだ。",
+      read: () => {
+        O.card.known = true;
+        return "カードを一枚ずつたどる。「倉庫 → 配管 → 電話室 → 待合室 → 病棟」「照明は、次の柱で一度暗くなる」。" +
+          "置いておくだけでは何も変わらなかったのに、読んで分かったとたん、明滅が怖くなくなった。";
+      } });
+    // Level 2
+    thing("leak", { name: "水漏れ", en: "leak", aliases: ["水漏れ", "漏れ", "管", "配管", "leak", "pipe"], loc: "l2", scenery: true, stopped: false,
+      desc: () => O.leak.stopped ? "水漏れは止まっている。" :
+        "水漏れをしばらく見ていると、気づくことがある。誰も見ていなくても、誰も来なくても、何かを取り上げても、同じリズムで漏れ続けている。漏れること自体が、漏れの目的のようだ。" });
+    const valve = (id, name, key, fn) => thing(id, { name, en: key + " valve", aliases: [name, key, name.replace("のバルブ", "")], loc: "l2", scenery: true, valve: fn,
+      desc: `「${name.replace("のバルブ", "")}」と書かれた札のついたバルブだ。回せそうだ。` });
+    valve("v_attn", "注目のバルブ", "attention", "注目");
+    valve("v_escape", "逃避のバルブ", "escape", "逃避");
+    valve("v_thing", "物のバルブ", "tangible", "物");
+    valve("v_sense", "感覚のバルブ", "sensory", "感覚");
+    thing("tag", { name: "機能の札", en: "tag", aliases: ["札", "機能の札", "機能", "tag"], loc: null, take: true, shard: true,
+      desc: "「行動には意味がある。ただし、機能は固定した属性ではない」と刻まれた金属の札だ。" });
+    // Level 3
+    thing("phones", { name: "黒電話", en: "phones", aliases: ["電話", "黒電話", "受話器", "phones", "phone"], loc: "l3", scenery: true,
+      desc: () => O.note.filled ? "電話はもう鳴っていない。" : "どの電話も、同じ人の同じ一日について話している。それなのに、話の中身がまるで違う。" });
+    thing("note", { name: "観察ノート", en: "notebook", aliases: ["ノート", "観察ノート", "notebook", "note"], loc: "l3", take: false, shard: true, filled: false,
+      desc: () => O.note.filled ? "あなた自身が見たことだけが、日付と場面ごとに書き込まれたノートだ。" : "白紙のノートだ。まだ何も観察していない。電話の声を書き写す気には、なれない。",
+      read: () => O.note.filled ? "「誰の報告を信じるか、ではなく、まず自分で見る。見たことと、そう聞いたことを分けて書く」" : "まだ白紙だ。" });
+    // Level 4
+    thing("chair", { name: "使い込まれた椅子", en: "chair", aliases: ["椅子", "いす", "使い込まれた椅子", "chair"], loc: "l4", scenery: true,
+      desc: "座面がくぼんだ椅子だ。毎日、同じ人がここに座って待っていてくれたのだろう。" });
+    thing("key", { name: "あたたかい鍵", en: "warm key", aliases: ["鍵", "あたたかい鍵", "key"], loc: null, take: true, shard: true,
+      desc: "手のひらの中で、ほんのりあたたかい鍵だ。帰ってこられる場所がある、という感じがする。" });
+    thing("lantern", { name: "問いのランタン", en: "lantern", aliases: ["ランタン", "問い", "問いのランタン", "未解決の問い", "lantern"], loc: null, take: true, light: true, on: false,
+      desc: () => "「未解決の問い」と書かれたランタンだ。" + (O.lantern.on ? "小さな火がともっている。" : "火は消えている。") });
+    // Level 5
+    thing("smiler", { name: "〈確信〉", en: "smiler", aliases: ["確信", "〈確信〉", "笑顔", "smiler"], loc: "l5", scenery: true, gone: false,
+      desc: "顔いっぱいに笑う、輪郭のはっきりしない存在だ。「既存の診断で説明がつく。もう探さなくていい」と、やさしい声でくり返している。" });
+    thing("chart", { name: "身体のカルテ", en: "chart", aliases: ["カルテ", "身体のカルテ", "chart"], loc: null, take: true, shard: true,
+      desc: "痛み、睡眠、便通、発作の兆候……「精神科的に見える」症状の背後にあった、体の記録だ。最初の検査が陰性でも、ここで探索は終わらなかった。" });
+    thing("door", { name: "「今後の展望」の扉", en: "door", aliases: ["扉", "今後の展望", "出口", "差し込み口", "door"], loc: "l5", scenery: true, container: true, open: true,
+      desc: () => `重い扉に、差し込み口が五つ開いている。今は ${shardsIn()} つ埋まっている。` });
+  }
+
+  // ---- 状態 ----
+  let S = null; // { loc, moves, sanity, l0i, streak, done, seen, sat, wakeTo }
+  function newState() {
+    initWorld();
+    S = { loc: "l0", moves: 0, sanity: 10, l0i: 0, streak: 0, done: false, seen: {}, sat: false };
+  }
+  function snapshot() {
+    const objs = {};
+    for (const o of Object.values(O)) objs[o.id] = { loc: o.loc, on: o.on, known: o.known, stopped: o.stopped, filled: o.filled, gone: o.gone, take: o.take };
+    return { v: 1, S, objs, log: rows.slice(-300) };
+  }
+  function restore(data) {
+    if (!data || data.v !== 1) return false;
+    initWorld();
+    S = data.S;
+    for (const [id, st] of Object.entries(data.objs || {})) if (O[id]) Object.assign(O[id], st);
+    return true;
+  }
+
+  // ---- 表示 ----
+  let rows = [];
+  function rowEl(r) {
+    if (r.t === "gap") { const d = document.createElement("div"); d.className = "gap"; return d; }
+    const p = document.createElement("p");
+    if (r.t === "cmd") {
+      p.className = "row cmd";
+      p.textContent = "> " + r.ja;
+      if (r.en && r.en !== r.ja) { const s = document.createElement("span"); s.className = "sent"; s.textContent = r.en; p.append(s); }
+      return p;
+    }
+    p.className = "row" + (r.cls ? " " + r.cls : "");
+    p.textContent = r.ja;
+    return p;
+  }
+  function push(r, fresh) {
+    rows.push(r);
+    const el = rowEl(r);
+    if (fresh) el.classList.add("fresh");
+    logEl.append(el);
+  }
+  function say(text, cls) { for (const part of String(text).split("\n")) push({ t: "out", ja: part, cls: cls || "" }, true); }
+  function gap() { push({ t: "gap" }); }
+  function scrollDown() { requestAnimationFrame(() => { screenEl.scrollTop = screenEl.scrollHeight; }); }
+  function flicker() {
+    const bar = $("bar");
+    bar.classList.remove("flicker"); void bar.offsetWidth; bar.classList.add("flicker");
+  }
+
+  function shardsIn() { return Object.values(O).filter(o => o.shard && o.loc === "door").length; }
+  function setStatus() {
+    const r = ROOMS[S.loc];
+    const roomEl = $("room");
+    // 上の帯は短く：「概観の黄色い部屋 Level 0」
+    roomEl.textContent = r.name.split("　").pop();
+    const lv = document.createElement("span"); lv.className = "en"; lv.textContent = r.en; roomEl.append(lv);
+    const sc = $("score");
+    sc.textContent = "";
+    const sv = document.createElement("span");
+    sv.textContent = `正気度 ${S.sanity}`;
+    if (S.sanity <= 3) sv.className = "low";
+    sc.append(sv, document.createTextNode(`　断片 ${shardsIn()}/5`));
+    for (const b of document.querySelectorAll("[data-go]")) b.classList.toggle("open", !!r.exits[b.dataset.go]);
+  }
+
+  // ---- 世界のしくみ ----
+  const DIR_JA = { n: "北", s: "南", e: "東", w: "西" };
+  function visible() {
+    const out = [];
+    const walk = parent => {
+      for (const o of Object.values(O)) {
+        if (o.loc !== parent) continue;
+        out.push(o);
+        if (o.container && o.open && o.id !== "door") walk(o.id);
+      }
+    };
+    walk(S.loc);
+    walk("player");
+    return out;
+  }
+  const text = v => (typeof v === "function" ? v() : v);
+
+  function describe(full) {
+    const r = ROOMS[S.loc];
+    say(r.name, "title");
+    if (full || !S.seen[S.loc] || S.loc === "l0") say(text(r.desc));
+    S.seen[S.loc] = true;
+    for (const o of Object.values(O)) {
+      if (o.loc !== S.loc || o.scenery) continue;
+      say(`ここに${o.name}がある。`);
+    }
+    if (S.loc === "l0" && O.stain.loc === "l0") say("この部屋の東の壁に、湿ったしみがある。向こうが透けて見える。");
+  }
+
+  // 正気度が減る。0 になったら待合室（まだなら最初の黄色い部屋）で目を覚ます
+  function lose(n, why) {
+    if (S.done) return;
+    S.sanity = Math.max(0, S.sanity - n);
+    if (why) say(why, "warn");
+    if (S.sanity === 0) {
+      gap();
+      say("壁紙の黄色が、目の奥までしみこんでくる。蛍光灯のうなりしか聞こえない……", "warn");
+      S.sanity = 10;
+      if (S.seen.l4) {
+        S.loc = "l4";
+        say("気がつくと、待合室の椅子に座っていた。誰かが、ここまで連れてきてくれたらしい。");
+      } else {
+        S.loc = "l0"; S.streak = 0;
+        say("気がつくと、また見覚えのない黄色い部屋に立っていた。");
+      }
+      describe(true);
+    }
+  }
+
+  function go(dir) {
+    const r = ROOMS[S.loc];
+    const to = r.exits[dir];
+    if (!to) { say(`${DIR_JA[dir] || "そちら"}へは行けない。`); return; }
+    if (S.loc === "l0") {
+      // どこへ行っても似た部屋。東へ三つ続けて進むと、しみのある部屋に出る
+      S.streak = dir === "e" ? S.streak + 1 : 0;
+      S.l0i = (S.l0i + 1 + Math.floor(Math.random() * 3)) % 64;
+      O.stain.loc = S.streak >= 3 ? "l0" : null;
+      describe(true);
+      lose(1, S.sanity > 1 && S.streak === 0 && Math.random() < 0.3 ? "同じ部屋を何度も通った気がする。" : "");
+      return;
+    }
+    S.loc = to;
+    describe(false);
+    if (to === "l1" && !O.card.known) { flicker(); lose(1, "照明がいきなり消え、また点いた。次にいつ暗くなるのか分からない。"); }
+    if (to === "l5" && !O.smiler.gone) meetSmiler();
+  }
+
+  function meetSmiler() {
+    if (O.lantern.on && O.lantern.loc === "player") {
+      O.smiler.gone = true;
+      say("問いのランタンをかかげると、〈確信〉の笑顔がこわばった。「でも、まだ分かっていないことがある」とあなたが言うと、輪郭がほどけ、消えていった。");
+      O.chart.loc = "l5";
+      say("〈確信〉が立っていた床に、一冊のカルテが落ちている。");
+      return;
+    }
+    say("〈確信〉がにこにこと近づいてくる。「説明はついた。ここで終わりにしよう」", "warn");
+    say("その声を聞いているうちに、考えるのをやめたくなって……気がつくと、黄色い部屋に戻されていた。", "warn");
+    S.loc = "l0"; S.streak = 0; O.stain.loc = null;
+    gap();
+    describe(true);
+    lose(2, "");
+  }
+
+  const HINTS = [
+    [() => S.loc === "l0", "壁紙を読んでみよう。余白に書き込みがある。"],
+    [() => !O.card.known, "スケジュールカードは、置いておくだけでは働かない。読んでみよう。"],
+    [() => !O.leak.stopped, "配管の水漏れを調べてから、合うバルブを回そう。誰がいてもいなくても続く漏れは……"],
+    [() => !O.note.filled, "電話室では、電話の声に答えず、しばらく「待つ」と、自分の目で見られる。"],
+    [() => !S.sat, "待合室の椅子に座ってみよう。"],
+    [() => !O.lantern.on, "問いのランタンをつけてから、病棟（配管の北）へ行こう。"],
+    [() => !O.smiler.gone, "火のついた問いのランタンを持って、病棟へ。"],
+    [() => shardsIn() < 5, "集めた断片を「今後の展望」の扉に入れよう（「入れる」→ 断片 → 扉）。"],
+  ];
+  function hint() {
+    for (const [cond, msg] of HINTS) if (cond()) { say("（ヒント）" + msg, "note"); return; }
+    say("（ヒント）もう出られるはずだ。", "note");
+  }
+
+  // ---- 動作 ----
+  function need(o, verbJa) { if (!o) { say(`何を${verbJa}？`); return false; } return true; }
+  const VERB_DO = {
+    look: () => { describe(true); if (S.loc === "l3" && !O.note.filled) lose(1, "鳴り続ける電話の音が、頭に響く。"); },
+    inventory: () => {
+      const h = Object.values(O).filter(o => o.loc === "player");
+      if (!h.length) { say("何も持っていない。ポケットにはカーペットの湿り気だけがある。"); return; }
+      say("持ち物：");
+      for (const o of h) say(o.name + (o.id === "lantern" && o.on ? "（火がついている）" : ""), "indent");
+    },
+    wait: () => {
+      if (S.loc === "l3" && !O.note.filled) {
+        O.note.filled = true;
+        O.note.take = true;
+        say("電話に出ずに、しばらく待つ。やがて呼び出し音がひとつずつ止み、部屋が静かになった。");
+        say("静けさの中で、あなたは自分の目で見たことを思い出す。白紙だった観察ノートに、文字が浮かび上がってきた。");
+        return;
+      }
+      if (S.loc === "l4") { VERB_DO.sit(O.chair); return; }
+      if (S.loc === "l0") { say("待っていても、蛍光灯がうなるだけだ。"); lose(1, ""); return; }
+      say("時が過ぎる。");
+    },
+    listen: () => {
+      const t = {
+        l0: "蛍光灯のうなりが、東のほうでいちばん強い。",
+        l1: "照明のスイッチが入る音が、規則正しく遠ざかっていく。" + (O.card.known ? "カードのとおりだ。" : "規則はあるのに、まだ分からない。"),
+        l2: O.leak.stopped ? "配管は静かだ。" : "ぽた、ぽた。誰がいても、いなくても、同じリズムだ。",
+        l3: O.note.filled ? "静かだ。" : "「怒っていた」「楽しそうだった」「何もなかった」……同じ日のことなのに。",
+        l4: "何も聞こえない。それが、ありがたい。",
+        l5: O.smiler.gone ? "遠くで換気扇が回っている。" : "「説明はついた」という声が、廊下に反響している。",
+      };
+      say(t[S.loc]);
+    },
+    hint: () => hint(),
+    help: () => say("遊び方：「命令を作る」で動詞 → 物 の順にタップする。十字キーで移動する。困ったら「ヒント」。", "note"),
+    examine: (o) => { if (need(o, "調べる")) say(text(o.desc) || `${o.name}に、特に変わったところはない。`); },
+    read: (o) => {
+      if (!need(o, "読む")) return;
+      if (!o.read) { say(`${o.name}には、読めるものは書いていない。`); return; }
+      say(text(o.read));
+    },
+    take: (o) => {
+      if (!need(o, "取る")) return;
+      if (o.loc === "player") { say("もう持っている。"); return; }
+      if (!o.take) { say(o.id === "note" ? "白紙のノートを持っていっても仕方がない。まだ何も見ていない。" : `${o.name}は取れない。`); return; }
+      o.loc = "player";
+      say(`${o.name}を取った。`);
+    },
+    drop: (o) => {
+      if (!need(o, "置く")) return;
+      if (o.loc !== "player") { say(`${o.name}は持っていない。`); return; }
+      o.loc = S.loc;
+      say(`${o.name}を置いた。`);
+    },
+    turn: (o) => {
+      if (!need(o, "回す")) return;
+      if (!o.valve) { say(`${o.name}は回せない。`); return; }
+      if (O.leak.stopped) { say("もう漏れは止まっている。"); return; }
+      if (o.valve !== "感覚") {
+        say(`${o.name}を回した。……漏れは止まらない。誰も見ていないのに、同じリズムで漏れ続けている。`);
+        lose(1, "見立てが違ったようだ。「機能は固定した属性ではない」と、配管のどこかでつぶやく声がする。");
+        return;
+      }
+      O.leak.stopped = true;
+      O.tag.loc = "l2";
+      say("感覚のバルブを回すと、漏れがぴたりと止まった。漏れること自体が、漏れの理由だったのだ。");
+      say("バルブの根もとから、金属の札がはがれ落ちた。「機能の札」だ。");
+    },
+    sit: (o) => {
+      if (S.loc !== "l4") { say("座れる場所がない。湿ったカーペットに座る気にはなれない。"); return; }
+      S.sanity = 10;
+      say("椅子に座る。くぼんだ座面が、体の形に合う。蛍光灯のうなりが遠のいていく。（正気度が戻った）");
+      if (!S.sat) {
+        S.sat = true;
+        O.key.loc = "l4";
+        O.lantern.loc = "l4";
+        say("ひじ掛けに、誰かが置いていったものがある。あたたかい鍵と、小さなランタンだ。");
+        say("ランタンには、走り書きの付箋が貼ってある。「わからないままでいい。問いを持って行きなさい」");
+      }
+    },
+    on: (o) => {
+      if (!need(o, "つける")) return;
+      if (!o.light) { say(`${o.name}はつけられない。`); return; }
+      if (o.on) { say("もう火がついている。"); return; }
+      o.on = true;
+      say(`${o.name}に火がともった。小さいが、消えそうにない火だ。`);
+    },
+    off: (o) => {
+      if (!need(o, "消す")) return;
+      if (!o.light || !o.on) { say("消せるものではない。"); return; }
+      o.on = false;
+      say(`${o.name}の火を消した。`);
+    },
+    noclip: (o) => {
+      if (S.loc === "l0" && O.stain.loc === "l0" && (!o || o.id === "stain")) {
+        say("湿ったしみに肩を押しあてると、壁紙がやわらかく沈み、あなたは向こう側へ抜け落ちた。");
+        gap();
+        S.loc = "l1"; S.streak = 0; O.stain.loc = null;
+        describe(false);
+        if (!O.card.known) { flicker(); lose(1, "照明がいきなり消え、また点いた。次にいつ暗くなるのか分からない。"); }
+        return;
+      }
+      say("壁に体を押しつけてみたが、ここはすり抜けられそうにない。");
+    },
+    put: (o, w) => {
+      if (!need(o, "入れる")) return;
+      if (o.loc !== "player") { say(`${o.name}は持っていない。`); return; }
+      if (!w) { say("どこに入れる？"); return; }
+      if (w.id !== "door") { say(`${w.name}には入れられない。`); return; }
+      if (!o.shard) { say(`${o.name}は、差し込み口の形に合わない。`); return; }
+      o.loc = "door";
+      const n = shardsIn();
+      say(`${o.name}を差し込み口に入れた。カチリと音がした。（${n} / 5）`);
+      if (n === 5) win();
+    },
+  };
+
+  function win() {
+    S.done = true;
+    gap();
+    say("五つ目が収まると、「今後の展望」の扉が、ゆっくりと内側へ開いた。", "win");
+    say("見通し、機能、観察、安全基地、身体。どれも一つだけでは足りず、どれも欠かせなかった。", "win");
+    say("扉の向こうには、湿ったカーペットも、蛍光灯のうなりもない。縦長の画面に、Termux の黒い画面と、まだ書かれていないレポートの見出しが光っている。", "win");
+    say("「10. 今後の展望」", "win");
+    say("****  あなたは脱出した  ****", "win");
+    say(`（手数 ${S.moves}。≡ のメニューから、はじめから遊べます）`, "note");
+  }
+
+  // ---- 命令を読む ----
+  const EN_SIMPLE = [
+    ["look", /^(look|l)$/], ["inventory", /^(inventory|i)$/], ["wait", /^(wait|z)$/],
+    ["listen", /^listen$/], ["hint", /^hint$/], ["help", /^help$/], ["noclip", /^noclip$/], ["sit", /^sit( down)?$/],
+  ];
+  const DIR_WORDS = { n: "n", north: "n", s: "s", south: "s", e: "e", east: "e", w: "w", west: "w" };
+  function findObj(s) {
+    s = String(s || "").trim().toLowerCase();
+    if (!s) return null;
+    const vis = visible();
+    for (const o of vis) if (o.aliases.some(a => a.toLowerCase() === s) || o.en === s) return o;
+    for (const o of vis) if (o.aliases.some(a => a.length > 1 && s.includes(a.toLowerCase()))) return o;
+    return { missing: s };
+  }
+  function parseEn(cmd) {
+    cmd = cmd.toLowerCase().replace(/\s+/g, " ").trim();
+    for (const [v, rx] of EN_SIMPLE) if (rx.test(cmd)) return { v };
+    const g = cmd.replace(/^go /, "");
+    if (DIR_WORDS[g]) return { v: "go", dir: DIR_WORDS[g] };
+    const pats = [
+      ["put", /^(?:put|insert) (.+) (?:in|into) (.+)$/], ["examine", /^(?:examine|x|look at) (.+)$/],
+      ["read", /^read (.+)$/], ["take", /^(?:take|get|pick up) (.+)$/], ["drop", /^drop (.+)$/],
+      ["turn", /^turn (?!on |off )(.+)$/], ["on", /^(?:turn on|light) (.+)$/], ["off", /^turn off (.+)$/],
+      ["sit", /^sit (?:on|in) (.+)$/], ["noclip", /^noclip (?:through |into )?(.+)$/],
+    ];
+    for (const [v, rx] of pats) { const m = cmd.match(rx); if (m) return { v, a: m[1], b: m[2] }; }
+    return null;
+  }
+  const JA_VERBS = [
+    ["put", /入れ|差し込|はめ/], ["examine", /調べ|見る|眺め|観察/], ["read", /読/], ["take", /取|拾|持つ/],
+    ["drop", /置|捨て/], ["turn", /回|ひね/], ["sit", /座/], ["on", /つけ|点け|灯|ともす/], ["off", /消/],
+    ["noclip", /すり抜け|ノークリップ|通り抜け/], ["listen", /聞く|耳を/],
+  ];
+  const JA_DIRS = { "北": "n", "南": "s", "東": "e", "西": "w" };
+  function parseJa(t) {
+    const s = t.replace(/[\s　。！？!?]/g, "");
+    const dm = s.match(/^(北|南|東|西)(へ|に)?(行く|進む|いく|移動|行って|進んで)?(ください)?$/);
+    if (dm) return { v: "go", dir: JA_DIRS[dm[1]] };
+    const simple = { "見る": "look", "周りを見る": "look", "見回す": "look", "持ち物": "inventory", "待つ": "wait",
+      "ヒント": "hint", "遊び方": "help", "ヘルプ": "help", "座る": "sit", "すり抜ける": "noclip", "耳をすます": "listen", "聞く": "listen" };
+    if (simple[s]) return { v: simple[s] };
+    let verb = null, vrx = null;
+    for (const [v, rx] of JA_VERBS) if (rx.test(s)) { verb = v; vrx = rx; break; }
+    if (!verb) return null;
+    const vm = s.match(vrx);
+    const objPart = vm ? s.slice(0, vm.index) : s;
+    const hits = [];
+    for (const o of visible()) {
+      let best = -1, len = 0;
+      for (const a of o.aliases) { const i = objPart.indexOf(a); if (i >= 0 && a.length > len) { best = i; len = a.length; } }
+      if (best >= 0) hits.push({ o, i: best, end: best + len });
+    }
+    const uniq = hits.filter(h => !hits.some(k => k !== h && k.i <= h.i && k.end >= h.end && (k.end - k.i) > (h.end - h.i)));
+    uniq.sort((x, y) => x.i - y.i);
+    const after = h => objPart.slice(h.end, h.end + 1);
+    const a = uniq.find(h => after(h) === "を") || uniq[0];
+    const b = uniq.find(h => h !== a);
+    return { v: verb, ao: a ? a.o : null, bo: b ? b.o : null, raw: true };
+  }
+
+  function act(input) {
+    if (S.done) { say("もう外に出ている。≡ のメニューから、はじめから遊べる。", "note"); return; }
+    const ascii = /^[\x20-\x7e]*$/.test(input);
+    const p = ascii ? parseEn(input) : parseJa(input);
+    if (!p) { say("その言い方はわからない。「命令を作る」を使うと確実だ。"); return; }
+    S.moves++;
+    if (p.v === "go") { go(p.dir); return; }
+    let a = p.ao, b = p.bo;
+    if (!p.raw) { a = p.a ? findObj(p.a) : null; b = p.b ? findObj(p.b) : null; }
+    for (const x of [a, b]) if (x && x.missing) { say(`ここに「${x.missing}」は見当たらない。`); return; }
+    VERB_DO[p.v](a, b);
+  }
+
+  function submit(label, en) {
+    label = String(label || "").trim();
+    const cmd = en || label;
+    if (!cmd) return;
+    gap();
+    push({ t: "cmd", ja: label || cmd, en: en && en !== label ? en : "" });
+    act(cmd);
+    setStatus();
+    scrollDown();
+    writeSaved(snapshot());
+  }
+
+  // ---- 入力 ----
+  $("prompt").addEventListener("submit", e => {
+    e.preventDefault();
+    const v = cmdEl.value;
+    cmdEl.value = "";
+    submit(v);
+  });
+  $("pad").addEventListener("click", e => {
+    const b = e.target.closest("[data-go],[data-cmd]");
+    if (!b) return;
+    if (b.dataset.go) submit(b.textContent, { n: "north", s: "south", e: "east", w: "west" }[b.dataset.go]);
+    else submit(b.textContent, b.dataset.cmd);
+  });
+  cmdEl.addEventListener("focus", () => { document.body.classList.add("typing"); scrollDown(); });
+  cmdEl.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== cmdEl) document.body.classList.remove("typing"); }, 120));
+
+  // ---- 命令を作る ----
+  // [ボタンの文字, 英語の型, 日本語の型]。% は1つ目の物、# は2つ目の物
+  const VERBS = [
+    ["調べる", "examine %", "%を調べる"], ["読む", "read %", "%を読む"], ["取る", "take %", "%を取る"],
+    ["置く", "drop %", "%を置く"], ["回す", "turn %", "%を回す"], ["座る", "sit on %", "%に座る"],
+    ["つける", "light %", "%をつける"], ["消す", "turn off %", "%を消す"], ["すり抜ける", "noclip %", "%をすり抜ける"],
+    ["入れる", "put % in #", "%を#に入れる"],
+  ];
+  const builder = $("builder");
+  const bs = { step: "verb", verb: null, obj1: null };
+  const fill = (t, a, b) => t.replace("%", a).replace("#", b);
+  function bButton(label, onClick, cls) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "bk" + (cls ? " " + cls : ""); b.textContent = label;
+    b.addEventListener("click", onClick);
+    return b;
+  }
+  function renderBuilder() {
+    const list = $("b-list");
+    list.textContent = ""; list.scrollTop = 0;
+    if (bs.step === "verb") {
+      $("b-title").textContent = "何をする？"; $("b-preview").textContent = "";
+      list.className = "verbs";
+      for (const v of VERBS) list.append(bButton(v[0], () => { bs.verb = v; bs.step = "obj"; renderBuilder(); }));
+      $("b-back").hidden = true;
+      return;
+    }
+    $("b-back").hidden = false;
+    list.className = "";
+    const v = bs.verb, second = bs.step === "obj2";
+    $("b-title").textContent = second ? "何に？" : "何を？";
+    $("b-preview").textContent = second ? fill(v[2], bs.obj1.name, "…") : fill(v[2], "…", "…");
+    let items = visible();
+    if (second) items = items.filter(o => o !== bs.obj1);
+    items.sort((x, y) => (y.loc === "player") - (x.loc === "player"));
+    for (const o of items) {
+      const isHeld = o.loc === "player";
+      list.append(bButton(o.name + (isHeld ? "（持）" : ""), () => {
+        if (!second) {
+          bs.obj1 = o;
+          if (v[1].includes("#")) { bs.step = "obj2"; renderBuilder(); return; }
+          closeBuilder();
+          submit(fill(v[2], o.name, ""), fill(v[1], o.en, ""));
+        } else {
+          closeBuilder();
+          submit(fill(v[2], bs.obj1.name, o.name), fill(v[1], bs.obj1.en, o.en));
+        }
+      }, isHeld ? "held" : ""));
+    }
+    if (!items.length) {
+      const p = document.createElement("p");
+      p.className = "empty"; p.textContent = "選べる物がない。";
+      list.append(p);
+    }
+  }
+  function openBuilder() {
+    if (S.done) return;
+    bs.step = "verb"; bs.verb = null; bs.obj1 = null;
+    builder.hidden = false;
+    renderBuilder();
+  }
+  function closeBuilder() { builder.hidden = true; }
+  $("build-btn").addEventListener("click", openBuilder);
+  $("b-close").addEventListener("click", closeBuilder);
+  builder.addEventListener("click", e => { if (e.target === builder) closeBuilder(); });
+  $("b-back").addEventListener("click", () => { bs.step = bs.step === "obj2" ? "obj" : "verb"; renderBuilder(); });
+
+  // ---- メニュー ----
+  const sheet = $("sheet");
+  function openSheet(open) {
+    sheet.hidden = !open;
+    $("menu-btn").setAttribute("aria-expanded", String(open));
+    $("restart-yes").hidden = $("restart-no").hidden = true;
+    $("restart-btn").hidden = false;
+  }
+  $("menu-btn").addEventListener("click", () => openSheet(sheet.hidden));
+  $("close-sheet").addEventListener("click", () => openSheet(false));
+  sheet.addEventListener("click", e => { if (e.target === sheet) openSheet(false); });
+  $("restart-btn").addEventListener("click", () => { $("restart-btn").hidden = true; $("restart-yes").hidden = $("restart-no").hidden = false; });
+  $("restart-no").addEventListener("click", () => openSheet(false));
+  $("restart-yes").addEventListener("click", () => { openSheet(false); start(true); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") { closeBuilder(); openSheet(false); } });
+
+  // ---- 起動 ----
+  function intro() {
+    say("脳内バックルーム", "title");
+    say("― 現実の継ぎ目から、うっかり自分の頭の中へすり抜けてしまった ―", "note");
+    gap();
+    describe(true);
+  }
+  function start(fresh) {
+    rows = []; logEl.textContent = "";
+    const saved = fresh ? null : loadSaved();
+    if (saved && restore(saved)) {
+      for (const r of saved.log || []) push(r, false);
+      gap();
+      say("（前回の続きから）", "note");
+    } else {
+      newState();
+      intro();
+      writeSaved(snapshot());
+    }
+    setStatus();
+    scrollDown();
+  }
+  start(false);
+})();
+</script>
+
+</body>
+</html>
