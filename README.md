@@ -8,3 +8,4 @@
 | [zork-watch](zork-watch/) | Zork I を Balance 2 の中だけで遊ぶミニアプリ |
 | [brain-zork](brain-zork/) | 脳内バックルーム(自分の考え方を Backrooms 風に描いたテキストアドベンチャー) |
 | [mirror-zork](mirror-zork/) | 三面鏡(三つのAIの人物像だけを素材にした、Backrooms 風の鏡のテキストアドベンチャー) |
+| [story-zork](story-zork/) | 六一三号室(自分の 251 作品の物語の中身だけを素材にした、Zork + Backrooms 風のテキストアドベンチャー) |
