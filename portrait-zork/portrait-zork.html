@@ -1,0 +1,1268 @@
+<title>五枚目の額</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+/* 蛍光灯の下の黄色い部屋。Zork 日本語版と同じ組み立て（状態行・文章・命令を作る・十字キー）で、
+   色を「湿ったカーペットと黄ばんだ壁紙」に寄せる。ひとつの見た目に決めているので、明暗テーマは切り替えない。 */
+:root {
+  --screen: #11100a;
+  --wall: #d9c875;
+  --bright: #fff2b0;
+  --dim: #8c7f48;
+  --faint: #3f3a22;
+  --key: #1b1a10;
+  --bar-bg: #d9c875;
+  --bar-fg: #11100a;
+  --warn: #e0806a;
+  --dot: "DotGothic16", "Noto Sans Mono CJK JP", "Osaka-Mono", ui-monospace, monospace;
+  --size: 17px;
+  --line: 1.65;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--screen);
+  color: var(--wall);
+  font-family: var(--dot);
+  font-size: var(--size);
+  line-height: var(--line);
+}
+#app { height: 100%; display: flex; flex-direction: column; }
+
+#bar {
+  display: flex; align-items: baseline; gap: 0.8em;
+  background: var(--bar-bg); color: var(--bar-fg);
+  padding: 0.15em 16px; white-space: nowrap;
+}
+/* 蛍光灯の明滅。動きを減らす設定の人には出さない */
+@media (prefers-reduced-motion: no-preference) {
+  #bar.flicker { animation: flicker 0.6s steps(2, end) 1; }
+  @keyframes flicker { 0% { opacity: 1; } 30% { opacity: 0.35; } 45% { opacity: 1; } 60% { opacity: 0.6; } 100% { opacity: 1; } }
+  .row.fresh { animation: hum 0.25s steps(3, end); }
+  @keyframes hum { from { opacity: 0.2; } to { opacity: 1; } }
+}
+#room { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#room .en { font-size: 0.78em; margin-left: 0.6em; opacity: 0.7; }
+#score { font-variant-numeric: tabular-nums; font-size: 0.9em; }
+#score .low { color: #7a1f10; }
+#menu-btn { font: inherit; background: none; border: 0; color: var(--bar-fg); padding: 0 0.2em; cursor: pointer; }
+#menu-btn:focus-visible { outline: 2px solid var(--bar-fg); }
+
+#screen {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding-inline: 16px; padding-block: 1.1em 0.6em;
+  overscroll-behavior: contain;
+}
+#log { max-width: 46em; display: flex; flex-direction: column; }
+.row { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.row.title { color: var(--bright); }
+.row.indent { padding-left: 1.5em; }
+.row.note { color: var(--dim); font-size: 0.86em; }
+.row.warn { color: var(--warn); }
+.row.win { color: var(--bright); }
+.row.voice { color: var(--bright); padding-left: 1em; }
+.gap { height: calc(var(--size) * 0.7); }
+.cmd { color: var(--bright); margin-top: 0.4em; }
+.cmd .sent { color: var(--dim); font-size: 0.86em; margin-left: 0.8em; }
+
+#dock { border-top: 1px solid var(--faint); padding-block: 0.5em calc(0.6em + env(safe-area-inset-bottom, 0px)); }
+#prompt { display: flex; align-items: center; gap: 0.5em; padding-inline: 16px; }
+#prompt .gt { color: var(--bright); }
+#cmd {
+  flex: 1; min-width: 0; font: inherit; font-size: max(16px, 1em);
+  background: transparent; color: var(--bright); border: 0; outline: 0;
+  caret-color: var(--bright); padding: 0.2em 0;
+}
+#cmd::placeholder { color: var(--faint); }
+#send, #build-btn {
+  flex: none; font: inherit; font-size: 0.9em; background: var(--wall); color: var(--screen);
+  border: 0; padding: 0.35em 0.7em; cursor: pointer;
+}
+#send:focus-visible, #build-btn:focus-visible { outline: 2px solid var(--bright); outline-offset: 2px; }
+
+#pad {
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 0.7em;
+  padding-inline: 16px; padding-top: 0.6em;
+}
+#compass { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+#common { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-content: start; }
+.pk {
+  font: inherit; font-size: 0.9em; line-height: 1.2; min-height: 2.4em;
+  background: transparent; color: var(--wall); border: 1px solid var(--faint);
+  padding: 0.3em 0.1em; cursor: pointer; white-space: nowrap;
+}
+.pk.dir { background: var(--key); color: var(--dim); }
+/* 今いる部屋から行ける方角だけを明るくする */
+.pk.dir.open { color: var(--bright); border-color: var(--dim); }
+.pk.look { border-color: var(--wall); color: var(--bright); }
+.pk.blank { visibility: hidden; }
+.pk:active { background: var(--wall); color: var(--screen); }
+.pk:focus-visible { outline: 1px solid var(--bright); }
+body.typing #pad { display: none; }
+
+.key {
+  font: inherit; font-size: 0.9em; line-height: 1.2;
+  background: transparent; color: var(--wall);
+  border: 1px solid var(--faint); padding: 0.35em 0.7em; cursor: pointer;
+}
+.key:active { background: var(--wall); color: var(--screen); }
+.key:focus-visible { outline: 1px solid var(--bright); }
+
+#builder, #sheet {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6);
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+.panel {
+  background: var(--screen); border-top: 1px solid var(--wall);
+  max-height: 82%; display: flex; flex-direction: column;
+  padding: 0.8em 16px calc(0.8em + env(safe-area-inset-bottom, 0px));
+}
+.bhead { display: flex; flex-direction: column; gap: 0.15em; padding-bottom: 0.6em; }
+#b-title, .panel h2 { color: var(--bright); font: inherit; margin: 0; }
+#b-preview { color: var(--dim); font-size: 0.86em; }
+#b-list {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; align-content: start;
+}
+#b-list.verbs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.bk {
+  font: inherit; text-align: left; background: transparent; color: var(--wall);
+  border: 1px solid var(--faint); padding: 0.45em 0.6em; cursor: pointer; min-width: 0;
+}
+#b-list.verbs .bk { padding: 0.4em 0.45em; }
+.bk.held { border-color: var(--dim); }
+.bk:active { background: var(--wall); color: var(--screen); }
+.bk:focus-visible { outline: 1px solid var(--bright); }
+#b-list .empty { color: var(--dim); }
+.bfoot { display: flex; gap: 0.4em; flex-wrap: wrap; padding-top: 0.7em; }
+#sheet .panel { gap: 0.8em; overflow-y: auto; }
+#sheet p { margin: 0; color: var(--dim); font-size: 0.86em; line-height: 1.6; }
+#confirm-row { display: flex; gap: 0.4em; flex-wrap: wrap; }
+</style>
+
+<div id="app">
+  <header id="bar">
+    <span id="room">五枚目の額</span>
+    <span id="score">正気度 10　隅 0/4</span>
+    <button id="menu-btn" type="button" aria-label="メニュー" aria-expanded="false">≡</button>
+  </header>
+
+  <main id="screen" aria-live="polite">
+    <div id="log"></div>
+  </main>
+
+  <footer id="dock">
+    <form id="prompt" autocomplete="off">
+      <button id="build-btn" type="button" aria-haspopup="dialog">命令を作る</button>
+      <label for="cmd" class="gt">&gt;</label>
+      <input id="cmd" type="text" enterkeyhint="send" placeholder="脚注を読む" autocapitalize="off" spellcheck="false">
+      <button id="send" type="submit">決定</button>
+    </form>
+    <div id="pad">
+      <div id="compass" aria-label="移動">
+        <span class="pk blank" aria-hidden="true"></span>
+        <button class="pk dir" type="button" data-go="n">北</button>
+        <span class="pk blank" aria-hidden="true"></span>
+        <button class="pk dir" type="button" data-go="w">西</button>
+        <button class="pk look" type="button" data-cmd="look">見る</button>
+        <button class="pk dir" type="button" data-go="e">東</button>
+        <span class="pk blank" aria-hidden="true"></span>
+        <button class="pk dir" type="button" data-go="s">南</button>
+        <span class="pk blank" aria-hidden="true"></span>
+      </div>
+      <div id="common" aria-label="よく使う命令">
+        <button class="pk" type="button" data-cmd="inventory">持ち物</button>
+        <button class="pk" type="button" data-cmd="wait">待つ</button>
+        <button class="pk" type="button" data-cmd="listen">耳をすます</button>
+        <button class="pk" type="button" data-cmd="noclip">すり抜ける</button>
+        <button class="pk" type="button" data-cmd="dunno">わからない</button>
+        <button class="pk" type="button" data-cmd="help">遊び方</button>
+      </div>
+    </div>
+  </footer>
+
+  <div id="builder" hidden>
+    <div class="panel" role="dialog" aria-labelledby="b-title">
+      <div class="bhead">
+        <span id="b-title">何をする？</span>
+        <span id="b-preview"></span>
+      </div>
+      <div id="b-list"></div>
+      <div class="bfoot">
+        <button class="key" type="button" id="b-back">戻る</button>
+        <button class="key" type="button" id="b-close">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="sheet" hidden>
+    <div class="panel" role="dialog" aria-label="メニュー">
+      <h2>五枚目の額</h2>
+      <p>四つのAIが、それぞれのやり方であなたを書きました。付箋だらけの紙、設計図のような紙、下書きの紙、数式で埋まった紙。四枚を重ねて読んでいたら、紙の継ぎ目から、どこまでも続く黄色い部屋（Backrooms）へすり抜けてしまいました。ポケットには、自分で書いた物語の束。こちらは、どのAIも読んでいません。</p>
+      <p>肖像の間の四枚の額は、それぞれ別の階層（Level）につながっています。その額の流儀で一つ仕事を終えると、額の「隅」が一つ手に入ります。四つの隅で五枚目の額ができると、その向こうの物語の階へ入れます。</p>
+      <p>「正気度」は、黄色い部屋をさまよったり、戻る地点を作らずに壊したり、確かめずに直したり、物語の数字を自分のものとして持ち帰りかけたりすると減ります。0 になっても死にはせず、肖像の間で目を覚まします。肖像の間に入ると戻ります。困ったら「わからない」と言えば、一つ絞りこんでくれます。</p>
+      <p>「命令を作る」を押すと、動詞 → 物 →（必要なら）2つ目の物 の順にタップするだけで命令ができます。入力欄には日本語も書けます（例：スクリプトのバックアップを取る／最低限の札を作業票に入れる／新月の絵のラベルを剥がす）。</p>
+      <p>素材は、四つのAIが書いたあなたについての文章と、あなたの物語の中身だけです。物語の題名や登場人物の名前は使わず、文章もそのまま使わずに言い換えています。途中の状態は自動で残り、次に開くと続きから遊べます。</p>
+      <div id="confirm-row">
+        <button class="key" type="button" id="restart-btn">はじめから遊ぶ</button>
+        <button class="key" type="button" id="restart-yes" hidden>本当にはじめから</button>
+        <button class="key" type="button" id="restart-no" hidden>やめる</button>
+      </div>
+      <button class="key" type="button" id="close-sheet">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+(function () {
+  const $ = id => document.getElementById(id);
+  const logEl = $("log"), screenEl = $("screen"), cmdEl = $("cmd");
+
+  // ---- 保存（ブラウザの記憶。Tasker のシーンでは Tasker/portrait-zork/ のファイルにも残す） ----
+  const TK = (() => {
+    try {
+      if (typeof tk !== "undefined" && tk && typeof tk.readFile === "function" && typeof tk.writeFile === "function") return tk;
+      if (typeof readFile === "function" && typeof writeFile === "function") {
+        return { readFile, writeFile,
+          global: typeof global === "function" ? global : undefined,
+          setGlobal: typeof setGlobal === "function" ? setGlobal : undefined };
+      }
+    } catch (e) { /* Tasker の外 */ }
+    return null;
+  })();
+  const TK_FILE = "/storage/emulated/0/Tasker/portrait-zork/portrait-zork-data.json";
+  const KEY = "portraitzork.state";
+  // Tasker はないファイルを読むと止まるので、一度書いたことを変数 %PORTRAITZORK に残し、書いたあとでだけ読む
+  function loadSaved() {
+    if (TK) {
+      let written = false;
+      try { written = TK.global && String(TK.global("PORTRAITZORK")) === "1"; } catch (e) { /* 読めない */ }
+      try { written = written || localStorage.getItem(KEY + ".tk") === "1"; } catch (e) { /* 同上 */ }
+      if (written) {
+        try { const v = TK.readFile(TK_FILE); if (v) return JSON.parse(String(v)); } catch (e) { /* 壊れている */ }
+      }
+    }
+    try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { return null; }
+  }
+  function writeSaved(obj) {
+    const text = JSON.stringify(obj);
+    try { localStorage.setItem(KEY, text); } catch (e) { /* 残せなくても遊べる */ }
+    if (TK) {
+      try {
+        TK.writeFile(TK_FILE, text, false);
+        try { if (TK.setGlobal) TK.setGlobal("PORTRAITZORK", "1"); } catch (e) { /* 変数に書けない */ }
+        try { localStorage.setItem(KEY + ".tk", "1"); } catch (e) { /* 同上 */ }
+      } catch (e) { /* 書けなくても遊べる */ }
+    }
+  }
+
+  // ---- 物の置き場 ----
+  const O = {};
+  function thing(id, def) {
+    O[id] = Object.assign({ id, loc: null, take: false, en: id.toLowerCase(), aliases: [def.name] }, def);
+  }
+  const kids = id => Object.values(O).filter(o => o.loc === id);
+  const text = v => (typeof v === "function" ? v() : v);
+
+  const CORNERS = ["cP", "cC", "cK", "cG"];
+  const SCENES = ["sMoon", "sKey", "sCalm", "sNight", "sBeast", "sStar"];
+  const DIR_JA = { n: "北", s: "南", e: "東", w: "西" };
+
+  function initWorld() {
+    for (const k of Object.keys(O)) delete O[k];
+
+    // ---- Level 0：黄色い部屋
+    thing("wallpaper", { name: "壁紙", aliases: ["壁紙", "壁", "wallpaper"], loc: "y0", scenery: true,
+      desc: "黄ばんだ壁紙に、細かい字で「確度：高い」がくり返し印刷されている。誰についての確度なのかは、どこにも書いていない。",
+      read: () => { S.readPaper = true; return "「確度：高い」の列のすき間に、鉛筆の書き込み。「脚注の番号が小さくなるほうへ。いちばん小さいところに、三つ星の印がある」。"; } });
+    thing("footnote", { name: "脚注", aliases: ["脚注", "番号", "footnote"], loc: "y0", scenery: true,
+      desc: () => S.fn > 0 ? `壁の隅に、小さく [^${S.fn}]。本文は、どこにもない。` : "壁の隅の脚注は、もう番号がない。かわりに、床に ⁂ の印がある。",
+      read: () => S.fn > 0
+        ? `[^${S.fn}]……リンクの先は、別の検索結果の画面だった。その下に、矢印が一本。「${S.fn === 1 ? "⁂" : "[^" + (S.fn - 1) + "]"} は${DIR_JA[S.fnDir]}」。`
+        : "脚注は尽きた。床の ⁂ のところだけ、カーペットがやわらかい。" });
+    thing("asterism", { name: "⁂の印", aliases: ["⁂の印", "⁂", "三つ星", "印", "asterism"], loc: null, scenery: true,
+      desc: "床に描かれた、三つの星の印。ここだけ、カーペットが水のようにやわらかい。すり抜けられそうだ。" });
+
+    // ---- Level 1：肖像の間
+    thing("frameP", { name: "付箋の額", aliases: ["付箋の額", "北の額", "付箋"], to: "t1", loc: "g0", scenery: true,
+      desc: "北の壁の額。映っているのは、目的を決め、根拠と再現性を確かめながら、動く形まで持っていく人だ。エラーが出ると、該当する行とその前後を貼って、原因を一つずつ切り分ける。壊れたまま大きくいじるより、戻れる地点を作ってから、小さく直す。\n額の縁には脚注の番号がびっしり並んでいるが、どれも本文へは戻れない。" });
+    thing("frameC", { name: "設計図の額", aliases: ["設計図の額", "東の額", "設計図"], to: "x1", loc: "g0", scenery: true,
+      desc: "東の壁の額。映っているのは、自分の関心を、実際に使える仕組みへ組み替えたい人だ。つながりを見つけるのが速く、構想が広がるのも速い。細部にこだわるのは、頭の中の使い方と、出来上がったものとのずれを減らしたいからかもしれない。\n額の下に札。「課題は、能力を増やすことより、一度完成させること」。" });
+    thing("frameK", { name: "下書きの額", aliases: ["下書きの額", "西の額", "下書き"], to: "k1", loc: "g0", scenery: true,
+      desc: "西の壁の額。映っているのは、出てきたものをそのまま信じず、確かめる手続きまで自分で作る人だ。目的は動かさず、手段を何度でも替える。言葉は短く、判断は速く、決めたあとで確かめにいく。\n額の隅に添え書き。「これは、作業を頼む場面の横顔で、全身ではない」。" });
+    thing("frameG", { name: "数式の額", aliases: ["数式の額", "南の額", "数式"], to: "w1", loc: "g0", scenery: true,
+      desc: "南の壁の額。映っているのは、人ではなく手順だ。性格は言葉の中にしまわれているという仮説、五つの因子、十五の下位特性、単語を数える辞書、層を重ねた計算機。どれも丁寧に説明されている。あなたの名前の欄だけが、空いている。" });
+    thing("frame5", { name: "五枚目の額", aliases: ["五枚目の額", "五枚目", "真ん中の額", "fifth frame"], en: "fifth frame", loc: "g0", scenery: true, container: true,
+      desc: () => {
+        const n = kids("frame5").filter(o => o.corner).length;
+        if (S.framed) return "四つの隅がそろった、五枚目の額。絵はまだない。表面が、ほかの額と同じように揺れている。すり抜けられそうだ。真鍮の札に「記録にないもの」。";
+        return "部屋の真ん中に立つ、額縁だけの額。四つの隅が欠けていて、形になっていない。真鍮の札に「記録にないもの」。" + (n ? `（はまっている隅は ${n} つ）` : "");
+      } });
+    thing("stories", { name: "物語の束", aliases: ["物語の束", "物語", "束", "stories"], loc: "player", take: true,
+      desc: "自分で書いてきた物語の束。二百五十ほど。四つのAIのどれも、これは読んでいない。めくると、星や名前や番号や、夜の話が多い気がする。" });
+    thing("speaker", { name: "小さなスピーカー", aliases: ["小さなスピーカー", "スピーカー", "speaker"], loc: "g0", scenery: true,
+      desc: "画廊の隅のスピーカーが、t & (t>>4 | t>>9) という式から作ったリズムを、小さく鳴らしている。式の形が、そのまま音の形だ。" });
+
+    // ---- Level 2（付箋の額）：地下の端末室
+    thing("script", { name: "スクリプト", aliases: ["スクリプト", "コード", "script"], loc: "t1", scenery: true,
+      desc: () => ({
+        syntax: "文献を集めるスクリプトだ。リストの中に内包表記をそのまま書いた行で止まっている。SyntaxError。",
+        indent: "字下げが崩れている。IndentationError。直したつもりの場所から、ずれが広がっている。",
+        newline: "貼りつけた文字列の \\n が、本物の改行に化けて、文字列が途中で切れている。",
+      })[S.err] || ("エラーは出ていない。" + (S.patched ? "未判定の論文を採用済みに混ぜない一行も入っている。" : "")) });
+    thing("terminal", { name: "端末", aliases: ["端末", "画面", "terminal"], loc: "t1", scenery: true,
+      desc: () => "黒い画面の端末だ。" + (S.err ? "赤いエラーが出ている。" : "プロンプトが点滅している。") });
+    thing("backup", { name: "バックアップ", aliases: ["バックアップ", "bak", "backup file"], en: "backup file", loc: null, scenery: true,
+      desc: () => "スクリプトの写しだ。" + (S.bakState && S.bakState.err ? "写したときには、まだエラーがあった。" : "写したときには、エラーはなかった。") + "戻れる地点。" });
+    thing("patch", { name: "パッチの紙", aliases: ["パッチの紙", "パッチ", "patch"], loc: "t1", scenery: true,
+      desc: "直しを書いた紙だ。「未判定の論文を、採用済みに混ぜない」。",
+      read: () => { S.patchRead = true; return "先頭に「*** Begin Patch」とある。patch コマンドが読む形の差分ではない。流しこんでも、当たらない形式だ。\n当てるなら、該当する関数を確かめて、手で書き換えるしかない。"; } });
+    thing("chatwall", { name: "会話の画面", aliases: ["会話の画面", "会話", "完全版", "chat"], en: "chat", loc: "t1", scenery: true,
+      desc: "壁いっぱいの会話の画面に、「そのまま貼れる完全版」のコードが流れている。",
+      read: "「そのまま貼れる完全版です」。……ただ、ここから長いコードを写すと、文字列の中の \\n が本物の改行になって壊れる、という注意書きが、誰かの字で足してある。「改行は chr(10) で」。" });
+    thing("pipe", { name: "Crossrefの配管", aliases: ["Crossrefの配管", "配管", "蛇口", "Crossref", "pipe"], en: "pipe", loc: "t1", scenery: true,
+      desc: () => S.throttled ? "蛇口は絞ってある。紙は、ぽつりぽつりとしか落ちてこない。" : "床の配管から、紙が漏れつづけている。札に「Crossref」。何でも拾ってくる。全部拾うと、ここから溢れる。" });
+    thing("folder", { name: "題名のフォルダ", aliases: ["題名のフォルダ", "フォルダ", "folder"], loc: null, scenery: true,
+      desc: "抄録集の題名が、そのままフォルダの名前になっている。自動で作られた。" });
+
+    // ---- Level 3（設計図の額）：増築の廊下
+    thing("ticket", { name: "作業票", aliases: ["作業票", "票", "ticket"], loc: "x1", scenery: true, container: true,
+      desc: () => {
+        const slot = k => { const c = kids("ticket").find(o => o.slot === k); return c ? c.label : "（空欄）"; };
+        return "入口の壁に貼られた作業票だ。三つの欄がある。\n　今回の目的：" + slot("goal") + "\n　成功の条件：" + slot("done") + "\n　触らない部分：" + slot("keep");
+      } });
+    for (const [id, nm, als, slot, label] of [
+      ["gMoon", "月の方角の札", ["月の方角の札", "月の方角"], "goal", "今夜の月の方角が、手元の画面に出る"],
+      ["gFolder", "題名フォルダの札", ["題名フォルダの札", "題名フォルダ"], "goal", "抄録集が、題名のフォルダに保存される"],
+      ["gNet", "人物のつながりの札", ["人物のつながりの札", "人物のつながり"], "goal", "心理学の人物と学派のつながりを、たどれる"],
+      ["dMin", "最低限の札", ["最低限の札", "最低限"], "done", "最低限、一度動けば成功"],
+      ["dAll", "全部そろえるの札", ["全部そろえるの札", "全部そろえる", "全部"], "done", "思いつく機能が、全部そろえば成功"],
+      ["kSpeed", "速度の札", ["速度の札", "速度"], "keep", "速度"],
+      ["kLook", "見た目の札", ["見た目の札", "見た目"], "keep", "見た目"],
+      ["kNotice", "通知の札", ["通知の札", "通知"], "keep", "通知"],
+    ]) thing(id, { name: nm, aliases: als, loc: "x1", take: true, card: true, slot, label,
+      desc: ({ goal: "今回の目的の欄に入れる札：", done: "成功の条件の欄に入れる札：", keep: "触らない部分の欄に入れる札：" })[slot] + label });
+    thing("doneDoor", { name: "完成の戸", aliases: ["完成の戸", "完成", "戸", "door"], en: "door", loc: null, scenery: true,
+      desc: "いちばん手前に現れた、小さな戸。札に「完成」。" });
+
+    // ---- Level 4（下書きの額）：訂正の書庫
+    thing("catalog", { name: "目録の箱", aliases: ["目録の箱", "目録", "箱", "catalog"], loc: "k1", scenery: true,
+      desc: () => "あなたについての記憶を書いたカードが、六枚差してある。どれにも赤い判が押してある。「本人の言葉」。" +
+        (S.kDone ? "そのうち三枚には、判の上から鉛筆で「AIの解釈」と書き足してある。" : "") });
+    const MEM = [
+      ["m1", "臨床心理士・公認心理師のカード", ["臨床心理士・公認心理師のカード", "臨床心理士", "公認心理師"], "self",
+        "出どころをたどる。……あなたがアカウントの設定に、自分で書いた言葉だった。本人の言葉でいい。"],
+      ["m2", "公務員のカード", ["公務員のカード", "公務員", "生活施設"], "self",
+        "出どころをたどる。……これも、自分で書いた設定だ。行動障害のある人の生活施設で働く公務員。本人の言葉でいい。"],
+      ["m3", "作業療法士のカード", ["作業療法士のカード", "作業療法士", "OT"], "interp",
+        "出どころをたどる。……「ot」という名前のノートを、AIが作業療法の記録と読んだのが始まりらしい。本人の字では、どこにも出てこない。"],
+      ["m4", "エビデンスに批判的のカード", ["エビデンスに批判的のカード", "エビデンスに批判的", "批判的"], "interp",
+        "出どころをたどる。……初出は、AIがノートの束を読んでつけた性格づけだった。依頼の仕方と矛盾はしない。でも、本人の言葉ではない。"],
+      ["m5", "三つの水準のカード", ["三つの水準のカード", "三つの水準", "水準"], "interp",
+        "出どころをたどる。……行動・神経生理・分子の三つの水準。裏づけはノート一枚だけで、そのあと同じ話は一度も出てこない。AIの読み取りだ。"],
+      ["m6", "PCなしのカード", ["PCなしのカード", "PCなし"], "self",
+        "出どころをたどる。……自分で書いた設定だ。ただ、いつからそうなのかは分からない。判の横に、小さく「時期不明」と書き足した。"],
+    ];
+    for (const [id, nm, als, truth, src] of MEM) thing(id, { name: nm, aliases: als, loc: "k1", scenery: true, mem: true, truth, src,
+      desc: () => (O[id].fixed ? "判の上に「AIの解釈」と書き足したカードだ。" : "赤い判：「本人の言葉」。") + (S.ver[id] ? "（出どころは確かめた）" : "（出どころは、まだ確かめていない）") });
+    thing("summary", { name: "〈要約〉", aliases: ["〈要約〉", "要約", "人影", "summary"], loc: "k1", scenery: true,
+      desc: "会話の要約を何枚も重ねてできた人影だ。顔のかわりに「簡潔に話す」「直接訂正する」と書いてある。どれも、本人が言った言葉ではない。ときどき「本人が明言した」とささやく。" });
+    thing("ticker", { name: "電光板", aliases: ["電光板", "短い言葉", "ticker"], loc: "k1", scenery: true,
+      desc: "千ほどの短い言葉が、ネオンのように流れている。眺める前に、まず一つずつ本物かどうか確かめた跡がある。訳は常体に直され、作者名は小さく添えてある。" });
+    thing("planisphere", { name: "星座盤", aliases: ["星座盤", "planisphere"], loc: "k1", scenery: true,
+      desc: "机の上の星座盤。かざして空に合わせると、月が九十度右にずれて見えるらしい。付箋に「水平に置いて見る。今完璧」。" });
+
+    // ---- Level 5（数式の額）：計数室
+    thing("counter", { name: "語彙の計数機", aliases: ["語彙の計数機", "計数機", "機械", "counter"], loc: "w1", scenery: true, container: true,
+      desc: "大きな計数機だ。投入口に紙を入れると、単語を数えて、性格の数値を打ち出すらしい。側面に「性格は、ことばの中にしまわれている」と彫ってある。" });
+    thing("requests", { name: "作業の依頼の束", aliases: ["作業の依頼の束", "依頼の束", "依頼", "requests"], loc: "w1", take: true,
+      desc: "会話のログから抜き出した、依頼の言葉の束。「お願いします」「直して」「おすすめは？」「全く反映されませんでした。」" });
+    thing("blank", { name: "白いカード", aliases: ["白いカード", "白紙", "カード", "blank card"], en: "blank card", loc: "w1", take: true,
+      desc: "何も書いていない、白いカード。" });
+    thing("printout", { name: "打ち出された紙", aliases: ["打ち出された紙", "打ち出し", "数値", "printout"], loc: null, take: true,
+      desc: "計数機が物語の一枚から打ち出した数値だ。「神経症傾向：高い」「開放性：きわめて高い」。数えたのは、語り手の言葉だ。" });
+    thing("circles", { name: "五つの円", aliases: ["五つの円", "円", "表", "circles"], loc: "w1", scenery: true,
+      desc: "壁の五つの円と、その下の十五の細目の表。開放性・誠実性・外向性・協調性・神経症傾向。円と円のあいだに細い線があって、「外向性—開放性　r = 0.413」と書いてある。説明はどれも丁寧で、誰の数字なのかだけが書いていない。" });
+
+    // ---- Level 6（五枚目の額）：物語の階
+    const SC = [
+      ["sMoon", "新月の絵", ["新月の絵", "新月"], "孤独のあらわれ", "新月の夜の空。見えないはずの月の暗い側が、地球からの照り返しでうっすら光っている。いちばん暗い夜に、月はいちばん照らされている。"],
+      ["sKey", "白鍵の絵", ["白鍵の絵", "白鍵"], "承認を求める気持ちの投影", "商業施設の片隅のピアノ。同じ力で押しても、押す人によって違う音が出る鍵が一つだけある。"],
+      ["sCalm", "凪の絵", ["凪の絵", "凪"], "抑えこまれた怒り", "風の止んだ夕方の海辺。無風ではない。海からの風と陸からの風が、ちょうど押し合っている。"],
+      ["sNight", "おやすみの絵", ["おやすみの絵", "おやすみ"], "自己愛の傾向", "誰もいない部屋で、おやすみと言う人。おやすみは、自分へのあいさつだと教わったから。"],
+      ["sBeast", "獣の絵", ["獣の絵", "獣"], "喪失の否認", "手紙だけを食べる、大きな灰色の獣。食べさせると笑う。最後は、笑ったまま、自分だけ静かに燃えていった。"],
+      ["sStar", "星の絵", ["星の絵", "星"], "外向性：低い", "夜の木のてっぺんで、昼の鳥が星に相談している。同じ色の星は、一つもない。"],
+    ];
+    for (const [id, nm, als, label, scene] of SC) thing(id, { name: nm, aliases: als, loc: "f1", take: true, scene: true, label, sceneText: scene,
+      desc: () => O[id].peeled ? scene : `絵の真ん中に、赤いラベルが貼ってある。「${label}」。その下の絵は、ほとんど見えない。` });
+    thing("hands", { name: "〈解釈の手〉", aliases: ["〈解釈の手〉", "解釈の手", "手", "hands"], loc: "f1", scenery: true,
+      desc: "たくさんの手を持つ影だ。どの手もペンを握っていて、物語の場面を見つけるたびに、心理学の言葉のラベルを書いて貼っていく。書き手と語り手の区別は、していない。" });
+
+    // ---- 額の隅
+    thing("cP", { name: "「前進」の隅", aliases: ["「前進」の隅", "前進の隅", "隅", "corner"], en: "progress corner", loc: null, take: true, corner: true,
+      desc: "額の隅の金具だ。「前進」と刻まれている。小さく確かめて、一つずつ進む。" });
+    thing("cC", { name: "「区切り」の隅", aliases: ["「区切り」の隅", "区切りの隅", "隅", "corner"], en: "cut corner", loc: null, take: true, corner: true,
+      desc: "額の隅の金具だ。「区切り」と刻まれている。一度、完成させる。" });
+    thing("cK", { name: "「出どころ」の隅", aliases: ["「出どころ」の隅", "出どころの隅", "隅", "corner"], en: "source corner", loc: null, take: true, corner: true,
+      desc: "額の隅の金具だ。「出どころ」と刻まれている。本人の言葉と、読み取りを分ける。" });
+    thing("cG", { name: "「不足」の隅", aliases: ["「不足」の隅", "不足の隅", "隅", "corner"], en: "lack corner", loc: null, take: true, corner: true,
+      desc: "額の隅の金具だ。「不足」と刻まれている。分からないものを、分からないと書く。" });
+  }
+
+  // ---- 部屋 ----
+  // Level 0 はどこへ行っても似た部屋。AIの文章の切れはしと、物語の切れはしが混ざっている
+  const YELLOW = [
+    "同じ黄色の壁紙、同じ湿ったカーペット、同じ蛍光灯のうなり。さっきの部屋と区別がつかない。",
+    "柱に、小さく印刷されている。「これは心理検査ではありません」。",
+    "床に、脚注の番号だけが散らばっている。本文は、どこにもない。",
+    "壁に、エラーの全文が貼ってある。該当する行と、その前後数行も、きちんと。",
+    "天井のスピーカーが、ときどき「わからないー」とつぶやく。責める調子ではない。",
+    "カーペットに円が五つ描いてある。四つには数字が入り、一つには「判断材料不足」。",
+    "廊下の先で、誰かが「やめときます。」とだけ言って、戸を閉めた。",
+    "電光掲示板が「処理が長く、熱くなる」とだけ、くり返し流している。",
+    "床に、同じ形のファイルが二つ。片方の名前の後ろに .bak。どちらが新しいのか、日付がない。",
+    "隅で、紙を食べる灰色の獣が、手紙をくわえて笑っている。",
+    "壁に、感情のボタンが並んでいる。割れていないのは「惚」だけだ。",
+    "壁に、ひらがなだけの文がびっしり。十五文字ごとに折り返していて、どこから読んでも途中だ。",
+    "壁ぎわの水槽にガラス板が一枚。熱帯魚は、みんな同じ横向きで止まっている。",
+    "赤いボタンに「強く押す」。すぐ下に「非常時以外は押さないでください」。",
+    "床に、表を伏せたカード。めくると「UNKNOWN　攻撃力0　防御力0」。",
+    "壁に、「確度：高い」と「判断材料不足」が、交互に印刷されている。",
+    "床に、星座盤が一つ。水平に置かれている。誰かが、かざすのをやめたらしい。",
+    "柱の貼り紙。「ここから先は行き止まりです」。その先にも、部屋は続いている。",
+  ];
+  const ROOMS = {
+    y0: { name: "黄色い部屋", lv: "Level 0", exits: { n: "y0", s: "y0", e: "y0", w: "y0" },
+      desc: () => YELLOW[S.yi % YELLOW.length] + "\n黄ばんだ壁紙に、細かい字で同じ言葉がくり返し印刷されている。壁の隅に、小さな脚注の番号。蛍光灯がブーンとうなっている。" },
+    g0: { name: "肖像の間", lv: "Level 1", exits: { n: "t1", e: "x1", w: "k1", s: "w1" },
+      desc: () => "がらんとした画廊だ。蛍光灯のうなりが、ここでは聞こえない。四方の壁に一枚ずつ、大きな額が掛かっている。" +
+        "\n北は付箋だらけの額、東は設計図の線で縁取られた額、西は鉛筆の下書きの跡が残る額、南は数式で埋まった額。どの額の表面も水面のように揺れていて、近づけば向こうへ抜けられそうだ。" +
+        (S.framed ? "\n部屋の真ん中に、四隅のそろった五枚目の額が立っている。表面が、ほかの額と同じように揺れている。" : "\n部屋の真ん中に、四隅の欠けた五枚目の額が立っている。") +
+        "\n隅の小さなスピーカーが、式から作ったリズムを鳴らしている。" },
+    t1: { name: "地下の端末室", lv: "Level 2", exits: { s: "g0" },
+      desc: () => "付箋の額を抜けると、コンクリートの地下室だった。机に黒い画面の端末。文献を集めるスクリプトが開いている。" +
+        "\n壁いっぱいに会話の画面が映っていて、そのまま貼れるコードが流れている。机の端にパッチの紙。床の配管から、紙が漏れている。" +
+        (S.bak ? "\n机の上に、スクリプトのバックアップがある。" : "") +
+        "\n南の階段から、肖像の間へ戻れる。" },
+    x1: { name: "増築の廊下", lv: "Level 3", exits: { w: "g0", e: "x1" },
+      desc: () => "設計図の線が、そのまま壁になった廊下だ。" +
+        (S.xDone ? "廊下はもう伸びていない。増えた部屋の戸には、どれも「あとで」の札が下がっている。" : `廊下は東へ伸びつづけている。いま、部屋は ${S.ext} 個増えている。`) +
+        "\n入口の壁に作業票。その横の掲示板に、札が何枚も留めてある。" +
+        "\n西の額から、肖像の間へ戻れる。" },
+    k1: { name: "訂正の書庫", lv: "Level 4", exits: { e: "g0" },
+      desc: () => "下書きの額を抜けると、鉛筆の線がそのまま書架になった書庫だった。中央に、カードを差した目録の箱。壁に、短い言葉が流れる電光板。机の上に星座盤。" +
+        (O.summary.loc === "k1" ? "\n奥の暗がりに、要約の紙を重ねてできた〈要約〉が立っている。" : "") +
+        "\n東の額から、肖像の間へ戻れる。" },
+    w1: { name: "計数室", lv: "Level 5", exits: { n: "g0" },
+      desc: () => "数式の額を抜けると、窓のない計数室だった。壁一面に、五つの円と細目の表。真ん中に大きな語彙の計数機。" +
+        "\n机の上に、作業の依頼の束と、白いカード。" +
+        "\n北の額から、肖像の間へ戻れる。" },
+    f1: { name: "物語の階", lv: "Level 6", exits: { s: "g0" },
+      desc: () => "五枚目の額を抜けると、天井の低い、白い廊下がどこまでも続いていた。壁に、物語の場面の絵が並んでいる。" +
+        (O.hands.loc === "f1" ? "\n廊下の奥で、たくさんの手を持つ〈解釈の手〉が、新しいラベルを書いている。" : "\n〈解釈の手〉は、もういない。絵は、ラベルなしで掛かっている。") +
+        "\n南の額から、肖像の間へ戻れる。" },
+  };
+
+  // ---- 状態 ----
+  let S = null;
+  function newState() {
+    initWorld();
+    S = { loc: "y0", moves: 0, done: false, seen: {}, sanity: 10, yi: 0, fn: 4, fnDir: "e", readPaper: false,
+      bak: false, bakState: null, err: "syntax", fixN: 0, pre: null, patchRead: false, patched: false, checked: false, small: false, throttled: false, tDone: false,
+      ext: 0, xDone: false,
+      ver: {}, kDone: false,
+      fedWork: false, fedStory: false, gDone: false,
+      framed: false, peeledAll: false, hung: null };
+    S.fnDir = pickDir();
+  }
+  function pickDir() { return ["n", "s", "e", "w"][Math.floor(Math.random() * 4)]; }
+  const SAVED_FIELDS = ["loc", "fixed", "peeled"];
+  function snapshot() {
+    const objs = {};
+    for (const o of Object.values(O)) {
+      objs[o.id] = {};
+      for (const k of SAVED_FIELDS) if (k in o) objs[o.id][k] = o[k];
+    }
+    return { v: 1, S, objs, log: rows.slice(-300) };
+  }
+  function restore(data) {
+    if (!data || data.v !== 1 || !data.S) return false;
+    initWorld();
+    S = data.S;
+    for (const [id, st] of Object.entries(data.objs || {})) if (O[id]) Object.assign(O[id], st);
+    return true;
+  }
+
+  // ---- 表示 ----
+  let rows = [];
+  function rowEl(r) {
+    if (r.t === "gap") { const d = document.createElement("div"); d.className = "gap"; return d; }
+    const p = document.createElement("p");
+    if (r.t === "cmd") {
+      p.className = "row cmd";
+      p.textContent = "> " + r.ja;
+      if (r.en && r.en !== r.ja) { const s = document.createElement("span"); s.className = "sent"; s.textContent = r.en; p.append(s); }
+      return p;
+    }
+    p.className = "row" + (r.cls ? " " + r.cls : "");
+    p.textContent = r.ja;
+    return p;
+  }
+  function push(r, fresh) {
+    rows.push(r);
+    const el = rowEl(r);
+    if (fresh) el.classList.add("fresh");
+    logEl.append(el);
+  }
+  function say(t, cls) { for (const part of String(t).split("\n")) push({ t: "out", ja: part, cls: cls || "" }, true); }
+  function gap() { push({ t: "gap" }); }
+  function scrollDown() { requestAnimationFrame(() => { screenEl.scrollTop = screenEl.scrollHeight; }); }
+  const cornerCount = () => CORNERS.filter(id => O[id].loc === "frame5").length;
+  const peeledCount = () => SCENES.filter(id => O[id].peeled).length;
+  function flicker() {
+    const bar = $("bar");
+    bar.classList.remove("flicker"); void bar.offsetWidth; bar.classList.add("flicker");
+  }
+  function setStatus() {
+    const r = ROOMS[S.loc];
+    const roomEl = $("room");
+    roomEl.textContent = r.name;
+    const lv = document.createElement("span"); lv.className = "en"; lv.textContent = r.lv; roomEl.append(lv);
+    const sc = $("score");
+    sc.textContent = "";
+    const sv = document.createElement("span");
+    sv.textContent = `正気度 ${S.sanity}`;
+    if (S.sanity <= 3) sv.className = "low";
+    sc.append(sv, document.createTextNode(S.framed ? `　ラベル ${peeledCount()}/6` : `　隅 ${cornerCount()}/4`));
+    for (const b of document.querySelectorAll("[data-go]")) b.classList.toggle("open", !!ROOMS[S.loc].exits[b.dataset.go]);
+  }
+
+  // ---- 世界のしくみ ----
+  function visible() {
+    const out = [];
+    const walk = parent => {
+      for (const o of Object.values(O)) {
+        if (o.loc !== parent) continue;
+        out.push(o);
+        if (o.container) walk(o.id);
+      }
+    };
+    walk(S.loc);
+    walk("player");
+    return out;
+  }
+  function describe(full) {
+    const r = ROOMS[S.loc];
+    say(r.name, "title");
+    if (full || !S.seen[S.loc] || S.loc === "y0") say(text(r.desc));
+    S.seen[S.loc] = true;
+    const loose = Object.values(O).filter(o => o.loc === S.loc && !o.scenery);
+    const cards = loose.filter(o => o.card), sc = loose.filter(o => o.scene), rest = loose.filter(o => !o.card && !o.scene);
+    for (const o of rest) say(`ここに${o.name}がある。`);
+    if (cards.length) say("掲示板の札：" + cards.map(o => o.name).join("、") + "。");
+    if (sc.length) say("壁の絵：" + sc.map(o => o.name + (o.peeled ? "" : "（ラベルつき）")).join("、") + "。");
+    if (S.loc === "k1") say("目録のカード：" + Object.values(O).filter(o => o.mem).map(o => o.name + (o.fixed ? "（訂正済み）" : "")).join("、") + "。");
+    if (S.loc === "y0" && O.asterism.loc === "y0") say("床に ⁂ の印がある。そこだけ、カーペットがやわらかい。");
+    if (S.loc === "x1" && O.doneDoor.loc === "x1") say("いちばん手前に、「完成」の札が下がった戸がある。");
+    if (S.loc === "g0" && kids("frame5").length) say(`五枚目の額には、${kids("frame5").map(x => x.name).join("、")}がはまっている。`, "note");
+  }
+  function go(dir) {
+    if (S.loc === "y0") {
+      if (dir === S.fnDir && S.fn > 0) S.fn--; else S.fn = Math.min(S.fn + 1, 5);
+      S.fnDir = pickDir();
+      S.yi = (S.yi + 1 + Math.floor(Math.random() * 4)) % 64;
+      O.asterism.loc = S.fn === 0 ? "y0" : null;
+      describe(true);
+      if (Math.random() < 0.45) lose(1, Math.random() < 0.5 ? "同じ部屋を、何度も通った気がする。" : "");
+      return;
+    }
+    if (S.loc === "x1" && dir === "e") {
+      if (O.doneDoor.loc === "x1") { VERB_DO.open(O.doneDoor); return; }
+      if (S.xDone) { say("増えた部屋の戸は、どれも閉まっている。「あとで」。"); return; }
+      grow("東へ進む。");
+      return;
+    }
+    const to = ROOMS[S.loc].exits[dir];
+    if (!to) { say(`${DIR_JA[dir] || "そちら"}へは行けない。`); return; }
+    if (S.loc === "g0") say(`${({ n: "付箋の額", e: "設計図の額", w: "下書きの額", s: "数式の額" })[dir]}に手を当てると、表面が水のように揺れて、向こう側へ抜け落ちた。`);
+    enter(to);
+  }
+  function enter(to) {
+    S.loc = to;
+    if (to === "y0") { describe(true); return; }
+    describe(false);
+    if (to === "g0" && S.sanity < 10) { S.sanity = 10; say("うなりが遠のく。体のほうが先に、ここは安全だと分かる。（正気度が戻った）", "note"); }
+  }
+  // 正気度が 0 になったら、肖像の間（まだなら黄色い部屋）で目を覚ます
+  function lose(n, why) {
+    if (S.done) return;
+    S.sanity = Math.max(0, S.sanity - n);
+    if (why) say(why, "warn");
+    if (S.sanity > 0) return;
+    gap();
+    say("壁紙の黄色が、目の奥までしみこんでくる。蛍光灯のうなりしか聞こえない……", "warn");
+    S.sanity = 10;
+    S.loc = S.seen.g0 ? "g0" : "y0";
+    say(S.loc === "g0" ? "気がつくと、肖像の間の床に座っていた。" : "気がつくと、また見覚えのない黄色い部屋に立っていた。");
+    describe(true);
+  }
+
+  // ---- Level 3：増築の廊下 ----
+  const FEATURES = ["天文情報の部屋", "方位の部屋", "タイマーの部屋", "センサーの部屋", "通知の部屋", "画面を青とシアンにそろえる部屋",
+    "人物と学派の関係図の部屋", "腕時計につなぐ部屋", "式から音を鳴らす部屋", "フォルダを自動で作る部屋", "おすすめ設定の部屋", "速くするパッチの部屋"];
+  function grow(lead) {
+    const f = FEATURES[S.ext % FEATURES.length];
+    S.ext++;
+    say(`${lead}新しい部屋が一つ、増えていた：${f}。壁が言う。「これも足せば、もっと便利になる」。`);
+    if (S.ext >= 6) lose(1, "部屋が増えるほど、入口が遠くなる。何を作りに来たのか、少し分からなくなる。");
+  }
+  function checkTicket() {
+    const c = k => kids("ticket").find(o => o.slot === k);
+    if (!c("goal") || !c("done") || !c("keep")) return;
+    if (c("done").id === "dAll") { say("三つの欄はそろった。……でも、廊下の伸びる音は止まらない。その成功の条件では、終わりが来ない。", "note"); return; }
+    S.xDone = true;
+    O.doneDoor.loc = "x1";
+    gap();
+    say("作業票の三つの欄がそろうと、廊下の伸びる音が止まった。");
+    say(`増えた ${S.ext} 個の部屋の戸が、一つずつ静かに閉まっていく。戸には「あとで」と札が下がった。捨てたのではない。あとで開ける。`);
+    say("いちばん手前に、新しい戸が一つ現れた。札に「完成」。");
+  }
+
+  // ---- Level 4：訂正の書庫 ----
+  function checkK() {
+    if (S.kDone) return;
+    if (!Object.values(O).filter(o => o.mem && o.truth === "interp").every(o => o.fixed)) return;
+    S.kDone = true;
+    O.summary.loc = null;
+    gap();
+    say("三枚目を差し直すと、奥の〈要約〉が、重ねた紙の端からほどけて消えた。");
+    say("目録の箱の底に、小さな紙が一枚。「違うところがあれば、そちらが正しい情報です」。");
+    O.cK.loc = "k1";
+    say("その紙の下に、額の隅の金具が一つあった。「出どころ」と刻まれている。");
+  }
+
+  // ---- 五枚目の額 ----
+  function frameUp() {
+    S.framed = true;
+    gap();
+    say("四つ目の隅がはまると、五枚目の額が、ようやく額の形になった。前進、区切り、出どころ、不足。");
+    say("絵はない。真鍮の札の「記録にないもの」の文字が、少しだけ光った。表面が、ほかの四枚と同じように揺れはじめる。");
+    say("（五枚目の額を「すり抜ける」）", "note");
+  }
+  function finale() {
+    S.done = true;
+    gap();
+    if (S.hung) say(`五枚目の額に、${O[S.hung].name}を掛けた。ラベルは、どこにも貼っていない。`, "win");
+    else say("五枚目の額は、空のまま残した。記録にないものの額だから。", "win");
+    say("四枚の肖像と、五枚目の額。どの額にも、全部は写らない。付箋の額にも、設計図の額にも、下書きの額にも、数式の額にも。", "win");
+    say("物語は、肖像ではない。けれど、肖像に写らなかったところで、ずっと書かれてきた。", "win");
+    say("記録に写らないことは、ないことではない。", "win");
+    say("画廊の床が、ゆっくり波打ちはじめる。向こう側に、蛍光灯のない、ふつうの朝の光が見える。", "win");
+    say("****  あなたは脱出した  ****", "win");
+    say(`（手数 ${S.moves}。≡ のメニューから、はじめから遊べます）`, "note");
+  }
+
+  // ---- ヒント ----
+  function hintText() {
+    if (S.loc === "y0") {
+      if (O.asterism.loc === "y0") return "床の ⁂ の印を「すり抜ける」。";
+      if (!S.readPaper) return "壁紙を読んでみよう。";
+      return "脚注を読むと、ひとつ小さい番号の方角が分かる。その方角へ進む。間違えると番号が増える。";
+    }
+    if (S.loc === "t1") {
+      if (S.tDone) return O.cP.loc === "t1" ? "隅を取って、肖像の間の五枚目の額へ。" : "ここはもう済んだ。";
+      if (S.err === "newline") return "スクリプトを「直す」（文字列の \\n を chr(10) に）。";
+      if (S.err === "indent") return S.bak && !S.bakState.err ? "バックアップから「元に戻す」。" : S.bak && S.bakState.err === "syntax" ? "バックアップから「元に戻す」。それから、今度は小さく直す。" : "戻る地点がない。会話の画面の完全版を「貼る」と、丸ごと差し替えられる（少しこたえる）。";
+      if (S.err === "syntax") return S.bak ? "スクリプトを「直す」。" : "直す前に、スクリプトの「バックアップを取る」。";
+      if (!S.patched) {
+        if (!S.patchRead) return "パッチの紙を読もう。";
+        if (!S.bakState || S.bakState.err) return "直った今の状態の「バックアップを取り」なおしてから、パッチを「当てる」。";
+        return "パッチをスクリプトに「当てる」。";
+      }
+      if (!S.checked) return "スクリプトを「確かめる」（構文確認）。";
+      if (!S.small) return S.throttled ? "スクリプトを「試す」（小さく）。" : "スクリプトを「試す」。溢れたら、Crossref の配管を「絞る」。";
+      return "スクリプトを「動かす」（本番）。";
+    }
+    if (S.loc === "x1") {
+      if (O.doneDoor.loc === "x1") return "完成の戸を「開ける」。";
+      if (S.xDone) return O.cC.loc === "x1" ? "隅を取って、肖像の間の五枚目の額へ。" : "ここはもう済んだ。";
+      return "作業票の三つの欄（目的・成功の条件・触らない部分）に、札を一枚ずつ「入れる」。どの目的を選ぶかは、自由。成功の条件だけは、終わりが来るものを。";
+    }
+    if (S.loc === "k1") {
+      if (S.kDone) return O.cK.loc === "k1" ? "隅を取って、肖像の間の五枚目の額へ。" : "ここはもう済んだ。";
+      return "カードを一枚ずつ「確かめる」。本人の言葉でないものだけを「訂正する」。確かめる前には、直さない。";
+    }
+    if (S.loc === "w1") {
+      if (S.gDone) return O.cG.loc === "w1" ? "隅を取って、肖像の間の五枚目の額へ。" : "ここはもう済んだ。";
+      if (!S.fedWork) return "作業の依頼の束を、計数機に「入れる」。";
+      if (!S.fedStory) return "物語の束を、計数機に「入れる」。";
+      return "白いカードを、計数機に「入れる」。";
+    }
+    if (S.loc === "f1") {
+      if (!S.peeledAll) return `絵のラベルを「剥がす」。残り ${6 - peeledCount()}。`;
+      return "絵を一枚「取って」、肖像の間の五枚目の額に「掛ける」。何も掛けないなら、肖像の間で「掛けない」。";
+    }
+    if (S.loc === "g0") {
+      if (S.framed && S.peeledAll) {
+        const held = SCENES.find(id => O[id].loc === "player");
+        return held ? `${O[held].name}を五枚目の額に「掛ける」か、「掛けない」。` : "五枚目の額に、何も「掛けない」こともできる。";
+      }
+      if (S.framed) return "五枚目の額を「すり抜ける」。";
+      if (CORNERS.some(id => O[id].loc === "player")) return "持っている隅を、五枚目の額に「入れる」。";
+      const todo = [];
+      if (!S.tDone) todo.push("北（付箋）");
+      if (!S.xDone || O.cC.loc === null) todo.push("東（設計図）");
+      if (!S.kDone) todo.push("西（下書き）");
+      if (!S.gDone) todo.push("南（数式）");
+      return `四枚の額の向こうで、隅を一つずつ。まだ：${todo.join("、")}。（いま ${cornerCount()}/4）`;
+    }
+    return "肖像の間へ戻ろう。";
+  }
+
+  // ---- 動作 ----
+  function need(o, verbJa) { if (!o) { say(`何を${verbJa}？`); return false; } return true; }
+  const scriptOr = o => o || (S.loc === "t1" ? O.script : null);
+  const ERRMSG = {
+    syntax: "  File \"script.py\", line 212\nSyntaxError: invalid syntax\n（リストの中に、内包表記をそのまま書いた行だ）",
+    indent: "  File \"script.py\", line 214\nIndentationError: unexpected indent",
+    newline: "  File \"script.py\", line 88\nSyntaxError: unterminated string literal\n（文字列の中の \\n が、本物の改行に化けている）",
+  };
+  const VERB_DO = {
+    look: () => describe(true),
+    inventory: () => {
+      const h = Object.values(O).filter(o => o.loc === "player");
+      if (!h.length) { say("何も持っていない。"); return; }
+      say("持ち物：");
+      for (const o of h) say(o.name, "indent");
+    },
+    wait: () => {
+      if (S.loc === "y0") { say("待っていても、蛍光灯がうなるだけだ。"); lose(1, ""); return; }
+      if (S.loc === "g0") { say("スピーカーのリズムが、少しずつ形を変える。式の数字を一つ変えただけで、まるで別の曲になる。"); return; }
+      if (S.loc === "t1") { say(S.throttled ? "配管は静かだ。" : "配管から、紙が一枚、また一枚と落ちてくる。"); return; }
+      if (S.loc === "x1") { if (S.xDone) say("廊下は、静かだ。"); else grow("手を止めて考えていたら、"); return; }
+      if (S.loc === "k1") { say(O.summary.loc === "k1" ? "〈要約〉が、こちらを見ずにささやく。「本人が明言した」「本人が明言した」。" : "電光板の短い言葉が、一つ流れて消えた。"); return; }
+      if (S.loc === "w1") { say("計数機が、何も入れていないのに、空回りの音を立てる。"); return; }
+      if (S.loc === "f1") {
+        const p = SCENES.map(id => O[id]).find(o => o.peeled && o.loc === "f1");
+        if (O.hands.loc === "f1" && p) { p.peeled = false; lose(1, `ぼんやりしているあいだに、〈解釈の手〉が、${p.name}にまたラベルを貼った。「${p.label}」。`); return; }
+        say("白い廊下は、どこまでも静かだ。"); return;
+      }
+      say("時が過ぎる。");
+    },
+    hint: () => say("（ヒント）" + hintText(), "note"),
+    dunno: () => {
+      say("「わからないー」", "voice");
+      say("隠さずに言うと、画面の向こうから、絞りこむための答えが一つだけ返ってきた。", "note");
+      say("（ヒント）" + hintText(), "note");
+    },
+    listen: () => say(text({
+      y0: "蛍光灯のうなり。遠くで、キーボードを叩く音。",
+      g0: "スピーカーの、式から作ったリズムだけ。",
+      t1: () => S.throttled ? "端末のファンの音だけ。" : "配管の中を、紙がこすれて流れる音。",
+      x1: () => S.xDone ? "何も聞こえない。" : "東のほうで、壁を継ぎ足す音がつづいている。",
+      k1: "紙をめくる音。電光板の、かすかな電気の音。",
+      w1: "計数機の中で、歯車が単語を一つずつ数える音。",
+      f1: () => O.hands.loc === "f1" ? "ペンがラベルの上を走る音。たくさんの手が、休みなく書いている。" : "何も聞こえない。それが、ありがたい。",
+    }[S.loc])),
+    noclip: (o) => {
+      if (o && o.to) { go(({ t1: "n", x1: "e", k1: "w", w1: "s" })[o.to]); return; }
+      if (S.loc === "y0") {
+        if (O.asterism.loc === "y0" && (!o || o.id === "asterism")) {
+          say("⁂ の印に足をのせると、カーペットがやわらかく沈み、あなたは向こう側へ抜け落ちた。");
+          gap(); flicker(); enter("g0"); return;
+        }
+        say("壁に肩を押しつけてみたが、ここはすり抜けられそうにない。脚注をたどろう。"); return;
+      }
+      if (S.loc === "g0" && (!o || o.id === "frame5")) {
+        if (!S.framed) { say(o ? "隅の欠けた額は、まだ額の形になっていない。抜けられない。" : "どの額をすり抜ける？（北・東・西・南、または五枚目の額）"); return; }
+        say("五枚目の額に手を当てると、表面がやわらかく揺れて、あなたは向こう側へ抜け落ちた。");
+        gap(); flicker(); enter("f1"); return;
+      }
+      if (S.loc !== "g0" && !o) { const back = Object.entries(ROOMS[S.loc].exits).find(([, v]) => v === "g0"); if (back) { go(back[0]); return; } }
+      say("体を押しつけてみたが、ここはすり抜けられそうにない。");
+    },
+    help: () => say("遊び方：「命令を作る」で動詞 → 物 の順にタップする。十字キーで移動する。困ったら「わからない」。くわしくは右上の ≡ から。", "note"),
+    examine: (o) => { if (need(o, "調べる")) say(text(o.desc) || `${o.name}に、特に変わったところはない。`); },
+    read: (o) => {
+      if (!need(o, "読む")) return;
+      if (o.scene) { VERB_DO.examine(o); return; }
+      if (!o.read) { say(`${o.name}には、読めるものは書いていない。`); return; }
+      say(text(o.read));
+    },
+    take: (o) => {
+      if (!need(o, "取る")) return;
+      if (o.loc === "player") { say("もう持っている。"); return; }
+      if (o.corner && o.loc === "frame5") { say("はまった隅は、もう外さない。"); return; }
+      if (o.scene) {
+        if (!o.peeled) { say("ラベルごと持ち帰ると、額の中でも、ラベルのほうが先に読まれてしまう。先に剥がそう。"); return; }
+        if (!S.peeledAll) { say("まだラベルの残っている絵がある。〈解釈の手〉は、持ち出した絵のぶんまで、ほかの絵に書き足すだろう。"); return; }
+        const held = SCENES.find(id => O[id].loc === "player");
+        if (held) { O[held].loc = "f1"; say(`${O[held].name}を壁に戻した。`); }
+      }
+      if (o.id === "printout") { O.printout.loc = "w1"; lose(1, "打ち出された紙を手に取った瞬間、それが自分の数字のような気がした。……数えたのは、物語の語り手の言葉だ。紙を机に戻した。"); return; }
+      if (!o.take) { say(`${o.name}は取れない。`); return; }
+      o.loc = "player";
+      say(`${o.name}を取った。`);
+    },
+    drop: (o) => {
+      if (!need(o, "置く")) return;
+      if (o.loc !== "player") { say(`${o.name}は持っていない。`); return; }
+      o.loc = S.loc;
+      say(`${o.name}を置いた。`);
+    },
+    put: (o, w) => {
+      if (!need(o, "入れる")) return;
+      if (!w) {
+        if (S.loc === "w1" && o) w = O.counter;
+        else if (S.loc === "x1" && o && o.card) w = O.ticket;
+        else if (S.loc === "g0" && o && (o.corner || o.scene)) w = O.frame5;
+        else { say("どこに入れる？"); return; }
+      }
+      if (!visible().includes(o)) { say(`ここに${o.name}はない。`); return; }
+      if (o.id === "patch" && w.id === "script") { VERB_DO.apply(o); return; }
+      if (w.id === "frame5") {
+        if (o.scene) { VERB_DO.hang(o); return; }
+        if (!o.corner) { say(`${o.name}は、額の隅の形に合わない。`); return; }
+        if (o.loc !== "player") { say(`${o.name}は持っていない。`); return; }
+        o.loc = "frame5";
+        say(`${o.name}を、五枚目の額の隅にはめた。カチリと音がした。（${cornerCount()} / 4）`);
+        if (cornerCount() === 4) frameUp();
+        return;
+      }
+      if (w.id === "ticket") {
+        if (!o.card) { say(`${o.name}は、作業票の欄には入らない。`); return; }
+        if (S.xDone) { say("作業票は、もう決まっている。"); return; }
+        const old = kids("ticket").find(c => c.slot === o.slot && c !== o);
+        if (old) { old.loc = "x1"; say(`${old.name}を欄から外して、掲示板に戻した。`); }
+        o.loc = "ticket";
+        say(`${o.name}を、作業票の「${({ goal: "今回の目的", done: "成功の条件", keep: "触らない部分" })[o.slot]}」の欄に入れた。`);
+        checkTicket();
+        return;
+      }
+      if (w.id === "counter") {
+        if (o.id === "requests") {
+          S.fedWork = true;
+          say("依頼の束を投入口に入れる。……計数機が数える。「お願いします」「直して」「エラー」「おすすめは？」。");
+          say("打ち出された紙：開放性 高い？／誠実性 一部高い？／外向性 判断材料不足／協調性 判断材料不足／神経症傾向 判断材料不足。");
+          say("依頼の言葉からは、作業の横顔しか出てこない。束は、取り出し口から戻ってきた。", "note");
+          return;
+        }
+        if (o.id === "stories") {
+          if (S.fedStory) { say("物語の数字は、もう一度見なくても分かる。"); return; }
+          S.fedStory = true;
+          O.printout.loc = "w1";
+          say("物語の束から一枚抜いて、投入口に入れる。……計数機は、迷わず数えはじめた。「夜」「名前」「番号」「死」「星」。");
+          say("打ち出された紙には、自信たっぷりの数字：神経症傾向 高い／開放性 きわめて高い。");
+          say("……待て。数えたのは、物語の語り手の言葉だ。書き手の言葉ではない。計数機には、その違いが数えられない。", "note");
+          return;
+        }
+        if (o.id === "blank") {
+          if (S.gDone) { say("もう十分だ。"); return; }
+          if (!(S.fedWork && S.fedStory)) { say("白いカードを入れる。……「判断材料不足」とだけ打ち出された。これがいちばん正確だと分かるには、ほかの紙と比べてみる必要がありそうだ。カードは戻ってきた。"); return; }
+          S.gDone = true;
+          O.blank.loc = "gone";
+          say("白いカードを入れる。計数機が長いあいだ考えて、一行だけ打ち出した。「判断材料不足」。");
+          say("依頼の束でも、物語の一枚でもなく、白紙に対して、計数機は初めて正確な答えを出した。");
+          O.cG.loc = "w1";
+          say("取り出し口から、カードのかわりに、額の隅の金具が出てきた。「不足」と刻まれている。");
+          return;
+        }
+        if (o.id === "printout") { say("打ち出された紙をもう一度数えても、同じ数字が出るだけだ。"); return; }
+        say(`${o.name}を入れても、計数機は空回りするだけだ。`);
+        return;
+      }
+      say(`${w.name}には入れられない。`);
+    },
+    // ---- 地下の端末室 ----
+    backup: (o) => {
+      o = scriptOr(o);
+      if (!o || (o.id !== "script" && o.id !== "backup")) { say("バックアップを取れるのは、スクリプトだ。"); return; }
+      S.bak = true;
+      S.bakState = { err: S.err, patched: S.patched };
+      O.backup.loc = "t1";
+      say("cp script.py script.py.bak。……今の状態を写した。戻れる地点ができた。" + (S.err ? "（ただし、エラーのある状態の写しだ）" : ""));
+    },
+    restore: (o) => {
+      if (S.loc !== "t1") { say("ここで元に戻すものはない。"); return; }
+      if (!S.bak) { lose(1, "戻る先がない。バックアップを取っていなかった。"); return; }
+      S.err = S.bakState.err; S.patched = S.bakState.patched; S.checked = false;
+      say("バックアップから、元の状態に戻した。壊れる前の地点だ。" + (S.err ? "（エラーは、写したときのまま残っている）" : ""));
+    },
+    fix: (o) => {
+      o = scriptOr(o);
+      if (!need(o, "直す")) return;
+      if (o.id !== "script") { say(`${o.name}は、直すものではない。`); return; }
+      if (S.err === "newline") { S.err = S.pre; say("文字列の中の \\n を、chr(10) に置き換えた。貼ったときの改行の化けは、これで消える。"); return; }
+      if (S.err === "indent") { lose(1, "字下げを直そうとすると、別の行がずれる。広げるほど崩れていく。"); say("（戻れる地点があれば、元に戻して、小さく直せる）", "note"); return; }
+      if (S.err === "syntax") {
+        if (S.fixN === 0) {
+          S.fixN = 1; S.err = "indent"; S.checked = false;
+          say("内包表記の行を外に出して、まわりもまとめて書き直した。……今度は IndentationError。直したつもりが、字下げまで崩れた。");
+          if (!S.bak) lose(1, "戻る地点を、作っていなかった。");
+          return;
+        }
+        S.err = null; S.checked = false;
+        say("今度は、その一行だけを直す。内包表記を一つ外に出して、できたリストを足すだけ。……エラーは消えた。小さな前進だ。");
+        return;
+      }
+      say("直すところは見当たらない。今いじると、かえって壊れる。");
+    },
+    apply: (o) => {
+      if (S.loc !== "t1") { say("ここに当てるものはない。"); return; }
+      if (S.patched) { say("もう当ててある。二重に当てると、同じ行が二つになる。"); return; }
+      if (!S.patchRead) { say("patch -p0 に流しこむ。……「Only garbage was found in the patch input.」何も当たらなかった。（パッチの紙を読もう）"); return; }
+      if (S.err) { say("先に、今出ているエラーを片づけてから。"); return; }
+      if (!S.bak || S.bakState.err) { say(S.bak ? "バックアップは、まだ壊れていたころの写しだ。直った今の状態を取りなおしてから。" : "当てる前に、今の状態のバックアップを取っておきたい。"); return; }
+      S.patched = true; S.checked = false;
+      say("流しこむのはやめて、該当する関数を確かめ、手で書き換えた。「未判定の論文を、採用済みに混ぜない」。");
+    },
+    paste: (o) => {
+      if (S.loc !== "t1") { say("ここに貼るものはない。"); return; }
+      if (S.err === "newline") { say("もう貼った。化けている。"); return; }
+      // 完全版で丸ごと差し替える。中身は正しいが、貼ると \n が化ける。差し替えは大きいので、少しこたえる
+      S.pre = null; S.err = "newline"; S.patched = false; S.checked = false; S.fixN = 1;
+      say("会話の画面から、完全版のコードをまるごと貼りつけて、ファイルごと差し替えた。……文字列の中の \\n が、本物の改行に化けた。");
+      say(ERRMSG.newline);
+      lose(1, "大きく差し替えたぶん、どこが変わったのか、自分でも追えなくなった。");
+    },
+    verify: (o) => {
+      if (S.loc === "t1") {
+        o = scriptOr(o);
+        if (o.id !== "script") { say(`${o.name}は、確かめるものではない。`); return; }
+        if (S.err) { say("構文を確かめる。……"); say(ERRMSG[S.err]); return; }
+        S.checked = true;
+        say("python -m py_compile script.py。……何も出ない。何も出ないのが、合格の印だ。");
+        return;
+      }
+      if (!need(o, "確かめる")) return;
+      if (o.mem) { S.ver[o.id] = true; say(o.src); return; }
+      if (o.id === "printout") { say("出どころを確かめる。……物語の一枚。数えたのは、語り手の言葉だ。"); return; }
+      if (o.scene) { say(o.peeled ? "ラベルのない場面だ。出どころは、あなたの物語。" : `ラベル「${o.label}」の出どころは、〈解釈の手〉のペンだ。書き手の言葉ではない。`); return; }
+      say(`${o.name}は、ここでは確かめようがない。`);
+    },
+    test: (o) => {
+      o = scriptOr(o);
+      if (!o || o.id !== "script") { say("試すのは、スクリプトだ。"); return; }
+      if (S.err) { say("十件だけ流してみる。"); say(ERRMSG[S.err]); return; }
+      if (!S.patched) { say("十件だけ流す。……動いた。でも、未判定の論文が、採用済みの棚に混ざっている。直しが要る（パッチ）。"); return; }
+      if (!S.checked) { say("流す前に、構文を確かめておこう。"); return; }
+      if (!S.throttled) { lose(1, "十件のはずが、床の配管から紙が溢れ出した。Crossref だけで百件以上。PubMed は数件。……広すぎる。"); return; }
+      S.small = true;
+      say("十件だけ流す。PubMed と OpenAlex が主軸、Crossref は少しだけ。未判定は別の棚へ。一件ずつ保存されている。……小さく、ちゃんと動いた。");
+    },
+    run: (o) => {
+      if (S.loc !== "t1") { say("ここには動かすものがない。"); return; }
+      o = scriptOr(o);
+      if (o.id !== "script" && o.id !== "terminal") { say(`${o.name}は、動かすものではない。`); return; }
+      if (S.tDone) { say("もう一度流す必要はない。済んだものは、飛ばされる。"); return; }
+      if (S.err) { say("本番を流す。"); say(ERRMSG[S.err]); return; }
+      if (!S.small) { say("いきなり本番は、やめておく。バックアップ、構文確認、小さく試してから。"); return; }
+      S.tDone = true;
+      O.folder.loc = "t1";
+      gap();
+      say("本番を流す。……時間はかかるが、止まらない。済んだものは飛ばし、進み具合が一行ずつ出る。");
+      say("最後に、抄録集の題名がそのままフォルダの名前になって、自動で作られた。");
+      say("「うまくいきました！」と、誰かが一言だけ言って、もう次の不具合を探しに行った。", "voice");
+      O.cP.loc = "t1";
+      say("フォルダの中に、額の隅の金具が一つ入っていた。「前進」と刻まれている。");
+    },
+    throttle: (o) => {
+      if (S.loc !== "t1") { say("ここに絞るものはない。"); return; }
+      if (S.throttled) { say("もう絞ってある。"); return; }
+      S.throttled = true;
+      say("Crossref の蛇口を絞って、上限を決めた。網羅は少し手放す。そのかわり、速く、静かになる。主軸は PubMed と OpenAlex に。");
+    },
+    open: (o) => {
+      if (!need(o, "開ける")) return;
+      if (o.id === "doneDoor") {
+        if (O.doneDoor.loc !== "x1") { say("ここに戸はない。"); return; }
+        O.doneDoor.loc = "gone";
+        const g = kids("ticket").find(c => c.slot === "goal");
+        say("完成の戸を開ける。小さな机に、小さなものが一つ。");
+        say(`作業票の目的のとおり、「${g ? g.label : ""}」。それだけが、一度、ちゃんと動いた。`);
+        say("足したかった機能は、閉じた戸の向こうに全部そろっている。今日は、ここで完成にする。");
+        O.cC.loc = "x1";
+        say("机の上に、額の隅の金具が一つ。「区切り」と刻まれている。");
+        return;
+      }
+      if (o.id === "catalog") { VERB_DO.examine(o); return; }
+      say(`${o.name}は、開けるものではない。`);
+    },
+    // ---- 訂正の書庫 ----
+    correct: (o) => {
+      if (!need(o, "訂正する")) return;
+      if (!o.mem) { say(`${o.name}は、訂正するものではない。`); return; }
+      if (o.fixed) { say("もう訂正した。"); return; }
+      if (!S.ver[o.id]) { lose(1, "確かめずに直すのは、確かめずに信じるのと同じだ。暗がりで〈要約〉がささやく。「本人が明言した」。……手が止まった。"); say("（先に「確かめる」）", "note"); return; }
+      if (o.truth === "self") { lose(1, "本人の言葉を、解釈に格下げしかけた。これは、あなたが自分で書いたものだ。"); return; }
+      o.fixed = true;
+      say(`赤い判の上に、鉛筆で「AIの解釈」と書き足して、${o.name}を差し直した。`);
+      checkK();
+    },
+    // ---- 物語の階 ----
+    peel: (o) => {
+      if (!need(o, "剥がす")) return;
+      if (!o.scene) { say(`${o.name}には、剥がすものがない。`); return; }
+      if (o.peeled) { say("もう剥がした。"); return; }
+      o.peeled = true;
+      say(`ラベルを剥がした。「${o.label}」。……ラベルの下から、場面が戻ってくる。`);
+      say(o.sceneText, "voice");
+      if (peeledCount() === 6 && !S.peeledAll) {
+        S.peeledAll = true;
+        O.hands.loc = null;
+        gap();
+        say("最後のラベルが剥がれると、〈解釈の手〉の手が、一本ずつ止まった。");
+        say("解釈されない場面の前では、解釈する者でいることができないらしい。手はほどけて、白い廊下に消えた。");
+        say("絵を一枚、五枚目の額に掛けて帰ってもいい。何も掛けずに帰ってもいい。", "note");
+      }
+    },
+    hang: (o) => {
+      if (!need(o, "掛ける")) return;
+      if (!o.scene) { say(`${o.name}は、額に掛けるものではない。`); return; }
+      if (S.loc !== "g0" || !S.framed) { say("掛ける額が、ここにはない。五枚目の額は、肖像の間にある。"); return; }
+      if (o.loc !== "player") { say(`${o.name}は持っていない。`); return; }
+      if (!o.peeled) { say("ラベルを剥がしてから。"); return; }
+      S.hung = o.id; o.loc = "frame5";
+      finale();
+    },
+    nohang: () => {
+      if (S.loc !== "g0" || !S.framed || !S.peeledAll) { say(S.framed ? "まだ、物語の階を見ていない。" : "まだ、掛ける額ができていない。"); return; }
+      S.hung = null;
+      finale();
+    },
+  };
+
+  // ---- 命令を読む ----
+  const EN_SIMPLE = [
+    ["look", /^(look|l)$/], ["inventory", /^(inventory|i)$/], ["wait", /^(wait|z)$/], ["hint", /^hint$/], ["help", /^help$/],
+    ["listen", /^listen$/], ["noclip", /^noclip$/], ["dunno", /^(dunno|i don'?t know)$/], ["nohang", /^(leave empty|hang nothing)$/],
+    ["restore", /^restore$/], ["test", /^test$/], ["run", /^run$/], ["backup", /^backup$/],
+  ];
+  const DIR_WORDS = { n: "n", north: "n", s: "s", south: "s", e: "e", east: "e", w: "w", west: "w" };
+  function findObj(s) {
+    s = String(s || "").trim().toLowerCase().replace(/^the /, "");
+    if (!s) return null;
+    const vis = visible();
+    for (const o of vis) if (o.aliases.some(a => a.toLowerCase() === s) || o.en === s) return o;
+    for (const o of vis) if (o.aliases.some(a => a.length > 1 && s.includes(a.toLowerCase()))) return o;
+    return { missing: s };
+  }
+  function parseEn(cmd) {
+    cmd = cmd.toLowerCase().replace(/\s+/g, " ").trim();
+    for (const [v, rx] of EN_SIMPLE) if (rx.test(cmd)) return { v };
+    const g = cmd.replace(/^go /, "");
+    if (DIR_WORDS[g]) return { v: "go", dir: DIR_WORDS[g] };
+    const pats = [
+      ["put", /^(?:put|insert|place|feed) (.+) (?:in|into|on) (.+)$/],
+      ["backup", /^backup (.+)$/], ["restore", /^restore (.+)$/], ["fix", /^fix (.+)$/], ["apply", /^apply (.+)$/], ["paste", /^paste (.+)$/],
+      ["verify", /^(?:verify|check) (.+)$/], ["test", /^test (.+)$/], ["run", /^run (.+)$/], ["throttle", /^throttle (.+)$/],
+      ["correct", /^correct (.+)$/], ["peel", /^peel (.+)$/], ["hang", /^hang (.+)$/], ["open", /^open (.+)$/],
+      ["examine", /^(?:examine|x|look at) (.+)$/], ["read", /^read (.+)$/], ["take", /^(?:take|get|pick up) (.+)$/], ["drop", /^drop (.+)$/],
+      ["noclip", /^noclip (?:through |into )?(.+)$/],
+    ];
+    for (const [v, rx] of pats) { const m = cmd.match(rx); if (m) return { v, a: m[1], b: m[2] }; }
+    return null;
+  }
+  // 先に当たったものを動詞にする。物の名前に動詞の字が混ざらないように、物の名前も選んである
+  const JA_VERBS = [
+    ["noclip", /すり抜け|通り抜け/], ["nohang", /掛けない|掛けず/], ["dunno", /わからな|分からな|難しいっ/],
+    ["backup", /バックアップを取|バックアップする|バックアップをと/], ["restore", /元に戻|戻す/], ["correct", /訂正/],
+    ["verify", /確かめ|確認/], ["fix", /直す|直し|修正/], ["apply", /当て/], ["paste", /貼る|貼り|貼って/], ["peel", /剥が|はが/],
+    ["hang", /掛ける|掛け|飾る/], ["throttle", /絞|しぼ|上限/], ["test", /試す|試し|テスト/], ["run", /動かす|実行|本番|起動|流す/],
+    ["open", /開け|開く/], ["put", /入れ|はめ|差し|投入/], ["read", /読/], ["examine", /調べ|見る|眺め/],
+    ["take", /取|拾|持つ/], ["drop", /置/],
+  ];
+  const JA_DIRS = { "北": "n", "南": "s", "東": "e", "西": "w" };
+  const OBJLESS = ["nohang", "dunno"];
+  function parseJa(t) {
+    const s = t.replace(/[\s　。！？!?、「」]/g, "");
+    const dm = s.match(/^(北|南|東|西)(へ|に)?(行く|進む|いく|移動|行って|進んで)?(ください)?$/);
+    if (dm) return { v: "go", dir: JA_DIRS[dm[1]] };
+    const simple = { "見る": "look", "周りを見る": "look", "見回す": "look", "持ち物": "inventory", "待つ": "wait", "ヒント": "hint", "遊び方": "help", "ヘルプ": "help",
+      "すり抜ける": "noclip", "耳をすます": "listen", "聞く": "listen", "わからない": "dunno", "わからないー": "dunno", "難しいっす": "dunno",
+      "掛けない": "nohang", "元に戻す": "restore", "バックアップを取る": "backup", "試す": "test", "動かす": "run", "構文を確かめる": "verify", "構文確認": "verify" };
+    if (simple[s]) return { v: simple[s] };
+    let verb = null, vrx = null;
+    for (const [v, rx] of JA_VERBS) if (rx.test(s)) { verb = v; vrx = rx; break; }
+    if (!verb) return null;
+    if (OBJLESS.includes(verb)) return { v: verb, raw: true };
+    const vm = s.match(vrx);
+    const objPart = vm ? s.slice(0, vm.index) : s;
+    const hits = [];
+    for (const o of visible()) {
+      let best = -1, len = 0;
+      for (const a of o.aliases) { const i = objPart.indexOf(a); if (i >= 0 && a.length > len) { best = i; len = a.length; } }
+      if (best >= 0) hits.push({ o, i: best, end: best + len });
+    }
+    const uniq = hits.filter(h => !hits.some(k => k !== h && k.i <= h.i && k.end >= h.end && (k.end - k.i) > (h.end - h.i)));
+    uniq.sort((x, y) => x.i - y.i);
+    const after = h => objPart.slice(h.end, h.end + 1);
+    const a = uniq.find(h => after(h) === "を") || uniq.find(h => after(h) === "の") || uniq[0];
+    const b = uniq.find(h => h !== a);
+    return { v: verb, ao: a ? a.o : null, bo: b ? b.o : null, raw: true };
+  }
+
+  const QUIET = ["hint", "help", "inventory", "look", "dunno"];
+  function act(input) {
+    if (S.done) { say("もう外に出ている。≡ のメニューから、はじめから遊べる。", "note"); return; }
+    const ascii = /^[\x20-\x7e]*$/.test(input);
+    const p = ascii ? parseEn(input) : parseJa(input);
+    if (!p) { say("その言い方はわからない。「命令を作る」を使うと確実だ。"); return; }
+    S.moves++;
+    if (p.v === "go") { go(p.dir); return; }
+    let a = p.ao, b = p.bo;
+    if (!p.raw) { a = p.a ? findObj(p.a) : null; b = p.b ? findObj(p.b) : null; }
+    for (const x of [a, b]) if (x && x.missing) { say(`ここに「${x.missing}」は見当たらない。`); return; }
+    VERB_DO[p.v](a, b);
+  }
+
+  function submit(label, en) {
+    label = String(label || "").trim();
+    const cmd = en || label;
+    if (!cmd) return;
+    gap();
+    push({ t: "cmd", ja: label || cmd, en: en && en !== label ? en : "" });
+    act(cmd);
+    setStatus();
+    scrollDown();
+    writeSaved(snapshot());
+  }
+
+  // ---- 入力 ----
+  $("prompt").addEventListener("submit", e => {
+    e.preventDefault();
+    const v = cmdEl.value;
+    cmdEl.value = "";
+    submit(v);
+  });
+  $("pad").addEventListener("click", e => {
+    const b = e.target.closest("[data-go],[data-cmd]");
+    if (!b) return;
+    if (b.dataset.go) submit(b.textContent, { n: "north", s: "south", e: "east", w: "west" }[b.dataset.go]);
+    else submit(b.textContent, b.dataset.cmd);
+  });
+  cmdEl.addEventListener("focus", () => { document.body.classList.add("typing"); scrollDown(); });
+  cmdEl.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== cmdEl) document.body.classList.remove("typing"); }, 120));
+
+  // ---- 命令を作る ----
+  // [ボタンの文字, 英語の型, 日本語の型]。% は1つ目の物、# は2つ目の物。% がなければ物を選ばずにそのまま送る
+  const VERBS = [
+    ["調べる", "examine %", "%を調べる"], ["読む", "read %", "%を読む"], ["取る", "take %", "%を取る"],
+    ["置く", "drop %", "%を置く"], ["入れる", "put % in #", "%を#に入れる"], ["開ける", "open %", "%を開ける"],
+    ["確かめる", "verify %", "%を確かめる"], ["バックアップ", "backup %", "%のバックアップを取る"], ["直す", "fix %", "%を直す"],
+    ["元に戻す", "restore", "元に戻す"], ["当てる", "apply %", "%を当てる"], ["貼る", "paste %", "%を貼る"],
+    ["試す", "test %", "%を試す"], ["動かす", "run %", "%を動かす"], ["絞る", "throttle %", "%を絞る"],
+    ["訂正する", "correct %", "%を訂正する"], ["剥がす", "peel %", "%のラベルを剥がす"], ["掛ける", "hang %", "%を掛ける"],
+    ["掛けない", "leave empty", "掛けない"], ["すり抜ける", "noclip %", "%をすり抜ける"],
+  ];
+  const builder = $("builder");
+  const bs = { step: "verb", verb: null, obj1: null };
+  const fill = (t, a, b) => t.replace("%", a).replace("#", b);
+  function bButton(label, onClick, cls) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "bk" + (cls ? " " + cls : ""); b.textContent = label;
+    b.addEventListener("click", onClick);
+    return b;
+  }
+  function renderBuilder() {
+    const list = $("b-list");
+    list.textContent = ""; list.scrollTop = 0;
+    if (bs.step === "verb") {
+      $("b-title").textContent = "何をする？"; $("b-preview").textContent = "";
+      list.className = "verbs";
+      for (const v of VERBS) list.append(bButton(v[0], () => {
+        if (!v[1].includes("%")) { closeBuilder(); submit(v[2], v[1]); return; }
+        bs.verb = v; bs.step = "obj"; renderBuilder();
+      }));
+      $("b-back").hidden = true;
+      return;
+    }
+    $("b-back").hidden = false;
+    list.className = "";
+    const v = bs.verb, second = bs.step === "obj2";
+    $("b-title").textContent = second ? "どこに？" : "何を？";
+    $("b-preview").textContent = second ? fill(v[2], bs.obj1.name, "…") : fill(v[2], "…", "…");
+    let items = visible();
+    if (second) items = items.filter(o => o !== bs.obj1);
+    items.sort((x, y) => (y.loc === "player") - (x.loc === "player"));
+    for (const o of items) {
+      const isHeld = o.loc === "player";
+      list.append(bButton(o.name + (isHeld ? "（持）" : ""), () => {
+        if (!second) {
+          bs.obj1 = o;
+          if (v[1].includes("#")) { bs.step = "obj2"; renderBuilder(); return; }
+          closeBuilder();
+          submit(fill(v[2], o.name, ""), fill(v[1], o.en, ""));
+        } else {
+          closeBuilder();
+          submit(fill(v[2], bs.obj1.name, o.name), fill(v[1], bs.obj1.en, o.en));
+        }
+      }, isHeld ? "held" : ""));
+    }
+    if (!items.length) {
+      const p = document.createElement("p");
+      p.className = "empty"; p.textContent = "選べる物がない。";
+      list.append(p);
+    }
+  }
+  function openBuilder() {
+    if (S.done) return;
+    bs.step = "verb"; bs.verb = null; bs.obj1 = null;
+    builder.hidden = false;
+    renderBuilder();
+  }
+  function closeBuilder() { builder.hidden = true; }
+  $("build-btn").addEventListener("click", openBuilder);
+  $("b-close").addEventListener("click", closeBuilder);
+  builder.addEventListener("click", e => { if (e.target === builder) closeBuilder(); });
+  $("b-back").addEventListener("click", () => { bs.step = bs.step === "obj2" ? "obj" : "verb"; renderBuilder(); });
+
+  // ---- メニュー ----
+  const sheet = $("sheet");
+  function openSheet(open) {
+    sheet.hidden = !open;
+    $("menu-btn").setAttribute("aria-expanded", String(open));
+    $("restart-yes").hidden = $("restart-no").hidden = true;
+    $("restart-btn").hidden = false;
+  }
+  $("menu-btn").addEventListener("click", () => openSheet(sheet.hidden));
+  $("close-sheet").addEventListener("click", () => openSheet(false));
+  sheet.addEventListener("click", e => { if (e.target === sheet) openSheet(false); });
+  $("restart-btn").addEventListener("click", () => { $("restart-btn").hidden = true; $("restart-yes").hidden = $("restart-no").hidden = false; });
+  $("restart-no").addEventListener("click", () => openSheet(false));
+  $("restart-yes").addEventListener("click", () => { openSheet(false); start(true); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") { closeBuilder(); openSheet(false); } });
+
+  // ---- 起動 ----
+  function intro() {
+    say("五枚目の額", "title");
+    say("― 肖像に写らなかったもの ―", "note");
+    gap();
+    say("四つのAIが、それぞれのやり方であなたを書いた。付箋だらけの紙、設計図のような紙、下書きの紙、数式で埋まった紙。");
+    say("四枚を重ねて読んでいたら、紙の継ぎ目に指が沈んで、そのまま、どこかへすり抜けてしまったらしい。");
+    say("ポケットには、自分で書いた物語の束。こちらは、どのAIも読んでいない。");
+    gap();
+    describe(true);
+  }
+  function start(fresh) {
+    rows = []; logEl.textContent = "";
+    const saved = fresh ? null : loadSaved();
+    if (saved && restore(saved)) {
+      for (const r of saved.log || []) push(r, false);
+      gap();
+      say("（前回の続きから）", "note");
+    } else {
+      newState();
+      intro();
+      writeSaved(snapshot());
+    }
+    setStatus();
+    scrollDown();
+  }
+  start(false);
+})();
+</script>
