@@ -8,101 +8,152 @@
 <title>三面鏡</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
 <style>
-/* 夜の観測所。青とシアンだけで組み、枠線は引かない（面の濃淡で区切る）。
-   Zork 日本語版と同じ組み立て（状態行・文章・命令を作る・十字キー）。ひとつの見た目に決めているので、明暗テーマは切り替えない。 */
+/* 蛍光灯の下の黄色い部屋。Zork 日本語版と同じ組み立て（状態行・文章・命令を作る・十字キー）で、
+   色を「湿ったカーペットと黄ばんだ壁紙」に寄せる。ひとつの見た目に決めているので、明暗テーマは切り替えない。 */
 :root {
-  --screen: #050b18;
-  --text: #9fd8ff;
-  --bright: #e6f7ff;
-  --dim: #5b7fa3;
-  --faint: #1a2c49;
-  --key: #0b1730;
-  --key-on: #12284d;
-  --accent: #4ee1ff;
-  --bar-bg: #0d2a4f;
-  --bar-fg: #aeeaff;
-  --warn: #ff9f8a;
-  --serif: "Shippori Mincho", "Noto Serif CJK JP", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --screen: #11100a;
+  --wall: #d9c875;
+  --bright: #fff2b0;
+  --dim: #8c7f48;
+  --faint: #3f3a22;
+  --key: #1b1a10;
+  --bar-bg: #d9c875;
+  --bar-fg: #11100a;
+  --warn: #e0806a;
+  --dot: "DotGothic16", "Noto Sans Mono CJK JP", "Osaka-Mono", ui-monospace, monospace;
   --size: 17px;
-  --line: 1.75;
+  --line: 1.65;
   color-scheme: dark;
 }
 html, body { height: 100%; }
 [hidden] { display: none !important; }
-body { margin: 0; background: var(--screen); color: var(--text); font-family: var(--serif); font-size: var(--size); line-height: var(--line); }
+body {
+  margin: 0;
+  background: var(--screen);
+  color: var(--wall);
+  font-family: var(--dot);
+  font-size: var(--size);
+  line-height: var(--line);
+}
 #app { height: 100%; display: flex; flex-direction: column; }
 
-#bar { display: flex; align-items: baseline; gap: 0.8em; background: var(--bar-bg); color: var(--bar-fg); padding: 0.2em 16px; white-space: nowrap; }
+#bar {
+  display: flex; align-items: baseline; gap: 0.8em;
+  background: var(--bar-bg); color: var(--bar-fg);
+  padding: 0.15em 16px; white-space: nowrap;
+}
+/* 蛍光灯の明滅。動きを減らす設定の人には出さない */
 @media (prefers-reduced-motion: no-preference) {
-  .row.fresh { animation: fade 0.3s ease-out; }
-  @keyframes fade { from { opacity: 0.15; } to { opacity: 1; } }
+  #bar.flicker { animation: flicker 0.6s steps(2, end) 1; }
+  @keyframes flicker { 0% { opacity: 1; } 30% { opacity: 0.35; } 45% { opacity: 1; } 60% { opacity: 0.6; } 100% { opacity: 1; } }
+  .row.fresh { animation: hum 0.25s steps(3, end); }
+  @keyframes hum { from { opacity: 0.2; } to { opacity: 1; } }
 }
 #room { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#room .en { font-size: 0.78em; margin-left: 0.6em; opacity: 0.7; }
 #score { font-variant-numeric: tabular-nums; font-size: 0.9em; }
+#score .low { color: #7a1f10; }
 #menu-btn { font: inherit; background: none; border: 0; color: var(--bar-fg); padding: 0 0.2em; cursor: pointer; }
-#menu-btn:focus-visible { outline: 2px solid var(--accent); }
+#menu-btn:focus-visible { outline: 2px solid var(--bar-fg); }
 
-#screen { flex: 1; min-height: 0; overflow-y: auto; padding-inline: 16px; padding-block: 1.1em 0.6em; overscroll-behavior: contain; }
+#screen {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding-inline: 16px; padding-block: 1.1em 0.6em;
+  overscroll-behavior: contain;
+}
 #log { max-width: 46em; display: flex; flex-direction: column; }
 .row { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
-.row.title { color: var(--accent); font-weight: 600; }
+.row.title { color: var(--bright); }
 .row.indent { padding-left: 1.5em; }
-.row.note { color: var(--dim); font-size: 0.88em; }
+.row.note { color: var(--dim); font-size: 0.86em; }
 .row.warn { color: var(--warn); }
 .row.win { color: var(--bright); }
+.row.paper { color: var(--dim); font-size: 0.86em; letter-spacing: 0.04em; }
 .gap { height: calc(var(--size) * 0.7); }
 .cmd { color: var(--bright); margin-top: 0.4em; }
 .cmd .sent { color: var(--dim); font-size: 0.86em; margin-left: 0.8em; }
 
-#dock { background: #070f20; padding-block: 0.6em calc(0.6em + env(safe-area-inset-bottom, 0px)); }
+#dock { border-top: 1px solid var(--faint); padding-block: 0.5em calc(0.6em + env(safe-area-inset-bottom, 0px)); }
 #prompt { display: flex; align-items: center; gap: 0.5em; padding-inline: 16px; }
-#prompt .gt { color: var(--accent); }
-#cmd { flex: 1; min-width: 0; font: inherit; font-size: max(16px, 1em); background: transparent; color: var(--bright); border: 0; outline: 0; caret-color: var(--accent); padding: 0.2em 0; }
+#prompt .gt { color: var(--bright); }
+#cmd {
+  flex: 1; min-width: 0; font: inherit; font-size: max(16px, 1em);
+  background: transparent; color: var(--bright); border: 0; outline: 0;
+  caret-color: var(--bright); padding: 0.2em 0;
+}
 #cmd::placeholder { color: var(--faint); }
-#send, #build-btn { flex: none; font: inherit; font-size: 0.9em; background: var(--accent); color: var(--screen); border: 0; padding: 0.35em 0.7em; cursor: pointer; }
+#send, #build-btn {
+  flex: none; font: inherit; font-size: 0.9em; background: var(--wall); color: var(--screen);
+  border: 0; padding: 0.35em 0.7em; cursor: pointer;
+}
 #send:focus-visible, #build-btn:focus-visible { outline: 2px solid var(--bright); outline-offset: 2px; }
 
-#pad { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 0.7em; padding-inline: 16px; padding-top: 0.6em; }
+#pad {
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 0.7em;
+  padding-inline: 16px; padding-top: 0.6em;
+}
 #compass { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
 #common { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-content: start; }
-.pk { font: inherit; font-size: 0.9em; line-height: 1.2; min-height: 2.4em; background: var(--key); color: var(--text); border: 0; padding: 0.3em 0.1em; cursor: pointer; white-space: nowrap; }
-.pk.dir { color: var(--dim); }
-.pk.dir.open { color: var(--bright); background: var(--key-on); }
-.pk.look { background: var(--key-on); color: var(--accent); }
+.pk {
+  font: inherit; font-size: 0.9em; line-height: 1.2; min-height: 2.4em;
+  background: transparent; color: var(--wall); border: 1px solid var(--faint);
+  padding: 0.3em 0.1em; cursor: pointer; white-space: nowrap;
+}
+.pk.dir { background: var(--key); color: var(--dim); }
+/* 今いる部屋から行ける方角だけを明るくする */
+.pk.dir.open { color: var(--bright); border-color: var(--dim); }
+.pk.look { border-color: var(--wall); color: var(--bright); }
 .pk.blank { visibility: hidden; }
-.pk:active { background: var(--accent); color: var(--screen); }
-.pk:focus-visible { outline: 1px solid var(--accent); }
+.pk:active { background: var(--wall); color: var(--screen); }
+.pk:focus-visible { outline: 1px solid var(--bright); }
 body.typing #pad { display: none; }
 
-.key { font: inherit; font-size: 0.9em; line-height: 1.2; background: var(--key-on); color: var(--text); border: 0; padding: 0.4em 0.8em; cursor: pointer; }
-.key:active { background: var(--accent); color: var(--screen); }
-.key:focus-visible { outline: 1px solid var(--accent); }
+.key {
+  font: inherit; font-size: 0.9em; line-height: 1.2;
+  background: transparent; color: var(--wall);
+  border: 1px solid var(--faint); padding: 0.35em 0.7em; cursor: pointer;
+}
+.key:active { background: var(--wall); color: var(--screen); }
+.key:focus-visible { outline: 1px solid var(--bright); }
 
-#builder, #sheet { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); display: flex; flex-direction: column; justify-content: flex-end; }
-.panel { background: #08122a; max-height: 82%; display: flex; flex-direction: column; padding: 0.8em 16px calc(0.8em + env(safe-area-inset-bottom, 0px)); }
+#builder, #sheet {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6);
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+.panel {
+  background: var(--screen); border-top: 1px solid var(--wall);
+  max-height: 82%; display: flex; flex-direction: column;
+  padding: 0.8em 16px calc(0.8em + env(safe-area-inset-bottom, 0px));
+}
 .bhead { display: flex; flex-direction: column; gap: 0.15em; padding-bottom: 0.6em; }
-#b-title, .panel h2 { color: var(--accent); font: inherit; font-weight: 600; margin: 0; }
-#b-preview { color: var(--dim); font-size: 0.88em; }
-#b-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; align-content: start; }
+#b-title, .panel h2 { color: var(--bright); font: inherit; margin: 0; }
+#b-preview { color: var(--dim); font-size: 0.86em; }
+#b-list {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; align-content: start;
+}
 #b-list.verbs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
-.bk { font: inherit; text-align: left; background: var(--key-on); color: var(--text); border: 0; padding: 0.5em 0.65em; cursor: pointer; min-width: 0; }
-#b-list.verbs .bk { padding: 0.45em 0.5em; }
-.bk.held { color: var(--accent); }
-.bk:active { background: var(--accent); color: var(--screen); }
-.bk:focus-visible { outline: 1px solid var(--accent); }
+.bk {
+  font: inherit; text-align: left; background: transparent; color: var(--wall);
+  border: 1px solid var(--faint); padding: 0.45em 0.6em; cursor: pointer; min-width: 0;
+}
+#b-list.verbs .bk { padding: 0.4em 0.45em; }
+.bk.held { border-color: var(--dim); }
+.bk:active { background: var(--wall); color: var(--screen); }
+.bk:focus-visible { outline: 1px solid var(--bright); }
 #b-list .empty { color: var(--dim); }
 .bfoot { display: flex; gap: 0.4em; flex-wrap: wrap; padding-top: 0.7em; }
 #sheet .panel { gap: 0.8em; overflow-y: auto; }
-#sheet p { margin: 0; color: var(--dim); font-size: 0.88em; line-height: 1.7; }
+#sheet p { margin: 0; color: var(--dim); font-size: 0.86em; line-height: 1.6; }
 #confirm-row { display: flex; gap: 0.4em; flex-wrap: wrap; }
 </style>
 
 <div id="app">
   <header id="bar">
     <span id="room">三面鏡</span>
-    <span id="score">かけら 0/3　欄 0/5</span>
+    <span id="score">正気度 10　かけら 0/3</span>
     <button id="menu-btn" type="button" aria-label="メニュー" aria-expanded="false">≡</button>
   </header>
 
@@ -114,7 +165,7 @@ body.typing #pad { display: none; }
     <form id="prompt" autocomplete="off">
       <button id="build-btn" type="button" aria-haspopup="dialog">命令を作る</button>
       <label for="cmd" class="gt">&gt;</label>
-      <input id="cmd" type="text" enterkeyhint="send" placeholder="星座盤を読む" autocapitalize="off" spellcheck="false">
+      <input id="cmd" type="text" enterkeyhint="send" placeholder="壁紙を読む" autocapitalize="off" spellcheck="false">
       <button id="send" type="submit">決定</button>
     </form>
     <div id="pad">
@@ -132,6 +183,8 @@ body.typing #pad { display: none; }
       <div id="common" aria-label="よく使う命令">
         <button class="pk" type="button" data-cmd="inventory">持ち物</button>
         <button class="pk" type="button" data-cmd="wait">待つ</button>
+        <button class="pk" type="button" data-cmd="listen">耳をすます</button>
+        <button class="pk" type="button" data-cmd="noclip">すり抜ける</button>
         <button class="pk" type="button" data-cmd="hint">ヒント</button>
         <button class="pk" type="button" data-cmd="help">遊び方</button>
       </div>
@@ -155,7 +208,8 @@ body.typing #pad { display: none; }
   <div id="sheet" hidden>
     <div class="panel" role="dialog" aria-label="メニュー">
       <h2>三面鏡</h2>
-      <p>三つのAIが書いた「あなたの人物像」を、三枚の鏡にしました。それぞれの鏡の向こうの部屋で、その鏡が何を映して、何を映していないかを確かめ、かけらを一つずつ持ち帰ります。三つ集まると、四つ目の鏡が映ります。</p>
+      <p>三つのAIが書いた「あなたの人物像」の継ぎ目から、どこまでも続く黄色い部屋（Backrooms）へすり抜けてしまいました。三面鏡の部屋の三枚の鏡は、それぞれ別の階層（Level）につながっています。その鏡が何を映して、何を映していないかを確かめ、かけらを一つずつ持ち帰ります。三つ集まると四つ目の鏡が映り、出口が開きます。</p>
+      <p>「正気度」は、黄色い部屋をさまよったり、確かめずに信じかけたり、熱い配管にさらされたりすると減ります。0 になっても死にはせず、三面鏡の部屋で目を覚まします。三面鏡の部屋に入ると戻ります。</p>
       <p>四つ目の鏡の縁には、どの鏡にも映らなかった五つの欄があります。「書く」か「伏せる」かを、あなたが決めます。書いた中身は、この画面には残りません。</p>
       <p>「命令を作る」を押すと、動詞 → 物 →（必要なら）2つ目の物 の順にタップするだけで命令ができます。入力欄には日本語も書けます（例：天文情報を今進める箱に入れる／札を確かめる）。</p>
       <p>素材は、三つの人物像（ChatGPT・Claude・Gemini が書いた、あなたについての分析）だけです。文章はそのまま使わず、言い換えています。途中の状態は自動で残り、次に開くと続きから遊べます。</p>
@@ -234,19 +288,32 @@ body.typing #pad { display: none; }
   function initWorld() {
     for (const k of Object.keys(O)) delete O[k];
 
-    // ---- ドーム
+    // ---- Level 0：黄色い部屋
+    thing("wallpaper", { name: "壁紙", aliases: ["壁紙", "壁", "wallpaper", "wall"], loc: "y0", scenery: true,
+      desc: "黄ばんだ壁紙に、細かい字で同じ言葉がくり返し印刷されている。",
+      read: () => {
+        S.readPaper = true;
+        return "壁紙の文字を読む。「確度：高い」「確度：高い」「判断材料不足」「確度：高い」……誰についての確度なのかは、どこにも書いていない。" +
+          "\n余白に、鉛筆の書き込みがある。「うなりの強いほうへ、続けて三つ。壁が薄くなっている」";
+      } });
+    thing("lamp", { name: "蛍光灯", aliases: ["蛍光灯", "照明", "lights"], loc: "y0", scenery: true,
+      desc: "天井の蛍光灯がブーンとうなっている。うなりは東のほうで強くなっている気がする。" });
+    thing("stain", { name: "湿ったしみ", aliases: ["湿ったしみ", "しみ", "シミ", "stain"], loc: null, scenery: true,
+      desc: "壁紙の一部が湿って、向こうが透けて見えるほど薄くなっている。ここなら「すり抜け」られそうだ。" });
+
+    // ---- Level 1：三面鏡の部屋
     thing("mirror4", { name: "四つ目の鏡", aliases: ["四つ目の鏡", "四つ目", "鏡", "fourth mirror", "mirror"], loc: "m0", scenery: true, container: true,
       desc: () => S.revealed
         ? "布の落ちた四つ目の鏡だ。三枚の肖像が薄く重なって映り、縁には五つの白い欄が浮かんでいる。"
         : "布をかけられた四つ目の鏡だ。縁に、かけらの形の窪みが三つ並んでいる。映るのは、まだ何もない。" + (kids("mirror4").length ? `（はまっているのは ${kids("mirror4").length} つ）` : "") });
-    thing("mA", { name: "西の鏡", aliases: ["西の鏡", "設計図の鏡", "west mirror"], en: "west mirror", loc: "m0", scenery: true,
+    thing("mA", { name: "西の鏡", to: "a1", aliases: ["西の鏡", "設計図の鏡", "west mirror"], en: "west mirror", loc: "m0", scenery: true,
       desc: "映っているのは、散らばった道具を一つの装置に組み上げようとしている人だ。つながりを見つけるのが速く、広げるのも速い。閉じて完成させるのは、少し苦手かもしれない。自分の条件に合わせて調整できないものには、疲れやすそうに見える。縁の細い線は、そのまま設計図になっている。" });
-    thing("mB", { name: "北の鏡", aliases: ["北の鏡", "スケッチの鏡", "north mirror"], en: "north mirror", loc: "m0", scenery: true,
+    thing("mB", { name: "北の鏡", to: "b1", aliases: ["北の鏡", "スケッチの鏡", "north mirror"], en: "north mirror", loc: "m0", scenery: true,
       desc: "映っているのは、出てきたものをそのまま信じず、確かめる手続きまで自分で作る人だ。目的は動かさずに手段を何度でも替え、合わなければ短い一言で畳む。言葉は少なく、判断は速い。縁の隅に、小さく添え書きがある。「これは作業中の横顔で、全身ではない」。" });
-    thing("mC", { name: "東の鏡", aliases: ["東の鏡", "方法論の鏡", "east mirror"], en: "east mirror", loc: "m0", scenery: true,
+    thing("mC", { name: "東の鏡", to: "c1", aliases: ["東の鏡", "方法論の鏡", "east mirror"], en: "east mirror", loc: "m0", scenery: true,
       desc: "映っているのは、あなたのはずなのに、顔がない。五つの因子の円と、言葉の統計の表と、予測モデルの名前が並んでいる。どれも、誰にでも当てはまるように書かれている。鏡の中で、あなたの名前だけが見当たらない。" });
     thing("dial", { name: "星座盤", aliases: ["星座盤", "盤", "dial"], loc: "m0", take: true,
-      desc: "水平に置いて見る、円い星座盤だ。以前、かざして空と見比べたら月が九十度ずれて見えたので、水平に置くことにした。",
+      desc: "誰かが床に置いていった、円い星座盤だ。かざして空と見比べると月が九十度ずれて見えるので、水平に置いて見るものらしい。窓はないのに、針は今夜の空を指している。",
       read: () => {
         if (O.dial.loc === "player") return "星座盤をかざして見る。月が九十度右にずれて見える。星座盤は、水平に置いて見るものだった。（床か台に「置く」）";
         S.dialFlat = true;
@@ -267,7 +334,7 @@ body.typing #pad { display: none; }
     thing("fragC", { name: "空欄のかけら", aliases: ["空欄のかけら", "空欄", "かけら"], loc: null, take: true, fragment: true,
       desc: "「判断材料不足」と刻まれたかけらだ。空欄は欠点ではなく、まだ見えていない場所の印だ。" });
 
-    // ---- 西：設計図の工房
+    // ---- Level 2（西の鏡）：構想の倉庫
     thing("goal", { name: "成功の札", aliases: ["成功の札", "成功", "基準", "札"], loc: "a1", scenery: true,
       desc: "机の隅に立てかけてある札だ。",
       read: () => { S.goalRead = true; return "「今回の成功：今夜の空の方角が、手元の画面に出ること。それ以外は、完成のあと」"; } });
@@ -295,7 +362,9 @@ body.typing #pad { display: none; }
     thing("dfUse", { name: "押しにくいボタン", aliases: ["押しにくいボタン", "ボタン"], loc: null, defect: true, desc: "画面の端のボタンが、指で押しにくい。使うのを妨げる問題だ。" });
     thing("dfTaste", { name: "色の好み", aliases: ["色の好み", "好み", "色"], loc: null, defect: true, take: true, desc: "もう少し青に寄せたい、という好みの改善だ。" });
 
-    // ---- 北：確かめの実験室
+    // ---- Level 3（北の鏡）：熱い配管室
+    thing("smiler", { name: "〈もっともらしい顔〉", aliases: ["もっともらしい顔", "〈もっともらしい顔〉", "顔", "smiler"], loc: null, scenery: true,
+      desc: "暗がりに、顔いっぱいの笑顔だけが浮かんでいる。確かめていないことを、確かめたような顔で言う。「それで合ってるよ。原文なんて見なくていい」。" });
     thing("stand", { name: "証言台", aliases: ["証言台", "stand"], loc: "b1", scenery: true,
       desc: "六枚の札が並んでいる。それぞれ、「あなたについての言葉」が一つずつ書いてある。出どころは書いていない。" });
     thing("legend", { name: "置き場の注意書き", aliases: ["置き場の注意書き", "注意書き", "legend"], loc: "b1", scenery: true,
@@ -340,7 +409,7 @@ body.typing #pad { display: none; }
     thing("api", { name: "オンラインのAPI", aliases: ["オンラインのAPI", "オンライン", "API", "api"], loc: null, take: true, group: "engine", engine: true, local: false,
       desc: "ネットの向こうで処理するエンジンだ。手元の機械は熱くならない。" });
 
-    // ---- 東：方法論の回廊
+    // ---- Level 4（東の鏡）：方法論のオフィス
     const panels = [
       ["pO", "開放性の円", ["開放性の円", "開放性"], "知的好奇心、美的感性、想像力。複雑な語彙や、「なぜ」「どのように」という問いが目印だという。その横の、あなたの値の欄だけが白い。"],
       ["pC", "勤勉性の円", ["勤勉性の円", "勤勉性"], "秩序、生産性、責任感。簡潔で整った文章が目印だという。この図のどこにも、あなたの名前はない。"],
@@ -366,34 +435,48 @@ body.typing #pad { display: none; }
   }
 
   // ---- 部屋 ----
+  // Level 0 はどこへ行っても似た部屋。東へ三つ続けて進むと、しみのある壁に出る
+  const YELLOW = [
+    "同じ黄色の壁紙、同じ湿ったカーペット、同じ蛍光灯のうなり。さっきの部屋と区別がつかない。",
+    "部屋の真ん中に柱が一本だけ立っている。柱には小さく「これは心理検査ではありません」と印刷されている。",
+    "天井の蛍光灯がひとつ切れかけて、ジジ、ジジ、と鳴っている。",
+    "壁に、鉛筆で小さく書き込みがある。「最低限動けば成功」。誰の字かは分からない。",
+    "床に、表紙の真っ白なファイルの束が置いてある。中身は、どれも誰かについての推測だ。",
+    "壁紙の継ぎ目で、「判断材料不足」の文字だけが何度も重なって印刷されている。",
+    "廊下が四方に延びている。どれも同じように見えて、どれも少しずつ違う気がする。",
+  ];
   const ROOMS = {
-    m0: { name: "観測所のドーム", exits: { n: "b1", w: "a1", e: "c1" },
-      desc: () => "丸い天井の観測所だ。窓はすべて夜空に向いている。中央の台に、水平に置かれた星座盤。" +
-        "\n壁に鏡が三枚。西の鏡は、設計図のような細い線で縁取られている。北の鏡は、鉛筆の下書きの跡が縁に残っている。東の鏡は、縁が数式と表でびっしり埋まっている。" +
+    y0: { name: "黄色い部屋", lv: "Level 0", exits: { n: "y0", s: "y0", e: "y0", w: "y0" },
+      desc: () => YELLOW[S.yi % YELLOW.length] +
+        "\n黄ばんだ壁紙には、細かい字で同じ言葉がどこまでもくり返し印刷されている。蛍光灯がブーンとうなっている。" },
+    m0: { name: "三面鏡の部屋", lv: "Level 1", exits: { n: "b1", w: "a1", e: "c1", s: "y0" },
+      desc: () => "ここだけ、蛍光灯のうなりが聞こえない。黄色い壁に囲まれた、がらんとした部屋だ。床に、誰かが置いていった星座盤がある。" +
+        "\n壁に鏡が三枚。西の鏡は、設計図のような細い線で縁取られている。北の鏡は、鉛筆の下書きの跡が縁に残っている。東の鏡は、縁が数式と表でびっしり埋まっている。どの鏡も表面がやわらかく波打っていて、すり抜けられそうだ。" +
         (S.revealed
-          ? "\n南の壁の四つ目の鏡は、布が落ちて、三枚の肖像を薄く重ねて映している。縁に五つの白い欄が浮かんでいる：" + DOMAINS.map(id => O[id].name.replace("の欄", "") + (O[id].decided === "wrote" ? "（書いた）" : O[id].decided === "kept" ? "（伏せた）" : "")).join("、") + "。"
-          : "\n南の壁に、布をかけた四つ目の鏡がある。縁に、かけらの形の窪みが三つ。") +
-        "\n鏡の縁をくぐると、西は工房、北は実験室、東は回廊に出る。" },
-    a1: { name: "設計図の工房", exits: { e: "m0" },
-      desc: () => "西の鏡の向こうは、工房だった。長い机の上に、機能のカードが散らばっている。どのカードも「これも足せば便利になる」と言っている。" +
-        "\n机の脇に、箱が三つ並んでいる。「今進める」「保存」「保留」。机の隅には、札が一枚。壁ぎわの小さなスピーカーが、リズムを鳴らしている。" +
-        (S.built ? "\n机の真ん中には、組み上がった装置がある。" : "") +
-        "\n東の鏡の縁をくぐると、ドームに戻る。" },
-    b1: { name: "確かめの実験室", exits: { s: "m0" },
-      desc: () => "北の鏡の向こうは、実験室だった。奥の壁に、証言台と、三つの皿。皿の上に、置き場の注意書きが貼ってある。" +
-        "\n手前には、文字おこしの機械と、エンジン台。機械には、目的の札が貼ってある。棚には、エンジンが並んでいる。" +
-        "\n南へ戻ると、ドームだ。" },
-    c1: { name: "方法論の回廊", exits: { w: "m0" },
-      desc: () => "東の鏡の向こうは、白くて長い回廊だった。壁一面に、円と表と手順の図が貼ってある。足音が、反響しない。" +
-        "\n行き止まりの台の上に、分厚い報告書が開いたまま置いてある。台のそばに、細いペン。" +
-        "\n西へ戻ると、ドームだ。" },
+          ? "\n部屋の真ん中の四つ目の鏡は、布が落ちて、三枚の肖像を薄く重ねて映している。縁に五つの白い欄が浮かんでいる：" + DOMAINS.map(id => O[id].name.replace("の欄", "") + (O[id].decided === "wrote" ? "（書いた）" : O[id].decided === "kept" ? "（伏せた）" : "")).join("、") + "。"
+          : "\n部屋の真ん中に、布をかけた四つ目の鏡が立っている。縁に、かけらの形の窪みが三つ。") +
+        "\n西・北・東の鏡の向こうは、それぞれ別の階層だ。南の戸口の先には、黄色い部屋が続いている。" },
+    a1: { name: "構想の倉庫", lv: "Level 2", exits: { e: "m0" },
+      desc: () => "コンクリートの柱が、どこまでも並ぶ倉庫だ。天井の照明が、予告なしに明滅する。" +
+        "\n柱のあいだの長い机に、機能のカードが散らばっている。どのカードも「これも足せば便利になる」と言っている。机の脇に箱が三つ。「今進める」「保存」「保留」。机の隅には札が一枚。柱の陰の小さなスピーカーが、リズムを鳴らしている。" +
+        (S.built ? "\n机の真ん中に、組み上がった装置がある。" : "") +
+        "\n東の鏡から、三面鏡の部屋へ戻れる。" },
+    b1: { name: "熱い配管室", lv: "Level 3", exits: { s: "m0" },
+      desc: () => "天井も壁も、むき出しの配管で埋めつくされた、蒸し暑い通路だ。どこかで蒸気が漏れている。" +
+        "\n通路の奥の点検室に、証言台と三つの皿。皿の上に、置き場の注意書きが貼ってある。手前には文字おこしの機械とエンジン台。機械には目的の札が貼ってある。棚にはエンジンが並んでいる。" +
+        (O.smiler.loc === "b1" ? "\n配管の暗がりに、〈もっともらしい顔〉が浮かんでいる。顔いっぱいに笑っている。" : "") +
+        "\n南の鏡から、三面鏡の部屋へ戻れる。" },
+    c1: { name: "方法論のオフィス", lv: "Level 4", exits: { w: "m0" },
+      desc: () => "誰もいないオフィスが、どこまでも続いている。仕切りの壁一面に、円と表と手順の図が貼ってある。パソコンの電源は全部切れていて、空調も止まっている。" +
+        "\nいちばん奥の机の上に、分厚い報告書が開いたまま置いてある。そのそばに、細いペン。" +
+        "\n西の鏡から、三面鏡の部屋へ戻れる。" },
   };
 
   // ---- 状態 ----
   let S = null;
   function newState() {
     initWorld();
-    S = { loc: "m0", moves: 0, done: false, seen: {}, dialFlat: false,
+    S = { loc: "y0", moves: 0, done: false, seen: {}, dialFlat: false, sanity: 10, yi: 0, streak: 0, readPaper: false,
       goalRead: false, built: false, tested: false, aDone: false, a1ticks: 0, extra: 0,
       tried: [], sorted: false, machineOK: false, folded: false, bDone: false,
       cSeen: {}, cScale: false, cEnd: false, cDone: false, revealed: false };
@@ -405,10 +488,10 @@ body.typing #pad { display: none; }
       objs[o.id] = {};
       for (const k of SAVED_FIELDS) if (k in o) objs[o.id][k] = o[k];
     }
-    return { v: 1, S, objs, log: rows.slice(-300) };
+    return { v: 2, S, objs, log: rows.slice(-300) };
   }
   function restore(data) {
-    if (!data || data.v !== 1) return false;
+    if (!data || data.v !== 2) return false;
     initWorld();
     S = data.S;
     for (const [id, st] of Object.entries(data.objs || {})) if (O[id]) Object.assign(O[id], st);
@@ -441,10 +524,21 @@ body.typing #pad { display: none; }
   function scrollDown() { requestAnimationFrame(() => { screenEl.scrollTop = screenEl.scrollHeight; }); }
   const fragCount = () => FRAGS.filter(id => O[id].loc === "mirror4").length;
   const decidedCount = () => DOMAINS.filter(id => O[id].decided).length;
+  function flicker() {
+    const bar = $("bar");
+    bar.classList.remove("flicker"); void bar.offsetWidth; bar.classList.add("flicker");
+  }
   function setStatus() {
-    $("room").textContent = ROOMS[S.loc].name;
-    $("score").textContent = `かけら ${fragCount()}/3　欄 ${decidedCount()}/5`;
     const r = ROOMS[S.loc];
+    const roomEl = $("room");
+    roomEl.textContent = r.name;
+    const lv = document.createElement("span"); lv.className = "en"; lv.textContent = r.lv; roomEl.append(lv);
+    const sc = $("score");
+    sc.textContent = "";
+    const sv = document.createElement("span");
+    sv.textContent = `正気度 ${S.sanity}`;
+    if (S.sanity <= 3) sv.className = "low";
+    sc.append(sv, document.createTextNode(S.revealed ? `　欄 ${decidedCount()}/5` : `　かけら ${fragCount()}/3`));
     for (const b of document.querySelectorAll("[data-go]")) b.classList.toggle("open", !!r.exits[b.dataset.go]);
   }
 
@@ -466,7 +560,7 @@ body.typing #pad { display: none; }
   function describe(full) {
     const r = ROOMS[S.loc];
     say(r.name, "title");
-    if (full || !S.seen[S.loc]) say(text(r.desc));
+    if (full || !S.seen[S.loc] || S.loc === "y0") say(text(r.desc));
     S.seen[S.loc] = true;
     const groups = {};
     for (const o of Object.values(O)) {
@@ -480,16 +574,45 @@ body.typing #pad { display: none; }
       const k = kids(o.id);
       if (k.length) say(`${o.name}の中：${k.map(x => x.name).join("、")}。`, "note");
     }
+    if (S.loc === "y0" && O.stain.loc === "y0") say("この部屋の東の壁に、湿ったしみがある。向こう側が透けて見える。");
     if (S.loc === "m0" && kids("mirror4").length) say(`四つ目の鏡の窪みには、${kids("mirror4").map(x => x.name).join("、")}がはまっている。`, "note");
   }
   function go(dir) {
+    if (S.loc === "y0") {
+      S.streak = dir === "e" ? S.streak + 1 : 0;
+      S.yi = (S.yi + 1 + Math.floor(Math.random() * 3)) % 64;
+      O.stain.loc = S.streak >= 3 ? "y0" : null;
+      describe(true);
+      if (Math.random() < 0.5) lose(1, S.streak === 0 && Math.random() < 0.5 ? "同じ部屋を何度も通った気がする。" : "");
+      return;
+    }
     const to = ROOMS[S.loc].exits[dir];
     if (!to) { say(`${DIR_JA[dir] || "そちら"}へは行けない。`); return; }
+    enter(to);
+  }
+  function enter(to) {
     S.loc = to;
+    if (to === "y0") { S.streak = 0; O.stain.loc = null; describe(true); return; }
     describe(false);
+    if (to === "m0" && S.sanity < 10) { S.sanity = 10; say("うなりが遠のく。体のほうが先に、ここは安全だと分かる。（正気度が戻った）", "note"); }
+    if (to === "a1" && !S.goalRead) { flicker(); lose(1, "照明がいきなり消え、また点いた。何を達成すれば終わりなのか、まだ決まっていない。"); }
+  }
+  // 正気度が 0 になったら、三面鏡の部屋（まだなら黄色い部屋）で目を覚ます
+  function lose(n, why) {
+    if (S.done) return;
+    S.sanity = Math.max(0, S.sanity - n);
+    if (why) say(why, "warn");
+    if (S.sanity > 0) return;
+    gap();
+    say("壁紙の黄色が、目の奥までしみこんでくる。蛍光灯のうなりしか聞こえない……", "warn");
+    S.sanity = 10;
+    S.streak = 0; O.stain.loc = null;
+    S.loc = S.seen.m0 ? "m0" : "y0";
+    say(S.loc === "m0" ? "気がつくと、三面鏡の部屋の床に座っていた。" : "気がつくと、また見覚えのない黄色い部屋に立っていた。");
+    describe(true);
   }
 
-  // ---- 西：工房 ----
+  // ---- Level 2：構想の倉庫 ----
   const loose = () => Object.values(O).filter(o => o.card && (o.loc === "a1" || o.loc === "player"));
   const inBox = id => Object.values(O).filter(o => o.card && o.loc === id);
   function checkWorkshop() {
@@ -519,13 +642,14 @@ body.typing #pad { display: none; }
     }
   }
 
-  // ---- 北：実験室 ----
+  // ---- Level 3：熱い配管室 ----
   function checkSorted() {
     if (S.sorted) return;
     const slips = Object.values(O).filter(o => o.slip);
     if (!slips.every(o => o.loc === o.truth)) return;
     S.sorted = true;
     gap();
+    if (O.smiler.loc === "b1") { O.smiler.loc = "gone"; say("暗がりの〈もっともらしい顔〉の笑顔がこわばり、輪郭がほどけて消えた。"); }
     say("六枚が、皿に収まった。証言台の隅の紙に、小さな字がある。「違うところがあれば、そちらが正しい情報です」。");
     say("もっともらしい札を、確かめてから置いた。確かめたのは、あなたの手だ。");
     checkB();
@@ -538,7 +662,7 @@ body.typing #pad { display: none; }
     say("二つが揃うと、証言台と機械のあいだに、小さなかけらが落ちた。「検証」と刻まれている。");
   }
 
-  // ---- 東：回廊 ----
+  // ---- Level 4：方法論のオフィス ----
   function revealMirror() {
     S.revealed = true;
     for (const id of DOMAINS) O[id].loc = "m0";
@@ -559,13 +683,19 @@ body.typing #pad { display: none; }
     else say(`書いたのは ${w}、伏せたのは ${5 - w}。どちらも、あなたの決めたことだ。`, "win");
     say("どの鏡にも、全部は映らない。広げるのが速い鏡にも、確かめる鏡にも、誰のことも言わない鏡にも。", "win");
     say("記録にないことは、存在しないことを意味しない。映らなかったところは、なくなったのではなく、まだあなたの手の中にある。", "win");
+    say("四つ目の鏡の表面が、ゆっくり波打ちはじめる。向こう側に、蛍光灯のない、ふつうの朝の光が見える。", "win");
     say("この鏡は、ここで完成にする。足したくなったことは、保存の箱へ。", "win");
-    say("****  四つ目の鏡が映った  ****", "win");
+    say("鏡をすり抜けると、もう、うなりは聞こえなかった。", "win");
+    say("****  あなたは脱出した  ****", "win");
     say(`（手数 ${S.moves}。≡ のメニューから、はじめから遊べます）`, "note");
   }
 
   // ---- ヒント ----
   function hintText() {
+    if (S.loc === "y0") {
+      if (!S.readPaper) return "壁紙を読んでみよう。余白に書き込みがある。";
+      return "蛍光灯のうなりが強いのは東だ。東へ三つ続けて進むと、しみのある壁に出る。そこで「すり抜ける」。";
+    }
     if (S.revealed) {
       const left = DOMAINS.filter(id => !O[id].decided).length;
       return left ? `五つの欄を、書くか伏せるか決めよう（「書く」「伏せる」）。残り ${left}。` : "もう決まっている。";
@@ -576,12 +706,12 @@ body.typing #pad { display: none; }
       if (!S.built) return "「今進める箱」には、成功の札に必要な三つだけ。残りは保存か保留へ。机の上を空にしよう。";
       if (!S.tested) return "装置を「動かす」。";
       if (!S.aDone) return "直す順番は、正確さ → 使いにくさ → 好み。好みは保存の箱に回してもいい。";
-      return O.fragA.loc === "a1" ? "かけらを取って、ドームの四つ目の鏡へ。" : "ここはもう済んだ。";
+      return O.fragA.loc === "a1" ? "かけらを取って、三面鏡の部屋の四つ目の鏡へ。" : "ここはもう済んだ。";
     }
     if (S.loc === "b1") {
       if (!S.sorted) return "札を一枚ずつ「確かめる」。原文にあたってから、本人の言葉・くり返し・解釈の皿へ。";
       if (!S.machineOK) return "エンジンを台に入れて「動かす」。熱くなるなら替える。三つほど試したら、一式を畳む。目的の札は動かさない。";
-      return O.fragB.loc === "b1" ? "かけらを取って、ドームの四つ目の鏡へ。" : "ここはもう済んだ。";
+      return O.fragB.loc === "b1" ? "かけらを取って、三面鏡の部屋の四つ目の鏡へ。" : "ここはもう済んだ。";
     }
     if (S.loc === "c1") {
       const n = Object.keys(S.cSeen).length;
@@ -589,7 +719,7 @@ body.typing #pad { display: none; }
       if (!S.cScale) return "語数の秤を調べよう。";
       if (!S.cEnd) return "報告書の最終ページを読もう。";
       if (!S.cDone) return "ペンを取って、余白に「書く」。";
-      return O.fragC.loc === "c1" ? "かけらを取って、ドームの四つ目の鏡へ。" : "ここはもう済んだ。";
+      return O.fragC.loc === "c1" ? "かけらを取って、三面鏡の部屋の四つ目の鏡へ。" : "ここはもう済んだ。";
     }
     const todo = [];
     if (!S.aDone || O.fragA.loc !== "mirror4") todo.push("西（設計図）");
@@ -610,13 +740,39 @@ body.typing #pad { display: none; }
       for (const o of h) say(o.name, "indent");
     },
     wait: () => {
+      if (S.loc === "y0") { say("待っていても、蛍光灯がうなるだけだ。"); lose(1, ""); return; }
       if (S.loc === "m0") { say("星座盤の針が、ゆっくり回る。"); return; }
       if (S.loc === "a1") { say("手を止めると、また新しい構想が思い浮かびそうになる。"); return; }
-      if (S.loc === "b1") { say(kids("bench").length ? "機械の熱が、すこしずつ引いていく。" : "実験室は静かだ。"); return; }
+      if (S.loc === "b1") { say(kids("bench").length ? "機械の熱が、すこしずつ引いていく。" : "配管の音だけがしている。"); return; }
       if (S.loc === "c1") { say("報告書は、待っても、あなたについて書き足さない。"); return; }
       say("時が過ぎる。");
     },
     hint: () => hint(),
+    listen: () => say(text({
+      y0: "蛍光灯のうなりが、東のほうでいちばん強い。",
+      m0: "何も聞こえない。それが、ありがたい。",
+      a1: "照明のスイッチが入る音が、規則正しく遠ざかっていく。柱の陰で、スピーカーが式のリズムを刻んでいる。",
+      b1: () => "配管の中を、熱い水が流れる音。" + (O.smiler.loc === "b1" ? "暗がりで、くすくす笑う声がする。" : ""),
+      c1: "空調も止まっている。紙の擦れる音さえしない。",
+    }[S.loc])),
+    noclip: (o) => {
+      if (o && o.to) {
+        say(`${o.name}に手を当てると、表面が水のように揺れて、あなたは向こう側へ抜け落ちた。`);
+        gap();
+        enter(o.to);
+        return;
+      }
+      if (S.loc === "y0" && O.stain.loc === "y0" && (!o || o.id === "stain")) {
+        say("湿ったしみに肩を押しあてると、壁紙がやわらかく沈み、あなたは向こう側へ抜け落ちた。");
+        gap();
+        flicker();
+        enter("m0");
+        return;
+      }
+      if (o && o.id === "mirror4") { say(S.revealed ? "四つ目の鏡は、五つの欄が決まるまで、まだ固い。" : "布の下の鏡は、まだ固い。"); return; }
+      if (S.loc === "m0" && !o) { say("どの鏡をすり抜ける？（西の鏡・北の鏡・東の鏡）"); return; }
+      say("体を押しつけてみたが、ここはすり抜けられそうにない。");
+    },
     help: () => say("遊び方：「命令を作る」で動詞 → 物 の順にタップする。十字キーで移動する。困ったら「ヒント」。くわしくは右上の ≡ から。", "note"),
     examine: (o) => { if (need(o, "調べる")) say(text(o.desc) || `${o.name}に、特に変わったところはない。`); },
     read: (o) => {
@@ -676,7 +832,12 @@ body.typing #pad { display: none; }
       }
       if (["trayA", "trayB", "trayC"].includes(w.id)) {
         if (!o.slip) { say(`${o.name}は、証言ではない。`); return; }
-        if (!o.verified) { say("まだ確かめていない。もっともらしいだけで、置かない。「確かめる」で原文にあたろう。"); return; }
+        if (!o.verified) {
+          if (O.smiler.loc === null) O.smiler.loc = "b1";
+          say("まだ確かめていない。もっともらしいだけで、置かない。「確かめる」で原文にあたろう。");
+          lose(1, "配管の暗がりで、〈もっともらしい顔〉が笑った。「それで合ってるよ」。……確かめていないのに、そう思いかけた。");
+          return;
+        }
         if (o.truth !== w.id) { say("ここではない。" + CRIT[o.truth]); return; }
         o.loc = w.id;
         say(`${o.name}が、${w.name}に収まった。` + (w.id === "trayC" ? "札に「要確認」の印が押された。" : ""));
@@ -720,6 +881,7 @@ body.typing #pad { display: none; }
         if (e.local) {
           if (!S.tried.includes(e.id)) S.tried.push(e.id);
           say(e.fail);
+          lose(1, "配管の熱がこもって、頭がぼうっとする。");
           say(S.tried.length >= 3 ? "目的は変わらない。変えるのは、手段のほうだ。そろそろ、手元の一式ごと、見直してもいいかもしれない。" : "目的は変わらない。エンジンを替えてみよう。", "note");
         } else {
           S.machineOK = true;
@@ -794,7 +956,7 @@ body.typing #pad { display: none; }
     },
   };
 
-  // 工房に長くいると、構想が増える
+  // 倉庫に長くいると、構想が増える
   const EXTRA = ["cH", "cI", "cJ"];
   function creep() {
     if (S.loc !== "a1" || S.built) return;
@@ -809,7 +971,7 @@ body.typing #pad { display: none; }
   // ---- 命令を読む ----
   const EN_SIMPLE = [
     ["look", /^(look|l)$/], ["inventory", /^(inventory|i)$/], ["wait", /^(wait|z)$/], ["hint", /^hint$/], ["help", /^help$/],
-    ["start", /^(run|start|test)$/],
+    ["start", /^(run|start|test)$/], ["listen", /^listen$/], ["noclip", /^noclip$/],
   ];
   const DIR_WORDS = { n: "n", north: "n", s: "s", south: "s", e: "e", east: "e", w: "w", west: "w" };
   function findObj(s) {
@@ -830,11 +992,13 @@ body.typing #pad { display: none; }
       ["start", /^(?:run|start|test) (.+)$/], ["fix", /^fix (.+)$/], ["swap", /^(?:swap|replace) (.+)$/], ["fold", /^fold (.+)$/],
       ["keep", /^(?:keep|withhold|leave blank) (.+)$/], ["write", /^write (.+)$/],
       ["examine", /^(?:examine|x|look at) (.+)$/], ["read", /^read (.+)$/], ["take", /^(?:take|get|pick up) (.+)$/], ["drop", /^drop (.+)$/],
+      ["noclip", /^noclip (?:through |into )?(.+)$/],
     ];
     for (const [v, rx] of pats) { const m = cmd.match(rx); if (m) return { v, a: m[1], b: m[2] }; }
     return null;
   }
   const JA_VERBS = [
+    ["noclip", /すり抜け|通り抜け/],
     ["keep", /伏せ|書かない/], ["verify", /確かめ|確認/], ["fix", /直す|直し|修正/], ["start", /動かす|試す|起動/],
     ["swap", /替え|換え/], ["fold", /畳/], ["put", /入れ|差し込|はめ/], ["read", /読/], ["examine", /調べ|見る|眺め/],
     ["take", /取|拾|持つ/], ["drop", /置/], ["write", /書/],
@@ -844,7 +1008,8 @@ body.typing #pad { display: none; }
     const s = t.replace(/[\s　。！？!?]/g, "");
     const dm = s.match(/^(北|南|東|西)(へ|に)?(行く|進む|いく|移動|行って|進んで)?(ください)?$/);
     if (dm) return { v: "go", dir: JA_DIRS[dm[1]] };
-    const simple = { "見る": "look", "周りを見る": "look", "見回す": "look", "持ち物": "inventory", "待つ": "wait", "ヒント": "hint", "遊び方": "help", "ヘルプ": "help" };
+    const simple = { "見る": "look", "周りを見る": "look", "見回す": "look", "持ち物": "inventory", "待つ": "wait", "ヒント": "hint", "遊び方": "help", "ヘルプ": "help",
+      "すり抜ける": "noclip", "耳をすます": "listen", "聞く": "listen" };
     if (simple[s]) return { v: simple[s] };
     let verb = null, vrx = null;
     for (const [v, rx] of JA_VERBS) if (rx.test(s)) { verb = v; vrx = rx; break; }
@@ -867,7 +1032,7 @@ body.typing #pad { display: none; }
 
   const QUIET = ["hint", "help", "inventory", "look"];
   function act(input) {
-    if (S.done) { say("もう映った。≡ のメニューから、はじめから遊べる。", "note"); return; }
+    if (S.done) { say("もう外に出ている。≡ のメニューから、はじめから遊べる。", "note"); return; }
     const ascii = /^[\x20-\x7e]*$/.test(input);
     const p = ascii ? parseEn(input) : parseJa(input);
     if (!p) { say("その言い方はわからない。「命令を作る」を使うと確実だ。"); return; }
@@ -915,6 +1080,7 @@ body.typing #pad { display: none; }
     ["置く", "drop %", "%を置く"], ["入れる", "put % in #", "%を#に入れる"], ["確かめる", "verify %", "%を確かめる"],
     ["動かす", "run %", "%を動かす"], ["直す", "fix %", "%を直す"], ["替える", "swap %", "%を替える"],
     ["畳む", "fold %", "%を畳む"], ["書く", "write %", "%に書く"], ["伏せる", "keep %", "%を伏せる"],
+    ["すり抜ける", "noclip %", "%をすり抜ける"],
   ];
   const builder = $("builder");
   const bs = { step: "verb", verb: null, obj1: null };
@@ -996,7 +1162,8 @@ body.typing #pad { display: none; }
     say("三面鏡", "title");
     say("― どの鏡にも、全部は映らない ―", "note");
     gap();
-    say("三つのAIが、それぞれのやり方で、あなたを一枚ずつ映した。この三枚だけで、どこまで映るのか。映らないのは、どこなのか。それを確かめに、夜の観測所へ来た。");
+    say("三つのAIが、それぞれのやり方で、あなたを一枚ずつ書いた。その紙の継ぎ目から、うっかりすり抜けてしまったらしい。");
+    say("この三枚だけで、どこまで映るのか。映らないのは、どこなのか。");
     gap();
     describe(true);
   }
