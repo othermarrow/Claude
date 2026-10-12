@@ -27,11 +27,11 @@
 前提：Termux に Zepp OS の開発ツール `zeus` が入っていて、zork-watch や gh-reader を `zeus preview` で送れていること。
 
 1. ブラウザで GitHub の `othermarrow/Claude` を開き、ブランチ `ccr-d4f31da7-u5hlbp` を選んでから `Code` → `Download ZIP` で zip を Download フォルダに保存する。
-2. Termux で次を実行する。zip の名前が違うときは `Claude-ccr-d4f31da7-u5hlbp` の部分を書き換える。
+   保存された名前は `ls /storage/emulated/0/Download/ | grep -i claude` で確かめられる（`(1)` が付くことがある）。
+2. zeus を使っている環境（Termux、または Termux の中の root 環境）で次を実行する。zip の名前が違うときは `Claude-ccr-d4f31da7-u5hlbp` の部分を書き換える。
+   `pkg` は root では使えないので、root 環境で `unzip` がないときは `apt install -y unzip` で入れる。
 
 ```bash
-termux-setup-storage
-pkg install -y unzip
 cd ~
 unzip -o /storage/emulated/0/Download/Claude-ccr-d4f31da7-u5hlbp.zip 'Claude-ccr-d4f31da7-u5hlbp/kuuran-watch/*'
 rm -rf ~/kuuran-watch
