@@ -7,3 +7,4 @@
 | [zork-ja](zork-ja/) | Zork I を日本語で遊ぶ(Termux) |
 | [tane-wo-niru](tane-wo-niru/) | サイコホラーのテキストアドベンチャー「降下記録」(HTML) |
 | [kuuran](kuuran/) | 目的の書かれていないテキストアドベンチャー「空欄」(HTML) |
+| [kuuran-watch](kuuran-watch/) | 「空欄」を Amazfit Balance 2 で遊ぶミニアプリ (Zepp OS) |
