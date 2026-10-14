@@ -24,6 +24,7 @@
 | `research_bot/` | テーマ文から文献を集め、抄録カタログを作るツール |
 | `zork-ja/` | 英語版 Zork I を Termux で日本語で遊ぶためのラッパー |
 | `zork-watch/` | Zork I を Balance 2 の中だけで動かすミニアプリ（日英表示・英語入力） |
+| `ash-maze/` | 初期ウィザードリー風の3D迷宮RPG「灰の迷宮」。HTML 1枚を Tasker のシーン（WebView）で遊ぶ |
 
 新しいプロジェクトを足したら、この表も更新する。
 
