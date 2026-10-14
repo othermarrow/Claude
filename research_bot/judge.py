@@ -463,17 +463,37 @@ def classify(score, measured) -> str:
     return "related"
 
 
+def _score_of(rec) -> int:
+    """判定の score を 0〜100 の整数にする。無い・読めないときは None。
+
+    以前は無い・読めない score を0点としていたため、モデルが score を書かない
+    (relevance など別の名前で書く、null を書く)と、その文献は未判定ではなく
+    「0点・off」として除外ログに入り、未判定の拾い直しにも回らなかった。
+    """
+    v = (rec or {}).get("score")
+    if v is None or isinstance(v, bool):
+        return None
+    try:
+        return max(0, min(100, int(float(v))))
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _drop_noscore(m: dict) -> dict:
+    """score の無い・読めない判定を m から取り除き、{index: その判定} を返す。"""
+    bad = {i: r for i, r in m.items() if _score_of(r) is None}
+    for i in bad:
+        del m[i]
+    return bad
+
+
 def _coerce(rec: dict) -> dict:
-    """モデルの1件分の応答を正規化する。
+    """モデルの1件分の応答を正規化する(score が読めることは呼び出し側で確かめる)。
 
     実測: score が "95" のような文字列で返ると比較で TypeError になり、
     バッチ全体が未判定になっていた。measured も "true" の文字列で返ることがある。
     """
-    try:
-        score = int(float(rec.get("score", 0)))
-    except (TypeError, ValueError):
-        score = 0
-    score = max(0, min(100, score))
+    score = _score_of(rec)
     measured = rec.get("measured")
     if isinstance(measured, str):
         measured = measured.strip().lower() in ("true", "yes", "1")
@@ -666,11 +686,12 @@ def judge_batch(batch, topic, definition, hom, model, max_tokens=None, avoid=(),
         if moved or dropped:
             tqdm.write(f"  [i] 判定と論文の番号がずれていました(付け替え {moved}件"
                        f" / 判定し直し {dropped}件)。")
-        # 例文を写した分は送り直さない(温度0では同じ応答が返りやすい)。
-        # 未判定として、あとで1件ずつ判定し直す。
+        # 例文を写した分と、関連度(score)を書かなかった分は送り直さない
+        # (温度0では同じ応答が返りやすい)。未判定として、あとで1件ずつ判定し直す。
         copied = _drop_copied(m)
-        if m and (len(m) + len(copied) >= len(batch)
-                  or attempt >= config.JUDGE_BATCH_RETRIES):
+        noscore = _drop_noscore(m)
+        if (m or noscore) and (len(m) + len(copied) + len(noscore) >= len(batch)
+                               or attempt >= config.JUDGE_BATCH_RETRIES):
             if mode == "prefix":
                 _note_extra(raw, used)
             elif mode != "strict":
@@ -679,8 +700,14 @@ def judge_batch(batch, topic, definition, hom, model, max_tokens=None, avoid=(),
             if copied:
                 tqdm.write(f"  [!] {used} が{len(copied)}件で例文を写したため、"
                            "その分は未判定として後で判定し直します。")
+            if noscore:
+                keys = ", ".join(str(k) for k in next(iter(noscore.values())))
+                tqdm.write(f"  [!] {used} の判定{len(noscore)}件に関連度(score)が"
+                           "無いか読めないため、その分は未判定として後で判定し直します"
+                           f"(返ってきた項目: {keys[:80]})。")
             return [(dict(_coerce(m[i]), model=used) if i in m
                      else {"error": "判定失敗(例文の写し)" if i in copied
+                           else "判定失敗(関連度の記載なし)" if i in noscore
                            else "判定失敗(応答に該当indexなし)"})
                     for i in range(len(batch))]
         if attempt < config.JUDGE_BATCH_RETRIES:
