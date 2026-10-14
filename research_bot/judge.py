@@ -711,10 +711,12 @@ def judge_batch(batch, topic, definition, hom, model, max_tokens=None, avoid=(),
                            else "判定失敗(応答に該当indexなし)"})
                     for i in range(len(batch))]
         if attempt < config.JUDGE_BATCH_RETRIES:
-            why = (f"{len(batch)}件中{len(m)}件しか読めない" if m
+            why = (f"{len(batch)}件中{len(m)}件しか読めない" if (m or copied or noscore)
                    else "JSONとして読める部分が無い")
             if copied:
                 why += f"、{len(copied)}件は例文の写し"
+            if noscore:
+                why += f"、{len(noscore)}件は関連度(score)なし"
             tqdm.write(f"  [!] 判定応答の解析に失敗({why}, mode={mode})。"
                        f"再送します ({attempt + 1}/{config.JUDGE_BATCH_RETRIES})")
     _diagnose(raw, len(batch))
