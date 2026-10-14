@@ -671,7 +671,7 @@ def cmd_search(args):
                                          save=lambda: _save("judging"))
             if cons:
                 search_log.append(
-                    f"中心クラスタ: 採用した{len(kept)}件を {cons['model_b']}"
+                    f"中心クラスタ: 採用した{cons.get('n', len(kept))}件を {cons['model_b']}"
                     + (f" と {cons['model_c']}" if cons["model_c"] else "")
                     + " でも判定し、点数の中央値と「実測あり」の多数決で決めた"
                     f"(2本目 {cons['got_b']}件"

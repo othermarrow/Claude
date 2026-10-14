@@ -892,6 +892,16 @@ def consensus_judge(kept, topic, definition, homonyms, save=None) -> dict:
     """
     if not config.CONSENSUS_CORE or not kept or not llm.have_api_key():
         return {}
+    # 1本目が判定していない(未判定の)文献は対象にしない。採否は1本目で決める
+    # 約束で、未判定はカタログ本体から分離される。以前は未判定の文献も2本目・
+    # 3本目に回し、その2つの点数だけで中央値を持った文献が rebalance_clusters で
+    # core に入った(逆に2つが共に低ければ「多数決で除外」になった)。429 が続いて
+    # 未判定が多い回ほど、問い合わせも無駄に増えていた。
+    # (GitHub の main では 2026-10-02 の d2477a8 で直してあったが、端末の版に
+    #  入っていなかったので取り込む)
+    kept = [it for it in kept if it.get("relevance_score") is not None]
+    if not kept:
+        return {}
     hom = homonym_note(homonyms)
     first = {it.get("judge_model") for it in kept if it.get("judge_model")}
     order = config.fallback_models("ensemble")
@@ -984,7 +994,7 @@ def consensus_judge(kept, topic, definition, homonyms, save=None) -> dict:
     return {"model_b": catalog.models_label(Counter(
                 it["model_b"] for it in kept if it.get("model_b"))),
             "model_c": model_c if got_c else "", "got_b": got_b, "got_c": got_c,
-            "outvoted": outvoted}
+            "outvoted": outvoted, "n": len(kept)}
 
 
 def eff_score(it):
@@ -1019,18 +1029,22 @@ def rebalance_clusters(kept) -> str:
     出入りし、回ごとの顔ぶれが大きく変わる。中間より下へは広げない(中央値は
     5点刻みなので、75点に下りると隣接する研究がまとめて入る)。
     """
-    scored = [it for it in kept if eff_score(it) is not None]
+    # 未判定の文献は対象にしない。consensus_judge で2本目・3本目に回さないので
+    # 中央値は持たないはずだが、それより前の版で作ったチェックポイントから再開
+    # すると、2本目・3本目の点数だけの中央値を持っていて core に上がりうる
+    scored = [it for it in kept if it.get("cluster") != UNJUDGED
+              and eff_score(it) is not None]
     if not scored:
         return ""
     core_now = sum(1 for it in kept if it.get("cluster") == "core")
     if core_now >= config.CORE_MIN_ITEMS:
         return ""
-    cons = any(it.get("score_consensus") is not None for it in kept)
+    cons = any(it.get("score_consensus") is not None for it in scored)
     floor = (config.CORE_SCORE + config.RELEVANCE_THRESHOLD) // 2
-    cands = [it for it in scored if it.get("cluster") != "core"
+    cands = [it for it in scored if it.get("cluster") == "related"
              and eff_measured(it) is True and eff_score(it) >= floor]
     top = max(eff_score(it) for it in scored)
-    n_models = max((it.get("n_raters") or 0) for it in kept) if cons else 0
+    n_models = max((it.get("n_raters") or 0) for it in scored) if cons else 0
     what = f"{n_models}つのモデルの中央値で" if cons else ""
     if not cands:
         if core_now:
