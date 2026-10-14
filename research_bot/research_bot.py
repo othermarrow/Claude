@@ -643,12 +643,17 @@ def cmd_search(args):
                 collected, topic, plan["definition"], plan.get("homonyms"),
                 active_filter_model(), save=lambda: _save("judging"))
             if looked:
-                search_log.append(
-                    f"除外の再確認: {config.OFF_SCORE + 1}〜"
-                    f"{config.RELEVANCE_THRESHOLD - 1}点の {looked}件を判定し直し、"
-                    f"{back}件を採用に戻した(2回のどちらかで"
-                    f"{config.RELEVANCE_THRESHOLD}点以上なら採用。判定メモに"
-                    "「再確認で採用」と残る)")
+                # 中断から再開した回は前の回の分も含めて数え直すので、行を置き換える
+                note = (f"除外の再確認: {config.OFF_SCORE + 1}〜"
+                        f"{config.RELEVANCE_THRESHOLD - 1}点の {looked}件を判定し直し、"
+                        f"{back}件を採用に戻した(2回のどちらかで"
+                        f"{config.RELEVANCE_THRESHOLD}点以上なら採用。判定メモに"
+                        "「再確認で採用」と残る)")
+                old = [i for i, s in enumerate(search_log) if s.startswith("除外の再確認:")]
+                if old:
+                    search_log[old[0]] = note
+                else:
+                    search_log.append(note)
             kept, excluded = judge.split_by_threshold(collected)
             used = {}
             for it in collected:

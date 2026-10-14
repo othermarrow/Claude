@@ -787,7 +787,16 @@ def second_look(items, topic, definition, homonyms, model, save=None) -> tuple:
     除外を一度で確定させず、中間帯だけをバッチの顔ぶれを変えて判定し直し、
     どちらかで採用相当なら採用する(二人で選別し、片方が残せば残す方式)。
     0〜OFF_SCORE(別分野・同名異義語)は見直さない。
-    (戻した数, 見直した数) を返す。
+
+    2回目の判定は文献に直接書き込まず、採用相当のときだけ置き換える。以前は
+    2回目の判定で relevance_score 等を上書きし、全バッチが終わってから1回目の
+    値に戻していた。途中で止まる(Ctrl-C・API_DOWN)と1回目の点数が失われ、
+    2回目の点数のままチェックポイントに残った(実測の再現: 50点が2回目の
+    10点・off のまま残った)。再開すると、中間帯に残った文献は3回目の判定も
+    受けていた。判定が返った文献から順に second_looked を付けるので、再開しても
+    同じ文献を見直さない。判定できなかった文献は印を付けず、1回目のまま残す
+    (再開したときにもう一度見直す)。
+    (戻した数, 見直した数) を返す。中断から再開した回は、前の回の分も含む。
     """
     if not config.SECOND_LOOK or not llm.have_api_key():
         return 0, 0
@@ -799,26 +808,38 @@ def second_look(items, topic, definition, homonyms, model, save=None) -> tuple:
     # 1回目と同じ並びで送ると、同じ顔ぶれのバッチになり同じ判定になりやすい
     targets.sort(key=lambda it: hashlib.md5(
         (it.get("title") or "").encode("utf-8")).hexdigest())
-    first = {id(it): {k: it.get(k) for k in ("relevance_score", "cluster", "measured",
-                                              "exclusion_reason", "judge_model")}
-             for it in targets}
     print(f"\n   除外した中間帯({lo + 1}〜{hi - 1}点)の {len(targets)}件を、"
           "組み合わせを変えてもう一度判定します...")
-    _run(targets, config.FILTER_BATCH_SIZE, topic, definition, homonyms, model,
-         "除外の再確認", save)
-    back = 0
-    for it in targets:
-        before = first[id(it)]
-        it["second_looked"] = True
-        s2 = it.get("relevance_score")
-        if s2 is not None and s2 >= hi:
-            back += 1
-            it["exclusion_reason"] = (f"(再確認で採用。1回目は{before['relevance_score']}点) "
-                                      + (it.get("exclusion_reason") or ""))
-        else:
-            it.update(before)
-    print(f"   → 再確認で採用に戻した {back}件 / 除外のまま {len(targets) - back}件")
-    return back, len(targets)
+    hom = homonym_note(homonyms)
+    size = config.FILTER_BATCH_SIZE
+    back = looked = 0
+
+    def work(batch):
+        return judge_batch(batch, topic, definition, hom, model)
+
+    def on_result(batch, results):
+        nonlocal back, looked
+        for it, r in zip(batch, results or [None] * len(batch)):
+            if not r or "error" in r:
+                continue          # 見直せなかった。1回目の判定のまま、印も付けない
+            looked += 1
+            it["second_looked"] = True
+            it["second_look_score"] = r["score"]
+            if r["score"] >= hi:
+                first = it.get("relevance_score")
+                apply_result(it, r)
+                it["exclusion_reason"] = (f"(再確認で採用。1回目は{first}点) "
+                                          + (it.get("exclusion_reason") or ""))
+                back += 1
+
+    llm.run_parallel(work, [targets[i:i + size] for i in range(0, len(targets), size)],
+                     "除外の再確認", on_result=on_result, checkpoint=save,
+                     checkpoint_every=config.JUDGE_CHECKPOINT_EVERY)
+    failed = len(targets) - looked
+    print(f"   → 再確認で採用に戻した {back}件 / 除外のまま {looked - back}件"
+          + (f" / 判定できず1回目のまま {failed}件" if failed else ""))
+    done = [it for it in items if it.get("second_looked")]
+    return (sum(1 for it in done if (it.get("relevance_score") or 0) >= hi), len(done))
 
 
 def consensus_judge(kept, topic, definition, homonyms, save=None) -> dict:
