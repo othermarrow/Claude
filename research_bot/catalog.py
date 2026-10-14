@@ -561,8 +561,15 @@ def _fetch_crossref_meta(doi: str) -> dict:
 # ==========================================
 # 重複の検知
 # ==========================================
+# 応用行動分析・単一事例実験で研究を問わず頻出する定型値(IOA 80%/90%/100%、
+# 達成基準 80%/85%/90%/95%/100%、チャンスレベル 50% 等)。これを共通数値に
+# 数えると、同一研究グループの別論文が誤って異版候補になる。
+_COMMON_PCTS = {"0%", "50%", "80%", "85%", "90%", "95%", "100%"}
+
+
 def _numeric_signature(a: str) -> set:
-    return {p.replace(" ", "") for p in re.findall(r"\d+(?:\.\d+)?\s?%", a or "")}
+    return ({p.replace(" ", "") for p in re.findall(r"\d+(?:\.\d+)?\s?%", a or "")}
+            - _COMMON_PCTS)
 
 
 def _surnames_for_dup(authors: list) -> set:
@@ -837,7 +844,7 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
             "authors": disp, "_raw_authors": dup_authors, "venue": venue,
             "src": src, "doi": it.get("doi") or "なし",
             "url": it.get("url") or "なし",
-            "oa_url": it.get("oa_url"), "cited_by": it.get("cited_by"),
+            "oa_url": it.get("oa_url"), "oa_host_type": it.get("oa_host_type") or "", "cited_by": it.get("cited_by"),
             # 3つのモデルの中央値があればそれがクラスタを決めた点数(judge.consensus_judge)
             "score": (it["score_consensus"] if it.get("score_consensus") is not None
                       else it.get("relevance_score")),
@@ -1086,8 +1093,9 @@ def build_catalog(final_items, meta: dict, paths: dict, crossref_fallback=True) 
                if e["fulltext_used"] else ""))
         if e["raters"]:
             lines.append(f"- **関連度の内訳**: {_rater_line(e, main_model)}")
-        if e["reason"]:
-            lines.append(f"- **判定メモ**: {e['reason']}")
+        rline = _reason_line(e, main_model)
+        if rline:
+            lines.append(f"- **判定メモ**: {rline}")
         if e["judge_model"] and main_model and e["judge_model"] != main_model:
             lines.append(f"- **判定モデル**: {e['judge_model']}(代わりのモデル)")
         if e["markers"]:
@@ -1152,7 +1160,7 @@ def _rater_models(entries, main_model) -> list:
 
 
 def _rater_line(e, main_model) -> str:
-    """「super 75 / gpt-oss 85 / diffusiongemma 70(中央値 75)」の形。"""
+    """「ultra 75 / gpt-oss 85 / diffusiongemma 70(中央値 75)」の形。"""
     r = e["raters"]
     parts = [f"{_short_model(e['judge_model'] or main_model) or '1本目'} "
              f"{e['score_a'] if e['score_a'] is not None else '-'}"]
@@ -1160,6 +1168,27 @@ def _rater_line(e, main_model) -> str:
         if r.get(f"score_{p}") is not None:
             parts.append(f"{_short_model(r.get(f'model_{p}'))} {r[f'score_{p}']}")
     return " / ".join(parts) + f"(中央値 {e['score']})"
+
+
+def _reason_line(e, main_model) -> str:
+    """判定メモを組み立てる。複数モデルで判定した回は2本目・3本目のメモも併記する。"""
+    r = e.get("raters") or {}
+    if not r:
+        return e.get("reason") or ""
+    notes = []
+    if e.get("reason"):
+        m1 = _short_model(e.get("judge_model") or main_model) or "1本目"
+        notes.append((m1, e["reason"]))
+    for p in ("b", "c"):
+        rb = (r.get(f"reason_{p}") or "").strip()
+        if rb:
+            mp = _short_model(r.get(f"model_{p}")) or f"{2 if p == 'b' else 3}本目"
+            notes.append((mp, rb))
+    if not notes:
+        return ""
+    if len(notes) == 1 and notes[0][1] == e.get("reason"):
+        return notes[0][1]
+    return " / ".join(f"{m}: {txt}" for m, txt in notes)
 
 
 def _write_index(path, catalog_path, meta, entries):
@@ -1194,6 +1223,7 @@ def _write_index(path, catalog_path, meta, entries):
                                      "fulltext_source": e["fulltext_source"],
                                      "pmcid": e["pmcid"],
                                      "url": e["url"], "oa_url": e["oa_url"],
+                                     "oa_host_type": e.get("oa_host_type") or "",
                                      "cited_by": e["cited_by"],
                                      "judge_model": e["judge_model"]}
                       for e in entries},
@@ -1772,6 +1802,7 @@ def _split_fm(text: str):
     フロー形式("[a, b, c]")の文字列に変換して保持する
     (_fm_value()はこの形式ならそのまま書き戻せる)。
     """
+    text = (text or "").lstrip("\ufeff").replace("\r\n", "\n")
     if not text.startswith("---\n"):
         return {}, text
     end = text.find("\n---\n", 4)

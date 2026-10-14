@@ -449,12 +449,21 @@ def _kill_stream(stream, info):
 
 def _responded(model: str) -> None:
     global _failed_trials
-    _giveups[model] = 0
     with _switch_lock:
+        _giveups[model] = 0
         _failed_trials = 0
         _trial.pop(model, None)
         _revived.discard(model)
     _speed_up()
+
+
+def _mark_permanently_dead(model: str) -> None:
+    """思考の暴走や 404 など、待っても直らないモデルを恒久的に停止する。"""
+    with _switch_lock:
+        _dead.add(model)
+        _retry_at.pop(model, None)
+        _trial.pop(model, None)
+        _revived.discard(model)
 
 
 def _record_giveup(model: str, why: str = "応答しなかった") -> None:
@@ -713,7 +722,7 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                                "達しました。判定に時間がかかりすぎるため、このモデルは"
                                "以後使いません(代わりのモデルがあればそちらで続けます)。")
                 if mark_dead:
-                    _dead.add(model)
+                    _mark_permanently_dead(model)
                 return f"{ERROR_PREFIX}通信エラー】thinking runaway: {model}"
 
             # 時間切れ(応答全体が長すぎる/何も届かない)。同じ条件で何度
@@ -772,7 +781,7 @@ def ask(prompt: str, model: str, *, system: str = None, max_tokens: int = None,
                 tqdm.write(f"    [!] 404: モデル '{model}' が見つかりません。"
                            "モデル名を確認してください(python research_bot.py models)。")
                 if mark_dead:
-                    _dead.add(model)
+                    _mark_permanently_dead(model)
                 return f"{ERROR_PREFIX}通信エラー】404 model not found: {model}"
 
             # コンテキスト長超過も待っても直らない

@@ -1030,11 +1030,11 @@ def _openalex_ids_for_dois(dois: list) -> dict:
 def _fetch_openalex_works(ids: list, add, label: str):
     """OpenAlex IDのリストから本体を取得して収集に加える。
 
-    戻り値は (追加件数, 追加できたDOIのリスト)。DOIリストは、次の世代の
-    引用連鎖のシードに使う(snowball()のhops>1で必要)。
+    戻り値は (追加件数, 追加できたシード候補[{"doi": ..., "cited_by": ...}]のリスト)。
+    シード候補は、次の世代の引用連鎖で被引用数の多い順に選ぶために使う。
     """
     n = 0
-    added_dois = []
+    added_seeds = []
     ids = [i for i in ids if i]
     for i in range(0, len(ids), 50):
         chunk = [x.rsplit("/", 1)[-1] for x in ids[i:i + 50]]
@@ -1050,11 +1050,12 @@ def _fetch_openalex_works(ids: list, add, label: str):
                 if _add_openalex_work(it, add, label):
                     n += 1
                     if it.get("doi"):
-                        added_dois.append(it["doi"])
+                        added_seeds.append({"doi": it["doi"],
+                                            "cited_by": it.get("cited_by_count") or 0})
         except Exception as e:
             tqdm.write(f"  [OpenAlex 後方引用] 通信エラー: {type(e).__name__}: {e}")
         time.sleep(REQUEST_PAUSE)
-    return n, added_dois
+    return n, added_seeds
 
 
 def snowball(seed_items: list, add, hops=1, max_seeds=25, min_gain=None) -> list:
@@ -1085,13 +1086,13 @@ def snowball(seed_items: list, add, hops=1, max_seeds=25, min_gain=None) -> list
                 forward_src.append(w["id"].rsplit("/", 1)[-1])
 
         # 後方: 参考文献
-        back_added, back_dois = _fetch_openalex_works(
+        back_added, back_seeds = _fetch_openalex_works(
             list(dict.fromkeys(backward)), add, "OpenAlex(後方引用)")
         tqdm.write(f"  後方引用から +{back_added}件")
 
         # 前方: 被引用
         fwd_added = 0
-        fwd_dois = []
+        fwd_seeds = []
         for i in range(0, len(forward_src), 20):
             chunk = forward_src[i:i + 20]
             try:
@@ -1106,7 +1107,8 @@ def snowball(seed_items: list, add, hops=1, max_seeds=25, min_gain=None) -> list
                     if _add_openalex_work(it, add, "OpenAlex(前方引用)"):
                         fwd_added += 1
                         if it.get("doi"):
-                            fwd_dois.append(it["doi"])
+                            fwd_seeds.append({"doi": it["doi"],
+                                              "cited_by": it.get("cited_by_count") or 0})
             except Exception as e:
                 tqdm.write(f"  [OpenAlex 前方引用] 通信エラー: {e}")
             time.sleep(REQUEST_PAUSE)
@@ -1119,11 +1121,15 @@ def snowball(seed_items: list, add, hops=1, max_seeds=25, min_gain=None) -> list
         if gained == 0 or (before and gained / max(before, 1) < min_gain):
             tqdm.write("  新規獲得が乏しいため引用連鎖を打ち切ります。")
             break
-        # 実測で判明したバグ: 以前はここで seeds = [] としており、
-        # hops=2以上を指定しても2世代目のシードが常に空になって
-        # 即座に打ち切られ、実質hops=1と変わらなかった。この世代で
-        # 新規に追加できた文献(DOIを持つもの)を次世代のシードにする。
-        seeds = [{"doi": d} for d in dict.fromkeys(back_dois + fwd_dois)][:max_seeds]
+        # この世代で新規に追加できた文献(DOIを持つもの)を、第1世代と同じく
+        # 被引用数の多い順に並べて次世代のシードにする。API返却順のままだと
+        # 最初の1〜2論文の後方引用だけで枠が埋まり、前方引用や重要文献が漏れる。
+        by_doi = {}
+        for s in back_seeds + fwd_seeds:
+            d = s["doi"]
+            if d not in by_doi or s["cited_by"] > by_doi[d]["cited_by"]:
+                by_doi[d] = s
+        seeds = sorted(by_doi.values(), key=lambda x: -x["cited_by"])[:max_seeds]
     return rounds
 
 

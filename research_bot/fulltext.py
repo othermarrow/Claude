@@ -216,17 +216,24 @@ def _pdf_to_text(pdf_bytes: bytes) -> str:
 
 def _fetch_url_text(url: str):
     """URLから本文をプレーンテキストで取る。戻り値は (本文, "PDF"/"HTML")。"""
+    if url.lower().split("?")[0].endswith(".pdf") and not HAVE_PYPDF:
+        return "", "PDF"
     try:
-        res = requests.get(url, timeout=config.FULLTEXT_TIMEOUT,
+        res = requests.get(url, timeout=config.FULLTEXT_TIMEOUT, stream=True,
                            headers={"User-Agent": "Mozilla/5.0 (academic research script)"})
     except Exception:
         return "", ""
-    if res.status_code != 200:
-        return "", ""
-    ctype = (res.headers.get("Content-Type") or "").lower()
-    if "pdf" in ctype or url.lower().split("?")[0].endswith(".pdf"):
-        return _pdf_to_text(res.content).strip(), "PDF"
-    return _html_to_text(res.text[:MAX_BODY_CHARS]).strip(), "HTML"
+    try:
+        if res.status_code != 200:
+            return "", ""
+        ctype = (res.headers.get("Content-Type") or "").lower()
+        if "pdf" in ctype or url.lower().split("?")[0].endswith(".pdf"):
+            if not HAVE_PYPDF:
+                return "", "PDF"
+            return _pdf_to_text(res.content).strip(), "PDF"
+        return _html_to_text(res.text[:MAX_BODY_CHARS]).strip(), "HTML"
+    finally:
+        res.close()
 
 
 def _looks_usable(text: str, abstract: str) -> bool:
@@ -286,7 +293,7 @@ def get_methods_text(item: dict):
     for u in dict.fromkeys(urls):
         text, kind = _fetch_url_text(u)
         if not text:
-            if u.lower().split("?")[0].endswith(".pdf") and not HAVE_PYPDF:
+            if kind == "PDF" and not HAVE_PYPDF:
                 reason = "PDFだがpypdfが無い"
             continue
         if not _looks_usable(text, abstract):
@@ -398,16 +405,18 @@ def classify_access(key: str, rec: dict) -> dict:
                        url=f"https://europepmc.org/article/PMC/{out['pmcid']}")
             return out
 
+    oa = (rec.get("oa_url") or "").strip()
+    if oa:
+        host = (rec.get("oa_host_type") or "").strip()
+        note = f"無料で閲覧可({host})" if host else "カタログに OA リンクあり"
+        out.update(grade="B", url=oa, note=note)
+        return out
+
     u = unpaywall(doi)
     if u.get("is_oa"):
         loc = u.get("best_oa_location") or {}
         out.update(grade="B", url=loc.get("url_for_pdf") or loc.get("url") or "",
                    note=f"無料で閲覧可({loc.get('host_type') or '?'})")
-        return out
-
-    oa = (rec.get("oa_url") or "").strip()
-    if oa:
-        out.update(grade="B", url=oa, note="カタログに OA リンクあり")
         return out
     if out["pmcid"]:
         out.update(grade="B", note="PMC に収載(個別閲覧)",

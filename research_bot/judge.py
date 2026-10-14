@@ -1498,9 +1498,9 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
         return ""
     # 3つのモデルの中央値で中心クラスタを決めた回は、収集時の2本目・3つ目の
     # 判定が索引にある。--model で別のモデルと比べるとき以外は使い回す
-    consensus = any(e.get("mean") is not None for e in entries)
+    consensus = any(e.get("mean") is not None for e in entries) and not explicit
     m3 = config.ENSEMBLE_SECOND_MODEL
-    if consensus and not explicit:
+    if consensus:
         for e in entries:
             for p, name in (("b", model), ("c", m3)):
                 st = e.get(f"stored_{p}")
@@ -1589,9 +1589,16 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
         e["bucket_b"] = _bucket(b, e["score_b"])
         if a in ("core", "related"):
             pairs.append((a, e["bucket_b"]))
-        if a == "core" and e["bucket_b"] == EXCLUDED:
+        # 中央値で決めた回は、カタログ上で実際に core になっている文献のうち
+        # 2本目(または3本目)が除外相当としたものを「中心クラスタからの除外候補」にする。
+        # 1本目は core でも中央値で既に related に落ちた文献は other に回す。
+        in_catalog_core = (e["cluster_a"] == "core") if consensus else (a == "core")
+        c_excl = (consensus and "stored_c" in e
+                  and isinstance(e["stored_c"].get("score"), int)
+                  and e["stored_c"]["score"] < config.RELEVANCE_THRESHOLD)
+        if in_catalog_core and (e["bucket_b"] == EXCLUDED or c_excl):
             demote.append(e)
-        elif a == "related" and b == "core":
+        elif (not in_catalog_core) and a == "related" and b == "core":
             promote.append(e)
         elif a != e["bucket_b"] or (e["gap"] is not None
                                     and e["gap"] >= config.ENSEMBLE_SCORE_GAP):
@@ -1620,14 +1627,17 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
             else:
                 print(f"[警告] {m3} から判定を得られなかったため、3つ目の判定は"
                       "報告に載せません。")
-    # 1本目と2本目・3本目が共に外したものは最優先の節にだけ、中央値で決めた
-    # 中心クラスタは内訳の節にだけ載せる
+    # 1本目と2本目・3本目が共に外したものは最優先の節にだけ載せる。
+    # 中央値で決めた中心クラスタ(core_rows)は内訳の節に載せるが、そのうち
+    # いずれかのモデルが除外相当とした要注意文献は demote にも(メモ付きで)残す。
     core_rows = ([e for e in entries if e["cluster_a"] == "core"]
                  if consensus else [])
-    shown = {e["key"] for e in both} | {e["key"] for e in core_rows}
+    both_keys = {e["key"] for e in both}
+    shown = both_keys | {e["key"] for e in core_rows}
     promote = [e for e in promote if e["key"] not in shown]
-    demote = [e for e in demote if e["key"] not in shown]
-    other = [e for e in other if e["key"] not in shown]
+    demote = [e for e in demote if e["key"] not in both_keys]
+    demote_keys = {e["key"] for e in demote}
+    other = [e for e in other if e["key"] not in (shown | demote_keys)]
     agree = sum(1 for a, b in pairs if a == b)
     kept_b = sum(1 for _, b in pairs if b != EXCLUDED)
     kappa = cohen_kappa(pairs)
@@ -1727,7 +1737,9 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                     "近縁の研究が多い。抄録を読み、無関係なら対象外、近縁なら周辺の"
                     "補助根拠とする。ここに挙げた抄録は以降の節には載せない。\n\n")
             if not both:
-                f.write("なし。\n\n")
+                note_ex = ("(収集時に CONSENSUS_EXCLUDE でカタログから除外済み)"
+                           if consensus and config.CONSENSUS_EXCLUDE else "")
+                f.write(f"なし。{note_ex}\n\n")
             else:
                 f.write("| 引用キー | 1本目 | 2本目 | 3本目 | 1本目のメモ | "
                         "3本目のメモ | タイトル |\n|---|---|---|---|---|---|---|\n")
