@@ -413,6 +413,14 @@ def run_checks(theme_arg: str, ensemble_model: str = "", skip=()) -> None:
 # ==========================================
 # 収集コマンド
 # ==========================================
+def _keyring_stop(e, resumable: bool) -> str:
+    """引用キーのレジストリが読めずに止めるときの表示。"""
+    tail = ("        直したら、同じコマンドに --resume を付けて続けてください"
+            "(途中経過は保存してあります)。" if resumable
+            else "        直したら、もう一度実行してください。")
+    return e.explain() + "\n" + tail
+
+
 def cmd_search(args):
     global _filter_model_override
     llm.STOP.clear()
@@ -464,6 +472,13 @@ def cmd_search(args):
     print(f"[設定] PREFILTER_MODE={config.PREFILTER_MODE}"
           + (f" / PREFILTER={config.PREFILTER_MODEL}" if use_prefilter else "")
           + "\n")
+
+    # 引用キーのレジストリが壊れていれば、数時間かけて収集する前に止める
+    try:
+        catalog.load_keyring(args.output_dir)
+    except catalog.KeyringBroken as e:
+        raise SystemExit(_keyring_stop(
+            e, resumable=checkpoint_exists(args.output_dir, topic))) from None
 
     # 数時間の処理を始める前に、モデル名の誤りをここで止める
     llm.preflight([active_planning_model(), active_filter_model()]
@@ -712,6 +727,13 @@ def cmd_search(args):
         return
 
     # --- 7. 出力 ---
+    # 引用キーのレジストリを読めるか、出力フォルダを作る前にもう一度確かめる
+    # (収集の数時間のうちに壊れることもある)。読めなければ途中経過を残した
+    # まま止める。直して --resume すれば、判定をやり直さずに出力から再開する。
+    try:
+        catalog.load_keyring(args.output_dir)
+    except catalog.KeyringBroken as e:
+        raise SystemExit(_keyring_stop(e, resumable=True)) from None
     # 出力フォルダはここで初めて作る。先に作ると、途中で落ちるたびに
     # 空のフォルダ(テーマ_1、テーマ_2 …)が積み上がる。
     paths = catalog.build_paths(args.output_dir, topic.splitlines()[0])

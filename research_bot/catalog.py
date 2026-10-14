@@ -104,6 +104,9 @@ KEY_RE = re.compile(r"^[A-Za-z][A-Za-z'\-]*\d{4}[a-z]?$")
 CATALOG_ENTRY_RE = re.compile(r"^###\s*\d+\.\s*\[([^\]]+)\]\s*(.*)$")
 
 KEYRING_FILENAME = "[keyring] research.json"
+# 最後に正しく保存したレジストリの控え(本体と同じ内容)。本体が壊れたときに
+# cp で戻せるよう、保存のたびに書く
+KEYRING_BACKUP_SUFFIX = ".bak"
 
 
 # ==========================================
@@ -493,42 +496,100 @@ def load_keyring(output_dir: str) -> tuple:
     タイトル指紋はDOIの無い文献(J-STAGE・CiNii・ERICに多い)用。以前は
     DOIしか覚えていなかったため、DOIの無い文献は再生成のたびに別のキー
     (Tanaka2010a → Tanaka2010c)になり、既存レポートの引用が宙に浮いていた。
+
+    ファイルが無ければ空で始める(初回)。ファイルはあるのに読めないときは
+    KeyringBroken を投げる。以前は読めないときも空として続け、収集の最後に
+    今回のキーだけで上書きしていた(全テーマ共通の記録が消え、過去の
+    カタログと同じキーが別の論文に付く)。
     """
-    p = os.path.join(output_dir, KEYRING_FILENAME)
+    p = keyring_path(output_dir)
     if not os.path.exists(p):
         return {}, set(), {}
     try:
-        with open(p, encoding="utf-8") as f:
-            d = json.load(f)
-        mapping = d.get("doi_to_key", {}) or {}
-        titles = d.get("title_to_key", {}) or {}
-        # issued_keys が無い古い形式のレジストリからも移行できるようにする
-        issued = (set(d.get("issued_keys") or []) | set(mapping.values())
-                  | set(titles.values()))
-        return mapping, issued, titles
-    except Exception:
-        return {}, set(), {}
+        return _read_keyring(p)
+    except Exception as e:
+        raise KeyringBroken(p, e) from e
+
+
+def keyring_path(output_dir: str) -> str:
+    return os.path.join(output_dir, KEYRING_FILENAME)
+
+
+def _read_keyring(p: str) -> tuple:
+    """レジストリを読む。形が違えば ValueError(JSON の誤りも ValueError)。"""
+    with open(p, encoding="utf-8") as f:
+        d = json.load(f)
+    if not isinstance(d, dict):
+        raise ValueError("一番外側が {…} ではありません")
+    mapping = d.get("doi_to_key") or {}
+    titles = d.get("title_to_key") or {}
+    issued = d.get("issued_keys") or []
+    if not (isinstance(mapping, dict) and isinstance(titles, dict)
+            and isinstance(issued, list)):
+        raise ValueError("doi_to_key・title_to_key・issued_keys の形が違います")
+    # issued_keys が無い古い形式のレジストリからも移行できるようにする
+    issued = set(issued) | set(mapping.values()) | set(titles.values())
+    return mapping, issued, titles
+
+
+class KeyringBroken(Exception):
+    """引用キーのレジストリはあるが読めない。書き換えずに止めるために使う。"""
+
+    def __init__(self, path: str, cause: Exception):
+        self.path = path
+        self.cause = cause
+        super().__init__(f"{path}: {type(cause).__name__}: {cause}")
+
+    def explain(self) -> str:
+        """止めた理由と直し方。最後の「どう続けるか」は呼び出し側で足す。"""
+        bak = self.path + KEYRING_BACKUP_SUFFIX
+        lines = [
+            "[エラー] 引用キーのレジストリを読めません。書き換えずに止めます。",
+            f"        ファイル: {self.path}",
+            f"        理由: {type(self.cause).__name__}: {str(self.cause)[:200]}",
+            "        このまま続けると、全テーマ共通の引用キーの記録が今回の分だけで",
+            "        上書きされ、過去のカタログと同じキーが別の論文に付くおそれがあります。",
+            "        直し方(どれか1つ):",
+        ]
+        if os.path.exists(bak):
+            try:
+                n = len(_read_keyring(bak)[0])
+                lines += ["        ・控え(最後に正しく保存した内容。DOI "
+                          f"{n}件)から戻す:",
+                          f'            cp "{bak}" "{self.path}"']
+            except Exception as e:
+                lines.append(f"        ・(控え {os.path.basename(bak)} も読めません: "
+                             f"{type(e).__name__})")
+        lines += ["        ・Vault のバックアップ(git)から、壊れる前の版に戻す",
+                  "        ・(最後の手段)このファイルを消して空から作り直す。",
+                  "          過去のカタログと引用キーが食い違うことがあります"]
+        return "\n".join(lines)
 
 
 def save_keyring(output_dir: str, mapping: dict, issued=None, titles=None):
-    p = os.path.join(output_dir, KEYRING_FILENAME)
+    p = keyring_path(output_dir)
     titles = titles or {}
     keys = sorted(set(issued or ()) | set(mapping.values()) | set(titles.values()))
-    try:
-        tmp = p + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump({"updated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+    text = json.dumps({"updated_at": datetime.datetime.now().isoformat(timespec="seconds"),
                        "note": "DOI→引用キー、DOIの無い文献のタイトル指紋→引用キー、"
                                "発行済みキーの一覧。カタログ間で同じ論文に同じキーを"
                                "与え、別の論文に同じキーを与えないために使う。",
                        "doi_to_key": mapping,
                        "title_to_key": titles,
                        "issued_keys": keys},
-                      f, ensure_ascii=False, indent=1, sort_keys=True)
-        # 全テーマで共有するファイルなので、書き込み途中で落ちても壊れないようにする
-        os.replace(tmp, p)
-    except Exception as e:
-        print(f"[警告] 引用キーレジストリを保存できませんでした: {e}")
+                      ensure_ascii=False, indent=1, sort_keys=True)
+    # 全テーマで共有するファイルなので、書き込み途中で落ちても壊れないよう
+    # 一時ファイルに書いてから置き換える。控えは本体を書けたときだけ更新する
+    for target, label in ((p, "引用キーレジストリ"),
+                          (p + KEYRING_BACKUP_SUFFIX, "引用キーレジストリの控え")):
+        try:
+            tmp = target + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(text)
+            os.replace(tmp, target)
+        except Exception as e:
+            print(f"[警告] {label}を保存できませんでした: {e}")
+            return
 
 
 def keyring_collisions(mapping: dict) -> dict:
