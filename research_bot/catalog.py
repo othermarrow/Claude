@@ -1626,7 +1626,7 @@ evidence_scope: "添付された抄録カタログに収録された文献のみ
 <output_and_delivery>
 - レポート本体は、ドキュメント機能(Docs)ではなくMarkdownファイルとして
   出力・添付する。Docs形式では提出しない。
-- ファイル名は `[report] {topic}.md` とする。
+- ファイル名は `[report] {report_name}.md` とする。
 - チャット本文には、レポート本体とは別に、次の作業過程を必ず記載する。
   「指示どおり作成しました」のような短い要約で済ませない。
   1. 引用キーの照合結果。本文で使用した件数と、索引表との不一致の有無。
@@ -1739,6 +1739,9 @@ def _write_prompt(path, catalog_file, meta, cluster_counts, dups,
     with open(path, "w", encoding="utf-8") as f:
         f.write(PROMPT_TEMPLATE.format(
             catalog_file=catalog_file, topic=meta["topic"],
+            # テーマ文が複数行のとき、ファイル名に2行目以降まで入っていた。
+            # フォルダ名と同じく1行目だけを使う
+            report_name=_sanitize_core((meta["topic"] or "").split("\n")[0]),
             definition=meta["definition"], cluster_summary=summary,
             score_summary=_score_summary(entries),
             source_summary=source_summary,
