@@ -133,12 +133,12 @@ function audioUpdate(info) {
   const ctx = AU.ctx, t = ctx.currentTime, cfg = WD.cfg;
   AU.hum.gain.setTargetAtTime(0.06 * cfg.hum * clamp(info.lightHere * 1.3, 0.05, 1.2), t, 0.3);
   // 出口
-  const m = MELODY[cfg.beacon];
-  const vol = Math.pow(clamp(1 - info.exitDist / 38, 0, 1), 1.6);
+  const m = MELODY[cfg.beacon] || MELODY.wind;
+  const vol = cfg.beacon ? Math.pow(clamp(1 - info.exitDist / (cfg.beaconRange || 38), 0, 1), 1.6) : 0;
   AU.bGain.gain.setTargetAtTime(vol, t, 0.2);
   AU.bPan.pan.setTargetAtTime(clamp(info.exitPan, -1, 1) * 0.85, t, 0.15);
   AU.bLP.frequency.setTargetAtTime(info.exitLos ? 5000 : 650, t, 0.3);
-  if (m.wind) AU.amb.gain.setTargetAtTime(0.025 + vol * 0.12, t, 0.4);
+  if (m.wind && cfg.beacon) AU.amb.gain.setTargetAtTime(0.025 + vol * 0.12, t, 0.4);
   if (t >= AU.bNext && vol > 0.005) {
     const f = m.notes[AU.bStep % m.notes.length]; AU.bStep++;
     if (f) {

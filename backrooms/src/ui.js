@@ -21,6 +21,7 @@ function toast(msg) {
   clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600);
 }
 function setPlayUI(on) { document.body.classList.toggle('playing', on); }
+function clearToast() { clearTimeout(toastT); $('#toast').classList.remove('show'); }
 
 const INTRO = 'いつもの廊下を歩いていた。\n足が、床をすり抜けた。\n\n気がつくと、黄色い部屋にいた。\n湿ったカーペットの匂い。蛍光灯のうなり。\n同じような部屋が、どこまでも続いている。\n\n出口は、どこかにあるはずだ。';
 const FLAVOR = [
@@ -31,45 +32,71 @@ const FLAVOR = [
   '水の音。白いタイル。\nここは、静かだ。',
 ];
 
+function modeLabel(sv) {
+  if (sv.mode === 'orig') return `原作版　${fmtTime(sv.time)}`;
+  const c = levelCfg(sv.lv, sv.mode || 'normal');
+  return `${sv.mode === 'hard' ? '救いのない版　' : ''}${c.n}「${c.name}」`;
+}
+function newRun(mode) {
+  clearToast(); audioInit(); S = newState(mode); G.warned = false;
+  enterLevel(0, true); saveGame(); showIntro();
+}
 function showTitle() {
-  G.mode = 'title'; setPlayUI(false);
+  G.mode = 'title'; setPlayUI(false); document.body.dataset.mode = ''; clearToast();
   newWorld(0, 20261014); G.demoA = 0.3;
   const sv = loadSave();
+  if (sv && !sv.mode) sv.mode = 'normal';
+  const rec = [];
+  if (OPT.clears) rec.push(`脱出した回数：${OPT.clears}`);
+  if (OPT.hardBest != null) rec.push(`救いのない版：第${OPT.hardBest}層まで`);
+  if (OPT.origBest) rec.push(`原作版：${fmtTime(OPT.origBest)} 生き延びた`);
+  const start = mode => { if (sv) ask('今の記録は消える。よいか？', () => newRun(mode), showTitle); else newRun(mode); };
   ov(`<div class="logo">迷い部屋</div><div class="logo2">― THE BACKROOMS ―</div>
     <p class="story">現実の床を踏み抜いた先には、<br>黄色い部屋が どこまでも続いていた。</p>
-    ${sv ? btn('cont', `つづきから<span class="sub">${LEVELS[sv.lv].n}「${LEVELS[sv.lv].name}」</span>`, 'main') : ''}
-    ${btn('new', 'はじめから', sv ? '' : 'main')}
+    ${sv ? btn('cont', `つづきから<span class="sub">${modeLabel(sv)}</span>`, 'main') : ''}
+    ${btn('new', `はじめから<span class="sub">出口を探して、5つの層を抜ける</span>`, sv ? '' : 'main')}
+    ${btn('hard', `救いのない版<span class="sub">出口の先も、また部屋。死んだら終わり</span>`)}
+    ${btn('orig', `原作版<span class="sub">2019年の最初の投稿のとおり。黄色い部屋だけ。出口はない</span>`)}
     ${btn('how', '遊び方', 'ghost')}${btn('set', '設定', 'ghost')}
-    <p class="small">音が出ます。イヤホンをすすめます。${OPT.clears ? `<br>脱出した回数：${OPT.clears}` : ''}</p>
+    <p class="small">音が出ます。イヤホンをすすめます。${rec.length ? '<br>' + rec.join('<br>') : ''}</p>
     ${storageOk() ? '' : '<p class="warn">この画面では、記録が保存されないようだ。</p>'}`, {
-    cont: () => { audioInit(); S = sv; enterLevel(S.lv, false); startPlay(); },
-    new: () => {
-      const go = () => { audioInit(); S = newState(); enterLevel(0, true); saveGame(); showIntro(); };
-      if (sv) ask('今の記録は消える。はじめからでよいか？', go, showTitle); else go();
-    },
+    cont: () => { audioInit(); S = sv; G.warned = false; enterLevel(S.lv, false); startPlay(); },
+    new: () => start('normal'), hard: () => start('hard'), orig: () => start('orig'),
     how: () => showHow(showTitle), set: () => showSettings(showTitle),
   }, 'title');
 }
 function showIntro() {
   G.mode = 'intro'; setPlayUI(false);
-  ov(`<p class="story big">${br(INTRO)}</p>${btn('go', '進む', 'main')}`, { go: () => showCard(0) }, 'dark');
+  if (S.mode === 'orig') {
+    ov(`<p class="story big">${br(ORIG_INTRO)}</p>${btn('go', '足を踏み入れる', 'main')}`, { go: () => { sfx('whoosh'); startPlay(); } }, 'dark');
+    return;
+  }
+  const txt = S.mode === 'hard' ? INTRO + '\n……あるはずだった。' : INTRO;
+  ov(`<p class="story big">${br(txt)}</p>${btn('go', '進む', 'main')}`, { go: () => showCard(0) }, 'dark');
 }
 function showCard(lv) {
   G.mode = 'card'; setPlayUI(false);
-  const L = LEVELS[lv];
+  const c = WD.cfg, base = lv % LEVELS.length;
+  let fl = FLAVOR[base];
+  if (S.mode === 'hard') {
+    if (lv >= LEVELS.length || base === 4) fl = H_FLAVOR[base];
+    if (lv > 0 && base === 0) fl = '扉を開けると、光があふれた。\n……蛍光灯の光だった。\n\n' + fl;
+  }
   sfx('whoosh');
-  ov(`<div class="card"><div class="cn">${L.n}</div><div class="cname">${L.name}</div><p>${br(FLAVOR[lv])}</p></div>${btn('go', '進む', 'main')}`, { go: startPlay }, 'dark');
+  ov(`<div class="card"><div class="cn">${c.n}</div><div class="cname">${c.name}</div><p>${br(fl)}</p>${S.mode === 'hard' ? '<div class="small">救いのない版</div>' : ''}</div>${btn('go', '進む', 'main')}`, { go: startPlay }, 'dark');
 }
 function startPlay() {
-  ov(''); G.mode = 'play'; setPlayUI(true);
+  ov(''); G.mode = 'play'; setPlayUI(true); document.body.dataset.mode = S.mode || 'normal';
   G.needDraw = true; audioSuspend(false);
 }
 function showPause() {
   if (G.mode !== 'play') return;
   G.mode = 'pause'; setPlayUI(false); saveGame();
+  const c = WD.cfg;
+  const where = S.mode === 'orig' ? `黄色い部屋　${fmtTime(S.time)}` : `${S.mode === 'hard' ? '救いのない版　' : ''}${c.n}「${c.name}」　${fmtTime(S.time)}${S.mode === 'normal' ? `　捕まった回数 ${S.deaths}` : ''}`;
   ov(`<div class="h">一時停止</div>
-    <p class="small">${LEVELS[S.lv].n}「${LEVELS[S.lv].name}」　${fmtTime(S.time)}　捕まった回数 ${S.deaths}</p>
-    ${btn('back', 'つづける', 'main')}${btn('notes', `拾ったメモ（${S.notes.length}/${NOTES.length}）`)}
+    <p class="small">${where}</p>
+    ${btn('back', 'つづける', 'main')}${S.mode === 'orig' ? '' : btn('notes', `拾ったメモ（${S.mode === 'hard' ? S.notes.length : S.notes.length + '/' + NOTES.length}）`)}
     ${btn('how', '遊び方', 'ghost')}${btn('set', '設定', 'ghost')}${btn('title', 'タイトルへ', 'ghost')}`, {
     back: startPlay, notes: () => showNotes(showPause), how: () => showHow(showPause), set: () => showSettings(showPause),
     title: () => { saveGame(); showTitle(); },
@@ -77,12 +104,14 @@ function showPause() {
 }
 function fmtTime(s) { s = Math.floor(s); return `${Math.floor(s / 60)}分${String(s % 60).padStart(2, '0')}秒`; }
 function showNotes(back) {
-  const list = S.notes.slice().sort((a, b) => a - b).map(i => `<div class="note"><b>${LEVELS[NOTES[i][0]].n}</b>${br(NOTES[i][1])}</div>`).join('') || '<p class="small">まだ拾っていない。</p>';
+  const items = S.notes.map(n => typeof n === 'number' ? { lab: LEVELS[NOTES[n][0]].n, t: NOTES[n][1], k: n } : { lab: n.mine ? '見覚えのある字' : '', t: n.t, k: 0 });
+  if (S.mode !== 'hard') items.sort((a, b) => a.k - b.k);
+  const list = items.map(n => `<div class="note"><b>${n.lab}</b>${br(n.t)}</div>`).join('') || '<p class="small">まだ拾っていない。</p>';
   ov(`<div class="h">拾ったメモ</div><div class="notes">${list}</div>${btn('back', '戻る')}`, { back });
 }
-function showNote(i, picked) {
+function showNote(text, picked, sub) {
   G.mode = 'note'; setPlayUI(false);
-  ov(`<div class="h">${picked ? 'メモを拾った' : 'メモ'}</div><div class="note paper">${br(NOTES[i][1])}</div>${btn('close', '閉じる', 'main')}`, { close: startPlay });
+  ov(`<div class="h">${picked ? 'メモを拾った' : 'メモ'}</div>${sub ? `<p class="small">${sub}</p>` : ''}<div class="note paper">${br(text)}</div>${btn('close', '閉じる', 'main')}`, { close: startPlay });
 }
 function showHow(back) {
   ov(`<div class="h">遊び方</div><div class="how">
@@ -95,6 +124,8 @@ function showHow(back) {
     <p>各層のどこかに出口がある。<b>出口の音</b>（オルゴール、ラジオ、風…）が聞こえる方へ。イヤホンだと左右が分かる。</p>
     <p>徘徊者は足音を聞いて寄ってくる。見つかったら走って逃げ、見えない所へ。笑う闇は暗がりにしかいられない。ライトを向けると嫌がる。</p>
     <p>捕まっても、その層の最初からやり直せる。</p>
+    <p><b>救いのない版</b>：層は終わらない。光の扉の先も、また黄色い部屋。進むほど暗くなり、怪物は増え、拾える物は減る。水を飲んでも正気は戻らない。捕まったら、そこで終わり。死んだときのことはメモになって、次の自分が拾うことがある。</p>
+    <p><b>原作版</b>：2019年の最初の投稿に合わせた版。黄色い部屋だけが続き、出口も、持ち物も、正気の表示もない。できるのは歩くことと走ることだけ。しばらくすると「何か」が現れる。それはときどき、あなたの居場所を聞きつける。時間がたつほど、正確に。どれだけ生き延びられるか。</p>
     <p class="small">キーボード：WASD・矢印で移動、Shiftで走る、Fでライト、Qで水、Mで地図、Eで出口、Escで一時停止</p>
     </div>${btn('back', '戻る')}`, { back });
 }
@@ -114,8 +145,25 @@ function showSettings(back) {
   });
 }
 function gameOver(kind, ent) {
-  G.mode = 'over'; setPlayUI(false);
+  G.mode = 'over'; setPlayUI(false); clearToast();
   sfx('caught'); vibe(450);
+  if (S.mode === 'orig') {
+    const t = S.time;
+    OPT.origBest = Math.max(OPT.origBest || 0, Math.floor(t)); saveOpts(); clearSave();
+    ov(`<div class="h red">捕まった</div><p class="story">${br('それは、ずっと前から\nあなたの音を聞いていた。')}</p>
+      <p class="small">黄色い部屋で生き延びた時間：${fmtTime(t)}<br>いちばん長く生き延びた時間：${fmtTime(OPT.origBest)}</p>
+      ${btn('again', 'もう一度', 'main')}${btn('title', 'タイトルへ', 'ghost')}`, { again: () => newRun('orig'), title: () => { S = null; showTitle(); } }, 'over');
+    return;
+  }
+  if (S.mode === 'hard') {
+    addGrave(kind); clearSave();
+    const h = kind === 'lost' ? ['正気を失った', '壁紙の模様の、ひとつになった。']
+      : ent && ent.type === 'grin' ? ['捕まった', '暗闇が耳もとで笑い、\nそれきり、何も見えなくなった。'] : ['捕まった', '背中に、冷たくて長い指が触れた。\nそれきり、蛍光灯のうなりも聞こえなくなった。'];
+    ov(`<div class="h red">${h[0]}</div><p class="story">${br(h[1])}</p>
+      <p class="small">${WD.cfg.n}まで　${fmtTime(S.time)}<br>あなたの残したメモは、いつか誰かが拾うだろう。</p>
+      ${btn('title', 'タイトルへ', 'main')}`, { title: () => { S = null; showTitle(); } }, 'over');
+    return;
+  }
   const t = kind === 'lost' ? ['正気を失った', '壁紙の模様が、こちらを見ている。\nもう、どちらが部屋なのか分からない。']
     : ent && ent.type === 'grin' ? ['捕まった', '暗闇が、すぐ耳もとで笑った。'] : ['捕まった', '背中に、冷たくて長い指が触れた。'];
   ov(`<div class="h red">${t[0]}</div><p class="story">${br(t[1])}</p>${btn('retry', 'この層の最初から', 'main')}${btn('title', 'タイトルへ', 'ghost')}`, {
@@ -129,7 +177,7 @@ function enterExit() {
   sfx('whoosh'); vibe(60);
 }
 function finishTrans() {
-  if (S.lv >= LEVELS.length - 1) { showEnding(); return; }
+  if (S.mode !== 'hard' && S.lv >= LEVELS.length - 1) { showEnding(); return; }
   enterLevel(S.lv + 1, true); saveGame(); showCard(S.lv);
 }
 function showEnding() {
@@ -154,11 +202,11 @@ function hud(dt) {
   $('#k_light').querySelector('i').textContent = S.spare ? '+' + S.spare : '';
   $('#k_water').querySelector('i').textContent = S.water; $('#k_water').disabled = !S.water;
   $('#k_map').querySelector('i').textContent = S.maps; $('#k_map').disabled = !S.maps;
-  $('#lvtag').textContent = `${LEVELS[S.lv].n}　${LEVELS[S.lv].name}`;
+  $('#lvtag').textContent = `${WD.cfg.n}　${WD.cfg.name}`;
   const act = $('#act');
   if (G.nearExit && G.mode === 'play') { act.textContent = WD.cfg.exitVerb; act.style.display = 'block'; } else act.style.display = 'none';
   const ar = $('#arrow');
-  if (G.hint > 0 && G.mode === 'play') {
+  if (G.hint > 0 && G.mode === 'play' && WD.exit) {
     const ep = exitPoint(), rel = angDiff(Math.atan2(ep.y - S.y, ep.x - S.x), S.a);
     ar.style.display = 'block';
     ar.querySelector('b').style.transform = `rotate(${rel}rad)`;

@@ -58,3 +58,4 @@ body:not(.playing) .ui { display: none !important; }
 .note { background: rgba(235, 228, 205, .08); border: 1px solid rgba(235, 228, 205, .2); border-radius: 8px; padding: 10px 12px; margin: 8px 0; font-size: 14px; line-height: 1.7; }
 .note b { display: block; font-weight: normal; font-size: 11px; color: var(--dim); }
 .note.paper { background: #e9e3d0; color: #2b2720; font-size: 15px; text-align: left; transform: rotate(-1deg); }
+body[data-mode="orig"] #hud, body[data-mode="orig"] #lvtag, body[data-mode="orig"] #k_light, body[data-mode="orig"] #k_water, body[data-mode="orig"] #k_map, body[data-mode="orig"] #arrow { display: none !important; }

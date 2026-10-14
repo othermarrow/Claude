@@ -232,7 +232,7 @@ function renderFrame(t, cam, sprites, fx) {
     }
   }
   // ---- 仕上げ（周辺を暗く・ざらつき・ゆがみ） ----
-  const VIG = RD.vig, noise = fx.noise || 0, dark = fx.dark || 0;
+  const VIG = RD.vig, noise = fx.noise || 0, dark = fx.dark || 0, desat = fx.desat || 0, yel = fx.yellow || 0;
   let seed = (t * 1e4) | 0;
   const glitch = fx.glitch || 0;
   for (let y = 0; y < H; y++) {
@@ -244,6 +244,8 @@ function renderFrame(t, cam, sprites, fx) {
       const i = row + x, c = buf[i];
       let m = VIG[i] * (1 - dark);
       let r = (c & 255) * m, g = ((c >> 8) & 255) * m, b = ((c >> 16) & 255) * m;
+      if (desat) { const gy = (r + g + b) / 3; r += (gy - r) * desat; g += (gy - g) * desat; b += (gy - b) * desat; }
+      if (yel) { const gy = r * 0.3 + g * 0.59 + b * 0.11; r += (gy * 1.1 - r) * yel; g += (gy * 0.98 - g) * yel; b += (gy * 0.42 - b) * yel; }
       if (noise) { seed = (seed * 1664525 + 1013904223) | 0; const n = ((seed >>> 24) - 128) * noise; r += n; g += n; b += n; }
       r = r < 0 ? 0 : r > 255 ? 255 : r; g = g < 0 ? 0 : g > 255 ? 255 : g; b = b < 0 ? 0 : b > 255 ? 255 : b;
       buf[i] = (255 << 24) | (b << 16) | (g << 8) | r;

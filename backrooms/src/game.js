@@ -17,9 +17,9 @@ function loadSave() { try { const o = JSON.parse(localStorage.getItem(SAVE_KEY))
 function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { } }
 function vibe(ms) { try { if (OPT.vib && navigator.vibrate) navigator.vibrate(ms); } catch (e) { } }
 
-function newState() {
+function newState(mode) {
   return {
-    v: 1, seed: (Math.random() * 2147483647) | 0, lv: 0, x: START.x, y: START.y, a: 0,
+    v: 1, mode: mode || 'normal', seed: (Math.random() * 2147483647) | 0, lv: 0, x: START.x, y: START.y, a: 0,
     san: 100, thirst: 100, bat: 100, spare: 0, water: 0, maps: 0, stam: 100, flash: false,
     taken: {}, notes: [], time: 0, deaths: 0, cleared: 0, snap: null,
   };
@@ -27,13 +27,24 @@ function newState() {
 function snapshot() { return { san: S.san, thirst: S.thirst, bat: S.bat, spare: S.spare, water: S.water, maps: S.maps }; }
 function enterLevel(lv, fresh) {
   S.lv = lv;
-  newWorld(lv, S.seed);
+  if (!S.mode) S.mode = 'normal';
+  newWorld(lv, S.seed, levelCfg(lv, S.mode));
   if (fresh) { S.x = START.x; S.y = START.y; S.a = 0; S.snap = snapshot(); }
   G.ents = []; G.items = []; G.itemChunk = null; G.hint = 0; S.flash = false;
   refreshCaches(S.x, S.y); updateLight(G.t);
   G.spawn = {};
   const E = WD.cfg.ents; for (const k in E) G.spawn[k] = E[k].first;
   audioLevel(WD.cfg);
+}
+// 救いのない版で死んだときに残るメモ
+function graveText(g) {
+  const why = g.c === 'lost' ? '壁の模様が、ずっと話しかけてくる。' : '後ろの足音が、止まらない。';
+  return `第${g.d}層まで来た。${Math.floor(g.t / 60)}分${String(Math.floor(g.t % 60)).padStart(2, '0')}秒、歩き続けた。\n${why}\nここで、終わる。`;
+}
+function addGrave(cause) {
+  OPT.graves = (OPT.graves || []).concat({ d: S.lv, t: Math.floor(S.time), c: cause }).slice(-6);
+  OPT.hardBest = Math.max(OPT.hardBest || 0, S.lv);
+  saveOpts();
 }
 function restartLevel() {
   const sn = S.snap || snapshot();
@@ -75,16 +86,31 @@ function pickUp(it) {
   else if (it.t === 'battery') { S.spare++; toast(`電池を拾った（予備 ${S.spare}本）`); }
   else if (it.t === 'map') { S.maps++; toast(`地図の切れ端を拾った（${S.maps}枚）`); }
   else if (it.t === 'note') {
-    const idx = NOTES.findIndex((n, i) => n[0] === S.lv && !S.notes.includes(i));
-    if (idx < 0) { toast('濡れて、文字が読めないメモだった'); }
-    else { S.notes.push(idx); showNote(idx, true); }
+    if (S.mode === 'hard') {
+      // 前に死んだ自分のメモが、混じっていることがある
+      const graves = (OPT.graves || []).filter((g, i) => !(S.gseen || []).includes(i));
+      const hn = H_NOTES.findIndex((n, i) => !S.notes.some(x => x.h === i));
+      if (graves.length && (Math.random() < 0.35 || hn < 0)) {
+        const gi = (OPT.graves || []).indexOf(graves[0]);
+        S.gseen = (S.gseen || []).concat(gi);
+        const t = graveText(graves[0]);
+        S.notes.push({ t, mine: 1 }); showNote(t, true, '見覚えのある字だ。');
+      } else if (hn >= 0) { S.notes.push({ h: hn, t: H_NOTES[hn] }); showNote(H_NOTES[hn], true); }
+      else toast('濡れて、文字が読めないメモだった');
+    } else {
+      const idx = NOTES.findIndex((n, i) => n[0] === S.lv && !S.notes.includes(i));
+      if (idx < 0) { toast('濡れて、文字が読めないメモだった'); }
+      else { S.notes.push(idx); showNote(NOTES[idx][1], true); }
+    }
   }
   saveGame();
 }
 function drinkWater() {
   if (!S.water || G.mode !== 'play') return;
-  S.water--; S.thirst = Math.min(100, S.thirst + 45); S.san = Math.min(100, S.san + 15);
-  sfx('drink'); toast(`水を飲んだ。少し落ち着いた（残り ${S.water}本）`); saveGame();
+  S.water--;
+  if (S.mode === 'hard') { S.thirst = Math.min(100, S.thirst + 30); sfx('drink'); toast(`水を飲んだ。渇きはおさまった。気分は晴れない（残り ${S.water}本）`); }
+  else { S.thirst = Math.min(100, S.thirst + 45); S.san = Math.min(100, S.san + 15); sfx('drink'); toast(`水を飲んだ。少し落ち着いた（残り ${S.water}本）`); }
+  saveGame();
 }
 function useMap() {
   if (!S.maps || G.mode !== 'play') return;
@@ -92,7 +118,7 @@ function useMap() {
   toast('地図の切れ端を見た。出口の向きが分かる（30秒）'); saveGame();
 }
 function toggleFlash() {
-  if (G.mode !== 'play') return;
+  if (G.mode !== 'play' || WD.cfg.orig) return;
   if (!S.flash && S.bat <= 0) {
     if (S.spare > 0) { S.spare--; S.bat = 100; toast('電池を入れ替えた'); }
     else { toast('電池がない'); sfx('click'); return; }
@@ -104,14 +130,26 @@ function toggleRun() { G.run = !G.run; }
 // ---- 怪物 ----
 function trySpawn(type) {
   for (let k = 0; k < 50; k++) {
-    const ang = Math.random() * Math.PI * 2, d = 11 + Math.random() * 9;
+    const ang = Math.random() * Math.PI * 2, d = (WD.cfg.orig ? 16 : 11) + Math.random() * 9;
     const x = Math.floor(S.x + Math.cos(ang) * d), y = Math.floor(S.y + Math.sin(ang) * d);
     if (isWall(x, y) || lineOfSight(S.x, S.y, x + 0.5, y + 0.5)) continue;
     if (type === 'grin' && lightAt(x + 0.5, y + 0.5) > 0.3) continue;
-    G.ents.push({ type, x: x + 0.5, y: y + 0.5, st: 'wander', tgt: null, next: null, repath: 0, lost: 0, stepT: 0, sndT: 1 + Math.random() * 2, burn: 0 });
+    const e = { type, x: x + 0.5, y: y + 0.5, st: 'wander', tgt: null, next: null, repath: 0, lost: 0, stepT: 0, sndT: 1 + Math.random() * 2, burn: 0, hearT: 0 };
+    if (WD.cfg.orig) { hearPlayer(e); if (!G.warned) { G.warned = true; toast('……近くで、何かが歩き回る音がする'); } }
+    G.ents.push(e);
     return true;
   }
   return false;
+}
+// 原作版：「それ」はときどき、こちらの居場所を聞きつける。時間がたつほど、正確に、頻繁に
+function hearPlayer(e) {
+  const err = Math.max(1.5, 10 - S.time / 80);
+  for (let k = 0; k < 10; k++) {
+    const x = Math.floor(S.x + (Math.random() * 2 - 1) * err), y = Math.floor(S.y + (Math.random() * 2 - 1) * err);
+    if (!isWall(x, y)) { e.tgt = { x: x + 0.5, y: y + 0.5 }; break; }
+  }
+  if (e.st !== 'chase') e.st = 'hunt';
+  e.hearT = Math.max(10, 45 - S.time / 22);
 }
 function spawnTick(dt) {
   const E = WD.cfg.ents;
@@ -159,14 +197,26 @@ function updateEnts(dt) {
     const los = d < (P.see + 2) && lineOfSight(e.x, e.y, S.x, S.y);
     const bearing = Math.atan2(e.y - S.y, e.x - S.x), rel = angDiff(bearing, S.a);
     const inView = los && Math.abs(rel) < 0.75 && d < 14;
+    const mul = (WD.cfg.speedMul || 1) * (WD.cfg.orig ? 1 + Math.min(0.25, S.time / 1800) : 1);
     let speed = 0;
     if (e.type === 'wander') {
-      if (los && d < P.see) { e.st = 'chase'; e.lost = 5; e.tgt = { x: S.x, y: S.y }; }
+      if (los && d < (WD.cfg.orig ? 8 : P.see)) { e.st = 'chase'; e.lost = 5; e.tgt = { x: S.x, y: S.y }; }
       else if (G.noise && d < G.noise) { if (e.st !== 'chase') e.st = 'hunt'; e.tgt = { x: S.x, y: S.y }; }
       else if (e.st === 'chase') { e.lost -= dt; if (e.lost <= 0) e.st = 'hunt'; }
       if (e.st === 'hunt' && e.tgt && Math.hypot(e.tgt.x - e.x, e.tgt.y - e.y) < 0.3) { e.st = 'wander'; e.tgt = null; }
+      if (WD.cfg.orig) {
+        e.hearT -= dt;
+        if (e.hearT <= 0) hearPlayer(e);
+        if (d > 30) {   // 遠くに離れても、いつのまにか近くにいる
+          for (let k = 0; k < 30; k++) {
+            const a = Math.random() * Math.PI * 2, r = 14 + Math.random() * 6;
+            const x = Math.floor(S.x + Math.cos(a) * r), y = Math.floor(S.y + Math.sin(a) * r);
+            if (!isWall(x, y) && !lineOfSight(S.x, S.y, x + 0.5, y + 0.5)) { e.x = x + 0.5; e.y = y + 0.5; e.next = null; hearPlayer(e); break; }
+          }
+        }
+      }
       if (e.st === 'wander' && !e.tgt) e.tgt = randomTarget(e, 7);
-      speed = P.speed[e.st === 'chase' ? 2 : e.st === 'hunt' ? 1 : 0];
+      speed = P.speed[e.st === 'chase' ? 2 : e.st === 'hunt' ? 1 : 0] * mul;
       if (e.st === 'chase' && los && d < 2.5) {   // 目の前なら、まっすぐ来る
         const s = Math.min(d, speed * dt); e.x += dx / d * s; e.y += dy / d * s; e.moving = true;
       } else stepEntity(e, speed, dt);
@@ -201,7 +251,7 @@ function updateEnts(dt) {
         }
         if (e.burn > 1.6) { e.gone = true; toast('笑い声が、遠ざかっていった'); }
       } else if (lh < 0.34 && d < P.see) {
-        e.st = 'chase'; e.tgt = { x: S.x, y: S.y }; speed = P.speed[2];
+        e.st = 'chase'; e.tgt = { x: S.x, y: S.y }; speed = P.speed[2] * mul;
         if (los && d < 2.5) { const s = Math.min(d, speed * dt); e.x += dx / d * s; e.y += dy / d * s; }
         else stepEntity(e, speed, dt, dark);
         G.fear = Math.max(G.fear, clamp(1 - d / 10, 0, 1));
@@ -215,7 +265,7 @@ function updateEnts(dt) {
       if (inView) G.seen = true;
     }
     if (d < 0.42 && e.st !== 'flee') caught = e;
-    if (d > 42) e.gone = true;
+    if (d > 42 && !WD.cfg.orig) e.gone = true;
   }
   G.ents = G.ents.filter(e => !e.gone);
   return caught;
@@ -250,39 +300,41 @@ function update(dt) {
   // 体力
   if (running) { S.stam -= 22 * dt; if (S.stam <= 0) { S.stam = 0; G.tired = true; toast('息が切れた'); } }
   else S.stam = Math.min(100, S.stam + (moving ? 11 : 20) * dt);
+  const cfg = WD.cfg;
   // 懐中電灯
   if (S.flash) {
-    S.bat -= 0.42 * dt;
+    S.bat -= 0.42 * (cfg.hard ? 1.3 : 1) * dt;
     if (S.bat <= 0) {
       if (S.spare > 0) { S.spare--; S.bat = 100; toast('電池を入れ替えた'); }
       else { S.bat = 0; S.flash = false; toast('電池が切れた'); sfx('click'); }
     }
   }
   // 渇きと正気
-  const calm = !!WD.cfg.calm;
-  S.thirst = Math.max(0, S.thirst - (calm ? 0.03 : 0.085) * dt);
+  const calm = !!cfg.calm;
+  if (!cfg.noStats) S.thirst = Math.max(0, S.thirst - (calm ? 0.03 : 0.085) * dt);
   const lh = lightAt(S.x, S.y);
   G.dark = lh;
-  let drain = 0.05;
+  let drain = cfg.sanDrain || 0.05;
   if (lh < 0.3 && !(S.flash && S.bat > 0)) drain += 0.32;
   if (S.thirst <= 0) drain += 0.4;
   // 拾う
   for (const it of nearbyItems()) if (Math.hypot(it.x - S.x, it.y - S.y) < 0.55) { pickUp(it); if (G.mode !== 'play') return; }
   // 出口
-  const ep = exitPoint(), edx = ep.x - S.x, edy = ep.y - S.y, ed = Math.hypot(edx, edy);
-  G.nearExit = ed < 1.25 && Math.abs(angDiff(Math.atan2(edy, edx), S.a)) < 1.0;
+  const ep = exitPoint() || { x: S.x + 1e4, y: S.y };
+  const edx = ep.x - S.x, edy = ep.y - S.y, ed = Math.hypot(edx, edy);
+  G.nearExit = !!WD.exit && ed < 1.25 && Math.abs(angDiff(Math.atan2(edy, edx), S.a)) < 1.0;
   if (G.hint > 0) G.hint -= dt;
   // 怪物
   spawnTick(dt);
   const caught = updateEnts(dt);
   if (G.seen) drain += 1.5;
   if (calm) drain = -0.7;
-  S.san = clamp(S.san - drain * dt, 0, 100);
+  if (!cfg.noStats) S.san = clamp(S.san - drain * dt, 0, 100);
   // 音
-  const exf = { x: WD.exit.fx + 0.5, y: WD.exit.fy + 0.5 };
+  const exf = WD.exit ? { x: WD.exit.fx + 0.5, y: WD.exit.fy + 0.5 } : null;
   audioUpdate({
     lightHere: lh, exitDist: ed, exitPan: Math.sin(angDiff(Math.atan2(edy, edx), S.a)),
-    exitLos: ed < 30 && lineOfSight(S.x, S.y, exf.x, exf.y), fear: G.fear, sanity: S.san,
+    exitLos: !!exf && ed < 30 && lineOfSight(S.x, S.y, exf.x, exf.y), fear: G.fear, sanity: S.san,
   });
   // ちらつく灯りのジジッという音
   G.flashT -= dt;
@@ -309,10 +361,12 @@ function sprites() {
   return out;
 }
 function frameFx() {
-  const low = clamp((40 - S.san) / 40, 0, 1);
+  const low = clamp((40 - S.san) / 40, 0, 1), cfg = WD.cfg;
   return {
+    desat: Math.min(0.85, (cfg.desat || 0) + (cfg.hard ? low * 0.3 : 0)),
+    yellow: cfg.orig ? Math.min(0.55, S.time / 1500) : 0,
     bob: G.bob, flash: S.flash && S.bat > 0 ? 1.75 * (S.bat < 15 && Math.random() < 0.08 ? 0.3 : 1) : 0,
-    noise: 0.04 + low * 0.32 + G.fear * 0.12, glitch: low > 0.5 ? low : 0,
+    noise: 0.04 + low * 0.32 + G.fear * 0.12 + (cfg.orig ? Math.min(0.12, S.time / 4000) : 0), glitch: low > 0.5 ? low : 0,
     dark: G.mode === 'trans' ? Math.min(1, G.transT) : 0, fogMul: 1 + low * 0.6,
   };
 }

@@ -5,9 +5,9 @@ const DXY = [[0, -1], [1, 0], [0, 1], [-1, 0]];   // 北 東 南 西
 const START = { x: 8.5, y: 8.5 };
 let WD = null;
 
-function newWorld(lv, seed) {
-  WD = { lv, seed: (seed ^ Math.imul(lv + 1, 2654435761)) | 0, cfg: LEVELS[lv], chunks: new Map(), exit: null };
-  placeExit();
+function newWorld(lv, seed, cfg) {
+  WD = { lv, seed: (seed ^ Math.imul(lv + 1, 2654435761)) | 0, cfg: cfg || LEVELS[lv], chunks: new Map(), exit: null };
+  if (WD.cfg.exitD > 0) placeExit();
   return WD;
 }
 function ckey(cx, cy) { return (cx + 32768) * 65536 + (cy + 32768); }
@@ -100,7 +100,7 @@ function genChunk(cx, cy) {
     }
   };
   for (const t of ['water', 'battery', 'map', 'note']) if (R() < (cfg.items[t] || 0)) place(t);
-  if (WD.lv === 0 && cx === 0 && cy === 0) {
+  if (WD.lv === 0 && cx === 0 && cy === 0 && !cfg.orig) {
     items.push({ id: '0:start:w', t: 'water', x: 10.5, y: 7.5 });
     items.push({ id: '0:start:n', t: 'note', x: 7.5, y: 10.5 });
   }
@@ -186,7 +186,8 @@ function placeExit() {
   // 見つからないとき（まずないが）スタートのそばに
   WD.exit = { fx: 8, fy: 8, wx: 8, wy: 4, face: 2, steps: 0 };
 }
-function exitPoint() {   // 出口の扉の真ん中（床の上）
-  const e = WD.exit, d = DXY[(e.face)];
+function exitPoint() {   // 出口の扉の真ん中（床の上）。出口がない層では null
+  const e = WD.exit; if (!e) return null;
+  const d = DXY[(e.face)];
   return { x: e.wx + 0.5 + d[0] * 0.5, y: e.wy + 0.5 + d[1] * 0.5 };
 }

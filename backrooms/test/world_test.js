@@ -35,5 +35,20 @@ for (const lv of [0, 2]) {
   for (let y = -2; y < 22; y++) { let s = ''; for (let x = -2; x < 40; x++) s += (x === 8 && y === 8) ? '@' : (x === ex.wx && y === ex.wy) ? 'E' : E(`isWall(${x}, ${y})`) ? '#' : (E(`lampAt(${x}, ${y})`) === 1 ? '+' : E(`lampAt(${x}, ${y})`) ? '-' : '.'); lines.push(s); }
   console.log(lines.join('\n'));
 }
+// 救いのない版：深い層まで出口に行けるか
+for (let depth = 0; depth <= 20; depth++) {
+  const cfg = E(`levelCfg(${depth}, 'hard')`);
+  E(`newWorld(${depth}, 4242, levelCfg(${depth}, 'hard'))`);
+  const ex = E('WD.exit');
+  const B = E('bfsFrom')(8, 8, 140);
+  const d = ex ? B.at(ex.fx, ex.fy) : -1;
+  ok(d >= 0, `救いのない版 第${depth}層 出口に行けない`);
+  if (depth % 5 === 0 || depth === 20) console.log(`救いのない版 第${depth}層「${cfg.name}」出口まで${d}歩 明るさ${cfg.amb.toFixed(3)} 灯り${cfg.lamps.on.toFixed(2)} 怪物${JSON.stringify(Object.fromEntries(Object.entries(cfg.ents).map(([k, v]) => [k, v.max])))} 速さ×${cfg.speedMul.toFixed(2)}`);
+}
+// 原作版：出口も物もない
+E(`newWorld(0, 77, levelCfg(0, 'orig'))`);
+ok(E('WD.exit') === null, '原作版に出口がある');
+let items = 0; for (let i = -4; i <= 4; i++) for (let j = -4; j <= 4; j++) items += E('chunkAt')(i, j).items.length;
+ok(items === 0, '原作版に物がある');
 console.log(fail ? `失敗 ${fail}` : 'すべてOK');
 process.exit(fail ? 1 : 0);

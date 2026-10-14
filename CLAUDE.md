@@ -25,7 +25,7 @@
 | `zork-ja/` | 英語版 Zork I を Termux で日本語で遊ぶためのラッパー |
 | `zork-watch/` | Zork I を Balance 2 の中だけで動かすミニアプリ（日英表示・英語入力） |
 | `ash-maze/` | 初期ウィザードリー風の3D迷宮RPG「灰の迷宮」。HTML 1枚を Tasker のシーン（WebView）で遊ぶ |
-| `backrooms/` | Backrooms 風の探索ホラー「迷い部屋」。なめらかに歩く3D、HTML 1枚を Tasker のシーンで遊ぶ |
+| `backrooms/` | Backrooms 風の探索ホラー「迷い部屋」。なめらかに歩く3D、HTML 1枚を Tasker のシーンで遊ぶ。救いのない版・原作版（2019年の投稿に忠実）もある |
 
 新しいプロジェクトを足したら、この表も更新する。
 

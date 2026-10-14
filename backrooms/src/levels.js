@@ -104,3 +104,64 @@ const ENTS = {
   wander: { n: '徘徊者', spr: 'sp_wander', h: 1.05, speed: [1.0, 1.7, 2.45], hear: 13, see: 12 },
   grin: { n: '笑う闇', spr: 'sp_grin', h: 0.9, speed: [0.8, 2.9, 2.9], see: 14 },
 };
+
+// ===== 遊び方の種類 =====
+// normal=迷い部屋（ふつう） hard=救いのない版 orig=原作版（2019年の投稿に忠実）
+const MODES = { normal: '迷い部屋', hard: '救いのない版', orig: '原作版' };
+function cloneCfg(c) { return JSON.parse(JSON.stringify(c)); }
+function levelCfg(depth, mode) {
+  if (mode === 'orig') {   // 黄色い部屋だけ。出口も持ち物もない。いるのは「何か」ひとつ
+    const c = cloneCfg(LEVELS[0]);
+    Object.assign(c, {
+      n: '', name: '黄色い部屋', amb: 0.2, hum: 1.7, exitD: 0, beacon: null, items: {},
+      lamps: { every: 3, on: 0.97, flick: 0.03, darkBlock: 0 },
+      ents: { wander: { first: 70, every: 6, max: 1 } },
+      walls: { segs: [9, 13], pillars: [3, 7], rooms: 0.3 }, orig: 1, noStats: 1,
+    });
+    return c;
+  }
+  if (mode !== 'hard') return LEVELS[depth];
+  // 救いのない版：層は終わらない。5つの層をくり返すたびに、暗く・多く・少なくなる
+  const base = depth % LEVELS.length, cyc = Math.floor(depth / LEVELS.length);
+  const c = cloneCfg(LEVELS[base]), k = cyc + base * 0.2;
+  c.n = `第${depth}層`; c.calm = 0; c.hard = 1;
+  c.amb = c.amb * Math.max(0.3, 1 - 0.22 * k);
+  c.lamps.on = Math.max(0.05, c.lamps.on * (1 - 0.12 * k));
+  c.lamps.flick = Math.min(0.4, c.lamps.flick + 0.05 * k);
+  c.lamps.darkBlock = Math.min(0.5, c.lamps.darkBlock + 0.06 * k);
+  if (base === 4) { c.lamps.on = Math.min(c.lamps.on, 0.6); c.lamps.flick = Math.max(c.lamps.flick, 0.3); c.amb = Math.min(c.amb, 0.35); c.lampK = 0.6; }
+  c.items = { water: (c.items.water || 0.3) * 0.5, battery: (c.items.battery || 0.2) * 0.6, map: 0, note: 0.18 };
+  const w = LEVELS[base].ents.wander || { first: 120, every: 150, max: 1 };
+  c.ents = { wander: { first: Math.max(20, w.first * 0.5 / (1 + cyc * 0.4)), every: Math.max(25, w.every * 0.6 / (1 + cyc * 0.4)), max: Math.min(4, w.max + cyc) } };
+  if (base === 3 || cyc >= 1) c.ents.grin = { first: 30, every: Math.max(25, 45 / (1 + cyc * 0.3)), max: Math.min(3, 1 + cyc) };
+  c.exitD = Math.min(90, c.exitD + cyc * 10);
+  c.beaconRange = Math.max(14, 38 - cyc * 6 - base * 1.5);
+  c.speedMul = Math.min(1.3, 1 + 0.06 * k);
+  c.sanDrain = 0.07 + 0.012 * k;
+  c.desat = Math.min(0.7, 0.13 * k);
+  return c;
+}
+
+// 救いのない版のメモ（層に関係なく、順に拾う）
+const H_NOTES = [
+  '出口を三つくぐった。四つ目の向こうも、黄色い部屋だった。',
+  '「外に出た」と書かれたメモを拾った。同じ字のメモを、私はもう七枚拾っている。',
+  '水が減っていく。正気も減っていく。増えるのは、数えた部屋の数だけだ。',
+  '後ろの足音は、私の足音より一歩だけ遅い。止まると、止まる。',
+  '笑い声に慣れてきた。それが一番こわい。',
+  '光の扉を開けた。光は、蛍光灯だった。',
+  '数えるのをやめた。第何層かなんて、もう関係ない。',
+  '電池が切れたら、暗闇と二人きりになる。いや、二人ではないか。',
+  'ここに来たばかりなら、まず水を探せ。……そう書いたのは、ずっと前の私だ。',
+  '誰かが見つけてくれると思っていた。見つけてくれたのは、あれだけだった。',
+  '名前を思い出せない。最後に書いておこうと思っていたのに。',
+  'これを読んでいるのが誰でも、もう遅い。',
+];
+const H_FLAVOR = [
+  'また、ここだ。\n湿ったカーペット。終わらない蛍光灯のうなり。',
+  '見覚えのある柱。見覚えのある暗がり。\nラジオは、同じ曲しか流さない。',
+  '配管が鳴る。前より、近くで。',
+  '明かりが、また少し減った。',
+  '白いタイル。水の音。\n今度は、静かではない。',
+];
+const ORIG_INTRO = '現実の、まちがった場所で足を踏み外すと、ここへ落ちる。\n\n古くて湿ったカーペットの匂い。\nどこを見ても、黄色。\n最大の音でうなり続ける蛍光灯。\n区切られただけの空っぽの部屋が、果てしなく続いている。\n\n出口はない。\n\nもし近くで、何かが歩き回る音が聞こえたら――\nそれはもう、あなたの音を聞いている。';
