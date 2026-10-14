@@ -1445,6 +1445,30 @@ def cohen_kappa(pairs):
     return (po - pe) / (1 - pe)
 
 
+def _no_kappa_reason(pairs, n_missing: int = 0) -> str:
+    """κ を算出できない理由。どちらの判定が1種類だけだったかを書く。
+
+    以前は理由を問わず「応答欠落が多い回に起きやすい」と出していた。実測:
+    欠落0件の回で、1本目が core の基準を満たした文献が1件も無く(最高85点)、
+    1本目の分類がすべて related になっていただけだった。
+    """
+    side_a = {a for a, _ in pairs}
+    side_b = {b for _, b in pairs}
+    if len(side_a) == 1:
+        only = next(iter(side_a))
+        why = f"1本目の分類がすべて {only}"
+        if only == "related":
+            why += (f"。1本目が core の基準(関連度{config.CORE_SCORE}以上かつ"
+                    "実測あり)を満たした文献が無い")
+    elif len(side_b) == 1:
+        why = f"2本目の分類がすべて {next(iter(side_b))}"
+    else:
+        why = "比べられる判定の組が足りない"
+    if n_missing:
+        why += f"。応答欠落の{n_missing}件は比べていない"
+    return why
+
+
 def kappa_label(k) -> str:
     """Landis & Koch (1977) の目安。"""
     if k is None:
@@ -1705,6 +1729,7 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
     agree = sum(1 for a, b in pairs if a == b)
     kept_b = sum(1 for _, b in pairs if b != EXCLUDED)
     kappa = cohen_kappa(pairs)
+    no_kappa = _no_kappa_reason(pairs, len(missing)) if kappa is None and pairs else ""
     skew_cls, skew = _kappa_skew(pairs)
     gaps = [e["gap"] for e in entries if e.get("gap") is not None]
     mean_gap = sum(gaps) / len(gaps) if gaps else None
@@ -1734,8 +1759,7 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
             if kappa is not None:
                 line += f" / Cohen の κ = {kappa:.2f}({kappa_label(kappa)})"
             else:
-                line += (" / κ は算出不可(どちらかの判定が1種類だけ。"
-                         "応答欠落が多い回に起きやすい)")
+                line += f" / κ は算出不可({no_kappa})"
             f.write(line + "\n")
             if kappa is not None and skew >= 0.85:
                 f.write(f"  - κ は低く出やすい: 1本目が残した文献だけで比べており、"
@@ -1783,6 +1807,42 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                 sa = e["score_a"] if e["score_a"] is not None else "-"
                 f.write(f"| [{e['key']}] | {e['cluster_cmp']} {sa} "
                         f"| {e['bucket_b']} {e['score_b']} | {ra} | {rb} | {t} |\n")
+            f.write("\n")
+
+        def dump_core_doubt(rows, title):
+            """中央値で決めた回の除外候補。カタログでは core だが、2本目か3本目が
+            採用の閾値を下回った文献を、3つの点数と下回ったモデルのメモで示す。
+
+            以前は1本目と2本目だけの表(dump)で出していた。3本目だけが下回った
+            文献は「related 80 / related 80」と、載った理由の読めない行になり、
+            説明の「1本目は core」とも食い違っていた(1本目自身の分類は90点
+            未満なら related)。
+            """
+            thr = config.RELEVANCE_THRESHOLD
+            f.write(f"## {title}({len(rows)}件)\n\n"
+                    "カタログでは中心クラスタ(中央値で決めた)だが、2本目か3本目が"
+                    f"採用の閾値({thr}点)を下回った抄録。中心的な根拠に使う前に"
+                    "抄録を読み直す。\n\n")
+            if not rows:
+                f.write("なし。\n\n")
+                return
+            f.write("| 引用キー | 1本目 | 2本目 | 3本目 | 中央値 | 下回ったモデルのメモ "
+                    "| タイトル |\n|---|---|---|---|---|---|---|\n")
+
+            def lowest(e):
+                return min([v for v in (e.get("score_b"), e.get("score_c"))
+                            if isinstance(v, int)] or [thr])
+
+            for e in sorted(rows, key=lowest):
+                notes = [f"{label}: {e.get(f'reason_{p}') or '-'}"
+                         for p, label in (("b", "2本目"), ("c", "3本目"))
+                         if isinstance(e.get(f"score_{p}"), int)
+                         and e[f"score_{p}"] < thr]
+                cells = " | ".join(str(e[k]) if isinstance(e.get(k), int) else "-"
+                                   for k in ("score_a", "score_b", "score_c", "mean"))
+                f.write(f"| [{e['key']}] | {cells} "
+                        f"| {catalog.cell(' / '.join(notes) or '-', 50)} "
+                        f"| {catalog.cell(e['title'], 50)} |\n")
             f.write("\n")
 
         sec = 0
@@ -1837,9 +1897,12 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
                     f.write(f"| [{e['key']}] | {cells} | {e['mean']} "
                             f"| {'⚠️' if low else ''} | {catalog.cell(e['title'], 50)} |\n")
                 f.write("\n")
-        dump(demote, num("中心クラスタからの除外候補"),
-             "1本目は core、2本目は無関係または関連度不足と判定した抄録。"
-             "中心的な根拠に使う前に抄録を読み直す。")
+        if consensus:
+            dump_core_doubt(demote, num("中心クラスタからの除外候補"))
+        else:
+            dump(demote, num("中心クラスタからの除外候補"),
+                 "1本目は core、2本目は無関係または関連度不足と判定した抄録。"
+                 "中心的な根拠に使う前に抄録を読み直す。")
         dump(promote, num("中心クラスタへの昇格候補"),
              "1本目は related、2本目は core と判定した抄録。"
              "測定を伴う研究だと確認できたものだけを主要な根拠に加える。")
@@ -1861,12 +1924,13 @@ def run_ensemble(theme_arg: str, model: str = "", dry_run: bool = False,
               f"({kappa_label(kappa)})"
               + ("(1本目の分類が偏っているため低く出やすい)" if skew >= 0.85 else ""))
     elif pairs:
-        print(f"[アンサンブル] 一致率 {agree}/{len(pairs)} / κ は算出不可"
-              "(どちらかの判定が1種類だけ)")
+        print(f"[アンサンブル] 一致率 {agree}/{len(pairs)} / κ は算出不可({no_kappa})")
     if bias_note:
         print(f"[アンサンブル] {bias_note}")
     if model_c:
         print(f"[アンサンブル] 別系統の2つが両方とも除外相当: {len(both)}件 ← 最優先で確認")
-    print(f"[アンサンブル] 除外候補(core→除外相当) {len(demote)}件 ← 最優先で確認 / "
+    print("[アンサンブル] 除外候補("
+          + ("中心だが2本目か3本目が閾値未満" if consensus else "core→除外相当")
+          + f") {len(demote)}件 ← 最優先で確認 / "
           f"昇格候補 {len(promote)}件 / その他 {len(other)}件 / 欠落 {len(missing)}件")
     return out_path
