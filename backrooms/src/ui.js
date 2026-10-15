@@ -102,7 +102,7 @@ function startPlay() {
   G.needDraw = true; audioSuspend(false);
 }
 function showPause() {
-  if (G.mode !== 'play') return;
+  if (G.mode !== 'play' && G.mode !== 'pause') return;   // 設定・遊び方・メモから戻るときは 'pause' のまま
   G.mode = 'pause'; setPlayUI(false); saveGame();
   const c = WD.cfg;
   const where = S.mode === 'orig' ? `黄色い部屋　${fmtTime(S.time)}` : `${S.mode === 'hard' ? '救いのない版　' : ''}${c.n}「${c.name}」　${fmtTime(S.time)}${S.mode === 'normal' ? `　捕まった回数 ${S.deaths}` : ''}`;

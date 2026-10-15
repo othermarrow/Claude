@@ -139,6 +139,16 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
   ok(/拾う物の絵：Claude のマーク/.test(s1) && /拾う物の絵：ふつうの絵/.test(s2) && await ev(() => OPT.claude === 0 && JSON.parse(localStorage.getItem(OPT_KEY)).claude === 0), '設定の「拾う物の絵」で切りかわり、保存される');
   await shot('m1_settings');
   await click('拾う物の絵');
+  // 一時停止から開いた画面の「戻る」で、一時停止に戻れる
+  await ev(() => { S = newState('normal'); enterLevel(0, true); startPlay(); });
+  for (const [label, back] of [['設定', '戻る'], ['遊び方', '戻る'], ['拾ったメモ', '戻る']]) {
+    await ev(() => showPause());
+    await click(label); await click(back);
+    const t = await page.$eval('#ov', e => e.innerText);
+    ok(/一時停止/.test(t) && await ev(() => G.mode === 'pause'), `一時停止 → ${label} → 「${back}」で一時停止に戻る`);
+    await click('つづける');
+    ok(await ev(() => G.mode === 'play'), `　そのあと「つづける」で遊びに戻る`);
+  }
   // ふつうの版で、マークの前に立って撮る
   await ev(() => { S = newState('normal'); enterLevel(0, true); startPlay(); const it = nearbyItems()[0]; if (it) { S.x = it.x - Math.cos(0.3) * 2; S.y = it.y - Math.sin(0.3) * 2; S.a = 0.3; if (blocked(S.x, S.y)) { S.x = it.x - 1.5; S.y = it.y; S.a = 0; } } });
   await page.waitForTimeout(300);
