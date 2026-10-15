@@ -143,15 +143,36 @@ Tasker のシーンに WebView を1つ置いて遊ぶ（Chrome でも動く）�
 
 ## スマホに入れる
 
-zip で受け取った場合は、Download フォルダに保存してから、Termux で展開する。
+zip で受け取った場合は、Download フォルダ（`/storage/emulated/0/Download`）に保存してから、Termux で次を実行する。
+Download の中のいちばん新しい `backrooms〜.zip`（`backrooms (1).zip` のように名前が変わっていてもよい）を展開して、
+Tasker 用のフォルダ `/storage/emulated/0/Tasker/backrooms/` に `backrooms.html` を置く。
 
 ```bash
-cd /storage/emulated/0/Download
-unzip -o backrooms.zip
-cp backrooms/backrooms.html /storage/emulated/0/Download/backrooms.html
+cat > ~/update_backrooms.sh <<'EOF'
+#!/data/data/com.termux/files/usr/bin/bash
+set -e
+DL=/storage/emulated/0/Download
+DST=/storage/emulated/0/Tasker/backrooms
+ZIP=$(ls -t "$DL"/backrooms*.zip 2>/dev/null | head -n 1)
+if [ -z "$ZIP" ]; then
+  echo "$DL に backrooms の zip が見つかりません"
+  exit 1
+fi
+echo "使う zip: $ZIP"
+command -v unzip >/dev/null || pkg install -y unzip
+TMP=$HOME/.backrooms_unzip
+rm -rf "$TMP"
+mkdir -p "$TMP" "$DST"
+unzip -o -q "$ZIP" -d "$TMP"
+cp "$TMP/backrooms/backrooms.html" "$DST/backrooms.html"
+rm -rf "$TMP"
+echo "更新しました: $DST/backrooms.html"
+EOF
+bash ~/update_backrooms.sh
 ```
 
-（`unzip` がなければ `pkg install -y unzip`。初めて Termux から Download を使うときは `termux-setup-storage`）
+2回目からは `bash ~/update_backrooms.sh` だけでよい。
+（初めて Termux からストレージを使うときは、先に `termux-setup-storage` を実行して許可を出す）
 
 ## Tasker で開く
 
@@ -160,7 +181,7 @@ cp backrooms/backrooms.html /storage/emulated/0/Download/backrooms.html
 1. 「シーン」タブで「＋」を押し、名前を `迷い部屋` にする。シーンの枠を画面いっぱいまで広げる。
 2. 要素を追加して「WebView」を選ぶ。
    - モード：URI
-   - ソース：`file:///storage/emulated/0/Download/backrooms.html`
+   - ソース：`file:///storage/emulated/0/Tasker/backrooms/backrooms.html`
    - JavaScript やファイルへのアクセスを許可する項目があれば、オンにする
    - 要素の大きさもシーンいっぱいに広げる
 3. 「タスク」タブで新しいタスク `迷い部屋を開く` を作り、アクション「シーン」→「シーンを表示」を足す。
