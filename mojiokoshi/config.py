@@ -220,12 +220,19 @@ POLISH_FALLBACK_MODELS = ("nvidia/nemotron-3-super-120b-a12b", "openai/gpt-oss-2
 # 1回に直させる行の数。返答が長いほど時間切れ・途中切れが起きやすいので短めにする
 # (ultra は research_bot の実測で、思考なしの1回に約1分かかった)
 POLISH_BATCH_LINES = 20
-# 録音の場面の説明(LLM に渡す)。例: 障害者支援施設の職員どうしの会話・会議。関西弁を含む
-POLISH_CONTEXT = ""
+# 録音の場面の説明(LLM に渡す。空にすると渡さない)。場面が違う録音では settings.env で変える
+POLISH_CONTEXT = ("障害者支援施設(強度行動障害のある人が暮らす入所施設)で録音した、"
+                  "職員どうしの会話・会議・電話。関西弁を含む")
+# 施設の録音に出てきやすい専門用語・勤務の言葉(glossary.py)も LLM に渡す
+BUILTIN_GLOSSARY = True
 # よく出る言葉・人名を1行に1つずつ書いたファイル(LLM に渡す。無くてもよい)
 GLOSSARY_FILE = "~/.config/mojiokoshi/words.txt"
 # 直した行が元の行とどれだけ似ていれば採用するか(0〜1)。下回れば元の行を使う
 POLISH_MIN_SIMILARITY = 0.6
+# LLM の返答は少しずつ受け取る。この秒数のあいだ何も届かなければ時間切れ
+POLISH_READ_TIMEOUT = 120
+# 1回の返答全体の上限(秒)。時間切れが2回続いたモデルは、その回は次のモデルに任せる
+POLISH_TOTAL_TIMEOUT = 600
 
 # ==========================================
 # 7. 通信

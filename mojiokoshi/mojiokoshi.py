@@ -252,7 +252,9 @@ def assemble(s, text, atext, vtext, language):
     雑音を除いた音声の結果が、定型句など除外にあたるものや、物音でも出やすい言葉
     だけ(「どうもありがとうございました」など)なら、並べも渡しも使いもしない
     (実際の録音で、1回目と違う2回目がこうした定型句になっていた)。
+    atext が None なら2回目は送っていない(送って何も聞き取れなかったときは "")。
     """
+    alt_ran = atext is not None
     atext = textfilter.normalize(atext or "")
     ja = textfilter.judge(s, atext, language, verify_text=vtext, **_judge_kw()) if atext else None
     j = textfilter.judge(s, text, language, verify_text=vtext, **_judge_kw())
@@ -266,6 +268,12 @@ def assemble(s, text, atext, vtext, language):
     item["alt"] = ja["text"] if ja and ja["status"] != "drop" else ""
     if from_alt:
         item["reasons"] = item["reasons"] + ["雑音を除いた音声で認識した"]
+    if (alt_ran and not textfilter.core(atext) and item["status"] == "ok"
+            and textfilter.core(item["text"]) and textfilter.stock_only(item["text"])):
+        # 「ありがとうございました」などだけで、雑音を除いた音声では何も聞き取れなかった。
+        # 物音から出た定型句かもしれない(小さい声を雑音として消した場合もあるので、外さない)
+        item["status"] = "flag"
+        item["reasons"] = item["reasons"] + ["雑音を除いた音声では聞き取れなかった定型句"]
     item["alt_show"] = (bool(item["alt"]) and item["status"] != "drop"
                         and textfilter.core(item["text"]) != textfilter.core(item["alt"]))
     if vtext is not None:
@@ -775,13 +783,13 @@ class Job:
             if vc and s["id"] in vres and not vres[s["id"]].get("error"):
                 vtext = vres[s["id"]].get("text", "")
             arec = alt.get(s["id"])
-            atext = arec.get("text", "") if arec and not arec.get("error") else ""
+            atext = arec.get("text", "") if arec and not arec.get("error") else None
             final.append(assemble(s, rec.get("text", ""), atext, vtext, mc["language"]))
 
-        polished, polish_desc = None, ""
+        polished, polish_info = None, {}
         if o.polish:
-            polished, polish_desc = self._polish(final)
-        paths = self._write(final, mc, vc, duration, polished, polish_desc)
+            polished, polish_info = self._polish(final)
+        paths = self._write(final, mc, vc, duration, polished, polish_info)
         errors = sum(1 for s in final if s["status"] == "error")
         if errors:
             say(f"  ⚠ {errors}区間は認識に失敗しました。同じコマンドをもう一度実行すると、"
@@ -850,9 +858,9 @@ class Job:
             say(f"  {'保存: ' if i == 0 else '      '}{p}")
         return paths
 
-    def _write(self, final, mc, vc, duration, polished=None, polish_desc=""):
+    def _write(self, final, mc, vc, duration, polished=None, polish_info=None):
         info = self._info(mc, vc, duration, final)
-        info["polish_desc"] = polish_desc
+        info.update(polish_info or {})
         n = {k: sum(1 for s in final if s["status"] == k) for k in ("ok", "flag", "drop")}
         say(f"  結果: 本文 {n['ok'] + n['flag']}区間(うち要確認 {n['flag']})/ 除外 {n['drop']}区間")
         paths = self._save(self._out_base(), info, final, polished)
@@ -861,34 +869,51 @@ class Job:
         return paths
 
     def _polish(self, final):
-        """LLM で聞き間違い・句読点・紛れ込んだ定型句を直した版(txt 用)と、その説明。"""
+        """LLM で聞き間違い・句読点・紛れ込んだ定型句を直した版(txt 用)と、その説明。
+
+        説明は {"polish_desc": 見出しの説明, "polish_hints": 渡した手がかり,
+        "polish_notes": 途中で起きたこと(モデルの切り替えなど)}。
+        """
+        import glossary as builtin
         import polish
+        polish.READ_TIMEOUT = config.POLISH_READ_TIMEOUT
+        polish.TOTAL_TIMEOUT = config.POLISH_TOTAL_TIMEOUT
         o = self.opts
         idx = [i for i, s in enumerate(final) if s["status"] in ("ok", "flag") and s["text"]]
         if not idx:
-            return None, ""
+            return None, {}
         lines = [final[i]["text"] for i in idx]
         alts = [[final[i].get("alt", "")] for i in idx]
         if not any(a[0] for a in alts):
             alts = None
         models = [o.polish_model or config.POLISH_MODEL] + [
             m for m in config.POLISH_FALLBACK_MODELS if m != (o.polish_model or config.POLISH_MODEL)]
-        glossary = polish.load_glossary(config.GLOSSARY_FILE)
+        mine = polish.load_glossary(config.GLOSSARY_FILE)
+        base = list(builtin.TERMS) if config.BUILTIN_GLOSSARY else []
+        words = list(dict.fromkeys(base + mine))
+        hints = []
+        if config.POLISH_CONTEXT:
+            hints.append("場面の説明")
+        if words:
+            hints.append(f"用語 {len(words)}語(既定 {len(base)}・words.txt {len(mine)})")
         say(f"読みやすく整える({models[0]}): {len(lines)}区間"
-            + (f"(用語 {len(glossary)}語)" if glossary else ""))
-        fixed, changed, used = polish.polish_lines(
+            + (f"({'・'.join(hints)})" if hints else ""))
+        fixed, changed, used, notes = polish.polish_lines(
             lines, self.api_key, config.NVIDIA_BASE_URL, models,
             batch=config.POLISH_BATCH_LINES, min_sim=config.POLISH_MIN_SIMILARITY,
-            context=config.POLISH_CONTEXT, glossary=glossary, alts=alts,
+            context=config.POLISH_CONTEXT, glossary=words, alts=alts,
             raw_dir=self.wd, log=say)
+        info = {"polish_hints": "・".join(hints) or "なし", "polish_notes": notes}
         if not used:
-            return None, "読みやすく整える処理は、使える LLM がなく行えなかった"
+            info["polish_desc"] = "読みやすく整える処理は、使える LLM がなく行えなかった"
+            return None, info
         pol = [dict(s) for s in final]
         for i, t in zip(idx, fixed):
             pol[i]["text"] = t
         how = "2通りの認識を突き合わせ、" if alts else ""
-        return pol, (f"txt は LLM({used})で{how}聞き間違い・句読点・紛れ込んだ定型句を直した版"
-                     f"({changed}区間を修正)")
+        info["polish_desc"] = (f"txt は LLM({used})で{how}聞き間違い・句読点・紛れ込んだ"
+                               f"定型句を直した版({changed}区間を修正)")
+        return pol, info
 
 
 # ==========================================

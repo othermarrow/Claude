@@ -27,6 +27,8 @@ research_bot での同じ API の実測から、次の3つも入れてある。
   - 時間切れが続いたら、そのモデルをあきらめて次のモデルにする(応答しなくなる
     モデルがあった)
   - 思考を止める指定を受け付けないモデルでは、外して送り直す
+  - 返答は少しずつ受け取る(ストリーミング)。何も届かない時間だけを見張るので、
+    大きいモデルが時間をかけて書いていても待てる
 
 句読点は「必ずすること」として頼む。実際の録音で、句読点を「直してよいこと」の
 1つとして並べていたときは、ultra が句読点の無い行をほぼそのまま返した
@@ -102,7 +104,13 @@ SCHEMA = {
 
 
 class PolishError(Exception):
-    pass
+    def __init__(self, msg, fatal=False):
+        super().__init__(msg)
+        self.fatal = fatal      # 送り直しても直らない(モデル名・キーの誤りなど)
+
+
+class _TooLong(Exception):
+    """返答全体が上限の時間を超えた。"""
 
 
 def load_glossary(path):
@@ -121,7 +129,10 @@ def load_glossary(path):
 
 _no_guided = set()      # guided_json を受け付けなかったモデル
 _no_think = set()       # 思考を止める指定を受け付けなかったモデル
+_no_stream = set()      # 少しずつ受け取る形で、何も返さなかったモデル
 MAX_TIMEOUTS = 2        # 時間切れがこの回数続いたら、そのモデルをあきらめる
+READ_TIMEOUT = 120      # 秒。少しずつ受け取る形で、この間何も届かなければ時間切れ
+TOTAL_TIMEOUT = 600     # 秒。1回の返答全体の上限
 _THINK_HINTS = ("chat_template_kwargs", "enable_thinking", "reasoning_effort")
 
 
@@ -131,18 +142,59 @@ def _timed_out(e):
             or "timed out" in str(e).lower())
 
 
-def _chat(base_url, api_key, model, prompt, timeout=240, retries=4, log=print):
+def _read_stream(r, total, start, got):
+    """少しずつ届く返答(data: {...} の行)を読み、本文と終わりの理由を返す。
+
+    got: 届いた行の数を数える入れ物(時間切れのときに、何か届いていたかを見る)。
+    """
+    parts, finish, other = [], None, []
+    for raw in r:
+        got["lines"] += 1
+        if time.monotonic() - start > total:
+            raise _TooLong(f"返答全体が{total:.0f}秒を超えました(本文 {sum(map(len, parts))}字)")
+        line = raw.decode("utf-8", "replace").strip()
+        if not line.startswith("data:"):
+            other.append(line)
+            continue
+        data = line[5:].strip()
+        if data == "[DONE]":
+            break
+        obj = json.loads(data)
+        if obj.get("error"):
+            raise ValueError(f"返答の途中でエラー: {str(obj['error'])[:200]}")
+        ch = (obj.get("choices") or [{}])[0]
+        piece = (ch.get("delta") or {}).get("content")
+        if piece:
+            parts.append(piece)
+        finish = ch.get("finish_reason") or finish
+    if not parts and finish is None and other:
+        # 少しずつではなく、まとめて返してきた
+        return _whole("".join(other))
+    return "".join(parts), finish
+
+
+def _whole(body):
+    ch = json.loads(body)["choices"][0]
+    return ch["message"].get("content") or "", ch.get("finish_reason")
+
+
+def _chat(base_url, api_key, model, prompt, retries=4, log=print,
+          read_timeout=None, total_timeout=None):
+    read_timeout = read_timeout or READ_TIMEOUT
+    total_timeout = total_timeout or TOTAL_TIMEOUT
     use_guided = model not in _no_guided
     use_think = model not in _no_think
     last = ""
     attempt = 0
     timeouts = 0
     while attempt <= retries:
+        stream = model not in _no_stream
         body = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.0,
             "max_tokens": 8192,
+            "stream": stream,
         }
         # 思考を止める(research_bot での実測: Nemotron 等は chat_template_kwargs で止まり、
         # gpt-oss は止まらないので reasoning_effort で少なくする)
@@ -154,13 +206,20 @@ def _chat(base_url, api_key, model, prompt, timeout=240, retries=4, log=print):
             body["nvext"] = {"guided_json": SCHEMA}
         req = urllib.request.Request(
             base_url.rstrip("/") + "/chat/completions", data=json.dumps(body).encode("utf-8"),
-            headers={"Authorization": f"Bearer {api_key}",
-                     "Content-Type": "application/json", "Accept": "application/json"})
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json",
+                     "Accept": "text/event-stream" if stream else "application/json"})
+        got = {"lines": 0}
+        start = time.monotonic()
+        wait = None
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:
-                resp = json.loads(r.read().decode("utf-8"))
-            msg = resp["choices"][0]["message"]
-            text = msg.get("content") or ""
+            # 少しずつ受け取るときは「何も届かない時間」、まとめて受け取るときは返答全体を待つ
+            with urllib.request.urlopen(req, timeout=read_timeout if stream else total_timeout) as r:
+                if stream and "json" not in (r.headers.get("Content-Type") or ""):
+                    text, finish = _read_stream(r, total_timeout, start, got)
+                else:
+                    text, finish = _whole(r.read().decode("utf-8"))
+            if finish == "length":
+                log(f"  [整形] {model} の返答が長さの上限で切れました(読める所まで使います)")
             return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", "replace")[:300]
@@ -179,21 +238,40 @@ def _chat(base_url, api_key, model, prompt, timeout=240, retries=4, log=print):
                 log(f"  [整形] {model} は JSON の形の指定を受け付けないため、外して送り直します")
                 continue
             if e.code in (400, 401, 403, 404, 422):
-                raise PolishError(last)
+                raise PolishError(last, fatal=True)
+            if e.code == 429:
+                # 混雑で断られた。短い間隔で送り直すほど長引くので、長めに待つ
+                wait = min(160.0, 20.0 * (2 ** attempt))
             timeouts = 0
+        except _TooLong as e:
+            last = str(e)
+            timeouts += 1
+            if timeouts >= MAX_TIMEOUTS:
+                raise PolishError(f"{last}(2回続きました)")
+            log(f"  [整形] {model}: {last}。もう一度送ります")
         except (urllib.error.URLError, OSError, ValueError, KeyError, IndexError) as e:
             last = f"{type(e).__name__}: {e}"
             if _timed_out(e):
                 # 同じ条件で送り直しても同じになりやすい。続いたら次のモデルへ
                 timeouts += 1
+                if stream:
+                    why = f"{read_timeout:.0f}秒間何も届きませんでした"
+                    if got["lines"] == 0:
+                        # 少しずつ受け取る形で何も返さないモデル → まとめて受け取る形にする
+                        _no_stream.add(model)
+                else:
+                    why = f"{total_timeout:.0f}秒以内に返答がありませんでした"
+                last = why
                 if timeouts >= MAX_TIMEOUTS:
-                    raise PolishError(f"{timeout:.0f}秒以内に応答がない状態が{timeouts}回続きました")
-                log(f"  [整形] {model} から{timeout:.0f}秒以内に応答がありませんでした。もう一度送ります")
-            else:
-                timeouts = 0
+                    raise PolishError(f"{why}(時間切れが{timeouts}回続きました)")
+                log(f"  [整形] {model}: {why}。もう一度送ります")
+                continue
+            timeouts = 0
         attempt += 1
         if attempt <= retries:
-            time.sleep(min(60.0, 4.0 * (2 ** (attempt - 1))) * (0.8 + 0.4 * random.random()))
+            if wait is None:
+                wait = min(60.0, 4.0 * (2 ** (attempt - 1)))
+            time.sleep(wait * (0.8 + 0.4 * random.random()))
     raise PolishError(f"再試行を使い切りました({last})")
 
 
@@ -308,31 +386,49 @@ def _keep_reply(raw_dir, name, reply):
         pass
 
 
+MAX_STRIKES = 2         # この回数あきらめたモデルは、その録音では以後使わない
+
+
 def polish_lines(lines, api_key, base_url, models, batch=40, min_sim=0.6,
                  context="", glossary=(), alts=None, raw_dir="", log=print):
-    """lines(文字列のリスト)を直したリストと、直した行の数と、使ったモデルを返す。
+    """lines(文字列のリスト)を直す。
 
+    返り値: (直したリスト, 直した行の数, 使ったモデルの説明, 起きたことのメモのリスト)
     alts: 行ごとの別の認識結果のリスト(lines と同じ長さ。無ければ None)。
     raw_dir: 読めなかった返答を残すフォルダ。
-    使ったモデルは、聞き間違いなどを直す段で返答を受け取れた最後のモデル
-    (1つも受け取れなければ空)。
+    使ったモデルの説明は、聞き間違いなどを直す段で返答を受け取れたモデル(1つも
+    受け取れなければ空)。問い合わせのたびにいちばん上のモデルから試すので、
+    一時的に使えなかったモデルにも、次の回でまた頼む(MAX_STRIKES 回あきらめたら以後は飛ばす)。
     """
     result = list(lines)
     model_iter = list(models)
-    current = 0
-    answered = ""
+    strikes = {}
+    answered = {}
+    notes = []
+    state = {"main": True}
+
+    def all_out():
+        return all(strikes.get(m, 0) >= MAX_STRIKES for m in model_iter)
 
     def ask(prompt):
-        nonlocal current, answered
-        while current < len(model_iter):
+        for m in model_iter:
+            if strikes.get(m, 0) >= MAX_STRIKES:
+                continue
             try:
-                reply = _chat(base_url, api_key, model_iter[current], prompt, log=log)
-                answered = model_iter[current]
-                return reply
+                reply = _chat(base_url, api_key, m, prompt, log=log)
             except PolishError as e:
-                log(f"  [整形] {model_iter[current]} が使えませんでした({str(e)[:120]})")
-                current += 1
-        log("  [整形] 使えるモデルがないため、残りは元のままにします。")
+                strikes[m] = MAX_STRIKES if e.fatal else strikes.get(m, 0) + 1
+                notes.append(f"{m}: {str(e)[:150]}")
+                after = "以後は使いません" if strikes[m] >= MAX_STRIKES else "次の回にまた試します"
+                log(f"  [整形] {m} が使えませんでした({str(e)[:150]})。{after}")
+                continue
+            if state["main"]:
+                answered[m] = answered.get(m, 0) + 1
+            return reply
+        if all_out():
+            log("  [整形] 使えるモデルがないため、残りは元のままにします。")
+        else:
+            log("  [整形] この回はどのモデルも使えなかったため、元のままにします。")
         return None
 
     def read(reply, n, name):
@@ -350,7 +446,9 @@ def polish_lines(lines, api_key, base_url, models, batch=40, min_sim=0.6,
                               context, glossary, calts)
         reply = ask(prompt)
         if reply is None:
-            break
+            if all_out():
+                break
+            continue
         for i, new in read(reply, len(chunk), f"polish_reply_{b0 // batch + 1}.txt").items():
             new = tidy(new)
             old = chunk[i]
@@ -363,7 +461,11 @@ def polish_lines(lines, api_key, base_url, models, batch=40, min_sim=0.6,
             result[b0 + i] = new
         log(f"  [整形] {min(b0 + batch, len(lines))}/{len(lines)} 行")
 
-    used = answered
+    state["main"] = False
+    if len(answered) > 1:
+        used = "・".join(f"{m}({k}回)" for m, k in answered.items())
+    else:
+        used = next(iter(answered), "")
 
     # 句読点がまだ足りない行は、句読点を付けることだけを頼む。句読点のほかに
     # 1文字でも変わった行は使わない
@@ -375,10 +477,12 @@ def polish_lines(lines, api_key, base_url, models, batch=40, min_sim=0.6,
         chunk = [result[i] for i in part]
         reply = ask(build_punct_prompt(chunk))
         if reply is None:
-            break
+            if all_out():
+                break
+            continue
         for k, new in read(reply, len(chunk), f"punct_reply_{b0 // batch + 1}.txt").items():
             new = tidy(new)
             if new and new != chunk[k] and textfilter.core(new) == textfilter.core(chunk[k]):
                 result[part[k]] = new
     changed = sum(1 for a, b in zip(lines, result) if a != b)
-    return result, changed, used
+    return result, changed, used, notes

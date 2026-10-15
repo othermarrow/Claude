@@ -135,6 +135,12 @@ def write_markdown(path, info, segments, gap_note_sec=60):
         lines.append(f"| 2回目の認識 | {_cell(info['second_desc'])} |")
     if info.get("polish_desc"):
         lines.append(f"| 読みやすく整えた版 | {_cell(info['polish_desc'])} |")
+    if info.get("polish_hints"):
+        lines.append(f"| 手直しの手がかり | {_cell(info['polish_hints'])} |")
+    notes = list(dict.fromkeys(info.get("polish_notes") or []))
+    if notes:
+        more = f" ほか{len(notes) - 4}件" if len(notes) > 4 else ""
+        lines.append(f"| 手直しで起きたこと | {_cell(' / '.join(notes[:4]) + more)} |")
     extra = f"要確認 {n['flag']} / 除外 {n['drop']}"
     if n["error"]:
         extra += f" / 失敗 {n['error']}"
