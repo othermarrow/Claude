@@ -1420,12 +1420,43 @@ const G = {                          // 保存しないもの
   hint: 0, saveT: 0, items: [], itemChunk: null, lastThump: 0, dark: 0, flashT: 0,
 };
 
-function loadOpts() { try { Object.assign(OPT, JSON.parse(localStorage.getItem(OPT_KEY)) || {}); } catch (e) { } }
-function saveOpts() { try { localStorage.setItem(OPT_KEY, JSON.stringify(OPT)); } catch (e) { } }
-function storageOk() { try { localStorage.setItem('br_t', '1'); const v = localStorage.getItem('br_t'); localStorage.removeItem('br_t'); return v === '1'; } catch (e) { return false; } }
-function saveGame() { if (!S) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { } }
-function loadSave() { try { const o = JSON.parse(localStorage.getItem(SAVE_KEY)); return o && o.v === 1 ? o : null; } catch (e) { return null; } }
-function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { } }
+// 保存先：ふつうはブラウザの保存領域（localStorage）。
+// Tasker の WebView などで使えないときは、Tasker のグローバル変数（%BrSave・%BrOpts）に保存する。
+// Tasker の関数（global・setGlobal）は、WebView の「Allow Phone Access」がオンのときに使える
+function findStore() {
+  try {
+    localStorage.setItem('br_t', '1'); const ok = localStorage.getItem('br_t') === '1'; localStorage.removeItem('br_t');
+    if (ok) return { kind: 'local', get: k => localStorage.getItem(k), set: (k, v) => localStorage.setItem(k, v), del: k => localStorage.removeItem(k) };
+  } catch (e) { }
+  try {
+    if (typeof setGlobal === 'function' && typeof global === 'function') {
+      const name = k => k === OPT_KEY ? 'BrOpts' : 'BrSave';
+      const last = {};
+      return {
+        kind: 'tasker',
+        get: k => { const v = global(name(k)); return v && typeof v === 'string' && v[0] !== '%' ? v : null; },
+        set: (k, v) => { if (last[k] !== v) { setGlobal(name(k), v); last[k] = v; } },
+        del: k => { setGlobal(name(k), ''); last[k] = ''; },
+      };
+    }
+  } catch (e) { }
+  return null;
+}
+const MEM = {}, MEMSTORE = { kind: 'none', get: k => (k in MEM ? MEM[k] : null), set: (k, v) => { MEM[k] = v; }, del: k => { delete MEM[k]; } };
+let STORE = null;
+function store() {        // 保存先が見つかるまでは、呼ばれるたびに探し直す（Tasker の関数があとから用意されることもあるので）
+  if (STORE && STORE.kind !== 'none') return STORE;
+  const s = findStore();
+  if (s) { STORE = s; try { Object.assign(OPT, JSON.parse(s.get(OPT_KEY)) || {}); } catch (e) { } }
+  else STORE = MEMSTORE;
+  return STORE;
+}
+function loadOpts() { try { Object.assign(OPT, JSON.parse(store().get(OPT_KEY)) || {}); } catch (e) { } }
+function saveOpts() { try { store().set(OPT_KEY, JSON.stringify(OPT)); } catch (e) { } }
+function storageOk() { return store().kind !== 'none'; }
+function saveGame() { if (!S) return; try { store().set(SAVE_KEY, JSON.stringify(S)); } catch (e) { } }
+function loadSave() { try { const o = JSON.parse(store().get(SAVE_KEY)); return o && o.v === 1 ? o : null; } catch (e) { return null; } }
+function clearSave() { try { store().del(SAVE_KEY); } catch (e) { } }
 function vibe(ms) { try { if (OPT.vib && navigator.vibrate) navigator.vibrate(ms); } catch (e) { } }
 
 function newState(mode) {
@@ -1765,7 +1796,7 @@ function update(dt) {
   if (caught) { gameOver('caught', caught); return; }
   if (S.san <= 0) { gameOver('lost'); return; }
   G.saveT -= dt;
-  if (G.saveT <= 0) { G.saveT = 4; saveGame(); }
+  if (G.saveT <= 0) { G.saveT = store().kind === 'tasker' ? 10 : 4; saveGame(); }   // Tasker の変数へは間をあけて
 }
 function sprites() {
   const out = [];
@@ -1851,7 +1882,7 @@ function showTitle() {
     ${btn('more', `ほかの版<span class="sub">救いのない版・原作版・五つの報告書・山羊文学版</span>`)}
     ${btn('how', '遊び方', 'ghost')}${btn('set', '設定', 'ghost')}</div>
     <p class="small">音が出ます。イヤホンをすすめます。${rec.length ? '<br>' + rec.join('<br>') : ''}</p>
-    ${storageOk() ? '' : '<p class="warn">この画面では、記録が保存されないようだ。</p>'}`, {
+    ${storageOk() ? (store().kind === 'tasker' ? '<p class="small">記録は Tasker の変数（%BrSave・%BrOpts）に保存する。</p>' : '') : '<p class="warn">この画面では、記録が保存されないようだ。<br>Tasker の WebView の「Allow Phone Access」をオンにすると、保存できるようになる。</p>'}`, {
     cont: () => { audioInit(); S = sv; G.warned = false; enterLevel(S.lv, false); startPlay(); },
     new: () => start('normal'),
     more: () => ov(`<div class="h">ほかの版</div><div class="bs">
@@ -2119,6 +2150,8 @@ function boot() {
     else audioSuspend(false);
   });
   showTitle();
+  // Tasker の関数があとから用意されたときは、タイトルを出し直す（「保存されない」の表示を消す）
+  if (!storageOk()) setTimeout(() => { if (storageOk() && G.mode === 'title') { setupRender($('#view'), OPT.q); showTitle(); } }, 1000);
   requestAnimationFrame(t => { lastT = t; loop(t); });
 }
 window.addEventListener('DOMContentLoaded', boot);

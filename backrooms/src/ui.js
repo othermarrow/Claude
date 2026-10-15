@@ -59,7 +59,7 @@ function showTitle() {
     ${btn('more', `ほかの版<span class="sub">救いのない版・原作版・五つの報告書・山羊文学版</span>`)}
     ${btn('how', '遊び方', 'ghost')}${btn('set', '設定', 'ghost')}</div>
     <p class="small">音が出ます。イヤホンをすすめます。${rec.length ? '<br>' + rec.join('<br>') : ''}</p>
-    ${storageOk() ? '' : '<p class="warn">この画面では、記録が保存されないようだ。</p>'}`, {
+    ${storageOk() ? (store().kind === 'tasker' ? '<p class="small">記録は Tasker の変数（%BrSave・%BrOpts）に保存する。</p>' : '') : '<p class="warn">この画面では、記録が保存されないようだ。<br>Tasker の WebView の「Allow Phone Access」をオンにすると、保存できるようになる。</p>'}`, {
     cont: () => { audioInit(); S = sv; G.warned = false; enterLevel(S.lv, false); startPlay(); },
     new: () => start('normal'),
     more: () => ov(`<div class="h">ほかの版</div><div class="bs">

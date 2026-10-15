@@ -40,6 +40,8 @@ function boot() {
     else audioSuspend(false);
   });
   showTitle();
+  // Tasker の関数があとから用意されたときは、タイトルを出し直す（「保存されない」の表示を消す）
+  if (!storageOk()) setTimeout(() => { if (storageOk() && G.mode === 'title') { setupRender($('#view'), OPT.q); showTitle(); } }, 1000);
   requestAnimationFrame(t => { lastT = t; loop(t); });
 }
 window.addEventListener('DOMContentLoaded', boot);
