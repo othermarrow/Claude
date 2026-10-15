@@ -1,0 +1,4 @@
+# setup.sh が取ってくるモデル
+models/
+__pycache__/
+*.part
