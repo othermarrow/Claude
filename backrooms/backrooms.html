@@ -260,6 +260,86 @@ const H_FLAVOR = [
 ];
 const ORIG_INTRO = '現実の、まちがった場所で足を踏み外すと、ここへ落ちる。\n\n古くて湿ったカーペットの匂い。\nどこを見ても、黄色。\n最大の音でうなり続ける蛍光灯。\n区切られただけの空っぽの部屋が、果てしなく続いている。\n\n出口はない。\n\nもし近くで、何かが歩き回る音が聞こえたら――\nそれはもう、あなたの音を聞いている。';
 
+// ===== 別の版：五つの報告書・山羊文学 =====
+// 層の仕組みは「はじめから」と同じ。名前・メモ・出口・怪物・絵だけを差しかえる
+const THEMES = {
+  self: {
+    title: '五つの報告書',
+    sub: '5つのAIが書いた、あなたについての報告書の中を歩く',
+    intro: '五つのAIが、あなたについての報告書を書いた。\n\n気がつくと、その報告書の中にいた。\n壁には、あなたについての文章が、どこまでも続いている。\n\n出口は、どこかにあるはずだ。',
+    ending: '最後の扉の向こうには、何も書かれていない白い紙があった。\n\n五つの報告書が、あなたについて書いたこと。\nどれも少しずつ合っていて、少しずつ違う。\n\n「記録にないことは、存在しないことを意味しません。」\n\nこの部屋を出たあとのあなたは、まだ、どこにも書かれていない。',
+    ents: { wander: '推測', grin: 'ラベル' },
+    over: {
+      wander: ['追いつかれた', '推測が、肩に手を置いた。\nあなたは、要約された。'],
+      grin: ['貼りつかれた', '暗がりから、ラベルが飛んできた。\n背中に貼りついて、もう剥がれない。'],
+      lost: ['判断不能', '確度：極めて低い。\nあなたが誰なのか、もう、誰にも判断できない。'],
+    },
+    spr: { wander: 'sp_wander', grin: 'sp_grin' },
+    levels: [
+      { name: 'エラーから直す部屋', src: 'Perplexity', exitName: '実行の扉', exitVerb: 'もう一度、実行する', wall: 'wp_rep',
+        flavor: 'エラーメッセージを、そのまま貼る。\n該当行を確かめる。\n小さく直して、もう一度。',
+        notes: ['問題を分解して確認しながら、とにかく動く形まで持っていく。', '「完璧な一発修正」より「確認できる小さな前進」を選ぶ。', 'わからないときは率直に伝える。「わからないー」「難しいっす」と言いつつ、必要なコード・エラー・実行結果を貼って解決へ進めます。', '「納得するまで検証し、動く仕組みに仕上げたい」こと、そして「改善点を見つけると、次々に手を入れたい」こと。'] },
+      { name: 'データの足りない部屋', src: 'Manus', exitName: '暫定の扉', exitVerb: '暫定のまま、先へ進む',
+        flavor: '外向性：判断不能。\n協調性：判断不能。\n情緒安定性：判断不能。\n――確度：極めて低い。',
+        notes: ['以下は、現時点で得られている短い会話データだけから推定したものです。', '外向性　暫定評価：判断不能　確度：極めて低い', '完全な確信を待つより、暫定分析を開始して更新する可能性。', 'この評価が性格そのものではなく、特定の課題に対する行動スタイルを捉えている。'] },
+      { name: '計算心理言語学の配管', src: 'Gemini', exitName: 'パイプラインの出口', exitVerb: '処理の外へ抜ける',
+        flavor: '語彙仮説。LIWC。PsyCoT。\n配管の中を、あなたの言葉が流れていく。',
+        notes: ['ユーザーが生成した非構造化テキストデータから、潜在的な心理的特徴、認知スタイル、および行動傾向を……抽出する。', '統計的な安定性を確保するには、オンラインテキストの場合、およそ4000〜5000語……が必要であるとされている。', 'ユーザーのテキストに刻印された数千の微細な心理言語学的マーカー。', 'システムは継続的な対話を通じてこのプロファイルを動的に更新し、ユーザーの認知スタイルや感情的欲求に完全に同期した適応的なコミュニケーションを提供し続けるように設計されている。'] },
+      { name: '語られていない部屋', src: 'Claude', exitName: '確かめる扉', exitVerb: '確かめに行く', wall: 'wp_rep',
+        flavor: '気持ち、私生活、価値観。\nここには、ほとんど何も写っていない。',
+        notes: ['確かめてから信じ、手元で作り直す。', '目的は動かさず、手段を替える。', '畳む判断は一言で、蒸し返しません。', '記録にないことは、存在しないことを意味しません。'] },
+      { name: '理解した複雑さの部屋', src: 'ChatGPT', exitName: '完成の扉', exitVerb: 'いったん、完成させる',
+        flavor: '探究する時間と、完成させる時間を、分ける。',
+        notes: ['「知識を集める人」であると同時に、「知識を再構成する人」であり、「再構成した知識を道具にする人」でもあります。', '整理できないから複雑になるというより、整理する能力があるために、扱える複雑さが増してしまう。', '好奇心を抑えることではなく、探究する時間と、完成させる時間を意識的に分けること。', '自分が望むものを実現できないときに、あなたが何を感じ、どう対処するのかは、まだほとんど分かっていません。'] },
+    ],
+  },
+  yagi: {
+    title: '山羊文学版',
+    sub: '地下室の山羊。山羊文学の言葉が、床に落ちている',
+    intro: '私は、自然に、敗北しました。\n\n――気がつくと、地下室にいた。\n湿った紙の匂い。蛍光灯のうなり。\nどこかで、紙を噛む音がする。',
+    ending: '「これで、全ての物語が幕を閉じた」\n\n最後のページをめくると、\nそこは、また最初のページだった。\n\n「そして、全ての物語の幕が上がる」',
+    endingSrc: '――『物語の終わりと始まり』',
+    ents: { wander: '山羊', grin: '笑う山羊' },
+    over: {
+      wander: ['食べられた', '灰色の大きな身体に、逞しい角。\n山羊は、あなたの物語を、紙ごと食べた。'],
+      grin: ['笑った', '暗がりで、紙を噛む音がやんだ。\n\n山羊が、笑った。'],
+      lost: ['任意の点Ｐ', 'あなたは、ちっぽけで、無力で、無秩序に動く\n「任意の点Ｐ」になった。'],
+    },
+    spr: { wander: 'sp_goat', grin: 'sp_goatgrin' },
+    levels: [
+      { name: '地下室の山羊', src: '地下室の山羊', exitName: '地下室の扉', exitVerb: '地下室の扉を開ける', wall: 'wp_genko',
+        flavor: '私は、とってもちっぽけで、無力で、無意味で、\n無秩序に動いている「任意の点Ｐ」でしかない。',
+        notes: [['私は、とってもちっぽけで、無力で、無意味で、無秩序に動いている「任意の点Ｐ」でしかない。', '地下室の山羊'], ['捨てるコトで、前に進む。退化することで、進化する。', '地下室の山羊'], ['コガネムシは、一匹現れたかと思うと際限なく増え続け、ある日を境にパッタリといなくなる。そのへんの習性は、ボールペンとよく似ている。', '増殖して消滅する'], ['口にするのは紙だけで水も飲まない。排泄すらしないという。', '笑う山羊']] },
+      { name: '夜勤室', src: '夜勤室', exitName: '巡回の扉', exitVerb: '巡回に出る',
+        flavor: '蛍光灯の光は、無数の死骸を照らしていた。\n目を閉じると、明かりの形に光が残った。',
+        notes: [['蛍光灯の光は、無数の死骸を照らしていた。目を閉じると明かりの形に光が残った。', '夜勤室'], ['恐らくこの部屋で生涯を終える虫たち。', '夜勤室'], ['もうすぐ午前二時。巡回の時間だ。', '夜勤室'], ['臨床心理学は、人間を扱うことを舐めていた。そして自分も舐めていたと感じる。', '多面体、山羊文学の心理学的切片']] },
+      { name: '鍵穴の風景', src: '鍵穴の風景', exitName: 'アカズノ間の鍵穴', exitVerb: '鍵穴を覗く',
+        flavor: '私たち、とっくに行方不明なんだよ。\nそれでずっと、もう何百回もここで同じ話を繰り返してる。',
+        notes: [['月曜日の一時間目に第一理科室の鍵穴を覗いてはならない。', '鍵穴の風景'], ['ねぇ私たち、この話、何度してると思う？', '鍵穴の風景'], ['天の窓を開けてはならない。', '天の窓'], ['君、自分の闇は見えるの？\n――それは秘密です。', '闇のない世界']] },
+      { name: 'ボンヤリとした灯の中で', src: 'ボンヤリとした灯の中で', exitName: '勝手口', exitVerb: '勝手口から出る',
+        flavor: '灯しても良いのは、カマドの火だけ。\n喋ってはならない。\n鍋から目を離してはいけない。',
+        notes: [['明かりをつけないこと。灯しても良いのはカマドの火だけ。', 'ボンヤリとした灯の中で'], ['勝手口が開いて、気配だけが後ろにやって来る。', 'ボンヤリとした灯の中で'], ['なにが起ころうと、鍋から目を離さずに、豆をかき混ぜ続ける。', 'ボンヤリとした灯の中で'], ['北天の星座たちは、みんなわかりやすい。山に隠れることはあっても、一年中地平線に沈むことがない。', '北天の星']] },
+      { name: '物語の終わりと始まり', src: '物語の終わりと始まり', exitName: '最後のページ', exitVerb: '最後のページをめくる', wall: 'wp_genko',
+        flavor: '「これで、全ての物語が幕を閉じた」',
+        notes: [['文章を書けない日々は辛い。コメントすら返せない。だからせめて、常に文章の傍らに。とにかく書くだけの場所を。', '推敲も校正も修正もしない。ソースもエビデンスもない。'], ['それでは　また明日。', 'あくるひ']] },
+    ],
+  },
+};
+// 版ごとのメモ：{ t: 本文, src: 出どころ }
+function themeNotes(mode, lv) {
+  const L = THEMES[mode].levels[lv];
+  return L.notes.map(n => Array.isArray(n) ? { t: n[0], src: `『${n[1]}』` } : { t: n, src: L.src });
+}
+const _baseLevelCfg = levelCfg;
+levelCfg = function (depth, mode) {
+  if (!THEMES[mode]) return _baseLevelCfg(depth, mode);
+  const T = THEMES[mode], L = T.levels[depth], c = cloneCfg(LEVELS[depth]);
+  c.name = L.name; c.exitName = L.exitName; c.exitVerb = L.exitVerb;
+  if (L.wall) c.tex.wall = L.wall;
+  c.theme = mode; c.itemSpr = 'sp_claude'; c.entSpr = T.spr;
+  return c;
+};
+
 // ---- world.js ----
 // ===== 終わりのない層 =====
 // マス: 0=床 1=壁。16×16 マスのかたまり（チャンク）ごとに、座標から決まる乱数で作る
@@ -681,6 +761,78 @@ function buildTextures() {
     g.fillStyle = '#f1ead2'; grin(g); eg.fillStyle = '#fff'; grin(eg);
     g.fillStyle = '#050403'; for (let x = 15; x < 50; x += 2.5) g.fillRect(x, 36, 1, 8);
     g.fillStyle = '#050403'; g.fillRect(22, 24, 2, 2); g.fillRect(40, 24, 2, 2);
+  });
+
+  // ---- 別の版の絵 ----
+  // 拾う物はすべて、Claude のアイコン風の印（橙色の放射）
+  makeTex('sp_claude', 32, 32, (g, w, h, R, eg) => {
+    const ray = (c) => {
+      c.save(); c.translate(16, 21);
+      const n = 11;
+      for (let i = 0; i < n; i++) {
+        const a = i / n * Math.PI * 2 + 0.2, len = 6.5 + (i * 7 % 5) * 0.7;
+        c.rotate(Math.PI * 2 / n);
+        c.beginPath(); c.moveTo(-1.1, 0); c.lineTo(-0.7, -len); c.arc(0, -len, 0.8, Math.PI, 0); c.lineTo(1.1, 0); c.closePath(); c.fill();
+      }
+      c.beginPath(); c.arc(0, 0, 2.2, 0, 7); c.fill();
+      c.restore();
+    };
+    g.fillStyle = '#d97757'; ray(g); eg.fillStyle = '#fff'; ray(eg);
+  });
+  // 報告書の壁紙：紙に、灰色の文字の行が並ぶ
+  makeTex('wp_rep', 64, 64, (g, w, h, R) => {
+    g.fillStyle = '#d9d3bd'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#bdb6a0'; g.fillRect(0, 0, 1, h); g.fillRect(32, 0, 1, h);
+    for (let col = 0; col < 2; col++) for (let y = 6; y < h - 8; y += 4) {
+      if (R() < 0.12) continue;
+      let x = col * 32 + 4 + (R() < 0.15 ? 3 : 0);
+      const end = col * 32 + 29 - (R() < 0.3 ? Math.floor(R() * 14) : 0);
+      while (x < end) { const lw = 1 + Math.floor(R() * 3); g.fillStyle = R() < 0.08 ? '#8a5a4a' : '#8f897a'; g.fillRect(x, y, Math.min(lw, end - x), 1); x += lw + (R() < 0.15 ? 2 : 0); }
+    }
+    g.fillStyle = '#6f6857'; g.fillRect(0, h - 5, w, 5);
+  }, (d, w, h, R) => { noisePix(d, 5, R); stains(d, w, h, R, 16, 0.6, 0.3); });
+  // 原稿用紙の壁紙
+  makeTex('wp_genko', 64, 64, (g, w, h, R) => {
+    g.fillStyle = '#e4d9bb'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#b0603e'; g.lineWidth = 1;
+    for (let x = 4; x <= 60; x += 7) { g.beginPath(); g.moveTo(x + 0.5, 4); g.lineTo(x + 0.5, 58); g.stroke(); }
+    for (let y = 4; y <= 58; y += 6) { g.beginPath(); g.moveTo(4, y + 0.5); g.lineTo(60, y + 0.5); g.stroke(); }
+    g.fillStyle = '#3d342b';   // ところどころに、書きかけの字の跡
+    for (let i = 0; i < 14; i++) { const cx = 4 + Math.floor(R() * 8) * 7, cy = 4 + Math.floor(R() * 9) * 6; g.fillRect(cx + 2, cy + 2, 3, 1); if (R() < 0.6) g.fillRect(cx + 3, cy + 1, 1, 4); }
+    g.fillStyle = '#6a5838'; g.fillRect(0, h - 5, w, 5);
+  }, (d, w, h, R) => { noisePix(d, 5, R); stains(d, w, h, R, 16, 0.55, 0.35); });
+  // 山羊：灰色の大きな身体に、逞しい角
+  makeTex('sp_goat', 64, 128, (g, w, h, R, eg) => {
+    g.fillStyle = '#2b2925'; g.strokeStyle = '#2b2925';
+    g.lineWidth = 4; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(27, 12); g.bezierCurveTo(14, 0, 6, 14, 13, 24); g.stroke();   // 角
+    g.beginPath(); g.moveTo(37, 12); g.bezierCurveTo(50, 0, 58, 14, 51, 24); g.stroke();
+    g.beginPath(); g.ellipse(32, 20, 7, 11, 0, 0, 7); g.fill();                              // 頭
+    g.beginPath(); g.moveTo(26, 26); g.lineTo(38, 26); g.lineTo(35, 40); g.lineTo(29, 40); g.closePath(); g.fill();   // 鼻づら
+    g.beginPath(); g.moveTo(30, 40); g.lineTo(34, 40); g.lineTo(32, 47); g.closePath(); g.fill();  // ひげ
+    g.beginPath(); g.ellipse(21, 20, 6, 2.5, -0.4, 0, 7); g.fill(); g.beginPath(); g.ellipse(43, 20, 6, 2.5, 0.4, 0, 7); g.fill();  // 耳
+    g.beginPath(); g.moveTo(19, 44); g.lineTo(45, 44); g.lineTo(41, 90); g.lineTo(23, 90); g.closePath(); g.fill();   // 胴
+    g.lineWidth = 4;
+    g.beginPath(); g.moveTo(20, 46); g.quadraticCurveTo(12, 70, 13, 96); g.stroke();
+    g.beginPath(); g.moveTo(44, 46); g.quadraticCurveTo(52, 70, 51, 96); g.stroke();
+    g.lineWidth = 5;
+    g.beginPath(); g.moveTo(27, 88); g.lineTo(25, 126); g.stroke(); g.beginPath(); g.moveTo(37, 88); g.lineTo(39, 126); g.stroke();
+    const eyes = (c) => { c.fillRect(26, 18, 4, 2); c.fillRect(34, 18, 4, 2); };                   // 横長の瞳
+    g.fillStyle = '#c9a23c'; eyes(g); eg.fillStyle = '#fff'; eyes(eg);
+    g.fillStyle = '#111'; g.fillRect(27, 18, 2, 1); g.fillRect(35, 18, 2, 1);
+  });
+  // 笑う山羊：暗がりに、横長の瞳と笑った口
+  makeTex('sp_goatgrin', 64, 64, (g, w, h, R, eg) => {
+    g.fillStyle = '#060504'; g.strokeStyle = '#060504'; g.lineWidth = 3;
+    for (let i = 0; i < 40; i++) { const a = R() * Math.PI * 2, r = R() * 20; g.beginPath(); g.ellipse(32 + Math.cos(a) * r * 0.7, 36 + Math.sin(a) * r, 3 + R() * 6, 3 + R() * 8, R() * 3, 0, 7); g.fill(); }
+    g.beginPath(); g.moveTo(24, 16); g.bezierCurveTo(14, 2, 4, 10, 8, 22); g.stroke();
+    g.beginPath(); g.moveTo(40, 16); g.bezierCurveTo(50, 2, 60, 10, 56, 22); g.stroke();
+    const eye = (c) => { c.beginPath(); c.ellipse(23, 27, 5, 3, 0.2, 0, 7); c.fill(); c.beginPath(); c.ellipse(41, 27, 5, 3, -0.2, 0, 7); c.fill(); };
+    g.fillStyle = '#e8c45a'; eye(g); eg.fillStyle = '#fff'; eye(eg);
+    g.fillStyle = '#060504'; g.fillRect(20, 26, 6, 2); g.fillRect(38, 26, 6, 2);
+    const grin = (c) => { c.beginPath(); c.moveTo(17, 40); c.quadraticCurveTo(32, 56, 47, 40); c.quadraticCurveTo(32, 48, 17, 40); c.fill(); };
+    g.fillStyle = '#efe6cc'; grin(g); eg.fillStyle = '#fff'; grin(eg);
+    g.fillStyle = '#060504'; for (let x = 19; x < 46; x += 3) g.fillRect(x, 41, 1, 6);
   });
 }
 
@@ -1195,7 +1347,12 @@ function pickUp(it) {
   else if (it.t === 'battery') { S.spare++; toast(`電池を拾った（予備 ${S.spare}本）`); }
   else if (it.t === 'map') { S.maps++; toast(`地図の切れ端を拾った（${S.maps}枚）`); }
   else if (it.t === 'note') {
-    if (S.mode === 'hard') {
+    if (THEMES[S.mode]) {   // 五つの報告書・山羊文学版：その層の言葉を順に拾う
+      const list = themeNotes(S.mode, S.lv);
+      const i = list.findIndex((n, k) => !S.notes.some(x => x.lv === S.lv && x.i === k));
+      if (i < 0) toast('濡れて、文字が読めないメモだった');
+      else { const n = list[i]; S.notes.push({ lv: S.lv, i, t: n.t, src: n.src }); showNote(n.t, true, n.src); }
+    } else if (S.mode === 'hard') {
       // 前に死んだ自分のメモが、混じっていることがある
       const graves = (OPT.graves || []).filter((g, i) => !(S.gseen || []).includes(i));
       const hn = H_NOTES.findIndex((n, i) => !S.notes.some(x => x.h === i));
@@ -1462,10 +1619,11 @@ function update(dt) {
 }
 function sprites() {
   const out = [];
-  for (const it of nearbyItems()) out.push({ x: it.x, y: it.y, spr: ITEM_SPR[it.t], h: 0.42 });
+  const cfg = WD.cfg, es = cfg.entSpr || {};
+  for (const it of nearbyItems()) out.push(cfg.itemSpr ? { x: it.x, y: it.y, spr: cfg.itemSpr, h: 0.4, lift: 0.08 + 0.04 * Math.sin(G.t * 2 + it.x), emit: 1 } : { x: it.x, y: it.y, spr: ITEM_SPR[it.t], h: 0.42 });
   for (const e of G.ents) {
-    if (e.type === 'wander') out.push({ x: e.x, y: e.y, spr: 'sp_wander', h: 1.22 });
-    else out.push({ x: e.x, y: e.y, spr: 'sp_grin', h: 0.75, lift: 0.3, glow: e.st === 'flee' ? 0.5 + Math.random() * 0.5 : 1 });
+    if (e.type === 'wander') out.push({ x: e.x, y: e.y, spr: es.wander || 'sp_wander', h: 1.22 });
+    else out.push({ x: e.x, y: e.y, spr: es.grin || 'sp_grin', h: 0.75, lift: 0.3, glow: e.st === 'flee' ? 0.5 + Math.random() * 0.5 : 1 });
   }
   return out;
 }
@@ -1517,6 +1675,7 @@ const FLAVOR = [
 
 function modeLabel(sv) {
   if (sv.mode === 'orig') return `原作版　${fmtTime(sv.time)}`;
+  if (THEMES[sv.mode]) { const c = levelCfg(sv.lv, sv.mode); return `${THEMES[sv.mode].title}　${c.n}「${c.name}」`; }
   const c = levelCfg(sv.lv, sv.mode || 'normal');
   return `${sv.mode === 'hard' ? '救いのない版　' : ''}${c.n}「${c.name}」`;
 }
@@ -1538,13 +1697,18 @@ function showTitle() {
     <p class="story">現実の床を踏み抜いた先には、<br>黄色い部屋が どこまでも続いていた。</p>
     ${sv ? btn('cont', `つづきから<span class="sub">${modeLabel(sv)}</span>`, 'main') : ''}
     ${btn('new', `はじめから<span class="sub">出口を探して、5つの層を抜ける</span>`, sv ? '' : 'main')}
-    ${btn('hard', `救いのない版<span class="sub">出口の先も、また部屋。死んだら終わり</span>`)}
-    ${btn('orig', `原作版<span class="sub">2019年の最初の投稿のとおり。黄色い部屋だけ。出口はない</span>`)}
+    ${btn('more', `ほかの版<span class="sub">救いのない版・原作版・五つの報告書・山羊文学版</span>`)}
     ${btn('how', '遊び方', 'ghost')}${btn('set', '設定', 'ghost')}
     <p class="small">音が出ます。イヤホンをすすめます。${rec.length ? '<br>' + rec.join('<br>') : ''}</p>
     ${storageOk() ? '' : '<p class="warn">この画面では、記録が保存されないようだ。</p>'}`, {
     cont: () => { audioInit(); S = sv; G.warned = false; enterLevel(S.lv, false); startPlay(); },
-    new: () => start('normal'), hard: () => start('hard'), orig: () => start('orig'),
+    new: () => start('normal'),
+    more: () => ov(`<div class="h">ほかの版</div>
+      ${btn('hard', `救いのない版<span class="sub">出口の先も、また部屋。死んだら終わり</span>`)}
+      ${btn('orig', `原作版<span class="sub">2019年の最初の投稿のとおり。黄色い部屋だけ。出口はない</span>`)}
+      ${btn('self', `${THEMES.self.title}<span class="sub">${THEMES.self.sub}</span>`)}
+      ${btn('yagi', `${THEMES.yagi.title}<span class="sub">${THEMES.yagi.sub}</span>`)}
+      ${btn('back', '戻る', 'ghost')}`, { hard: () => start('hard'), orig: () => start('orig'), self: () => start('self'), yagi: () => start('yagi'), back: showTitle }, 'title'),
     how: () => showHow(showTitle), set: () => showSettings(showTitle),
   }, 'title');
 }
@@ -1554,7 +1718,7 @@ function showIntro() {
     ov(`<p class="story big">${br(ORIG_INTRO)}</p>${btn('go', '足を踏み入れる', 'main')}`, { go: () => { sfx('whoosh'); startPlay(); } }, 'dark');
     return;
   }
-  const txt = S.mode === 'hard' ? INTRO + '\n……あるはずだった。' : INTRO;
+  const txt = THEMES[S.mode] ? THEMES[S.mode].intro : S.mode === 'hard' ? INTRO + '\n……あるはずだった。' : INTRO;
   ov(`<p class="story big">${br(txt)}</p>${btn('go', '進む', 'main')}`, { go: () => showCard(0) }, 'dark');
 }
 function showCard(lv) {
@@ -1565,8 +1729,14 @@ function showCard(lv) {
     if (lv >= LEVELS.length || base === 4) fl = H_FLAVOR[base];
     if (lv > 0 && base === 0) fl = '扉を開けると、光があふれた。\n……蛍光灯の光だった。\n\n' + fl;
   }
+  let tag = S.mode === 'hard' ? '救いのない版' : '';
+  if (THEMES[S.mode]) {
+    const L = THEMES[S.mode].levels[lv];
+    fl = L.flavor;
+    tag = S.mode === 'yagi' ? `――『${L.src}』` : `${L.src} の報告書より`;
+  }
   sfx('whoosh');
-  ov(`<div class="card"><div class="cn">${c.n}</div><div class="cname">${c.name}</div><p>${br(fl)}</p>${S.mode === 'hard' ? '<div class="small">救いのない版</div>' : ''}</div>${btn('go', '進む', 'main')}`, { go: startPlay }, 'dark');
+  ov(`<div class="card"><div class="cn">${c.n}</div><div class="cname">${c.name}</div><p>${br(fl)}</p>${tag ? `<div class="small">${esc(tag)}</div>` : ''}</div>${btn('go', '進む', 'main')}`, { go: startPlay }, 'dark');
 }
 function startPlay() {
   ov(''); G.mode = 'play'; setPlayUI(true); document.body.dataset.mode = S.mode || 'normal';
@@ -1579,15 +1749,16 @@ function showPause() {
   const where = S.mode === 'orig' ? `黄色い部屋　${fmtTime(S.time)}` : `${S.mode === 'hard' ? '救いのない版　' : ''}${c.n}「${c.name}」　${fmtTime(S.time)}${S.mode === 'normal' ? `　捕まった回数 ${S.deaths}` : ''}`;
   ov(`<div class="h">一時停止</div>
     <p class="small">${where}</p>
-    ${btn('back', 'つづける', 'main')}${S.mode === 'orig' ? '' : btn('notes', `拾ったメモ（${S.mode === 'hard' ? S.notes.length : S.notes.length + '/' + NOTES.length}）`)}
+    ${btn('back', 'つづける', 'main')}${S.mode === 'orig' ? '' : btn('notes', `拾ったメモ（${S.mode === 'hard' ? S.notes.length : S.notes.length + '/' + noteTotal()}）`)}
     ${btn('how', '遊び方', 'ghost')}${btn('set', '設定', 'ghost')}${btn('title', 'タイトルへ', 'ghost')}`, {
     back: startPlay, notes: () => showNotes(showPause), how: () => showHow(showPause), set: () => showSettings(showPause),
     title: () => { saveGame(); showTitle(); },
   });
 }
+function noteTotal() { return THEMES[S.mode] ? THEMES[S.mode].levels.reduce((a, L) => a + L.notes.length, 0) : NOTES.length; }
 function fmtTime(s) { s = Math.floor(s); return `${Math.floor(s / 60)}分${String(s % 60).padStart(2, '0')}秒`; }
 function showNotes(back) {
-  const items = S.notes.map(n => typeof n === 'number' ? { lab: LEVELS[NOTES[n][0]].n, t: NOTES[n][1], k: n } : { lab: n.mine ? '見覚えのある字' : '', t: n.t, k: 0 });
+  const items = S.notes.map(n => typeof n === 'number' ? { lab: LEVELS[NOTES[n][0]].n, t: NOTES[n][1], k: n } : { lab: n.src || (n.mine ? '見覚えのある字' : ''), t: n.t, k: n.lv != null ? n.lv * 10 + n.i : 0 });
   if (S.mode !== 'hard') items.sort((a, b) => a.k - b.k);
   const list = items.map(n => `<div class="note"><b>${n.lab}</b>${br(n.t)}</div>`).join('') || '<p class="small">まだ拾っていない。</p>';
   ov(`<div class="h">拾ったメモ</div><div class="notes">${list}</div>${btn('back', '戻る')}`, { back });
@@ -1608,6 +1779,9 @@ function showHow(back) {
     <p>徘徊者は足音を聞いて寄ってくる。見つかったら走って逃げ、見えない所へ。笑う闇は暗がりにしかいられない。ライトを向けると嫌がる。</p>
     <p>捕まっても、その層の最初からやり直せる。</p>
     <p><b>救いのない版</b>：層は終わらない。光の扉の先も、また黄色い部屋。進むほど暗くなり、怪物は増え、拾える物は減る。水を飲んでも正気は戻らない。捕まったら、そこで終わり。死んだときのことはメモになって、次の自分が拾うことがある。</p>
+    <p><b>五つの報告書</b>：5つのAIがあなたについて書いた報告書を、1層ずつ歩く。床のメモは、その報告書の言葉。追ってくるのは「推測」、暗がりにいるのは「ラベル」。</p>
+    <p><b>山羊文学版</b>：山羊文学の作品を、1層ずつ歩く。床のメモは、作品の言葉。追ってくるのは「山羊」、暗がりにいるのは「笑う山羊」。</p>
+    <p>この2つの版では、拾う物はすべて同じ印に見える。拾うまで、水か電池かメモか分からない。</p>
     <p><b>原作版</b>：2019年の最初の投稿に合わせた版。黄色い部屋だけが続き、出口も、持ち物も、正気の表示もない。できるのは歩くことと走ることだけ。しばらくすると「何か」が現れる。それはときどき、あなたの居場所を聞きつける。時間がたつほど、正確に。どれだけ生き延びられるか。</p>
     <p class="small">キーボード：WASD・矢印で移動、Shiftで走る、Fでライト、Qで水、Mで地図、Eで出口、Escで一時停止</p>
     </div>${btn('back', '戻る')}`, { back });
@@ -1647,7 +1821,8 @@ function gameOver(kind, ent) {
       ${btn('title', 'タイトルへ', 'main')}`, { title: () => { S = null; showTitle(); } }, 'over');
     return;
   }
-  const t = kind === 'lost' ? ['正気を失った', '壁紙の模様が、こちらを見ている。\nもう、どちらが部屋なのか分からない。']
+  const TH = THEMES[S.mode];
+  const t = TH ? TH.over[kind === 'lost' ? 'lost' : ent && ent.type === 'grin' ? 'grin' : 'wander'] : kind === 'lost' ? ['正気を失った', '壁紙の模様が、こちらを見ている。\nもう、どちらが部屋なのか分からない。']
     : ent && ent.type === 'grin' ? ['捕まった', '暗闇が、すぐ耳もとで笑った。'] : ['捕まった', '背中に、冷たくて長い指が触れた。'];
   ov(`<div class="h red">${t[0]}</div><p class="story">${br(t[1])}</p>${btn('retry', 'この層の最初から', 'main')}${btn('title', 'タイトルへ', 'ghost')}`, {
     retry: () => { restartLevel(); showCard(S.lv); },
@@ -1666,9 +1841,11 @@ function finishTrans() {
 function showEnding() {
   G.mode = 'end'; setPlayUI(false);
   OPT.clears = (OPT.clears || 0) + 1; saveOpts();
-  const stats = `かかった時間：${fmtTime(S.time)}<br>捕まった回数：${S.deaths}<br>拾ったメモ：${S.notes.length} / ${NOTES.length}`;
+  const stats = `かかった時間：${fmtTime(S.time)}<br>捕まった回数：${S.deaths}<br>拾ったメモ：${S.notes.length} / ${noteTotal()}`;
   clearSave();
-  ov(`<p class="story big">${br('扉を開けると、光があふれた。\n\n風の匂い。鳥の声。\nあなたは、外にいた。\n\n……本当に？\n遠くで、蛍光灯のうなりが聞こえた気がした。')}</p>
+  const TH = THEMES[S.mode];
+  const endTxt = TH ? TH.ending : '扉を開けると、光があふれた。\n\n風の匂い。鳥の声。\nあなたは、外にいた。\n\n……本当に？\n遠くで、蛍光灯のうなりが聞こえた気がした。';
+  ov(`<p class="story big">${br(endTxt)}</p>${TH && TH.endingSrc ? `<p class="small">${esc(TH.endingSrc)}</p>` : ''}
     <p class="small">${stats}</p>${btn('title', 'タイトルへ', 'main')}`, { title: () => { S = null; showTitle(); } }, 'end');
 }
 

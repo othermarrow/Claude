@@ -19,6 +19,8 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
   await shot('m01_title');
 
   // ---- 原作版 ----
+  await click('ほかの版');
+  await shot('m00_more');
   await click('原作版');
   await shot('m02_orig_intro');
   await click('足を踏み入れる');
@@ -46,6 +48,7 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
   await click('タイトルへ');
 
   // ---- 救いのない版 ----
+  await click('ほかの版');
   await click('救いのない版');
   await click('進む'); await click('進む');
   ok(await ev(() => G.mode === 'play' && S.mode === 'hard' && WD.cfg.n === '第0層'), '救いのない版が始まる');
@@ -78,6 +81,45 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
     return S.notes.find(n => n.mine);
   });
   ok(g && /第5層まで来た/.test(g.t), '前に死んだ自分のメモを拾う：' + (g && g.t.split('\n')[0]));
+  // ---- 五つの報告書・山羊文学版 ----
+  for (const [mode, label, monster, first] of [['self', '五つの報告書', 'sp_wander', 'エラーから直す部屋'], ['yagi', '山羊文学版', 'sp_goat', '地下室の山羊']]) {
+    await ev(() => { clearSave(); S = null; showTitle(); });
+    await click('ほかの版'); await click(label);
+    await shot(`m1_${mode}_intro`);
+    await click('進む');
+    ok(await ev(() => WD.cfg.name), `${label}：第0層の札が出る`);
+    await shot(`m1_${mode}_card0`);
+    await click('進む');
+    ok(await ev(f => G.mode === 'play' && WD.cfg.name === f && WD.cfg.itemSpr === 'sp_claude', first), `${label}：第0層「${first}」が始まり、拾う物は印`);
+    // 印の前に立って撮る
+    await ev(() => { const it = nearbyItems()[0]; if (it) { S.x = it.x - Math.cos(0.3) * 2; S.y = it.y - Math.sin(0.3) * 2; S.a = 0.3; if (blocked(S.x, S.y)) { S.x = it.x - 1.5; S.y = it.y; S.a = 0; } } });
+    await page.waitForTimeout(300);
+    await shot(`m1_${mode}_play`);
+    // メモを拾う → その層の言葉
+    const n = await ev(() => { pickUp({ id: 'tn1', t: 'note', x: 0, y: 0 }); const t = $('#ov').innerText; startPlay(); return { t, n: S.notes.length, src: S.notes[0] && S.notes[0].src }; });
+    ok(n.n === 1 && n.src, `${label}：メモを拾う（${n.src}）${n.t.replace(/\s+/g, ' ').slice(0, 40)}`);
+    // 怪物の絵
+    const spr = await ev(() => { G.ents = [{ type: 'wander', x: S.x + 3, y: S.y, st: 'wander', tgt: null, next: null, repath: 0, lost: 0, stepT: 0, sndT: 1, burn: 0 }]; return sprites().find(o => o.h > 1).spr; });
+    ok(spr === monster, `${label}：追ってくるものの絵（${spr}）`);
+    await ev(() => { S.a = 0; G.ents[0].x = S.x + 2.5; G.ents[0].y = S.y; if (blocked(G.ents[0].x, G.ents[0].y)) { G.ents[0].x = S.x; G.ents[0].y = S.y + 2.5; S.a = Math.PI / 2; } });
+    await page.waitForTimeout(250);
+    await shot(`m1_${mode}_monster`);
+    // 捕まったときの文
+    await ev(() => { G.ents = [{ type: 'wander', x: S.x, y: S.y + 0.1, st: 'chase', tgt: null, next: null, repath: 0, lost: 5, stepT: 0, sndT: 1, burn: 0 }]; update(0.03); });
+    const ov1 = await page.$eval('#ov', e => e.innerText);
+    ok(/最初から/.test(ov1) && (mode === 'self' ? /要約/.test(ov1) : /山羊/.test(ov1)), `${label}：捕まったときの文（やり直せる）`);
+    await click('この層の最初から'); await click('進む');
+    // 5つの層を通ってエンディング
+    for (let lv = 0; lv < 5; lv++) { await ev(() => { DBG.toExit(); update(0.01); enterExit(); finishTrans(); }); if (lv < 4) await click('進む'); }
+    const end = await page.$eval('#ov', e => e.innerText);
+    ok(await ev(() => G.mode === 'end'), `${label}：エンディング`);
+    ok(mode === 'self' ? /記録にないことは/.test(end) : /幕が上がる/.test(end), `${label}：エンディングの文`);
+    await shot(`m1_${mode}_end`);
+    await click('タイトルへ');
+  }
+  // 山羊文学版の各層の札
+  const names = await ev(() => [0, 1, 2, 3, 4].map(i => levelCfg(i, 'yagi').name + '/' + levelCfg(i, 'self').name));
+  console.log('  層の名前:', names.join(' | '));
   // ふつうの版は、これまでどおり第4層の先でエンディング
   const nm = await ev(() => { S = newState('normal'); enterLevel(4, true); startPlay(); DBG.toExit(); update(0.01); enterExit(); finishTrans(); return G.mode; });
   ok(nm === 'end', 'ふつうの版は第4層の先でエンディング');

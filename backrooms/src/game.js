@@ -86,7 +86,12 @@ function pickUp(it) {
   else if (it.t === 'battery') { S.spare++; toast(`電池を拾った（予備 ${S.spare}本）`); }
   else if (it.t === 'map') { S.maps++; toast(`地図の切れ端を拾った（${S.maps}枚）`); }
   else if (it.t === 'note') {
-    if (S.mode === 'hard') {
+    if (THEMES[S.mode]) {   // 五つの報告書・山羊文学版：その層の言葉を順に拾う
+      const list = themeNotes(S.mode, S.lv);
+      const i = list.findIndex((n, k) => !S.notes.some(x => x.lv === S.lv && x.i === k));
+      if (i < 0) toast('濡れて、文字が読めないメモだった');
+      else { const n = list[i]; S.notes.push({ lv: S.lv, i, t: n.t, src: n.src }); showNote(n.t, true, n.src); }
+    } else if (S.mode === 'hard') {
       // 前に死んだ自分のメモが、混じっていることがある
       const graves = (OPT.graves || []).filter((g, i) => !(S.gseen || []).includes(i));
       const hn = H_NOTES.findIndex((n, i) => !S.notes.some(x => x.h === i));
@@ -353,10 +358,11 @@ function update(dt) {
 }
 function sprites() {
   const out = [];
-  for (const it of nearbyItems()) out.push({ x: it.x, y: it.y, spr: ITEM_SPR[it.t], h: 0.42 });
+  const cfg = WD.cfg, es = cfg.entSpr || {};
+  for (const it of nearbyItems()) out.push(cfg.itemSpr ? { x: it.x, y: it.y, spr: cfg.itemSpr, h: 0.4, lift: 0.08 + 0.04 * Math.sin(G.t * 2 + it.x), emit: 1 } : { x: it.x, y: it.y, spr: ITEM_SPR[it.t], h: 0.42 });
   for (const e of G.ents) {
-    if (e.type === 'wander') out.push({ x: e.x, y: e.y, spr: 'sp_wander', h: 1.22 });
-    else out.push({ x: e.x, y: e.y, spr: 'sp_grin', h: 0.75, lift: 0.3, glow: e.st === 'flee' ? 0.5 + Math.random() * 0.5 : 1 });
+    if (e.type === 'wander') out.push({ x: e.x, y: e.y, spr: es.wander || 'sp_wander', h: 1.22 });
+    else out.push({ x: e.x, y: e.y, spr: es.grin || 'sp_grin', h: 0.75, lift: 0.3, glow: e.st === 'flee' ? 0.5 + Math.random() * 0.5 : 1 });
   }
   return out;
 }

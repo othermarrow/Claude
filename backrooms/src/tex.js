@@ -224,4 +224,76 @@ function buildTextures() {
     g.fillStyle = '#050403'; for (let x = 15; x < 50; x += 2.5) g.fillRect(x, 36, 1, 8);
     g.fillStyle = '#050403'; g.fillRect(22, 24, 2, 2); g.fillRect(40, 24, 2, 2);
   });
+
+  // ---- 別の版の絵 ----
+  // 拾う物はすべて、Claude のアイコン風の印（橙色の放射）
+  makeTex('sp_claude', 32, 32, (g, w, h, R, eg) => {
+    const ray = (c) => {
+      c.save(); c.translate(16, 21);
+      const n = 11;
+      for (let i = 0; i < n; i++) {
+        const a = i / n * Math.PI * 2 + 0.2, len = 6.5 + (i * 7 % 5) * 0.7;
+        c.rotate(Math.PI * 2 / n);
+        c.beginPath(); c.moveTo(-1.1, 0); c.lineTo(-0.7, -len); c.arc(0, -len, 0.8, Math.PI, 0); c.lineTo(1.1, 0); c.closePath(); c.fill();
+      }
+      c.beginPath(); c.arc(0, 0, 2.2, 0, 7); c.fill();
+      c.restore();
+    };
+    g.fillStyle = '#d97757'; ray(g); eg.fillStyle = '#fff'; ray(eg);
+  });
+  // 報告書の壁紙：紙に、灰色の文字の行が並ぶ
+  makeTex('wp_rep', 64, 64, (g, w, h, R) => {
+    g.fillStyle = '#d9d3bd'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#bdb6a0'; g.fillRect(0, 0, 1, h); g.fillRect(32, 0, 1, h);
+    for (let col = 0; col < 2; col++) for (let y = 6; y < h - 8; y += 4) {
+      if (R() < 0.12) continue;
+      let x = col * 32 + 4 + (R() < 0.15 ? 3 : 0);
+      const end = col * 32 + 29 - (R() < 0.3 ? Math.floor(R() * 14) : 0);
+      while (x < end) { const lw = 1 + Math.floor(R() * 3); g.fillStyle = R() < 0.08 ? '#8a5a4a' : '#8f897a'; g.fillRect(x, y, Math.min(lw, end - x), 1); x += lw + (R() < 0.15 ? 2 : 0); }
+    }
+    g.fillStyle = '#6f6857'; g.fillRect(0, h - 5, w, 5);
+  }, (d, w, h, R) => { noisePix(d, 5, R); stains(d, w, h, R, 16, 0.6, 0.3); });
+  // 原稿用紙の壁紙
+  makeTex('wp_genko', 64, 64, (g, w, h, R) => {
+    g.fillStyle = '#e4d9bb'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#b0603e'; g.lineWidth = 1;
+    for (let x = 4; x <= 60; x += 7) { g.beginPath(); g.moveTo(x + 0.5, 4); g.lineTo(x + 0.5, 58); g.stroke(); }
+    for (let y = 4; y <= 58; y += 6) { g.beginPath(); g.moveTo(4, y + 0.5); g.lineTo(60, y + 0.5); g.stroke(); }
+    g.fillStyle = '#3d342b';   // ところどころに、書きかけの字の跡
+    for (let i = 0; i < 14; i++) { const cx = 4 + Math.floor(R() * 8) * 7, cy = 4 + Math.floor(R() * 9) * 6; g.fillRect(cx + 2, cy + 2, 3, 1); if (R() < 0.6) g.fillRect(cx + 3, cy + 1, 1, 4); }
+    g.fillStyle = '#6a5838'; g.fillRect(0, h - 5, w, 5);
+  }, (d, w, h, R) => { noisePix(d, 5, R); stains(d, w, h, R, 16, 0.55, 0.35); });
+  // 山羊：灰色の大きな身体に、逞しい角
+  makeTex('sp_goat', 64, 128, (g, w, h, R, eg) => {
+    g.fillStyle = '#2b2925'; g.strokeStyle = '#2b2925';
+    g.lineWidth = 4; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(27, 12); g.bezierCurveTo(14, 0, 6, 14, 13, 24); g.stroke();   // 角
+    g.beginPath(); g.moveTo(37, 12); g.bezierCurveTo(50, 0, 58, 14, 51, 24); g.stroke();
+    g.beginPath(); g.ellipse(32, 20, 7, 11, 0, 0, 7); g.fill();                              // 頭
+    g.beginPath(); g.moveTo(26, 26); g.lineTo(38, 26); g.lineTo(35, 40); g.lineTo(29, 40); g.closePath(); g.fill();   // 鼻づら
+    g.beginPath(); g.moveTo(30, 40); g.lineTo(34, 40); g.lineTo(32, 47); g.closePath(); g.fill();  // ひげ
+    g.beginPath(); g.ellipse(21, 20, 6, 2.5, -0.4, 0, 7); g.fill(); g.beginPath(); g.ellipse(43, 20, 6, 2.5, 0.4, 0, 7); g.fill();  // 耳
+    g.beginPath(); g.moveTo(19, 44); g.lineTo(45, 44); g.lineTo(41, 90); g.lineTo(23, 90); g.closePath(); g.fill();   // 胴
+    g.lineWidth = 4;
+    g.beginPath(); g.moveTo(20, 46); g.quadraticCurveTo(12, 70, 13, 96); g.stroke();
+    g.beginPath(); g.moveTo(44, 46); g.quadraticCurveTo(52, 70, 51, 96); g.stroke();
+    g.lineWidth = 5;
+    g.beginPath(); g.moveTo(27, 88); g.lineTo(25, 126); g.stroke(); g.beginPath(); g.moveTo(37, 88); g.lineTo(39, 126); g.stroke();
+    const eyes = (c) => { c.fillRect(26, 18, 4, 2); c.fillRect(34, 18, 4, 2); };                   // 横長の瞳
+    g.fillStyle = '#c9a23c'; eyes(g); eg.fillStyle = '#fff'; eyes(eg);
+    g.fillStyle = '#111'; g.fillRect(27, 18, 2, 1); g.fillRect(35, 18, 2, 1);
+  });
+  // 笑う山羊：暗がりに、横長の瞳と笑った口
+  makeTex('sp_goatgrin', 64, 64, (g, w, h, R, eg) => {
+    g.fillStyle = '#060504'; g.strokeStyle = '#060504'; g.lineWidth = 3;
+    for (let i = 0; i < 40; i++) { const a = R() * Math.PI * 2, r = R() * 20; g.beginPath(); g.ellipse(32 + Math.cos(a) * r * 0.7, 36 + Math.sin(a) * r, 3 + R() * 6, 3 + R() * 8, R() * 3, 0, 7); g.fill(); }
+    g.beginPath(); g.moveTo(24, 16); g.bezierCurveTo(14, 2, 4, 10, 8, 22); g.stroke();
+    g.beginPath(); g.moveTo(40, 16); g.bezierCurveTo(50, 2, 60, 10, 56, 22); g.stroke();
+    const eye = (c) => { c.beginPath(); c.ellipse(23, 27, 5, 3, 0.2, 0, 7); c.fill(); c.beginPath(); c.ellipse(41, 27, 5, 3, -0.2, 0, 7); c.fill(); };
+    g.fillStyle = '#e8c45a'; eye(g); eg.fillStyle = '#fff'; eye(eg);
+    g.fillStyle = '#060504'; g.fillRect(20, 26, 6, 2); g.fillRect(38, 26, 6, 2);
+    const grin = (c) => { c.beginPath(); c.moveTo(17, 40); c.quadraticCurveTo(32, 56, 47, 40); c.quadraticCurveTo(32, 48, 17, 40); c.fill(); };
+    g.fillStyle = '#efe6cc'; grin(g); eg.fillStyle = '#fff'; grin(eg);
+    g.fillStyle = '#060504'; for (let x = 19; x < 46; x += 3) g.fillRect(x, 41, 1, 6);
+  });
 }
