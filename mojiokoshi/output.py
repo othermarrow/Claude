@@ -130,6 +130,8 @@ def write_markdown(path, info, segments, gap_note_sec=60):
     lines.append(f"| 声の検出 | Silero VAD(しきい値 {info['vad_threshold']:g}・{how}) |")
     if info.get("recovered"):
         lines.append(f"| 送り直し | 文字が少なかった {info['recovered']}区間を細かく分けて認識し直した |")
+    if info.get("second_desc"):
+        lines.append(f"| 2回目の認識 | {_cell(info['second_desc'])} |")
     if info.get("polish_desc"):
         lines.append(f"| 読みやすく整えた版 | {_cell(info['polish_desc'])} |")
     extra = f"要確認 {n['flag']} / 除外 {n['drop']}"
@@ -154,6 +156,8 @@ def write_markdown(path, info, segments, gap_note_sec=60):
             head += f" ⚠ 失敗: {s['reasons'][0] if s['reasons'] else ''}"
         lines.append(head)
         lines.extend(_seg_lines(s))
+        if s.get("alt_show") and s.get("alt"):
+            lines.append(f"> 別の認識(雑音を除いた音声): {s['alt']}")
         lines.append("")
     if not any(b[0] == "seg" for b in blocks):
         lines.append("(声と判定した区間で、文字にできたものはありませんでした)")

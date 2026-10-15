@@ -326,7 +326,7 @@ def segment_stats(probs, a, b, threshold):
 # 送る音声を整える
 # ==========================================
 def shape_segment(pcm, probs, a, b, threshold, neg_threshold,
-                  duck=True, target_dbfs=-23.0):
+                  duck=True, target_dbfs=-23.0, max_gain_db=45.0):
     """フレーム a〜b の音声を、送る形(16bit の生データ)にして返す。
 
     - 声のない瞬間(声らしさ < neg_threshold)で声より 6dB 以上大きい物音は、
@@ -365,7 +365,7 @@ def shape_segment(pcm, probs, a, b, threshold, neg_threshold,
         g[:-1] = np.minimum(g[:-1], gain_db[1:])
         gain_db = g
 
-    norm_db = float(np.clip(target_dbfs - speech_db, -12.0, 30.0))
+    norm_db = float(np.clip(target_dbfs - speech_db, -12.0, max_gain_db))
     # フレームの中心どうしを直線でつなぎ、つなぎ目で音が跳ねないようにする
     centers = (np.arange(nf) + 0.5) * FRAME
     gain = np.interp(np.arange(len(x)), centers, gain_db + norm_db)

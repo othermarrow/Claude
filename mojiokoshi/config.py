@@ -64,6 +64,12 @@ VAD_DENOISED = True
 #   bnr     … NVIDIA Maxine BNR(API)。区間ごとに送る。試験的
 DENOISE = "none"
 
+# 同じ区間を、雑音を除いた音声(RNNoise)でももう1回認識し、2つの結果を LLM の
+# 手直し(txt)で突き合わせる。食い違う所は文脈から自然な方を選ばせる。
+# A(元の音声)が文字にならず B だけが文字になった区間は B を使う。
+# 送信回数は倍になる。none で切る(--single-pass でも一時的に切れる)
+SECOND_PASS = "rnnoise"
+
 # 発話のない時間がこれ以上続いたら、本文に「発話なし ○分」と書く(秒)
 GAP_NOTE_SEC = 60
 
@@ -156,6 +162,10 @@ HIGHPASS_HZ = 80
 DUCK_TRANSIENTS = True
 # 声の部分の音量をこの大きさにそろえる(dBFS)
 TARGET_SPEECH_DBFS = -23.0
+# 声の音量をそろえるときに足す音量の上限(dB)。遠くで録った小さな声でも target まで
+# 持ち上げる。実際の録音で声が -50〜-68dBFS(普通の録音より 30dB ほど小さい)だった。
+# Whisper は音の大きさをそろえずに特徴量を作るので、小さいまま送ると不利になる
+MAX_GAIN_DB = 45.0
 # rnnoise のモデル(setup.sh が取ってくる)と、元の音を混ぜる割合
 # (1.0 で雑音除去だけ。0.85 なら15%は元の音を残し、声のひずみを抑える)。
 # モデルは rnnoise-models の leavened-quisling(雑音: 一般、残す音: 声。
@@ -202,9 +212,14 @@ LOW_EVIDENCE_PROB = 0.7
 # 定型句だけを、前後の文脈から直させる。方言や話し言葉はそのまま残させる。
 # 直した版は .txt に、元の認識結果は .md に書く
 POLISH = True
-POLISH_MODEL = "nvidia/nemotron-3-super-120b-a12b"
-POLISH_FALLBACK_MODELS = ("google/gemma-4-31b-it", "openai/gpt-oss-20b")
-POLISH_BATCH_LINES = 40
+# research_bot で 2026-10 に動いた中で最も大きいモデル。日本語の聞き間違いを文脈から
+# 直すのに向く。使えなければ順に切り替える。gemma-4-31b-it は、research_bot で
+# 2026-09 から応答しない状態が続いたため入れていない
+POLISH_MODEL = "nvidia/nemotron-3-ultra-550b-a55b"
+POLISH_FALLBACK_MODELS = ("nvidia/nemotron-3-super-120b-a12b", "openai/gpt-oss-20b")
+# 1回に直させる行の数。返答が長いほど時間切れ・途中切れが起きやすいので短めにする
+# (ultra は research_bot の実測で、思考なしの1回に約1分かかった)
+POLISH_BATCH_LINES = 20
 # 録音の場面の説明(LLM に渡す)。例: 障害者支援施設の職員どうしの会話・会議。関西弁を含む
 POLISH_CONTEXT = ""
 # よく出る言葉・人名を1行に1つずつ書いたファイル(LLM に渡す。無くてもよい)

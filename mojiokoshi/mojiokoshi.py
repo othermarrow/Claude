@@ -243,6 +243,32 @@ def _sha256(path, n=16):
     return h.hexdigest()[:n]
 
 
+def assemble(s, text, atext, vtext, language):
+    """1区間の結果をまとめる。text: 元の音声での認識、atext: 雑音を除いた音声での認識。
+
+    元の音声で文字にならず、雑音を除いた音声で問題のない文字になったら、そちらを使う。
+    2つの中身が違うときは、md に「別の認識」として並べる(alt_show)。「反戦会」と
+    「反省会」のような1語の違いこそ確かめたいので、句読点以外が1字でも違えば並べる。
+    雑音を除いた音声の結果が定型句など除外にあたるものなら、並べも渡しもしない。
+    """
+    atext = textfilter.normalize(atext or "")
+    ja = textfilter.judge(s, atext, language, verify_text=vtext, **_judge_kw()) if atext else None
+    j = textfilter.judge(s, text, language, verify_text=vtext, **_judge_kw())
+    from_alt = False
+    if not textfilter.core(text) and ja and ja["status"] == "ok":
+        j, text, from_alt = ja, atext, True
+        ja = None
+    item = {**s, "raw": text, **j}
+    item["alt"] = ja["text"] if ja and ja["status"] != "drop" else ""
+    if from_alt:
+        item["reasons"] = item["reasons"] + ["雑音を除いた音声で認識した"]
+    item["alt_show"] = (bool(item["alt"]) and item["status"] != "drop"
+                        and textfilter.core(item["text"]) != textfilter.core(item["alt"]))
+    if vtext is not None:
+        item["verify_text"] = vtext
+    return item
+
+
 # ==========================================
 # 1つの録音の処理
 # ==========================================
@@ -329,10 +355,18 @@ class Job:
             raise
         return None
 
+    def _source_kind(self, source):
+        """main: 送る音声(雑音の処理の設定どおり) / alt: 2回目に送る、もう一方の音声。"""
+        rn = self.opts.denoise == "rnnoise"
+        if source == "alt":
+            return "vad" if rn else "rnnoise"
+        return "rnnoise" if rn else "vad"
+
     def pcm(self, kind="vad"):
-        """kind: vad(声の検出用) / asr(送る音声。雑音の処理によってはvadと同じ)。"""
-        if kind == "asr" and self.opts.denoise != "rnnoise":
-            kind = "vad"
+        """kind: vad(元の音声。声の検出にも使う) / rnnoise(雑音を除いた音声) /
+        asr(送る音声) / alt(2回目に送る音声)。"""
+        if kind in ("asr", "alt"):
+            kind = self._source_kind("main" if kind == "asr" else "alt")
         if kind in self._pcm:
             return self._pcm[kind]
         if kind == "vad":
@@ -422,22 +456,26 @@ class Job:
         return segs
 
     # ---------- 送信 ----------
-    def _seg_key(self, mc, s, style="pcm"):
+    def _seg_key(self, mc, s, style="pcm", source="main"):
         o = self.opts
         parts = [mc["name"], mc["language"], mc["mode"], o.denoise,
                  f"{s['f0']}-{s['f1']}", int(config.DUCK_TRANSIENTS),
-                 config.TARGET_SPEECH_DBFS, o.vad_threshold, o.vad_neg_threshold]
+                 config.TARGET_SPEECH_DBFS, config.MAX_GAIN_DB,
+                 o.vad_threshold, o.vad_neg_threshold]
         if style != "pcm":
             parts.append(style)
+        if source != "main":
+            parts.append(f"alt:{self._source_kind('alt')}")
         return "|".join(str(x) for x in parts)
 
-    def _segment_audio(self, s, probs, client):
+    def _segment_audio(self, s, probs, client, source="main"):
         o = self.opts
-        data = audio.shape_segment(self.pcm("asr"), probs, s["f0"], s["f1"],
-                                   o.vad_threshold, o.vad_neg_threshold,
+        data = audio.shape_segment(self.pcm("asr" if source == "main" else "alt"), probs,
+                                   s["f0"], s["f1"], o.vad_threshold, o.vad_neg_threshold,
                                    duck=config.DUCK_TRANSIENTS,
-                                   target_dbfs=config.TARGET_SPEECH_DBFS)
-        if o.denoise == "bnr" and self._bnr_ok:
+                                   target_dbfs=config.TARGET_SPEECH_DBFS,
+                                   max_gain_db=config.MAX_GAIN_DB)
+        if o.denoise == "bnr" and self._bnr_ok and source == "main":
             data = self._apply_bnr(data, client)
         return data
 
@@ -468,14 +506,14 @@ class Job:
             return "pcm", True
         return st, False
 
-    def run_model(self, mc, segs, probs, client, label):
+    def run_model(self, mc, segs, probs, client, label, source="main"):
         """segs を mc で認識する(記録済みは送らない)。返り値: {id: 記録}。"""
         style, probe_wav = self._style_for(mc)
         results = {}
         todo = []
         for s in segs:
-            rec_w = self.cache.get(self._seg_key(mc, s, "wav"))
-            rec_p = self.cache.get(self._seg_key(mc, s, "pcm"))
+            rec_w = self.cache.get(self._seg_key(mc, s, "wav", source))
+            rec_p = self.cache.get(self._seg_key(mc, s, "pcm", source))
             rec = rec_w or (rec_p if rec_p and (style == "pcm" or rec_p.get("text", "").strip())
                             else None)
             if rec:
@@ -486,7 +524,7 @@ class Job:
             return results
         n_all = len(segs)
         say(f"{label}: {len(todo)}区間を送ります(記録済み {n_all - len(todo)})")
-        self.pcm("asr")                      # 送る前に変換を済ませておく
+        self.pcm("asr" if source == "main" else "alt")     # 送る前に変換を済ませておく
         state = {"style": style, "probe": probe_wav, "fatal": [], "done": n_all - len(todo),
                  "errors_in_row": 0, "empty_strong": 0}
         lock = threading.Lock()
@@ -495,12 +533,12 @@ class Job:
             r = client.recognize(mc["function_id"], data, mc["language"], mc["mode"],
                                  punctuation=config.AUTOMATIC_PUNCTUATION,
                                  style=st, what=mc["name"])
-            return {"key": self._seg_key(mc, s, st), "id": s["id"], **r}
+            return {"key": self._seg_key(mc, s, st, source), "id": s["id"], **r}
 
         def work(s):
             if state["fatal"] or client.limiter.stop.is_set():
                 return s, None
-            data = self._segment_audio(s, probs, client)
+            data = self._segment_audio(s, probs, client, source)
             st = state["style"]
             try:
                 rec = send(s, data, st)
@@ -523,7 +561,7 @@ class Job:
             except nvasr.SegmentAPIError as e:
                 if client.limiter.stop.is_set():      # 止める途中の失敗は記録しない
                     return s, None
-                rec = {"key": self._seg_key(mc, s, st), "id": s["id"], "text": "",
+                rec = {"key": self._seg_key(mc, s, st, source), "id": s["id"], "text": "",
                        "error": str(e)[:300]}
             except nvasr.FatalAPIError as e:
                 state["fatal"].append(str(e))
@@ -682,7 +720,7 @@ class Job:
         vc = model_conf(o.verify) if o.verify else None
         if o.language:
             mc["language"] = o.language
-        n_req = len(segs) * (2 if vc else 1)
+        n_req = len(segs) * (1 + bool(vc) + self._second_pass())
         say(f"  送信: 最大 {n_req}回(見込み 約{max(1, math.ceil(n_req / config.REQUESTS_PER_MINUTE))}分)")
 
         limiter = nvasr.RateLimiter(config.REQUESTS_PER_MINUTE, config.RPM_FLOOR)
@@ -706,6 +744,14 @@ class Job:
                 judged[s["id"]] = textfilter.judge(
                     s, rec.get("text", ""), mc["language"],
                     **_judge_kw())
+            alt = {}
+            if self._second_pass():
+                need = [s for s in segs if judged[s["id"]]["status"] != "drop"
+                        or (not textfilter.core((res.get(s["id"]) or {}).get("text", ""))
+                            and s["voiced_sec"] >= 1.0)]
+                if need:
+                    alt = self.run_model(mc, need, probs, client,
+                                         "2回目(雑音を除いた音声)", source="alt")
             vres = {}
             if vc:
                 need = [s for s in segs if judged[s["id"]]["status"] != "drop"]
@@ -724,12 +770,9 @@ class Job:
             vtext = None
             if vc and s["id"] in vres and not vres[s["id"]].get("error"):
                 vtext = vres[s["id"]].get("text", "")
-            j = textfilter.judge(s, rec.get("text", ""), mc["language"],
-                                 verify_text=vtext, **_judge_kw())
-            item = {**s, "raw": rec.get("text", ""), **j}
-            if vtext is not None:
-                item["verify_text"] = vtext
-            final.append(item)
+            arec = alt.get(s["id"])
+            atext = arec.get("text", "") if arec and not arec.get("error") else ""
+            final.append(assemble(s, rec.get("text", ""), atext, vtext, mc["language"]))
 
         polished, polish_desc = None, ""
         if o.polish:
@@ -742,6 +785,9 @@ class Job:
         elif config.DELETE_AUDIO_CACHE and not o.keep_audio:
             self.cleanup_audio()
         return paths
+
+    def _second_pass(self):
+        return config.SECOND_PASS not in ("", "none") and not self.opts.single_pass
 
     def _print_plan(self, segs):
         say("  区間(送信はしていません):")
@@ -783,6 +829,8 @@ class Job:
             "vad_threshold": o.vad_threshold,
             "vad_denoised": o.vad_denoised,
             "recovered": self._recovered,
+            "second_desc": ("同じ区間を雑音を除いた音声(RNNoise)でも認識し、txt の手直しで突き合わせた"
+                            if self._second_pass() else ""),
         }
 
     def _save(self, base, info, segs, txt_segs=None):
@@ -816,6 +864,9 @@ class Job:
         if not idx:
             return None, ""
         lines = [final[i]["text"] for i in idx]
+        alts = [[final[i].get("alt", "")] for i in idx]
+        if not any(a[0] for a in alts):
+            alts = None
         models = [o.polish_model or config.POLISH_MODEL] + [
             m for m in config.POLISH_FALLBACK_MODELS if m != (o.polish_model or config.POLISH_MODEL)]
         glossary = polish.load_glossary(config.GLOSSARY_FILE)
@@ -824,13 +875,15 @@ class Job:
         fixed, changed, used = polish.polish_lines(
             lines, self.api_key, config.NVIDIA_BASE_URL, models,
             batch=config.POLISH_BATCH_LINES, min_sim=config.POLISH_MIN_SIMILARITY,
-            context=config.POLISH_CONTEXT, glossary=glossary, log=say)
+            context=config.POLISH_CONTEXT, glossary=glossary, alts=alts,
+            raw_dir=self.wd, log=say)
         if not used:
             return None, "読みやすく整える処理は、使える LLM がなく行えなかった"
         pol = [dict(s) for s in final]
         for i, t in zip(idx, fixed):
             pol[i]["text"] = t
-        return pol, (f"txt は LLM({used})で聞き間違い・句読点・紛れ込んだ定型句を直した版"
+        how = "2通りの認識を突き合わせ、" if alts else ""
+        return pol, (f"txt は LLM({used})で{how}聞き間違い・句読点・紛れ込んだ定型句を直した版"
                      f"({changed}区間を修正)")
 
 
@@ -1043,6 +1096,8 @@ def build_parser():
                    help="声の検出を元の音声だけで行う(速いが、大きな雑音の下の声を取りこぼしやすい)")
     p.add_argument("--no-polish", action="store_true",
                    help="txt を LLM で整えない(元の認識結果をそのまま書く)")
+    p.add_argument("--single-pass", action="store_true",
+                   help="雑音を除いた音声での2回目の認識をしない(送信回数が半分になる)")
     p.add_argument("--polish", action="store_true", help=argparse.SUPPRESS)
     p.add_argument("--polish-model", help=f"整形に使うモデル(既定: {config.POLISH_MODEL})")
     p.add_argument("--dry-run", action="store_true",
