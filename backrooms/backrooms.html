@@ -1263,7 +1263,7 @@ function audioUpdate(info) {
 const SAVE_KEY = 'backrooms_save_v1', OPT_KEY = 'backrooms_opts_v1';
 const WALK = 1.9, RUN = 3.5, RADIUS = 0.22;
 let S = null;                        // 保存するもの
-let OPT = { q: 1, sens: 1, vol: 0.8, vib: 1 };
+let OPT = { q: 1, sens: 1, vol: 0.8, vib: 1, claude: 1 };
 const G = {                          // 保存しないもの
   mode: 'title', t: 0, ents: [], spawn: {}, bob: 0, bobPh: 0, run: false, tired: false,
   in: { mx: 0, my: 0, turn: 0 }, keys: {}, noise: 0, fear: 0, seen: false, nearExit: false,
@@ -1620,7 +1620,8 @@ function update(dt) {
 function sprites() {
   const out = [];
   const cfg = WD.cfg, es = cfg.entSpr || {};
-  for (const it of nearbyItems()) out.push(cfg.itemSpr ? { x: it.x, y: it.y, spr: cfg.itemSpr, h: 0.4, lift: 0.08 + 0.04 * Math.sin(G.t * 2 + it.x), emit: 1 } : { x: it.x, y: it.y, spr: ITEM_SPR[it.t], h: 0.42 });
+  const ic = cfg.itemSpr || (OPT.claude ? 'sp_claude' : '');   // 拾う物を Claude のマークで描く
+  for (const it of nearbyItems()) out.push(ic ? { x: it.x, y: it.y, spr: ic, h: 0.4, lift: 0.08 + 0.04 * Math.sin(G.t * 2 + it.x), emit: 1 } : { x: it.x, y: it.y, spr: ITEM_SPR[it.t], h: 0.42 });
   for (const e of G.ents) {
     if (e.type === 'wander') out.push({ x: e.x, y: e.y, spr: es.wander || 'sp_wander', h: 1.22 });
     else out.push({ x: e.x, y: e.y, spr: es.grin || 'sp_grin', h: 0.75, lift: 0.3, glow: e.st === 'flee' ? 0.5 + Math.random() * 0.5 : 1 });
@@ -1791,12 +1792,14 @@ function showSettings(back) {
   ov(`<div class="h">設定</div>
     ${btn('q', `画質：${q[OPT.q]}`)}${btn('sens', `向きを変える速さ：${OPT.sens.toFixed(1)}`)}
     ${btn('vol', `音量：${Math.round(OPT.vol * 100)}%`)}${btn('vib', `振動：${OPT.vib ? 'あり' : 'なし'}`)}
+    ${btn('icon', `拾う物の絵：${OPT.claude ? 'Claude のマーク' : 'ふつうの絵'}`)}
     ${btn('del', '記録を消す', 'danger')}${btn('back', '戻る', 'main')}
-    <p class="small">動きがかくかくするときは、画質を下げる。</p>`, {
+    <p class="small">動きがかくかくするときは、画質を下げる。<br>拾う物の絵は「はじめから」と救いのない版で変わる（五つの報告書・山羊文学版はいつも Claude のマーク）。</p>`, {
     q: () => { OPT.q = (OPT.q + 1) % 3; saveOpts(); setupRender($('#view'), OPT.q); G.needDraw = true; showSettings(back); },
     sens: () => { OPT.sens = OPT.sens >= 2 ? 0.5 : Math.round((OPT.sens + 0.25) * 100) / 100; saveOpts(); showSettings(back); },
     vol: () => { OPT.vol = OPT.vol >= 1 ? 0 : Math.round((OPT.vol + 0.2) * 10) / 10; saveOpts(); audioVolume(OPT.vol); showSettings(back); },
     vib: () => { OPT.vib = OPT.vib ? 0 : 1; saveOpts(); vibe(40); showSettings(back); },
+    icon: () => { OPT.claude = OPT.claude ? 0 : 1; saveOpts(); G.needDraw = true; showSettings(back); },
     del: () => ask('記録を消して、タイトルに戻る。よいか？', () => { clearSave(); S = null; showTitle(); }, () => showSettings(back)),
     back,
   });

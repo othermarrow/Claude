@@ -2,7 +2,7 @@
 const SAVE_KEY = 'backrooms_save_v1', OPT_KEY = 'backrooms_opts_v1';
 const WALK = 1.9, RUN = 3.5, RADIUS = 0.22;
 let S = null;                        // 保存するもの
-let OPT = { q: 1, sens: 1, vol: 0.8, vib: 1 };
+let OPT = { q: 1, sens: 1, vol: 0.8, vib: 1, claude: 1 };
 const G = {                          // 保存しないもの
   mode: 'title', t: 0, ents: [], spawn: {}, bob: 0, bobPh: 0, run: false, tired: false,
   in: { mx: 0, my: 0, turn: 0 }, keys: {}, noise: 0, fear: 0, seen: false, nearExit: false,
@@ -359,7 +359,8 @@ function update(dt) {
 function sprites() {
   const out = [];
   const cfg = WD.cfg, es = cfg.entSpr || {};
-  for (const it of nearbyItems()) out.push(cfg.itemSpr ? { x: it.x, y: it.y, spr: cfg.itemSpr, h: 0.4, lift: 0.08 + 0.04 * Math.sin(G.t * 2 + it.x), emit: 1 } : { x: it.x, y: it.y, spr: ITEM_SPR[it.t], h: 0.42 });
+  const ic = cfg.itemSpr || (OPT.claude ? 'sp_claude' : '');   // 拾う物を Claude のマークで描く
+  for (const it of nearbyItems()) out.push(ic ? { x: it.x, y: it.y, spr: ic, h: 0.4, lift: 0.08 + 0.04 * Math.sin(G.t * 2 + it.x), emit: 1 } : { x: it.x, y: it.y, spr: ITEM_SPR[it.t], h: 0.42 });
   for (const e of G.ents) {
     if (e.type === 'wander') out.push({ x: e.x, y: e.y, spr: es.wander || 'sp_wander', h: 1.22 });
     else out.push({ x: e.x, y: e.y, spr: es.grin || 'sp_grin', h: 0.75, lift: 0.3, glow: e.st === 'flee' ? 0.5 + Math.random() * 0.5 : 1 });

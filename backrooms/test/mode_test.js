@@ -123,6 +123,26 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
   // ふつうの版は、これまでどおり第4層の先でエンディング
   const nm = await ev(() => { S = newState('normal'); enterLevel(4, true); startPlay(); DBG.toExit(); update(0.01); enterExit(); finishTrans(); return G.mode; });
   ok(nm === 'end', 'ふつうの版は第4層の先でエンディング');
+  // ふつうの版・救いのない版でも、拾う物を Claude のマークにできる（設定で切りかえ）
+  for (const md of ['normal', 'hard']) {
+    const ic = await ev(m => {
+      S = newState(m); enterLevel(0, true); startPlay();
+      const pick = () => { const o = sprites().find(o => o.h < 0.5); return o && o.spr; };
+      const a = pick(); OPT.claude = 0; const b = pick(); OPT.claude = 1;
+      return { a, b, n: nearbyItems().length };
+    }, md);
+    ok(ic.n > 0 && ic.a === 'sp_claude' && /^sp_(water|battery|map|note)$/.test(ic.b), `${md}：拾う物はClaudeのマーク、設定で元の絵に戻せる（${ic.a} / ${ic.b}）`);
+  }
+  await ev(() => { G.mode = 'title'; showSettings(showTitle); });
+  const s1 = await page.$eval('#ov', e => e.innerText); await click('拾う物の絵');
+  const s2 = await page.$eval('#ov', e => e.innerText);
+  ok(/拾う物の絵：Claude のマーク/.test(s1) && /拾う物の絵：ふつうの絵/.test(s2) && await ev(() => OPT.claude === 0 && JSON.parse(localStorage.getItem(OPT_KEY)).claude === 0), '設定の「拾う物の絵」で切りかわり、保存される');
+  await shot('m1_settings');
+  await click('拾う物の絵');
+  // ふつうの版で、マークの前に立って撮る
+  await ev(() => { S = newState('normal'); enterLevel(0, true); startPlay(); const it = nearbyItems()[0]; if (it) { S.x = it.x - Math.cos(0.3) * 2; S.y = it.y - Math.sin(0.3) * 2; S.a = 0.3; if (blocked(S.x, S.y)) { S.x = it.x - 1.5; S.y = it.y; S.a = 0; } } });
+  await page.waitForTimeout(300);
+  await shot('m1_normal_claude');
   console.log(errors.length ? 'ERRORS:\n' + errors.join('\n') : 'エラーなし');
   await browser.close();
   process.exit(errors.length || fail ? 1 : 0);
