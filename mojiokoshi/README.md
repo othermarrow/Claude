@@ -116,8 +116,31 @@ moji 録音.m4a --vad-threshold 0.3                    # 声をもっと拾う(�
 moji 録音.m4a --denoise rnnoise                      # 送る音声の雑音も除く(試すとき)
 moji 録音.m4a -o /storage/emulated/0/Vault/文字起こし  # 保存先を指定
 moji a.m4a b.m4a c.m4a                               # 複数をまとめて
+moji /storage/emulated/0/Converter --ext wav,mp3 -o /storage/emulated/0/Converter/Output
+                                                     # フォルダの中の wav・mp3 をまとめて
 moji models                                          # モデルが使えるか
 moji check                                           # 準備ができているか
+```
+
+### フォルダをまとめて処理する
+
+録音ファイルの代わりにフォルダを渡すと、その中の音声をまとめて順に処理する
+(サブフォルダの中は見ない。`.` で始まるファイルは飛ばす)。
+
+- `--ext wav,mp3` … 拾う形式を絞る(大文字・小文字は区別しない)。既定は音声・動画の形式すべて
+- 同じ名前で形式だけ違うファイル(`録音.wav` と `録音.mp3` など)は、同じ録音とみなして
+  1つだけ使う(wav → flac → m4a → aac → mp3 … の順で先のもの)
+- 結果(`名前_文字起こし.md`)が保存先に既にある録音は飛ばす。新しく足した録音だけを
+  処理するので、同じコマンドを何度実行してもよい。作り直すときは `--overwrite`
+  (送った区間の記録が残っていれば、送り直さずに作り直す)
+
+よく使うフォルダは、短い名前にしておくと楽。
+
+```bash
+cat >> ~/.bashrc <<'EOF'
+alias mojiconv='python ~/mojiokoshi/mojiokoshi.py /storage/emulated/0/Converter --ext wav,mp3 -o /storage/emulated/0/Converter/Output'
+EOF
+source ~/.bashrc
 ```
 
 処理中は `termux-wake-lock` でスマホが眠らないようにし、終わったら通知する
@@ -242,7 +265,8 @@ Service)で提供されている。利用者・職員の声や個人を特定で
 - 手元の偽サーバー(Riva と同じ gRPC の形・function-id での振り分け・混雑の
   エラーをわざと返す)を相手に、変換 → 声の検出 → 送信 → 再試行 → 判定 → 保存、
   中断からの再開、確認用モデル(ストリーミング方式)、送り方の自動切り替え、
-  キーや function-id の誤りでの停止、`--polish`(偽の LLM サーバー)が動いた。
+  キーや function-id の誤りでの停止、`--polish`(偽の LLM サーバー)、フォルダの
+  一括処理(同じ名前の wav・mp3 の重複を除く・済みを飛ばす・`--ext`)が動いた。
 - 声の検出: 施設の録音に近づけたテスト音源3本(10分ずつ。合成音声と英語の実音声
   60発話を、ドア・食器・掃除機・水・咳・泣き声など ESC-50 の物音120回の中に、
   物音が声より 8〜12dB 大きく重なる場面も含めて配置)で評価した。

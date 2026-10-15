@@ -134,6 +134,70 @@ def parse_time(s):
     return sec
 
 
+def out_paths(src, opts, suffix=""):
+    """結果の保存先(.md と .srt)。"""
+    out_dir = opts.out or config.OUTPUT_DIR or os.path.dirname(os.path.abspath(src))
+    out_dir = os.path.expanduser(out_dir)
+    base = f"{os.path.splitext(os.path.basename(src))[0]}_文字起こし"
+    start = opts.start or 0.0
+    if start or opts.end is not None:
+        a = output.ts(start).replace(":", "")
+        b = output.ts(opts.end).replace(":", "") if opts.end is not None else "end"
+        base += f"_{a}-{b}"
+    base += suffix
+    return os.path.join(out_dir, base + ".md"), os.path.join(out_dir, base + ".srt")
+
+
+# フォルダを渡したときに拾う形式。同じ名前で形式だけ違うファイルが並んでいたら
+# (変換アプリが wav と mp3 の両方を書き出した、など)、この順で先のものだけを使う
+# (劣化のない形式を先に)
+AUDIO_EXTS = (".wav", ".flac", ".m4a", ".aac", ".mp3", ".ogg", ".opus", ".wma",
+              ".amr", ".3gp", ".mp4", ".m4v", ".mov", ".webm", ".mkv")
+
+
+def parse_exts(text):
+    """「wav,mp3」→ (".wav", ".mp3")"""
+    if not text:
+        return None
+    exts = []
+    for e in text.replace("、", ",").split(","):
+        e = e.strip().lower()
+        if e:
+            exts.append(e if e.startswith(".") else "." + e)
+    return tuple(exts) or None
+
+
+def expand_inputs(args, exts=None):
+    """フォルダは、その中の音声ファイルに広げる(サブフォルダは見ない)。
+
+    返り値: ([(パス, フォルダから拾ったか)], [知らせること])
+    """
+    items, notes = [], []
+    allowed = exts or AUDIO_EXTS
+    order = {e: i for i, e in enumerate(list(allowed) + [e for e in AUDIO_EXTS if e not in allowed])}
+    for a in args:
+        p = os.path.abspath(os.path.expanduser(a))
+        if not os.path.isdir(p):
+            items.append((p, False))
+            continue
+        names = [f for f in sorted(os.listdir(p))
+                 if not f.startswith(".") and os.path.isfile(os.path.join(p, f))
+                 and os.path.splitext(f)[1].lower() in allowed]
+        chosen = {}
+        for f in sorted(names, key=lambda f: order.get(os.path.splitext(f)[1].lower(), 99)):
+            stem = os.path.splitext(f)[0]
+            if stem in chosen:
+                notes.append(f"{f} は {chosen[stem]} と同じ録音とみなして省きます")
+            else:
+                chosen[stem] = f
+        if not chosen:
+            notes.append(f"{p} に対象の音声ファイルがありません"
+                         f"(対象: {' '.join(e[1:] for e in allowed)})")
+        for stem in sorted(chosen):
+            items.append((os.path.join(p, chosen[stem]), True))
+    return items, notes
+
+
 def _sha256(path, n=16):
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -149,7 +213,7 @@ class Job:
     def __init__(self, src, opts, api_key=None):
         self.src = os.path.abspath(os.path.expanduser(src))
         if not os.path.isfile(self.src):
-            raise Abort(f"ファイルがありません: {self.src}")
+            raise Abort(f"ファイルもフォルダもありません: {self.src}")
         self.opts = opts
         self.api_key = api_key
         self.start = opts.start or 0.0
@@ -574,15 +638,7 @@ class Job:
             say(f"    …ほか {len(segs) - 40}区間")
 
     def _out_paths(self, suffix=""):
-        out_dir = self.opts.out or config.OUTPUT_DIR or os.path.dirname(self.src)
-        out_dir = os.path.expanduser(out_dir)
-        base = f"{self.stem}_文字起こし"
-        if self.start or self.end is not None:
-            a = output.ts(self.start).replace(":", "")
-            b = output.ts(self.end).replace(":", "") if self.end is not None else "end"
-            base += f"_{a}-{b}"
-        base += suffix
-        return os.path.join(out_dir, base + ".md"), os.path.join(out_dir, base + ".srt")
+        return out_paths(self.src, self.opts, suffix)
 
     def _info(self, mc, vc, duration, segs):
         o = self.opts
@@ -838,8 +894,13 @@ def build_parser():
         prog="mojiokoshi.py",
         description="録音を文字起こしする(NVIDIA API)。物音だけの時間は送らない。",
         epilog="ほかに: models(モデルの確認) / models --set 名前 ID / check(準備の確認)")
-    p.add_argument("files", nargs="+", help="録音ファイル(m4a・mp3・wav・mp4 など。複数可)")
+    p.add_argument("files", nargs="+",
+                   help="録音ファイルかフォルダ(m4a・mp3・wav・mp4 など。複数可。"
+                        "フォルダなら中の音声をまとめて処理し、済んだものは飛ばす)")
     p.add_argument("-o", "--out", help="保存先のフォルダ(既定: 録音と同じフォルダ)")
+    p.add_argument("--ext", help="フォルダから拾う形式(例 wav,mp3。既定: 音声・動画の形式すべて)")
+    p.add_argument("--overwrite", action="store_true",
+                   help="フォルダから拾った録音で、結果が既にあっても作り直す")
     p.add_argument("--from", dest="start", help="ここから処理する(例 1:02:03)")
     p.add_argument("--to", dest="end", help="ここまで処理する(例 1:30:00)")
     p.add_argument("--model", default=config.ASR_MODEL, choices=list(config.ASR_MODELS),
@@ -906,25 +967,51 @@ def main(argv=None):
         say(str(e))
         return 1
 
+    items, notes = expand_inputs(opts.files, parse_exts(opts.ext))
+    for n in notes:
+        say(n)
+    todo = []
+    skipped = []
+    for f, from_dir in items:
+        md, _ = out_paths(f, opts)
+        if from_dir and not opts.overwrite and not opts.dry_run and os.path.exists(md):
+            skipped.append(f)
+            say(f"済み(飛ばします): {os.path.basename(f)} → {md}")
+        else:
+            todo.append(f)
+    if not todo:
+        say("処理する録音がありません。" + ("作り直すときは --overwrite を付けてください。"
+                                            if skipped else ""))
+        return 0 if skipped else 1
+    if len(todo) > 1:
+        say(f"{len(todo)}件を順に処理します: " + "、".join(os.path.basename(f) for f in todo))
+
     _wake_lock(True)
-    failed = 0
-    written = []
+    failed = []
+    done = []
     try:
-        for f in opts.files:
+        for f in todo:
             try:
                 paths = Job(f, opts, api_key).run()
                 if paths:
-                    written.extend(paths)
+                    done.append(f)
             except (Abort, audio.AudioError, nvasr.FatalAPIError) as e:
-                failed += 1
+                failed.append(f)
                 say(f"  ✗ {e}")
     except KeyboardInterrupt:
         say("\n中断しました。ここまでの結果は保存してあります。同じコマンドで続きから再開します。")
         _wake_lock(False)
         return 130
     _wake_lock(False)
-    if written:
-        _notify("文字起こしが終わりました", os.path.basename(written[0]))
+    if len(todo) > 1 or skipped:
+        say(f"\nまとめ: 完了 {len(done)}件 / 失敗 {len(failed)}件 / 済みで飛ばした {len(skipped)}件")
+        for f in failed:
+            say(f"  失敗: {os.path.basename(f)}")
+    if done:
+        msg = os.path.basename(done[0]) if len(done) == 1 else f"{len(done)}件"
+        if failed:
+            msg += f"(失敗 {len(failed)}件)"
+        _notify("文字起こしが終わりました", msg)
     elif failed and not opts.dry_run:
         _notify("文字起こしが止まりました", "Termux の表示を確かめてください")
     return 1 if failed else 0
