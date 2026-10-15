@@ -1,7 +1,8 @@
-"""結果の書き出し(Obsidian 用の Markdown と、字幕形式の SRT)。"""
+"""結果の書き出し(Obsidian 用の Markdown・改行したテキスト・字幕形式の SRT)。"""
 
 import datetime
 import os
+import re
 
 
 def ts(sec):
@@ -26,6 +27,62 @@ def human(sec):
     return f"{s}秒"
 
 
+_SENT_END = re.compile(r"(?<=[。！？!?])\s*")
+
+
+def split_lines(text, width=60):
+    """文の終わり(。！？)で改行する。句点のない長い文は、読点(、)で width 字ほどに折る。"""
+    lines = []
+    for sent in _SENT_END.split(text or ""):
+        sent = sent.strip()
+        if not sent:
+            continue
+        if len(sent) <= width + 20:
+            lines.append(sent)
+            continue
+        buf = ""
+        for chunk in re.split(r"(?<=[、,])", sent):
+            if buf and len(buf) + len(chunk) > width:
+                lines.append(buf)
+                buf = chunk
+            else:
+                buf += chunk
+        if buf:
+            lines.append(buf)
+    return lines
+
+
+def _blocks(info, segments, gap_note_sec):
+    """本文に載せる順に、("gap", 始め, 終わり) と ("seg", 区間) を返す。"""
+    out = []
+    prev_end = info.get("offset", 0.0)
+    for s in segments:
+        if s["status"] == "drop":
+            continue
+        if s["start"] - prev_end >= gap_note_sec:
+            out.append(("gap", prev_end, s["start"]))
+        out.append(("seg", s))
+        prev_end = max(prev_end, s["end"])
+    end = info.get("offset", 0.0) + info["duration"]
+    if end - prev_end >= gap_note_sec:
+        out.append(("gap", prev_end, end))
+    return out
+
+
+def _seg_lines(s):
+    """区間の本文の行。文字にならなかった区間・失敗した区間は、そのことを書く。"""
+    if s["status"] == "error":
+        return ["(認識できませんでした)"]
+    if not s.get("text"):
+        return ["(文字にならず)"]
+    return split_lines(s["text"])
+
+
+def _counts(segments):
+    return {k: sum(1 for s in segments if s["status"] == k)
+            for k in ("ok", "flag", "drop", "error")}
+
+
 def _cell(text):
     return (text or "").replace("|", "｜").replace("\n", " ")
 
@@ -34,12 +91,16 @@ def _yaml_str(s):
     return '"' + str(s).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def _range_note(info):
+    if info.get("range_from") is None and info.get("range_to") is None:
+        return ""
+    to = ts(info["range_to"]) if info.get("range_to") is not None else "終わり"
+    return f"(このうち {ts(info.get('range_from') or 0)}〜{to} を処理)"
+
+
 def write_markdown(path, info, segments, gap_note_sec=60):
     """segments: 時刻順の [{"start", "end", "text", "status", "reasons"}]。"""
-    kept = [s for s in segments if s["status"] != "drop"]
-    flagged = [s for s in segments if s["status"] == "flag"]
-    dropped = [s for s in segments if s["status"] == "drop"]
-    errors = [s for s in segments if s["status"] == "error"]
+    n = _counts(segments)
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
     lines = ["---"]
@@ -56,11 +117,8 @@ def write_markdown(path, info, segments, gap_note_sec=60):
     lines.append("")
     lines.append("| 項目 | 内容 |")
     lines.append("|---|---|")
-    rng = ""
-    if info.get("range_from") is not None or info.get("range_to") is not None:
-        rng = f"(このうち {ts(info.get('range_from') or 0)}〜"
-        rng += f"{ts(info['range_to']) if info.get('range_to') is not None else '終わり'} を処理)"
-    lines.append(f"| 録音 | {_cell(info['source_name'])} {human(info['source_duration'])}{rng} |")
+    lines.append(f"| 録音 | {_cell(info['source_name'])} {human(info['source_duration'])}"
+                 f"{_range_note(info)} |")
     sp = info["speech_sec"]
     pct = sp / info["duration"] * 100 if info["duration"] else 0
     lines.append(f"| 声と判定した時間 | {human(sp)}(処理した時間の {pct:.0f}%) / {len(segments)}区間 |")
@@ -70,35 +128,32 @@ def write_markdown(path, info, segments, gap_note_sec=60):
     lines.append(f"| 雑音の処理 | {_cell(info['denoise_desc'])} |")
     how = "元の音声と雑音を除いた音声の両方" if info.get("vad_denoised") else "元の音声"
     lines.append(f"| 声の検出 | Silero VAD(しきい値 {info['vad_threshold']:g}・{how}) |")
-    extra = f"要確認 {len(flagged)} / 除外 {len(dropped)}"
-    if errors:
-        extra += f" / 失敗 {len(errors)}"
+    if info.get("recovered"):
+        lines.append(f"| 送り直し | 文字が少なかった {info['recovered']}区間を細かく分けて認識し直した |")
+    extra = f"要確認 {n['flag']} / 除外 {n['drop']}"
+    if n["error"]:
+        extra += f" / 失敗 {n['error']}"
     lines.append(f"| 判定 | {extra}(末尾に一覧) |")
     lines.append("")
     lines.append("## 本文")
     lines.append("")
 
-    prev_end = info.get("offset", 0.0)
-    for s in kept:
-        gap = s["start"] - prev_end
-        if gap >= gap_note_sec:
-            lines.append(f"*({ts(prev_end)}〜{ts(s['start'])} 発話なし {human(gap)})*")
+    blocks = _blocks(info, segments, gap_note_sec)
+    for b in blocks:
+        if b[0] == "gap":
+            lines.append(f"*({ts(b[1])}〜{ts(b[2])} 発話なし {human(b[2] - b[1])})*")
             lines.append("")
-        if s["status"] == "error":
-            body = f"(認識できませんでした: {s['reasons'][0] if s['reasons'] else ''})"
-        else:
-            body = s["text"]
-        mark = ""
+            continue
+        s = b[1]
+        head = f"**{ts(s['start'])}**"
         if s["status"] == "flag":
-            mark = f" ⚠(要確認: {'、'.join(s['reasons'])})"
-        lines.append(f"**{ts(s['start'])}** {body}{mark}")
+            head += f" ⚠ 要確認: {'、'.join(s['reasons'])}"
+        elif s["status"] == "error":
+            head += f" ⚠ 失敗: {s['reasons'][0] if s['reasons'] else ''}"
+        lines.append(head)
+        lines.extend(_seg_lines(s))
         lines.append("")
-        prev_end = s["end"]
-    end = info.get("offset", 0.0) + info["duration"]
-    if end - prev_end >= gap_note_sec:
-        lines.append(f"*({ts(prev_end)}〜{ts(end)} 発話なし {human(end - prev_end)})*")
-        lines.append("")
-    if not kept:
+    if not any(b[0] == "seg" for b in blocks):
         lines.append("(声と判定した区間で、文字にできたものはありませんでした)")
         lines.append("")
 
@@ -118,6 +173,38 @@ def write_markdown(path, info, segments, gap_note_sec=60):
     _write(path, "\n".join(lines))
 
 
+def write_txt(path, info, segments, gap_note_sec=60, timestamps=True):
+    """文ごとに改行したテキスト。区間の間は空行。"""
+    n = _counts(segments)
+    lines = [info["title"]]
+    lines.append(f"録音: {info['source_name']}({human(info['source_duration'])}){_range_note(info)}"
+                 f" / 声と判定: {human(info['speech_sec'])} / モデル: {info['model_name']}")
+    note = f"要確認 {n['flag']} / 除外 {n['drop']}"
+    if n["error"]:
+        note += f" / 失敗 {n['error']}"
+    lines.append(note + "(理由は .md の一覧)")
+    lines.append("")
+    for b in _blocks(info, segments, gap_note_sec):
+        if b[0] == "gap":
+            if timestamps:
+                lines.append(f"({ts(b[1])}〜{ts(b[2])} 発話なし {human(b[2] - b[1])})")
+                lines.append("")
+            continue
+        s = b[1]
+        mark = ""
+        if s["status"] == "flag":
+            mark = f"※要確認({'、'.join(s['reasons'])})"
+        elif s["status"] == "error":
+            mark = "※失敗"
+        if timestamps:
+            lines.append(f"[{ts(s['start'])}]" + (f" {mark}" if mark else ""))
+        elif mark:
+            lines.append(mark)
+        lines.extend(_seg_lines(s))
+        lines.append("")
+    _write(path, "\n".join(lines))
+
+
 def write_srt(path, segments):
     out = []
     n = 0
@@ -125,7 +212,7 @@ def write_srt(path, segments):
         if s["status"] in ("drop", "error") or not s["text"]:
             continue
         n += 1
-        text = s["text"]
+        text = "\n".join(split_lines(s["text"], width=30))
         if s["status"] == "flag":
             text = "[要確認] " + text
         out.append(str(n))
@@ -133,6 +220,23 @@ def write_srt(path, segments):
         out.append(text)
         out.append("")
     _write(path, "\n".join(out))
+
+
+def write_outputs(base, formats, info, segments, gap_note_sec=60, txt_timestamps=True):
+    """formats(md / txt / srt)のファイルを書き、書いたパスのリストを返す。"""
+    paths = []
+    for fmt in formats:
+        path = f"{base}.{fmt}"
+        if fmt == "md":
+            write_markdown(path, info, segments, gap_note_sec)
+        elif fmt == "txt":
+            write_txt(path, info, segments, gap_note_sec, txt_timestamps)
+        elif fmt == "srt":
+            write_srt(path, segments)
+        else:
+            continue
+        paths.append(path)
+    return paths
 
 
 def _write(path, text):

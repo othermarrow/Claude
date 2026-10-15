@@ -268,7 +268,7 @@ def plan_segments(probs, regions, pad_sec, merge_gap_sec, max_segment_sec):
     # 長すぎる発話を先に分ける(つなぐ前に分けると、分け目が声の途切れに来る)
     pieces = []
     for a, b in padded:
-        pieces.extend(_split_long(probs, a, b, max_len))
+        pieces.extend(split_long(probs, a, b, max_len))
 
     merged = []
     for a, b in pieces:
@@ -284,7 +284,7 @@ def plan_segments(probs, regions, pad_sec, merge_gap_sec, max_segment_sec):
     return merged
 
 
-def _split_long(probs, a, b, max_len):
+def split_long(probs, a, b, max_len):
     out = []
     while b - a > max_len:
         # 上限の 55%〜100% の範囲で、声らしさが最も低い所(声の途切れ)で切る

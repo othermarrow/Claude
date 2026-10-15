@@ -116,7 +116,10 @@ def _judge_kw():
     return {"max_chars_per_sec": config.MAX_CHARS_PER_SEC,
             "weak_voiced_sec": config.WEAK_VOICED_SEC,
             "low_voiced_sec": config.LOW_EVIDENCE_VOICED_SEC,
-            "low_prob": config.LOW_EVIDENCE_PROB}
+            "low_prob": config.LOW_EVIDENCE_PROB,
+            "empty_flag_voiced_sec": config.EMPTY_FLAG_VOICED_SEC,
+            "low_density_voiced_sec": config.LOW_DENSITY_VOICED_SEC,
+            "low_density_chars_per_sec": config.LOW_DENSITY_CHARS_PER_SEC}
 
 
 def parse_time(s):
@@ -134,8 +137,8 @@ def parse_time(s):
     return sec
 
 
-def out_paths(src, opts, suffix=""):
-    """結果の保存先(.md と .srt)。"""
+def out_base(src, opts, suffix=""):
+    """結果の保存先(拡張子の前まで)。"""
     out_dir = opts.out or config.OUTPUT_DIR or os.path.dirname(os.path.abspath(src))
     out_dir = os.path.expanduser(out_dir)
     base = f"{os.path.splitext(os.path.basename(src))[0]}_文字起こし"
@@ -144,8 +147,17 @@ def out_paths(src, opts, suffix=""):
         a = output.ts(start).replace(":", "")
         b = output.ts(opts.end).replace(":", "") if opts.end is not None else "end"
         base += f"_{a}-{b}"
-    base += suffix
-    return os.path.join(out_dir, base + ".md"), os.path.join(out_dir, base + ".srt")
+    return os.path.join(out_dir, base + suffix)
+
+
+def output_formats():
+    """書き出す形式(OUTPUT_FORMATS)。知らない形式は無視する。"""
+    fmts = []
+    for f in config.OUTPUT_FORMATS.replace("、", ",").split(","):
+        f = f.strip().lower().lstrip(".")
+        if f in ("md", "txt", "srt") and f not in fmts:
+            fmts.append(f)
+    return fmts or ["md", "txt"]
 
 
 # フォルダを渡したときに拾う形式。同じ名前で形式だけ違うファイルが並んでいたら
@@ -238,6 +250,7 @@ class Job:
         self._pcm = {}
         self._bnr_ok = True
         self._vad_ran = False
+        self._recovered = 0
 
     # ---------- 作業フォルダ ----------
     def _load_meta(self):
@@ -506,7 +519,9 @@ class Job:
                     client.limiter.stop.set()
             else:
                 state["errors_in_row"] = 0
-            say(f"  [{state['done']:>4}/{n_all}] {output.ts(s['start'])} {head[:40]}")
+            if len(head) > 40:
+                head = head[:39] + "…"
+            say(f"  [{state['done']:>4}/{n_all}] {output.ts(s['start'])} {head}")
 
         self._run_pool(work, todo, report, client)
 
@@ -524,6 +539,76 @@ class Job:
             raise Abort(state["fatal"][0] + "\n  ここまでの結果は保存しました。"
                         "同じコマンドで続きから再開します。")
         return results
+
+    # ---------- 抜けの立て直し ----------
+    def _too_sparse(self, s, text):
+        """声らしい部分の長さに比べて文字が少ない(途中を飛ばされた疑い)。"""
+        n = len(textfilter.core(textfilter.normalize(text)))
+        return (s["voiced_sec"] >= config.RECOVER_MIN_VOICED_SEC
+                and n < config.RECOVER_MIN_CHARS_PER_SEC * s["voiced_sec"])
+
+    def _sub_plan(self, probs, s):
+        """区間 s を、声の途切れで RECOVER_PIECE_SEC 秒以下の片に分ける。"""
+        o = self.opts
+        a0, b0 = s["f0"], s["f1"]
+        p = probs[a0:b0]
+        regions = audio.find_speech(p, o.vad_threshold, o.vad_neg_threshold,
+                                    config.MIN_SPEECH_SEC, 0.25)
+        plan = audio.plan_segments(p, regions, 0.3, 0.5, config.RECOVER_PIECE_SEC)
+        pieces = [(a + a0, b + a0) for a, b in plan]
+        if len(pieces) < 2:
+            # 途切れが見つからなければ、声らしさの低い所で長さで分ける
+            pieces = audio.split_long(probs, a0, b0,
+                                      round(config.RECOVER_PIECE_SEC / audio.FRAME_SEC))
+        return pieces if len(pieces) >= 2 else []
+
+    def _recover(self, mc, segs, probs, client, res):
+        """文字が少なかった区間を細かく分けて送り直し、多く取れた方を使う。
+
+        Whisper は、長めの区間で後半や物音・間の後を飛ばすことがある(実際の録音で
+        会話が抜けた)。短く分けると、1片ごとの抜けは起きにくい。
+        """
+        by_id = {s["id"]: s for s in segs}
+        cands = [s for s in segs if s["id"] in res and not res[s["id"]].get("error")
+                 and self._too_sparse(s, res[s["id"]].get("text", ""))]
+        plan, subs = {}, []
+        for s in cands:
+            lst = []
+            for k, (a, b) in enumerate(self._sub_plan(probs, s)):
+                ss = {"id": f"{s['id']}.{k}", "f0": a, "f1": b,
+                      "start": round(self.start + a * audio.FRAME_SEC, 2),
+                      "end": round(self.start + b * audio.FRAME_SEC, 2)}
+                ss.update(audio.segment_stats(probs, a, b, self.opts.vad_threshold))
+                lst.append(ss)
+            if lst:
+                plan[s["id"]] = lst
+                subs.extend(lst)
+        if not subs:
+            return res
+        say(f"  文字が少なかった {len(plan)}区間を、細かく分けて送り直します({len(subs)}片)")
+        sres = self.run_model(mc, subs, probs, client, "送り直し")
+        for pid, lst in plan.items():
+            parts = []
+            for ss in lst:
+                r = sres.get(ss["id"])
+                if r is None or r.get("error"):
+                    parts = None
+                    break
+                j = textfilter.judge(ss, r.get("text", ""), mc["language"], **_judge_kw())
+                if j["status"] != "drop" and j["text"]:
+                    parts.append(j["text"])
+            if parts is None:
+                continue
+            new = "".join(parts)
+            old = textfilter.judge(by_id[pid], res[pid].get("text", ""), mc["language"],
+                                   **_judge_kw())["text"]
+            n_new, n_old = len(textfilter.core(new)), len(textfilter.core(old))
+            if n_new >= max(n_old * 1.2, n_old + 3):
+                res[pid] = {**res[pid], "text": new, "text_before_recover": res[pid].get("text", "")}
+                self._recovered += 1
+        if self._recovered:
+            say(f"  送り直しで {self._recovered}区間の文字が増えました。")
+        return res
 
     def _run_pool(self, work, items, report, client):
         ex = ThreadPoolExecutor(max_workers=max(1, config.CONCURRENCY))
@@ -581,6 +666,8 @@ class Job:
                                       max_retries=config.MAX_RETRIES,
                                       insecure=config.NVIDIA_GRPC_INSECURE, log=say)
             res = self.run_model(mc, segs, probs, client, f"文字起こし({mc['name']})")
+            if config.RECOVER_SHORT:
+                res = self._recover(mc, segs, probs, client, res)
             texts = [r for r in res.values() if not r.get("error")]
             if len(texts) >= 5 and not any(r.get("text", "").strip() for r in texts):
                 say("  ⚠ すべての区間が空で返りました。function-id・言語コード・送り方が"
@@ -619,7 +706,7 @@ class Job:
 
         paths = self._write(final, mc, vc, duration)
         if o.polish:
-            paths.append(self._polish(final, mc, vc, duration))
+            paths.extend(self._polish(final, mc, vc, duration))
         errors = sum(1 for s in final if s["status"] == "error")
         if errors:
             say(f"  ⚠ {errors}区間は認識に失敗しました。同じコマンドをもう一度実行すると、"
@@ -637,8 +724,8 @@ class Job:
         if len(segs) > 40:
             say(f"    …ほか {len(segs) - 40}区間")
 
-    def _out_paths(self, suffix=""):
-        return out_paths(self.src, self.opts, suffix)
+    def _out_base(self, suffix=""):
+        return out_base(self.src, self.opts, suffix)
 
     def _info(self, mc, vc, duration, segs):
         o = self.opts
@@ -667,25 +754,29 @@ class Job:
             "denoise_desc": den,
             "vad_threshold": o.vad_threshold,
             "vad_denoised": o.vad_denoised,
+            "recovered": self._recovered,
         }
 
-    def _write(self, final, mc, vc, duration):
-        md, srt = self._out_paths()
-        info = self._info(mc, vc, duration, final)
+    def _save(self, base, info, segs):
         try:
-            output.write_markdown(md, info, final, config.GAP_NOTE_SEC)
-            output.write_srt(srt, final)
+            paths = output.write_outputs(base, output_formats(), info, segs,
+                                         config.GAP_NOTE_SEC, config.TXT_TIMESTAMPS)
         except PermissionError:
-            raise Abort(f"保存できませんでした: {md}\n"
+            raise Abort(f"保存できませんでした: {base}\n"
                         "  共有ストレージに書くには、Termux で一度 `termux-setup-storage` を"
                         "実行して許可してください。")
-        with open(os.path.join(self.wd, "result.json"), "w", encoding="utf-8") as f:
-            json.dump({"info": info, "segments": final}, f, ensure_ascii=False, indent=1)
+        for i, p in enumerate(paths):
+            say(f"  {'保存: ' if i == 0 else '      '}{p}")
+        return paths
+
+    def _write(self, final, mc, vc, duration):
+        info = self._info(mc, vc, duration, final)
         n = {k: sum(1 for s in final if s["status"] == k) for k in ("ok", "flag", "drop")}
         say(f"  結果: 本文 {n['ok'] + n['flag']}区間(うち要確認 {n['flag']})/ 除外 {n['drop']}区間")
-        say(f"  保存: {md}")
-        say(f"        {srt}")
-        return [md, srt]
+        paths = self._save(self._out_base(), info, final)
+        with open(os.path.join(self.wd, "result.json"), "w", encoding="utf-8") as f:
+            json.dump({"info": info, "segments": final}, f, ensure_ascii=False, indent=1)
+        return paths
 
     def _polish(self, final, mc, vc, duration):
         import polish
@@ -700,14 +791,11 @@ class Job:
         pol = [dict(s) for s in final]
         for i, t in zip(idx, fixed):
             pol[i]["text"] = t
-        md, _ = self._out_paths("_整形")
         info = self._info(mc, vc, duration, final)
         info["title"] = f"{self.stem} の文字起こし(整形)"
         info["model_desc"] += (f" → {used or '(整形できず)'}で変換ミスと句読点を直した版"
-                               f"({changed}行を修正。元の文字起こしは別ファイル)")
-        output.write_markdown(md, info, pol, config.GAP_NOTE_SEC)
-        say(f"  保存: {md}")
-        return md
+                               f"({changed}区間を修正。元の文字起こしは別ファイル)")
+        return self._save(self._out_base("_整形"), info, pol)
 
 
 # ==========================================
@@ -972,11 +1060,12 @@ def main(argv=None):
         say(n)
     todo = []
     skipped = []
+    first_fmt = output_formats()[0]
     for f, from_dir in items:
-        md, _ = out_paths(f, opts)
-        if from_dir and not opts.overwrite and not opts.dry_run and os.path.exists(md):
+        done_path = f"{out_base(f, opts)}.{first_fmt}"
+        if from_dir and not opts.overwrite and not opts.dry_run and os.path.exists(done_path):
             skipped.append(f)
-            say(f"済み(飛ばします): {os.path.basename(f)} → {md}")
+            say(f"済み(飛ばします): {os.path.basename(f)} → {done_path}")
         else:
             todo.append(f)
     if not todo:

@@ -17,14 +17,16 @@ import re
 import unicodedata
 import zlib
 
-# 録音の中でまず言われない、動画の字幕由来の定型句。文ごと外す
+# 録音の中でまず言われない、動画の字幕由来の定型句。文ごと外す。
+# 実際の会話でも言いうる形(「最後まで見てね」「字幕はいらない」「高評価だった」
+# など)にはかからないよう、動画の締めの言い回しに絞ってある
 STRONG_PATTERNS = (
     (r"ご視聴.{0,12}ありがとう", "動画の締めの定型句"),
     (r"チャンネル登録", "動画の定型句"),
-    (r"高評価", "動画の定型句"),
-    (r"次回も?お楽しみに", "動画の定型句"),
-    (r"最後まで(ご覧|ご視聴|視聴|見て)", "動画の締めの定型句"),
-    (r"字幕(作成|制作|提供|翻訳|協力|は|を|:|：)", "字幕の表記"),
+    (r"高評価.{0,8}(お願い|よろしく|押して)", "動画の定型句"),
+    (r"次回もお楽しみに", "動画の定型句"),
+    (r"最後まで(ご覧|ご視聴)(いただ|頂|くださ|下さ)", "動画の締めの定型句"),
+    (r"字幕(作成|制作|提供|翻訳|協力)|^字幕\s*[:：]", "字幕の表記"),
     (r"(?i)thanks? (you )?(so much )?for watching", "動画の定型句(英語)"),
     (r"(?i)please subscribe", "動画の定型句(英語)"),
     (r"(?i)subtitles? (by|provided)", "字幕の表記(英語)"),
@@ -50,7 +52,8 @@ _CJK = r"\u3000-\u303f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00
 _SPACE_IN_CJK = re.compile(rf"(?<=[{_CJK}])[ \t]+(?=[{_CJK}])")
 _PUNCT = re.compile(r"[\s、。，．,.!！?？…‥・「」『』（）()\[\]【】〜~ー\-—–:：;；\"'“”’]+")
 _SENTENCE = re.compile(r"(?<=[。！？!?])\s*")
-_REPEAT_PHRASE = re.compile(r"(.{2,20}?)\1{3,}")
+# 同じ語句の6回以上の繰り返し(「はいはいはいはい」程度は実際の会話にある)
+_REPEAT_PHRASE = re.compile(r"(.{2,20}?)\1{5,}")
 _REPEAT_CHAR = re.compile(r"(.)\1{9,}")
 
 
@@ -102,7 +105,7 @@ def _join_sentences(parts):
 
 
 def _collapse_repeats(text):
-    """同じ語句の4回以上の繰り返し・同じ文字の10回以上の連続を縮める。"""
+    """同じ語句の6回以上の繰り返し・同じ文字の10回以上の連続を縮める。"""
     t2 = _REPEAT_PHRASE.sub(lambda m: m.group(1) * 2 + "…", text)
     t2 = _REPEAT_CHAR.sub(lambda m: m.group(1) * 4 + "…", t2)
     return t2, t2 != text
@@ -138,7 +141,8 @@ def _script_problem(text, language):
 
 
 def judge(seg, text, language, max_chars_per_sec=20.0, weak_voiced_sec=0.5,
-          low_voiced_sec=0.3, low_prob=0.7, verify_text=None):
+          low_voiced_sec=0.3, low_prob=0.7, verify_text=None, empty_flag_voiced_sec=2.0,
+          low_density_voiced_sec=4.0, low_density_chars_per_sec=1.5):
     """1区間の認識結果を判定する。
 
     seg: {"voiced_sec", "max_prob", ...}(audio.segment_stats の値)
@@ -153,8 +157,14 @@ def judge(seg, text, language, max_chars_per_sec=20.0, weak_voiced_sec=0.5,
     t = normalize(raw)
     reasons = []
     status = "ok"
+    voiced = float(seg.get("voiced_sec") or 0.0)
 
     if not core(t):
+        if voiced >= empty_flag_voiced_sec:
+            # 声らしい音が続いたのに文字にならなかった。会話の抜けかもしれないので
+            # 本文に場所を残す
+            return {"text": "", "status": "flag",
+                    "reasons": [f"声らしい音があるのに文字にならなかった(声らしい部分 {voiced:.1f}秒)"]}
         return {"text": "", "status": "drop", "reasons": ["文字なし"]}
 
     t, removed = _remove_strong(t)
@@ -181,8 +191,10 @@ def judge(seg, text, language, max_chars_per_sec=20.0, weak_voiced_sec=0.5,
         reasons.append(f"声の長さに比べて文字が多い({rate:.0f}字/秒)")
         status = "flag"
 
-    voiced = float(seg.get("voiced_sec") or 0.0)
     maxp = float(seg.get("max_prob") or 0.0)
+    if voiced >= low_density_voiced_sec and len(c) < low_density_chars_per_sec * voiced:
+        reasons.append(f"文字が少ない(声らしい部分 {voiced:.0f}秒で{len(c)}字。抜けがあるかも)")
+        status = "flag"
     if c in _WEAK_CORE and voiced < weak_voiced_sec:
         reasons.append(f"物音だけでも出やすい言葉(声らしい部分 {voiced:.1f}秒)")
         status = "flag"
