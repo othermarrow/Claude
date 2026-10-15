@@ -54,20 +54,20 @@ function showTitle() {
   const start = mode => { if (sv) ask('今の記録は消える。よいか？', () => newRun(mode), showTitle); else newRun(mode); };
   ov(`<div class="logo">迷い部屋</div><div class="logo2">― THE BACKROOMS ―</div>
     <p class="story">現実の床を踏み抜いた先には、<br>黄色い部屋が どこまでも続いていた。</p>
-    ${sv ? btn('cont', `つづきから<span class="sub">${modeLabel(sv)}</span>`, 'main') : ''}
+    <div class="bs">${sv ? btn('cont', `つづきから<span class="sub">${modeLabel(sv)}</span>`, 'main wide') : ''}
     ${btn('new', `はじめから<span class="sub">出口を探して、5つの層を抜ける</span>`, sv ? '' : 'main')}
     ${btn('more', `ほかの版<span class="sub">救いのない版・原作版・五つの報告書・山羊文学版</span>`)}
-    ${btn('how', '遊び方', 'ghost')}${btn('set', '設定', 'ghost')}
+    ${btn('how', '遊び方', 'ghost')}${btn('set', '設定', 'ghost')}</div>
     <p class="small">音が出ます。イヤホンをすすめます。${rec.length ? '<br>' + rec.join('<br>') : ''}</p>
     ${storageOk() ? '' : '<p class="warn">この画面では、記録が保存されないようだ。</p>'}`, {
     cont: () => { audioInit(); S = sv; G.warned = false; enterLevel(S.lv, false); startPlay(); },
     new: () => start('normal'),
-    more: () => ov(`<div class="h">ほかの版</div>
+    more: () => ov(`<div class="h">ほかの版</div><div class="bs">
       ${btn('hard', `救いのない版<span class="sub">出口の先も、また部屋。死んだら終わり</span>`)}
       ${btn('orig', `原作版<span class="sub">2019年の最初の投稿のとおり。黄色い部屋だけ。出口はない</span>`)}
       ${btn('self', `${THEMES.self.title}<span class="sub">${THEMES.self.sub}</span>`)}
       ${btn('yagi', `${THEMES.yagi.title}<span class="sub">${THEMES.yagi.sub}</span>`)}
-      ${btn('back', '戻る', 'ghost')}`, { hard: () => start('hard'), orig: () => start('orig'), self: () => start('self'), yagi: () => start('yagi'), back: showTitle }, 'title'),
+      ${btn('back', '戻る', 'ghost wide')}</div>`, { hard: () => start('hard'), orig: () => start('orig'), self: () => start('self'), yagi: () => start('yagi'), back: showTitle }, 'title'),
     how: () => showHow(showTitle), set: () => showSettings(showTitle),
   }, 'title');
 }
@@ -108,8 +108,8 @@ function showPause() {
   const where = S.mode === 'orig' ? `黄色い部屋　${fmtTime(S.time)}` : `${S.mode === 'hard' ? '救いのない版　' : ''}${c.n}「${c.name}」　${fmtTime(S.time)}${S.mode === 'normal' ? `　捕まった回数 ${S.deaths}` : ''}`;
   ov(`<div class="h">一時停止</div>
     <p class="small">${where}</p>
-    ${btn('back', 'つづける', 'main')}${S.mode === 'orig' ? '' : btn('notes', `拾ったメモ（${S.mode === 'hard' ? S.notes.length : S.notes.length + '/' + noteTotal()}）`)}
-    ${btn('how', '遊び方', 'ghost')}${btn('set', '設定', 'ghost')}${btn('title', 'タイトルへ', 'ghost')}`, {
+    <div class="bs">${btn('back', 'つづける', 'main wide')}${S.mode === 'orig' ? '' : btn('notes', `拾ったメモ（${S.mode === 'hard' ? S.notes.length : S.notes.length + '/' + noteTotal()}）`)}
+    ${btn('how', '遊び方', 'ghost')}${btn('set', '設定', 'ghost')}${btn('title', 'タイトルへ', 'ghost')}</div>`, {
     back: startPlay, notes: () => showNotes(showPause), how: () => showHow(showPause), set: () => showSettings(showPause),
     title: () => { saveGame(); showTitle(); },
   });
@@ -148,11 +148,11 @@ function showHow(back) {
 function showSettings(back) {
   const q = ['低い', '普通', '高い'];
   ov(`<div class="h">設定</div>
-    ${btn('q', `画質：${q[OPT.q]}`)}${btn('sens', `向きを変える速さ：${OPT.sens.toFixed(1)}`)}
+    <div class="bs">${btn('q', `画質：${q[OPT.q]}`)}${btn('sens', `向きを変える速さ：${OPT.sens.toFixed(1)}`)}
     ${btn('vol', `音量：${Math.round(OPT.vol * 100)}%`)}${btn('vib', `振動：${OPT.vib ? 'あり' : 'なし'}`)}
     ${btn('wire', `見た目：${OPT.wire ? '線だけ（ウィザードリィ風）' : 'ふつう'}`)}
     ${btn('icon', `拾う物の絵：${OPT.claude ? 'Claude のマーク' : 'ふつうの絵'}`)}
-    ${btn('del', '記録を消す', 'danger')}${btn('back', '戻る', 'main')}
+    ${btn('del', '記録を消す', 'danger')}${btn('back', '戻る', 'main')}</div>
     <p class="small">動きがかくかくするときは、画質を下げる。<br>見た目を「線だけ」にすると、黒い画面に壁のふちだけを線で描く。遊び方は同じ。<br>拾う物の絵は「はじめから」と救いのない版で変わる（五つの報告書・山羊文学版はいつも Claude のマーク）。</p>`, {
     q: () => { OPT.q = (OPT.q + 1) % 3; saveOpts(); setupRender($('#view'), OPT.q); G.needDraw = true; showSettings(back); },
     sens: () => { OPT.sens = OPT.sens >= 2 ? 0.5 : Math.round((OPT.sens + 0.25) * 100) / 100; saveOpts(); showSettings(back); },

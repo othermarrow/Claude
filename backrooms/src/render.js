@@ -1,6 +1,6 @@
 // ===== 描画（レイキャスト） =====
 const WH = 1.3;                                  // 天井の高さ（マスの幅を1として）
-const RD = { cv: null, ctx: null, W: 0, H: 0, img: null, buf: null, z: null, top: null, bot: null, beam: null, vig: null, pl: 0.75 };
+const RD = { cv: null, ctx: null, W: 0, H: 0, img: null, buf: null, z: null, top: null, bot: null, beam: null, vig: null, pl: 0.75, vs: 300 };
 const LG = 60;                                   // 灯りを計算する範囲（マス）
 const LGRID = new Float32Array(LG * LG);         // 各マスの明るさ
 const PGRID = new Float32Array((LG + 4) * (LG + 4));
@@ -22,9 +22,13 @@ function setupRender(cv, quality) {
   RD.img = RD.ctx.createImageData(W, H);
   RD.buf = new Uint32Array(RD.img.data.buffer);
   RD.z = new Float32Array(W); RD.top = new Int16Array(W); RD.bot = new Int16Array(W);
-  RD.pl = Math.tan((H > W ? 76 : 66) * Math.PI / 360);
+  // 縦向き：横の視野76°、高さは横幅に合わせる（壁が高く見える）。
+  // 横向き：横の視野を100°に広げ、高さは見たままの比率に近づける（壁で画面が埋まらないように）
+  const land = W > H;
+  RD.pl = Math.tan((land ? 100 : 76) * Math.PI / 360);
+  RD.vs = land ? W / (2 * RD.pl) * 1.05 : W / RD.pl;      // 1マス先の、高さ1あたりの画面の点の数
   RD.beam = new Float32Array(W * H); RD.vig = new Float32Array(W * H);
-  const r = W * 0.55, cx = W / 2, cy = H * 0.5, R2 = Math.hypot(W / 2, H / 2);
+  const r = land ? RD.vs * 0.43 : W * 0.55, cx = W / 2, cy = H * 0.5, R2 = Math.hypot(W / 2, H / 2);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const d2 = ((x - cx) ** 2 + (y - cy) ** 2) / (r * r);
     RD.beam[y * W + x] = Math.pow(Math.max(0, 1 - d2), 0.8) + 0.06;
@@ -122,7 +126,7 @@ function wLine(ax, ay, ah, bx, by, bh, la, lb, em) {
   if (aY < N) { const q = (N - aY) / (bY - aY); aX += (bX - aX) * q; ah += (bh - ah) * q; la += (lb - la) * q; aY = N; }
   else if (bY < N) { const q = (N - bY) / (aY - bY); bX += (aX - bX) * q; bh += (ah - bh) * q; lb += (la - lb) * q; bY = N; }
   if (aY > 34 && bY > 34) return;
-  const W = C.W, H = C.H, k = W / C.pl;
+  const W = C.W, H = C.H, k = C.vs;
   const x0 = W / 2 * (1 + aX / aY), y0 = C.hor + (WH * 0.5 - ah) * k / aY, z0 = 1 / aY;
   const x1 = W / 2 * (1 + bX / bY), y1 = C.hor + (WH * 0.5 - bh) * k / bY, z1 = 1 / bY;
   // 画面の外を切る
@@ -193,7 +197,7 @@ function wireScene(t, cfg) {
 }
 
 function renderFrame(t, cam, sprites, fx) {
-  const W = RD.W, H = RD.H, buf = RD.buf, Z = RD.z, TOP = RD.top, BOT = RD.bot, BEAM = RD.beam, pl = RD.pl;
+  const W = RD.W, H = RD.H, buf = RD.buf, Z = RD.z, TOP = RD.top, BOT = RD.bot, BEAM = RD.beam, pl = RD.pl, vs = RD.vs;
   const cfg = WD.cfg, px = cam.x, py = cam.y;
   refreshCaches(px, py); updateLight(t);
   const dirX = Math.cos(cam.a), dirY = Math.sin(cam.a), planeX = -dirY * pl, planeY = dirX * pl;
@@ -209,7 +213,7 @@ function renderFrame(t, cam, sprites, fx) {
   if (wire) {
     buf.fill(0xff000000); WSEEN.clear(); WFACE.length = 0;
     const wc = texAvg(wt);
-    Object.assign(LC, { px, py, dirX, dirY, planeX, planeY, inv: 1 / (planeX * dirY - dirX * planeY), W, H, pl, hor, Z, fogK, flash, tR, tG, tB, pR, pG, pB,
+    Object.assign(LC, { px, py, dirX, dirY, planeX, planeY, inv: 1 / (planeX * dirY - dirX * planeY), W, H, pl, vs, hor, Z, fogK, flash, tR, tG, tB, pR, pG, pB,
       cR: 120 + wc[0] * 0.5, cG: 120 + wc[1] * 0.5, cB: 120 + wc[2] * 0.5, exitC: texAvg(et, true) });
   }
   let lastKey = -1;
@@ -230,7 +234,7 @@ function renderFrame(t, cam, sprites, fx) {
     if (perp < 0.04) perp = 0.04;
     Z[x] = hit ? perp : 1e9;
     if (!hit) { TOP[x] = Math.round(hor); BOT[x] = Math.round(hor) - 1; continue; }
-    const lineH = W * WH / (perp * pl), top = hor - lineH / 2;
+    const lineH = WH * vs / perp, top = hor - lineH / 2;
     const ds = Math.max(0, Math.ceil(top)), de = Math.min(H - 1, Math.floor(hor + lineH / 2));
     TOP[x] = ds; BOT[x] = de;
     const hx = px + rdx * perp, hy = py + rdy * perp;
@@ -269,7 +273,7 @@ function renderFrame(t, cam, sprites, fx) {
     const isFloor = y > hor;
     const p = isFloor ? y + 0.5 - hor : hor - y - 0.5;
     if (p <= 0.3) { for (let x = 0; x < W; x++) if (y < TOP[x] || y > BOT[x]) buf[y * W + x] = fogPix; continue; }
-    const rowD = WH * 0.5 * W / (pl * p);
+    const rowD = WH * 0.5 * vs / p;
     if (rowD > 34) { for (let x = 0; x < W; x++) if (y < TOP[x] || y > BOT[x]) buf[y * W + x] = fogPix; continue; }
     let wx = px + rowD * rdxL, wy = py + rowD * rdyL;
     const stx = rowD * (rdxR - rdxL) / W, sty = rowD * (rdyR - rdyL) / W;
@@ -321,7 +325,7 @@ function renderFrame(t, cam, sprites, fx) {
   vis.sort((a, b) => b.tY - a.tY);
   for (const v of vis) {
     const s = v.s, tex = TEX[s.spr], tY = v.tY;
-    const unit = W / (tY * pl);
+    const unit = vs / tY;
     const sh = s.h * unit, sw = sh * tex.w / tex.h;
     const scrX = (W / 2) * (1 + v.tX / tY);
     const floorY = hor + WH * 0.5 * unit - (s.lift || 0) * unit;
