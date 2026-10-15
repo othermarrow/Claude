@@ -30,6 +30,8 @@ OUTPUT_DIR = ""
 OUTPUT_FORMATS = "md,txt"
 # txt にも区間の時刻を書く
 TXT_TIMESTAMPS = True
+# txt では、間がこれ(秒)より短い区間どうしを1つの段落にまとめる(時刻は段落の頭だけ)
+PARAGRAPH_GAP_SEC = 3.0
 
 # 文字起こしに使うモデル(下の ASR_MODELS の短い名前)
 ASR_MODEL = "whisper"
@@ -120,6 +122,11 @@ AUDIO_STYLE = "auto"
 VAD_NEG_THRESHOLD = 0.15
 # これより短い声は捨てる(秒)。咳払いや物音の誤検出を減らす
 MIN_SPEECH_SEC = 0.25
+# 声らしさがしきい値以上のフレームが合わせてこれ未満の区間は送らない(秒)。
+# 物音で一瞬だけ声らしさが上がった区間から、Whisper が「ありがとうございました」
+# などを作るのを防ぐ(実際の録音で、声らしい部分 0.0〜0.2秒の区間から多数出た。
+# テスト音源では、物音だけの区間 17 → 12、発話の取りこぼしは増えず)
+MIN_VOICED_SEC = 0.2
 # 声の途切れがこれより短ければ、同じ発話とみなす(秒)
 MIN_SILENCE_SEC = 0.5
 # 区間の前後に足す余白(秒)。語頭・語尾の欠けを防ぐ。物音が重なった発話は
@@ -189,13 +196,19 @@ LOW_EVIDENCE_VOICED_SEC = 0.3
 LOW_EVIDENCE_PROB = 0.7
 
 # ==========================================
-# 6. 読みやすく整える(任意。--polish)
+# 6. 読みやすく整える(txt。--no-polish で切る)
 # ==========================================
-# 文字起こしの後で LLM に、明らかな変換ミスと句読点だけを直させ、別ファイルに
-# 保存する。元の文字起こしはそのまま残る
+# 文字起こしの後で LLM に、聞き間違い(音の近い別の言葉)・句読点・紛れ込んだ
+# 定型句だけを、前後の文脈から直させる。方言や話し言葉はそのまま残させる。
+# 直した版は .txt に、元の認識結果は .md に書く
+POLISH = True
 POLISH_MODEL = "nvidia/nemotron-3-super-120b-a12b"
-POLISH_FALLBACK_MODELS = ("openai/gpt-oss-20b",)
+POLISH_FALLBACK_MODELS = ("google/gemma-4-31b-it", "openai/gpt-oss-20b")
 POLISH_BATCH_LINES = 40
+# 録音の場面の説明(LLM に渡す)。例: 障害者支援施設の職員どうしの会話・会議。関西弁を含む
+POLISH_CONTEXT = ""
+# よく出る言葉・人名を1行に1つずつ書いたファイル(LLM に渡す。無くてもよい)
+GLOSSARY_FILE = "~/.config/mojiokoshi/words.txt"
 # 直した行が元の行とどれだけ似ていれば採用するか(0〜1)。下回れば元の行を使う
 POLISH_MIN_SIMILARITY = 0.6
 

@@ -130,6 +130,8 @@ def write_markdown(path, info, segments, gap_note_sec=60):
     lines.append(f"| 声の検出 | Silero VAD(しきい値 {info['vad_threshold']:g}・{how}) |")
     if info.get("recovered"):
         lines.append(f"| 送り直し | 文字が少なかった {info['recovered']}区間を細かく分けて認識し直した |")
+    if info.get("polish_desc"):
+        lines.append(f"| 読みやすく整えた版 | {_cell(info['polish_desc'])} |")
     extra = f"要確認 {n['flag']} / 除外 {n['drop']}"
     if n["error"]:
         extra += f" / 失敗 {n['error']}"
@@ -173,35 +175,46 @@ def write_markdown(path, info, segments, gap_note_sec=60):
     _write(path, "\n".join(lines))
 
 
-def write_txt(path, info, segments, gap_note_sec=60, timestamps=True):
-    """文ごとに改行したテキスト。区間の間は空行。"""
+def write_txt(path, info, segments, gap_note_sec=60, timestamps=True, paragraph_gap=3.0):
+    """読む用のテキスト。間の短い区間どうしは1つの段落にまとめ、文ごとに改行する。
+
+    要確認の区間は行末に「(要確認)」とだけ書く(理由は .md の一覧)。
+    """
     n = _counts(segments)
     lines = [info["title"]]
     lines.append(f"録音: {info['source_name']}({human(info['source_duration'])}){_range_note(info)}"
                  f" / 声と判定: {human(info['speech_sec'])} / モデル: {info['model_name']}")
+    if info.get("polish_desc"):
+        lines.append(f"{info['polish_desc']}。元の認識結果は .md")
     note = f"要確認 {n['flag']} / 除外 {n['drop']}"
     if n["error"]:
         note += f" / 失敗 {n['error']}"
     lines.append(note + "(理由は .md の一覧)")
     lines.append("")
+    prev_end = None
     for b in _blocks(info, segments, gap_note_sec):
         if b[0] == "gap":
             if timestamps:
+                if prev_end is not None:
+                    lines.append("")
                 lines.append(f"({ts(b[1])}〜{ts(b[2])} 発話なし {human(b[2] - b[1])})")
-                lines.append("")
+            prev_end = None
             continue
         s = b[1]
-        mark = ""
+        new_par = prev_end is None or s["start"] - prev_end >= paragraph_gap
+        if new_par:
+            if lines[-1] != "":
+                lines.append("")
+            if timestamps:
+                lines.append(f"[{ts(s['start'])}]")
+        body = _seg_lines(s)
         if s["status"] == "flag":
-            mark = f"※要確認({'、'.join(s['reasons'])})"
+            body[-1] += "(要確認)"
         elif s["status"] == "error":
-            mark = "※失敗"
-        if timestamps:
-            lines.append(f"[{ts(s['start'])}]" + (f" {mark}" if mark else ""))
-        elif mark:
-            lines.append(mark)
-        lines.extend(_seg_lines(s))
-        lines.append("")
+            body[-1] += "(失敗)"
+        lines.extend(body)
+        prev_end = s["end"]
+    lines.append("")
     _write(path, "\n".join(lines))
 
 
@@ -222,15 +235,20 @@ def write_srt(path, segments):
     _write(path, "\n".join(out))
 
 
-def write_outputs(base, formats, info, segments, gap_note_sec=60, txt_timestamps=True):
-    """formats(md / txt / srt)のファイルを書き、書いたパスのリストを返す。"""
+def write_outputs(base, formats, info, segments, gap_note_sec=60, txt_timestamps=True,
+                  txt_segments=None, paragraph_gap=3.0):
+    """formats(md / txt / srt)のファイルを書き、書いたパスのリストを返す。
+
+    txt_segments を渡すと、txt にはそちら(読みやすく整えた版)を書く。
+    """
     paths = []
     for fmt in formats:
         path = f"{base}.{fmt}"
         if fmt == "md":
             write_markdown(path, info, segments, gap_note_sec)
         elif fmt == "txt":
-            write_txt(path, info, segments, gap_note_sec, txt_timestamps)
+            write_txt(path, info, txt_segments or segments, gap_note_sec, txt_timestamps,
+                      paragraph_gap)
         elif fmt == "srt":
             write_srt(path, segments)
         else:

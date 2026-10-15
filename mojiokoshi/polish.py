@@ -1,16 +1,22 @@
-"""読みやすく整える(任意。--polish)。
+"""読みやすく整える(txt。--no-polish で切る)。
 
-LLM(NVIDIA API のチャット)に、明らかな漢字の変換ミスと句読点だけを直させる。
-区間ごとに別々に認識しているため、前後の文脈があれば分かる同音異義語の取り違えが
-残りやすい。それを文脈から直すのが目的。
+LLM(NVIDIA API のチャット)に、次の3つだけを前後の文脈から直させる。
+  - 聞き間違い・変換ミス(音の近い別の言葉や漢字になっている所)
+  - 句読点
+  - 音声認識が紛れ込ませた定型句(文脈に合わない「ありがとうございました」など)
+方言・話し言葉・言いよどみは標準語に直させない。
+
+区間ごとに別々に認識しているため、前後を聞けば分かる言葉の取り違えが残りやすい
+(実際の録音で「反省会」が「反戦会」になっていた)。それを文脈から直すのが目的。
 
 言葉を足したり要約したりさせないよう、次の2つで守る。
   - 指示で、足す・削る・言い換える・推測で埋めることを禁じる
   - 直した行が元の行と似ていなければ(POLISH_MIN_SIMILARITY 未満)、元の行を使う
-元の文字起こしは別のファイルにそのまま残る。
+元の認識結果は .md にそのまま残る。
 """
 
 import json
+import os
 import random
 import re
 import time
@@ -19,18 +25,21 @@ import urllib.request
 
 import textfilter
 
-PROMPT = """以下は、物音の多い場所で録音した日本語の会話を、音声認識で文字にしたものです。
-行の先頭の数字は行番号です。「参考」の行は前の部分で、直さずに文脈として使ってください。
+PROMPT = """以下は、物音の多い場所で録音した日本語の会話を、音声認識(Whisper)で文字にしたものです。
+{context}行の先頭の数字は行番号です。「前」「後」で始まる行は前後の部分で、直さずに文脈として使ってください。
 
-直してよいのは次の2つだけです。
-- 明らかな漢字の変換ミス(同音異義語の取り違え)。前後の行の文脈から確かに判断できるものだけ
+直してよいのは次の3つだけです。
+- 聞き間違い・変換ミス(音の近い別の言葉や漢字になっている所)。前後の文脈から、本来の言葉が確かに分かるものだけ
+  例: 会議を振り返る話の中の「反戦会」→「反省会」
 - 句読点の位置と有無
+- 音声認識が紛れ込ませた定型句(文脈に合わない「ありがとうございました」「ご視聴ありがとうございました」など)を取り除く
 
 してはいけないこと:
-- 言葉を足す、削る、言い換える、要約する(「えー」「あの」などの言いよどみも残す)
+- 方言・話し言葉・言いよどみ(「えー」「あの」「〜やんか」「〜へん」など)を標準語に直す。そのまま残す
+- 言葉を足す、要約する、言い換える
 - 意味の分からない部分を推測で埋める(分からない部分はそのまま残す)
 - 行をまとめる、分ける、順番を変える
-
+{glossary}
 出力の形: 番号の付いた行と同じ数の行を「番号<TAB>直した文」の形で出力し、
 ほかの説明は書かないでください。直す所がない行もそのまま出力してください。
 """
@@ -38,6 +47,20 @@ PROMPT = """以下は、物音の多い場所で録音した日本語の会話�
 
 class PolishError(Exception):
     pass
+
+
+def load_glossary(path):
+    """よく出る言葉・人名(1行に1つ。# で始まる行は無視)。"""
+    words = []
+    try:
+        with open(os.path.expanduser(path), encoding="utf-8") as f:
+            for line in f:
+                w = line.strip()
+                if w and not w.startswith("#"):
+                    words.append(w)
+    except OSError:
+        pass
+    return words
 
 
 def _chat(base_url, api_key, model, prompt, timeout=240, retries=4, log=print):
@@ -90,20 +113,33 @@ def _parse(text, n):
     return out
 
 
-def polish_lines(lines, api_key, base_url, models, batch=40, min_sim=0.6, log=print):
-    """lines(文字列のリスト)を直したリストと、直した行の数を返す。"""
+def build_prompt(chunk, before=(), after=(), context="", glossary=()):
+    ctx = f"録音の場面: {context}\n" if context else ""
+    glo = ""
+    if glossary:
+        glo = ("\nこの録音に出てきうる言葉・人名(聞き間違いを直すときの手がかり。"
+               "無理に当てはめない): " + "、".join(glossary) + "\n")
+    prompt = PROMPT.format(context=ctx, glossary=glo) + "\n"
+    for c in before:
+        prompt += f"前\t{c}\n"
+    for i, c in enumerate(chunk, 1):
+        prompt += f"{i}\t{c}\n"
+    for c in after:
+        prompt += f"後\t{c}\n"
+    return prompt
+
+
+def polish_lines(lines, api_key, base_url, models, batch=40, min_sim=0.6,
+                 context="", glossary=(), log=print):
+    """lines(文字列のリスト)を直したリストと、直した行の数と、使ったモデルを返す。"""
     result = list(lines)
     changed = 0
     model_iter = list(models)
     current = 0
     for b0 in range(0, len(lines), batch):
         chunk = lines[b0:b0 + batch]
-        ctx = lines[max(0, b0 - 5):b0]
-        prompt = PROMPT + "\n"
-        for c in ctx:
-            prompt += f"参考\t{c}\n"
-        for i, c in enumerate(chunk, 1):
-            prompt += f"{i}\t{c}\n"
+        prompt = build_prompt(chunk, lines[max(0, b0 - 8):b0], lines[b0 + batch:b0 + batch + 4],
+                              context, glossary)
         reply = None
         while current < len(model_iter):
             try:

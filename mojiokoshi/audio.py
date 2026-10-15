@@ -222,11 +222,14 @@ class SileroVAD:
 # ==========================================
 # 区間分け
 # ==========================================
-def find_speech(probs, threshold, neg_threshold, min_speech_sec, min_silence_sec):
+def find_speech(probs, threshold, neg_threshold, min_speech_sec, min_silence_sec,
+                min_voiced_sec=0.0):
     """声らしさから発話の区間(フレーム番号の [始め, 終わり))を作る。
 
     threshold を超えたら声の始まり。neg_threshold を下回る状態が min_silence_sec
     続いたら声の終わり(Silero VAD の get_speech_timestamps と同じ考え方)。
+    声らしさが threshold 以上のフレームが合わせて min_voiced_sec に満たない区間
+    (物音で一瞬だけ声らしさが上がった区間)は捨てる。
     """
     min_sil = max(1, round(min_silence_sec / FRAME_SEC))
     min_sp = max(1, round(min_speech_sec / FRAME_SEC))
@@ -248,7 +251,10 @@ def find_speech(probs, threshold, neg_threshold, min_speech_sec, min_silence_sec
                 start, low_from = None, None
     if start is not None:
         regions.append((start, low_from if low_from is not None else len(probs)))
-    return [(a, b) for a, b in regions if b - a >= min_sp]
+    min_v = round(min_voiced_sec / FRAME_SEC)
+    probs = np.asarray(probs)
+    return [(a, b) for a, b in regions
+            if b - a >= min_sp and (min_v <= 0 or int((probs[a:b] >= threshold).sum()) >= min_v)]
 
 
 def plan_segments(probs, regions, pad_sec, merge_gap_sec, max_segment_sec):

@@ -137,10 +137,17 @@ def parse_time(s):
     return sec
 
 
-def out_base(src, opts, suffix=""):
-    """結果の保存先(拡張子の前まで)。"""
-    out_dir = opts.out or config.OUTPUT_DIR or os.path.dirname(os.path.abspath(src))
+def out_base(src, opts, suffix="", subdir=""):
+    """結果の保存先(拡張子の前まで)。
+
+    subdir: フォルダをサブフォルダまで処理したときの、録音のあったサブフォルダ。
+    保存先を指定していれば、その下に同じ構成で保存する(同じ名前の録音がぶつからない)。
+    """
+    common = opts.out or config.OUTPUT_DIR
+    out_dir = common or os.path.dirname(os.path.abspath(src))
     out_dir = os.path.expanduser(out_dir)
+    if common and subdir:
+        out_dir = os.path.join(out_dir, subdir)
     base = f"{os.path.splitext(os.path.basename(src))[0]}_文字起こし"
     start = opts.start or 0.0
     if start or opts.end is not None:
@@ -179,34 +186,52 @@ def parse_exts(text):
     return tuple(exts) or None
 
 
-def expand_inputs(args, exts=None):
-    """フォルダは、その中の音声ファイルに広げる(サブフォルダは見ない)。
+def _audio_files(folder, allowed, recursive, skip_dirs=()):
+    """folder の中の音声ファイル(相対パス)。. で始まるものと skip_dirs は見ない。"""
+    out = []
+    for root, dirs, files in os.walk(folder):
+        dirs[:] = sorted(d for d in dirs if not d.startswith(".")
+                         and os.path.abspath(os.path.join(root, d)) not in skip_dirs)
+        for f in sorted(files):
+            if not f.startswith(".") and os.path.splitext(f)[1].lower() in allowed:
+                out.append(os.path.relpath(os.path.join(root, f), folder))
+        if not recursive:
+            break
+    return out
 
-    返り値: ([(パス, フォルダから拾ったか)], [知らせること])
+
+def expand_inputs(args, exts=None, recursive=False, skip_dirs=()):
+    """フォルダは、その中の音声ファイルに広げる(recursive ならサブフォルダも)。
+
+    返り値: ([(パス, フォルダから拾ったか, サブフォルダ)], [知らせること])
     """
     items, notes = [], []
     allowed = exts or AUDIO_EXTS
     order = {e: i for i, e in enumerate(list(allowed) + [e for e in AUDIO_EXTS if e not in allowed])}
+    skip = {os.path.abspath(os.path.expanduser(d)) for d in skip_dirs if d}
     for a in args:
         p = os.path.abspath(os.path.expanduser(a))
         if not os.path.isdir(p):
-            items.append((p, False))
+            items.append((p, False, ""))
             continue
-        names = [f for f in sorted(os.listdir(p))
-                 if not f.startswith(".") and os.path.isfile(os.path.join(p, f))
-                 and os.path.splitext(f)[1].lower() in allowed]
-        chosen = {}
+        names = _audio_files(p, allowed, recursive, skip)
+        chosen, dups = {}, []
         for f in sorted(names, key=lambda f: order.get(os.path.splitext(f)[1].lower(), 99)):
             stem = os.path.splitext(f)[0]
             if stem in chosen:
-                notes.append(f"{f} は {chosen[stem]} と同じ録音とみなして省きます")
+                dups.append(f"  {f} は {chosen[stem]} と同じ録音とみなして省きます")
             else:
                 chosen[stem] = f
-        if not chosen:
+        if chosen:
+            kinds = sorted({os.path.splitext(f)[1].lower()[1:] for f in names})
+            notes.append(f"{p}: 音声 {len(names)}件({'・'.join(kinds)})→ {len(chosen)}件を処理の対象に"
+                         + ("(サブフォルダも含む)" if recursive else ""))
+            notes.extend(dups)
+        else:
             notes.append(f"{p} に対象の音声ファイルがありません"
                          f"(対象: {' '.join(e[1:] for e in allowed)})")
         for stem in sorted(chosen):
-            items.append((os.path.join(p, chosen[stem]), True))
+            items.append((os.path.join(p, chosen[stem]), True, os.path.dirname(chosen[stem])))
     return items, notes
 
 
@@ -222,12 +247,13 @@ def _sha256(path, n=16):
 # 1つの録音の処理
 # ==========================================
 class Job:
-    def __init__(self, src, opts, api_key=None):
+    def __init__(self, src, opts, api_key=None, subdir=""):
         self.src = os.path.abspath(os.path.expanduser(src))
         if not os.path.isfile(self.src):
             raise Abort(f"ファイルもフォルダもありません: {self.src}")
         self.opts = opts
         self.api_key = api_key
+        self.subdir = subdir
         self.start = opts.start or 0.0
         self.end = opts.end
         if self.end is not None and self.end <= self.start:
@@ -382,7 +408,8 @@ class Job:
     def segments(self, probs):
         o = self.opts
         regions = audio.find_speech(probs, o.vad_threshold, o.vad_neg_threshold,
-                                    config.MIN_SPEECH_SEC, config.MIN_SILENCE_SEC)
+                                    config.MIN_SPEECH_SEC, config.MIN_SILENCE_SEC,
+                                    config.MIN_VOICED_SEC)
         plan = audio.plan_segments(probs, regions, config.SPEECH_PAD_SEC,
                                    config.MERGE_GAP_SEC, config.MAX_SEGMENT_SEC)
         segs = []
@@ -595,7 +622,7 @@ class Job:
                     parts = None
                     break
                 j = textfilter.judge(ss, r.get("text", ""), mc["language"], **_judge_kw())
-                if j["status"] != "drop" and j["text"]:
+                if j["status"] == "ok" and j["text"]:
                     parts.append(j["text"])
             if parts is None:
                 continue
@@ -603,7 +630,7 @@ class Job:
             old = textfilter.judge(by_id[pid], res[pid].get("text", ""), mc["language"],
                                    **_judge_kw())["text"]
             n_new, n_old = len(textfilter.core(new)), len(textfilter.core(old))
-            if n_new >= max(n_old * 1.2, n_old + 3):
+            if n_new >= max(n_old * 1.5, n_old + 8):
                 res[pid] = {**res[pid], "text": new, "text_before_recover": res[pid].get("text", "")}
                 self._recovered += 1
         if self._recovered:
@@ -704,9 +731,10 @@ class Job:
                 item["verify_text"] = vtext
             final.append(item)
 
-        paths = self._write(final, mc, vc, duration)
+        polished, polish_desc = None, ""
         if o.polish:
-            paths.extend(self._polish(final, mc, vc, duration))
+            polished, polish_desc = self._polish(final)
+        paths = self._write(final, mc, vc, duration, polished, polish_desc)
         errors = sum(1 for s in final if s["status"] == "error")
         if errors:
             say(f"  ⚠ {errors}区間は認識に失敗しました。同じコマンドをもう一度実行すると、"
@@ -725,7 +753,7 @@ class Job:
             say(f"    …ほか {len(segs) - 40}区間")
 
     def _out_base(self, suffix=""):
-        return out_base(self.src, self.opts, suffix)
+        return out_base(self.src, self.opts, suffix, self.subdir)
 
     def _info(self, mc, vc, duration, segs):
         o = self.opts
@@ -757,10 +785,11 @@ class Job:
             "recovered": self._recovered,
         }
 
-    def _save(self, base, info, segs):
+    def _save(self, base, info, segs, txt_segs=None):
         try:
             paths = output.write_outputs(base, output_formats(), info, segs,
-                                         config.GAP_NOTE_SEC, config.TXT_TIMESTAMPS)
+                                         config.GAP_NOTE_SEC, config.TXT_TIMESTAMPS,
+                                         txt_segs, config.PARAGRAPH_GAP_SEC)
         except PermissionError:
             raise Abort(f"保存できませんでした: {base}\n"
                         "  共有ストレージに書くには、Termux で一度 `termux-setup-storage` を"
@@ -769,33 +798,40 @@ class Job:
             say(f"  {'保存: ' if i == 0 else '      '}{p}")
         return paths
 
-    def _write(self, final, mc, vc, duration):
+    def _write(self, final, mc, vc, duration, polished=None, polish_desc=""):
         info = self._info(mc, vc, duration, final)
+        info["polish_desc"] = polish_desc
         n = {k: sum(1 for s in final if s["status"] == k) for k in ("ok", "flag", "drop")}
         say(f"  結果: 本文 {n['ok'] + n['flag']}区間(うち要確認 {n['flag']})/ 除外 {n['drop']}区間")
-        paths = self._save(self._out_base(), info, final)
+        paths = self._save(self._out_base(), info, final, polished)
         with open(os.path.join(self.wd, "result.json"), "w", encoding="utf-8") as f:
             json.dump({"info": info, "segments": final}, f, ensure_ascii=False, indent=1)
         return paths
 
-    def _polish(self, final, mc, vc, duration):
+    def _polish(self, final):
+        """LLM で聞き間違い・句読点・紛れ込んだ定型句を直した版(txt 用)と、その説明。"""
         import polish
         o = self.opts
         idx = [i for i, s in enumerate(final) if s["status"] in ("ok", "flag") and s["text"]]
+        if not idx:
+            return None, ""
         lines = [final[i]["text"] for i in idx]
-        models = [o.polish_model or config.POLISH_MODEL] + list(config.POLISH_FALLBACK_MODELS)
-        say(f"読みやすく整える({models[0]}): {len(lines)}行")
+        models = [o.polish_model or config.POLISH_MODEL] + [
+            m for m in config.POLISH_FALLBACK_MODELS if m != (o.polish_model or config.POLISH_MODEL)]
+        glossary = polish.load_glossary(config.GLOSSARY_FILE)
+        say(f"読みやすく整える({models[0]}): {len(lines)}区間"
+            + (f"(用語 {len(glossary)}語)" if glossary else ""))
         fixed, changed, used = polish.polish_lines(
             lines, self.api_key, config.NVIDIA_BASE_URL, models,
-            batch=config.POLISH_BATCH_LINES, min_sim=config.POLISH_MIN_SIMILARITY, log=say)
+            batch=config.POLISH_BATCH_LINES, min_sim=config.POLISH_MIN_SIMILARITY,
+            context=config.POLISH_CONTEXT, glossary=glossary, log=say)
+        if not used:
+            return None, "読みやすく整える処理は、使える LLM がなく行えなかった"
         pol = [dict(s) for s in final]
         for i, t in zip(idx, fixed):
             pol[i]["text"] = t
-        info = self._info(mc, vc, duration, final)
-        info["title"] = f"{self.stem} の文字起こし(整形)"
-        info["model_desc"] += (f" → {used or '(整形できず)'}で変換ミスと句読点を直した版"
-                               f"({changed}区間を修正。元の文字起こしは別ファイル)")
-        return self._save(self._out_base("_整形"), info, pol)
+        return pol, (f"txt は LLM({used})で聞き間違い・句読点・紛れ込んだ定型句を直した版"
+                     f"({changed}区間を修正)")
 
 
 # ==========================================
@@ -987,6 +1023,8 @@ def build_parser():
                         "フォルダなら中の音声をまとめて処理し、済んだものは飛ばす)")
     p.add_argument("-o", "--out", help="保存先のフォルダ(既定: 録音と同じフォルダ)")
     p.add_argument("--ext", help="フォルダから拾う形式(例 wav,mp3。既定: 音声・動画の形式すべて)")
+    p.add_argument("-r", "--recursive", action="store_true",
+                   help="フォルダの中のサブフォルダも見る(保存先のフォルダは除く)")
     p.add_argument("--overwrite", action="store_true",
                    help="フォルダから拾った録音で、結果が既にあっても作り直す")
     p.add_argument("--from", dest="start", help="ここから処理する(例 1:02:03)")
@@ -1003,8 +1041,9 @@ def build_parser():
                    help=f"声とみなす確からしさ 0〜1(既定: {config.VAD_THRESHOLD})")
     p.add_argument("--fast-vad", action="store_true",
                    help="声の検出を元の音声だけで行う(速いが、大きな雑音の下の声を取りこぼしやすい)")
-    p.add_argument("--polish", action="store_true",
-                   help="LLM で変換ミスと句読点を直した版も作る(_整形.md)")
+    p.add_argument("--no-polish", action="store_true",
+                   help="txt を LLM で整えない(元の認識結果をそのまま書く)")
+    p.add_argument("--polish", action="store_true", help=argparse.SUPPRESS)
     p.add_argument("--polish-model", help=f"整形に使うモデル(既定: {config.POLISH_MODEL})")
     p.add_argument("--dry-run", action="store_true",
                    help="声の検出だけして、区間と送信回数の見込みを表示する(送信しない)")
@@ -1055,33 +1094,36 @@ def main(argv=None):
         say(str(e))
         return 1
 
-    items, notes = expand_inputs(opts.files, parse_exts(opts.ext))
+    opts.polish = (config.POLISH or opts.polish) and not opts.no_polish
+    items, notes = expand_inputs(opts.files, parse_exts(opts.ext), opts.recursive,
+                                 skip_dirs=(opts.out, config.OUTPUT_DIR))
     for n in notes:
         say(n)
     todo = []
     skipped = []
     first_fmt = output_formats()[0]
-    for f, from_dir in items:
-        done_path = f"{out_base(f, opts)}.{first_fmt}"
+    for f, from_dir, subdir in items:
+        done_path = f"{out_base(f, opts, subdir=subdir)}.{first_fmt}"
         if from_dir and not opts.overwrite and not opts.dry_run and os.path.exists(done_path):
             skipped.append(f)
-            say(f"済み(飛ばします): {os.path.basename(f)} → {done_path}")
+            say(f"済み(飛ばします): {os.path.join(subdir, os.path.basename(f))} → {done_path}")
         else:
-            todo.append(f)
+            todo.append((f, subdir))
     if not todo:
         say("処理する録音がありません。" + ("作り直すときは --overwrite を付けてください。"
                                             if skipped else ""))
         return 0 if skipped else 1
     if len(todo) > 1:
-        say(f"{len(todo)}件を順に処理します: " + "、".join(os.path.basename(f) for f in todo))
+        say(f"{len(todo)}件を順に処理します: "
+            + "、".join(os.path.join(d, os.path.basename(f)) for f, d in todo))
 
     _wake_lock(True)
     failed = []
     done = []
     try:
-        for f in todo:
+        for f, subdir in todo:
             try:
-                paths = Job(f, opts, api_key).run()
+                paths = Job(f, opts, api_key, subdir).run()
                 if paths:
                     done.append(f)
             except (Abort, audio.AudioError, nvasr.FatalAPIError) as e:

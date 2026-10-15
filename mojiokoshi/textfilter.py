@@ -46,6 +46,7 @@ WEAK_PHRASES = {
     "いただきます", "ごちそうさまでした", "ごちそうさま",
     "はい", "うん", "ええ", "えー", "あー", "うーん", "ん", "あ", "お", "え", "う",
     "はいはい", "うんうん", "そうですね", "なるほど", "本当に", "ほんとに",
+    "ありがとうございます", "お疲れ様です", "お願いします", "よろしくお願いします",
 }
 
 _CJK = r"\u3000-\u303f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef"
@@ -111,6 +112,47 @@ def _collapse_repeats(text):
     return t2, t2 != text
 
 
+_NUM = re.compile(r"\d+")
+
+
+def counting_run(text):
+    """数を1つずつ数え上げる(同じ数の繰り返しも含む)部分のうち最長のもの。
+
+    Whisper は物音や間の多い区間で「第4第5第6…第40」「3 4 5 6 7 8」のように数を
+    数え続けることがある。返り値: (始め, 終わり, 数の個数, 最初の3つの終わり)
+    """
+    nums = [(m.start(), m.end(), int(m.group())) for m in _NUM.finditer(text)]
+    best = (0, 0, 0, 0)
+    i = 0
+    while i < len(nums):
+        j = i
+        while j + 1 < len(nums):
+            gap = text[nums[j][1]:nums[j + 1][0]]
+            d = nums[j + 1][2] - nums[j][2]
+            if len(gap) <= 4 and not re.search(r"[。！？!?]", gap) and 0 <= d <= 2:
+                j += 1
+            else:
+                break
+        cnt = j - i + 1
+        if cnt > best[2]:
+            best = (nums[i][0], nums[j][1], cnt, nums[min(j, i + 2)][1])
+        i = j + 1
+    return best
+
+
+def _weak_only(c):
+    """中身(core)が、物音でも出やすい言葉だけでできているか(「ありがとうございましたはい」など)。"""
+    rest = c
+    while rest:
+        for w in _WEAK_SORTED:
+            if rest.startswith(w):
+                rest = rest[len(w):]
+                break
+        else:
+            return False
+    return bool(c)
+
+
 def compression_ratio(text):
     b = (text or "").encode("utf-8")
     return len(b) / max(1, len(zlib.compress(b)))
@@ -150,8 +192,11 @@ def judge(seg, text, language, max_chars_per_sec=20.0, weak_voiced_sec=0.5,
 
     声らしさの統計だけでは、短い返事(「はい」)と咳・物音を分けきれない
     (テスト音源で、物音だけの区間の声らしい部分は 0.2〜0.8秒、実際の短い返事は
-    0.2〜0.7秒で重なった)。そこで、物音だけでも出やすい言葉が、声らしい部分の
-    短い区間から返ったときだけ要確認にする。消しはしない。
+    0.2〜0.7秒で重なった)。そこで、物音だけでも出やすい言葉だけが返り、しかも
+    その言葉を言い切れないほど声らしい部分が短いとき(1字 0.07秒・最低 0.5秒)に
+    本文から外す。実際の録音(1時間17分)では、こうした「ありがとうございました」
+    「はい」が約40行、要確認として本文に並び、読みにくくなっていた。
+    外したものも一覧には残る。
     """
     raw = text or ""
     t = normalize(raw)
@@ -172,6 +217,17 @@ def judge(seg, text, language, max_chars_per_sec=20.0, weak_voiced_sec=0.5,
         reasons.extend(removed)
         if not core(t):
             return {"text": normalize(raw), "status": "drop", "reasons": reasons}
+        status = "flag"
+
+    run = counting_run(t)
+    if run[2] >= 8:
+        head = t[:run[0]] + t[run[0]:run[3]] + "…"
+        tail = t[run[1]:]
+        rest = core(t[:run[0]] + tail)
+        reasons.append(f"数を数え続ける誤認識の疑い({run[2]}個。縮めて表示)")
+        if len(re.sub(r"\d", "", rest)) < 3:
+            return {"text": normalize(raw)[:80], "status": "drop", "reasons": reasons}
+        t = head + tail
         status = "flag"
 
     t, collapsed = _collapse_repeats(t)
@@ -195,10 +251,12 @@ def judge(seg, text, language, max_chars_per_sec=20.0, weak_voiced_sec=0.5,
     if voiced >= low_density_voiced_sec and len(c) < low_density_chars_per_sec * voiced:
         reasons.append(f"文字が少ない(声らしい部分 {voiced:.0f}秒で{len(c)}字。抜けがあるかも)")
         status = "flag"
-    if c in _WEAK_CORE and voiced < weak_voiced_sec:
+    if _weak_only(c) and voiced < max(weak_voiced_sec, 0.07 * len(c)):
+        # 「ありがとうございました」「はい」などだけが、言い切れないほど短い声から
+        # 返った。物音だけの区間で Whisper がよく作る形なので、本文から外す
         reasons.append(f"物音だけでも出やすい言葉(声らしい部分 {voiced:.1f}秒)")
-        status = "flag"
-    elif voiced < low_voiced_sec and maxp < low_prob:
+        return {"text": t, "status": "drop", "reasons": reasons}
+    if voiced < low_voiced_sec and maxp < low_prob:
         reasons.append(f"声の確からしさが低い区間(最大 {maxp:.2f}・声らしい部分 {voiced:.1f}秒)")
         status = "flag"
 
@@ -224,3 +282,4 @@ def similarity(a, b):
 
 
 _WEAK_CORE = _weak_core()
+_WEAK_SORTED = sorted((w for w in _WEAK_CORE if w), key=len, reverse=True)
