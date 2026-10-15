@@ -2,7 +2,7 @@
 const SAVE_KEY = 'backrooms_save_v1', OPT_KEY = 'backrooms_opts_v1';
 const WALK = 1.9, RUN = 3.5, RADIUS = 0.22;
 let S = null;                        // 保存するもの
-let OPT = { q: 1, sens: 1, vol: 0.8, vib: 1, claude: 1 };
+let OPT = { q: 1, sens: 1, vol: 0.8, vib: 1, claude: 1, wire: 0 };
 const G = {                          // 保存しないもの
   mode: 'title', t: 0, ents: [], spawn: {}, bob: 0, bobPh: 0, run: false, tired: false,
   in: { mx: 0, my: 0, turn: 0 }, keys: {}, noise: 0, fear: 0, seen: false, nearExit: false,

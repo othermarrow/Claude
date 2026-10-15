@@ -150,13 +150,15 @@ function showSettings(back) {
   ov(`<div class="h">設定</div>
     ${btn('q', `画質：${q[OPT.q]}`)}${btn('sens', `向きを変える速さ：${OPT.sens.toFixed(1)}`)}
     ${btn('vol', `音量：${Math.round(OPT.vol * 100)}%`)}${btn('vib', `振動：${OPT.vib ? 'あり' : 'なし'}`)}
+    ${btn('wire', `見た目：${OPT.wire ? '線だけ（ウィザードリィ風）' : 'ふつう'}`)}
     ${btn('icon', `拾う物の絵：${OPT.claude ? 'Claude のマーク' : 'ふつうの絵'}`)}
     ${btn('del', '記録を消す', 'danger')}${btn('back', '戻る', 'main')}
-    <p class="small">動きがかくかくするときは、画質を下げる。<br>拾う物の絵は「はじめから」と救いのない版で変わる（五つの報告書・山羊文学版はいつも Claude のマーク）。</p>`, {
+    <p class="small">動きがかくかくするときは、画質を下げる。<br>見た目を「線だけ」にすると、黒い画面に壁のふちだけを線で描く。遊び方は同じ。<br>拾う物の絵は「はじめから」と救いのない版で変わる（五つの報告書・山羊文学版はいつも Claude のマーク）。</p>`, {
     q: () => { OPT.q = (OPT.q + 1) % 3; saveOpts(); setupRender($('#view'), OPT.q); G.needDraw = true; showSettings(back); },
     sens: () => { OPT.sens = OPT.sens >= 2 ? 0.5 : Math.round((OPT.sens + 0.25) * 100) / 100; saveOpts(); showSettings(back); },
     vol: () => { OPT.vol = OPT.vol >= 1 ? 0 : Math.round((OPT.vol + 0.2) * 10) / 10; saveOpts(); audioVolume(OPT.vol); showSettings(back); },
     vib: () => { OPT.vib = OPT.vib ? 0 : 1; saveOpts(); vibe(40); showSettings(back); },
+    wire: () => { OPT.wire = OPT.wire ? 0 : 1; saveOpts(); G.needDraw = true; showSettings(back); },
     icon: () => { OPT.claude = OPT.claude ? 0 : 1; saveOpts(); G.needDraw = true; showSettings(back); },
     del: () => ask('記録を消して、タイトルに戻る。よいか？', () => { clearSave(); S = null; showTitle(); }, () => showSettings(back)),
     back,

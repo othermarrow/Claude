@@ -89,6 +89,109 @@ function lampBright(X, Y) {   // 天井の灯りの明るさ（灯りがなけ�
   return LAMPS[j * S4 + i] ? PGRID[j * S4 + i] / (WD.cfg.lampK || 1) : -1;
 }
 
+// ---- 線だけの見た目（ウィザードリィ風） ----
+const LC = {};                                   // 1フレームぶんの、線を引くための値
+const WFACE = [], WSEEN = new Set();             // 見えている壁の面（x, y, 向き）
+function texAvg(tex, emOnly) {                   // 絵の平均の色（いちばん明るい色を255にそろえる）
+  const key = emOnly ? 'avgE' : 'avg';
+  if (tex[key]) return tex[key];
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let i = 0; i < tex.w * tex.h; i++) {
+    if (tex.d[i * 4 + 3] < 110 || (emOnly && !tex.em[i])) continue;
+    r += tex.d[i * 4]; g += tex.d[i * 4 + 1]; b += tex.d[i * 4 + 2]; n++;
+  }
+  if (!n) return (tex[key] = [235, 235, 225]);
+  const m = Math.max(r, g, b, 1) / 255;
+  return (tex[key] = [r / m, g / m, b / m]);
+}
+function wPlot(i, r, g, b) {                     // 重なったら明るいほうを残す
+  const c = RD.buf[i];
+  if (r + g + b <= (c & 255) + ((c >> 8) & 255) + ((c >> 16) & 255)) return;
+  RD.buf[i] = (255 << 24) | ((b > 255 ? 255 : b) << 16) | ((g > 255 ? 255 : g) << 8) | (r > 255 ? 255 : r);
+}
+// 3D の線（床から高さ h の点 a → b）を、壁に隠れるところは描かずに引く。
+// la, lb：両端の明るさ。em があれば、その色で自分で光る線
+function wLine(ax, ay, ah, bx, by, bh, la, lb, em) {
+  const C = LC;
+  let dx = ax - C.px, dy = ay - C.py;
+  let aX = C.inv * (C.dirY * dx - C.dirX * dy), aY = C.inv * (-C.planeY * dx + C.planeX * dy);
+  dx = bx - C.px; dy = by - C.py;
+  let bX = C.inv * (C.dirY * dx - C.dirX * dy), bY = C.inv * (-C.planeY * dx + C.planeX * dy);
+  const N = 0.06;
+  if (aY < N && bY < N) return;
+  if (aY < N) { const q = (N - aY) / (bY - aY); aX += (bX - aX) * q; ah += (bh - ah) * q; la += (lb - la) * q; aY = N; }
+  else if (bY < N) { const q = (N - bY) / (aY - bY); bX += (aX - bX) * q; bh += (ah - bh) * q; lb += (la - lb) * q; bY = N; }
+  if (aY > 34 && bY > 34) return;
+  const W = C.W, H = C.H, k = W / C.pl;
+  const x0 = W / 2 * (1 + aX / aY), y0 = C.hor + (WH * 0.5 - ah) * k / aY, z0 = 1 / aY;
+  const x1 = W / 2 * (1 + bX / bY), y1 = C.hor + (WH * 0.5 - bh) * k / bY, z1 = 1 / bY;
+  // 画面の外を切る
+  let t0 = 0, t1 = 1;
+  const ddx = x1 - x0, ddy = y1 - y0;
+  const P = [-ddx, ddx, -ddy, ddy], Q = [x0 + 0.49, W - 0.51 - x0, y0 + 0.49, H - 0.51 - y0];
+  for (let i = 0; i < 4; i++) {
+    if (P[i] === 0) { if (Q[i] < 0) return; continue; }
+    const r = Q[i] / P[i];
+    if (P[i] < 0) { if (r > t1) return; if (r > t0) t0 = r; } else { if (r < t0) return; if (r < t1) t1 = r; }
+  }
+  const n = Math.max(1, Math.ceil(Math.max(Math.abs(ddx), Math.abs(ddy)) * (t1 - t0)));
+  const Z = C.Z, BEAM = RD.beam;
+  for (let i = 0; i <= n; i++) {
+    const t = t0 + (t1 - t0) * i / n;
+    const x = Math.round(x0 + ddx * t), y = Math.round(y0 + ddy * t);
+    if (x < 0 || y < 0 || x >= W || y >= H) continue;
+    const iz = z0 + (z1 - z0) * t, d = 1 / iz;
+    const zl = x > 0 ? Z[x - 1] : Z[x], zr = x < W - 1 ? Z[x + 1] : Z[x];
+    if (d > Math.max(Z[x], zl, zr) * 1.02 + 0.03) continue;      // 壁の向こう
+    const j = y * W + x;
+    if (em) { const fe = Math.exp(-d * C.fogK * 0.4); wPlot(j, em[0] * fe, em[1] * fe, em[2] * fe); continue; }
+    const u = t * z1 / ((1 - t) * z0 + t * z1);
+    const l = la + (lb - la) * u, f = Math.exp(-d * C.fogK), fl = C.flash / (1 + d * d * 0.035);
+    const bm = fl * BEAM[j] * (1.1 - (l > 1 ? 0.75 : l * 0.75));
+    wPlot(j, C.cR * (l * C.tR + bm) * f, C.cG * (l * C.tG + bm * 0.97) * f, C.cB * (l * C.tB + bm * 0.86) * f);
+  }
+}
+function wireScene(t, cfg) {
+  const C = LC, F = WFACE, ex = WD.exit;
+  // 壁の面：上と下のふち、両はしの縦の線
+  for (let i = 0; i < F.length; i += 3) {
+    const mx = F[i], my = F[i + 1], fc = F[i + 2];
+    let ax, ay, bx, by, ox = 0, oy = 0;
+    if (fc === 0) { ax = mx; ay = my; bx = mx + 1; by = my; oy = -0.04; }
+    else if (fc === 2) { ax = mx; ay = my + 1; bx = mx + 1; by = my + 1; oy = 0.04; }
+    else if (fc === 3) { ax = mx; ay = my; bx = mx; by = my + 1; ox = -0.04; }
+    else { ax = mx + 1; ay = my; bx = mx + 1; by = my + 1; ox = 0.04; }
+    const la = lightAt(ax + ox, ay + oy), lb = lightAt(bx + ox, by + oy);
+    wLine(ax, ay, 0, bx, by, 0, la, lb);
+    wLine(ax, ay, WH, bx, by, WH, la, lb);
+    wLine(ax, ay, 0, ax, ay, WH, la, la);
+    wLine(bx, by, 0, bx, by, WH, lb, lb);
+    // 出口：壁に扉の形を、出口の光の色で
+    if (ex && mx === ex.wx && my === ex.wy && fc === ex.face) {
+      const em = C.exitC, px = (u, k) => [ax + (bx - ax) * u + ox * k, ay + (by - ay) * u + oy * k];
+      for (const [u0, u1, h1] of [[0.24, 0.76, WH * 0.74], [0.3, 0.7, WH * 0.68]]) {
+        const p0 = px(u0, 0.5), p1 = px(u1, 0.5);
+        wLine(p0[0], p0[1], 0, p0[0], p0[1], h1, 0, 0, em);
+        wLine(p1[0], p1[1], 0, p1[0], p1[1], h1, 0, 0, em);
+        wLine(p0[0], p0[1], h1, p1[0], p1[1], h1, 0, 0, em);
+      }
+      const s0 = px(0.36, 0.5), s1 = px(0.64, 0.5);
+      wLine(s0[0], s0[1], WH * 0.84, s1[0], s1[1], WH * 0.84, 0, 0, em);
+      wLine(s0[0], s0[1], WH * 0.93, s1[0], s1[1], WH * 0.93, 0, 0, em);
+    }
+  }
+  // 天井の灯り：四角いふちだけ。ちらつきはそのまま
+  const R = 13, cx = Math.floor(C.px), cy = Math.floor(C.py);
+  for (let j = -R; j <= R; j++) for (let i = -R; i <= R; i++) {
+    const X = cx + i, Y = cy + j, lb = lampBright(X, Y);
+    if (lb < 0 || (X + 0.5 - C.px) * C.dirX + (Y + 0.5 - C.py) * C.dirY < -0.6) continue;
+    const v = lb < 0.08 ? 0.22 : Math.min(1, lb), em = [C.pR * v, C.pG * v, C.pB * v];
+    const x0 = X + 0.18, x1 = X + 0.82, y0 = Y + 0.34, y1 = Y + 0.66;
+    wLine(x0, y0, WH, x1, y0, WH, 0, 0, em); wLine(x1, y0, WH, x1, y1, WH, 0, 0, em);
+    wLine(x1, y1, WH, x0, y1, WH, 0, 0, em); wLine(x0, y1, WH, x0, y0, WH, 0, 0, em);
+  }
+}
+
 function renderFrame(t, cam, sprites, fx) {
   const W = RD.W, H = RD.H, buf = RD.buf, Z = RD.z, TOP = RD.top, BOT = RD.bot, BEAM = RD.beam, pl = RD.pl;
   const cfg = WD.cfg, px = cam.x, py = cam.y;
@@ -96,11 +199,20 @@ function renderFrame(t, cam, sprites, fx) {
   const dirX = Math.cos(cam.a), dirY = Math.sin(cam.a), planeX = -dirY * pl, planeY = dirX * pl;
   const hor = H / 2 + (fx.bob || 0) * H * 0.012;
   const tR = cfg.light[0] / 255, tG = cfg.light[1] / 255, tB = cfg.light[2] / 255;
-  const fogR = cfg.fog[0], fogG = cfg.fog[1], fogB = cfg.fog[2], fogK = cfg.fogK * (fx.fogMul || 1);
+  const wire = !!(typeof OPT !== 'undefined' && OPT.wire);       // 線だけの見た目
+  const fogR = wire ? 0 : cfg.fog[0], fogG = wire ? 0 : cfg.fog[1], fogB = wire ? 0 : cfg.fog[2], fogK = cfg.fogK * (fx.fogMul || 1);
   const flash = fx.flash || 0;
   const wt = TEX[cfg.tex.wall], et = TEX[cfg.tex.exit], ft = TEX[cfg.tex.floor], ctt = TEX[cfg.tex.ceil];
   const ex = WD.exit;
   const fogPix = (255 << 24) | (fogB << 16) | (fogG << 8) | fogR;
+  const pR = Math.min(255, 255 * tR * 1.05), pG = Math.min(255, 255 * tG * 1.05), pB = Math.min(255, 255 * tB * 1.05);
+  if (wire) {
+    buf.fill(0xff000000); WSEEN.clear(); WFACE.length = 0;
+    const wc = texAvg(wt);
+    Object.assign(LC, { px, py, dirX, dirY, planeX, planeY, inv: 1 / (planeX * dirY - dirX * planeY), W, H, pl, hor, Z, fogK, flash, tR, tG, tB, pR, pG, pB,
+      cR: 120 + wc[0] * 0.5, cG: 120 + wc[1] * 0.5, cB: 120 + wc[2] * 0.5, exitC: texAvg(et, true) });
+  }
+  let lastKey = -1;
   // ---- 壁 ----
   for (let x = 0; x < W; x++) {
     const camX = 2 * x / W - 1, rdx = dirX + planeX * camX, rdy = dirY + planeY * camX;
@@ -126,6 +238,11 @@ function renderFrame(t, cam, sprites, fx) {
     let tx = (wx * 64) | 0;
     if ((side === 0 && rdx < 0) || (side === 1 && rdy > 0)) tx = 63 - tx;
     const face = side === 0 ? (sx > 0 ? 3 : 1) : (sy > 0 ? 0 : 2);
+    if (wire) {
+      const key = ((mx + 32768) * 65536 + (my + 32768)) * 4 + face;
+      if (key !== lastKey) { lastKey = key; if (!WSEEN.has(key)) { WSEEN.add(key); WFACE.push(mx, my, face); } }
+      continue;
+    }
     const tex = (ex && mx === ex.wx && my === ex.wy && face === ex.face) ? et : wt;
     const td = tex.d, tem = tex.em;
     const l = lightAt(hx - rdx * 0.03, hy - rdy * 0.03) * (side ? 0.86 : 1);
@@ -147,8 +264,8 @@ function renderFrame(t, cam, sprites, fx) {
   // ---- 床と天井 ----
   const rdxL = dirX - planeX, rdyL = dirY - planeY, rdxR = dirX + planeX, rdyR = dirY + planeY;
   const fd = ft.d, cd = ctt.d, shimmer = cfg.calm ? 1 : 0;
-  const pR = Math.min(255, 255 * tR * 1.05), pG = Math.min(255, 255 * tG * 1.05), pB = Math.min(255, 255 * tB * 1.05);
-  for (let y = 0; y < H; y++) {
+  if (wire) wireScene(t, cfg);
+  for (let y = 0; y < (wire ? 0 : H); y++) {
     const isFloor = y > hor;
     const p = isFloor ? y + 0.5 - hor : hor - y - 0.5;
     if (p <= 0.3) { for (let x = 0; x < W; x++) if (y < TOP[x] || y > BOT[x]) buf[y * W + x] = fogPix; continue; }
@@ -215,6 +332,10 @@ function renderFrame(t, cam, sprites, fx) {
     const td = tex.d, tem = tex.em, tw = tex.w, th = tex.h;
     const xs = Math.max(0, Math.ceil(x0)), xe = Math.min(W - 1, Math.floor(x0 + sw));
     const ys = Math.max(0, Math.ceil(top)), ye = Math.min(H - 1, Math.floor(floorY));
+    const op = (x, y) => {                       // その画面の点に、絵があるか
+      const a = Math.floor((x - x0) / sw * tw), b = Math.floor((y - top) / sh * th);
+      return a >= 0 && b >= 0 && a < tw && b < th && td[(b * tw + a) * 4 + 3] >= 110;
+    };
     for (let x = xs; x <= xe; x++) {
       if (tY >= Z[x]) continue;
       const tx = Math.min(tw - 1, ((x - x0) / sw * tw) | 0);
@@ -223,7 +344,11 @@ function renderFrame(t, cam, sprites, fx) {
         if (td[k + 3] < 110) continue;
         let r, g, b;
         if (tem[ti]) { const gl = s.glow == null ? 1 : s.glow; r = td[k] * gl * fe + fogR * fe1; g = td[k + 1] * gl * fe + fogG * fe1; b = td[k + 2] * gl * fe + fogB * fe1; }
-        else {
+        else if (wire) {
+          if (op(x - 1, y) && op(x + 1, y) && op(x, y - 1) && op(x, y + 1)) { buf[y * W + x] = 0xff000000; continue; }
+          const bm = fl * BEAM[y * W + x] * (1.1 - (l > 1 ? 0.75 : l * 0.75));
+          r = LC.cR * (l * tR + bm) * f; g = LC.cG * (l * tG + bm) * f; b = LC.cB * (l * tB + bm) * f;
+        } else {
           const bm = fl * BEAM[y * W + x] * (1.1 - (l > 1 ? 0.75 : l * 0.75));
           r = td[k] * (l * tR + bm) * f + fogR * f1; g = td[k + 1] * (l * tG + bm) * f + fogG * f1; b = td[k + 2] * (l * tB + bm) * f + fogB * f1;
         }
