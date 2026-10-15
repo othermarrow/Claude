@@ -249,11 +249,15 @@ def assemble(s, text, atext, vtext, language):
     元の音声で文字にならず、雑音を除いた音声で問題のない文字になったら、そちらを使う。
     2つの中身が違うときは、md に「別の認識」として並べる(alt_show)。「反戦会」と
     「反省会」のような1語の違いこそ確かめたいので、句読点以外が1字でも違えば並べる。
-    雑音を除いた音声の結果が定型句など除外にあたるものなら、並べも渡しもしない。
+    雑音を除いた音声の結果が、定型句など除外にあたるものや、物音でも出やすい言葉
+    だけ(「どうもありがとうございました」など)なら、並べも渡しも使いもしない
+    (実際の録音で、1回目と違う2回目がこうした定型句になっていた)。
     """
     atext = textfilter.normalize(atext or "")
     ja = textfilter.judge(s, atext, language, verify_text=vtext, **_judge_kw()) if atext else None
     j = textfilter.judge(s, text, language, verify_text=vtext, **_judge_kw())
+    if ja and textfilter.stock_only(ja["text"]) and textfilter.core(ja["text"]) != textfilter.core(text):
+        ja = None
     from_alt = False
     if not textfilter.core(text) and ja and ja["status"] == "ok":
         j, text, from_alt = ja, atext, True

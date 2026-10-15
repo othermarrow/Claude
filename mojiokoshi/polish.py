@@ -27,6 +27,12 @@ research_bot での同じ API の実測から、次の3つも入れてある。
   - 時間切れが続いたら、そのモデルをあきらめて次のモデルにする(応答しなくなる
     モデルがあった)
   - 思考を止める指定を受け付けないモデルでは、外して送り直す
+
+句読点は「必ずすること」として頼む。実際の録音で、句読点を「直してよいこと」の
+1つとして並べていたときは、ultra が句読点の無い行をほぼそのまま返した
+(10区間のうち直ったのは、2回目の認識を取り入れた2区間だけだった)。
+それでも句読点の無い行が残れば、句読点を付けることだけを別に頼み、句読点の
+ほかに1文字でも変わった返答は使わない。
 """
 
 import json
@@ -40,22 +46,33 @@ import urllib.request
 import textfilter
 
 PROMPT = """以下は、物音の多い場所で録音した日本語の会話を、音声認識(Whisper)で文字にしたものです。
-{context}「対象」の各行を直してください。「前」「後」は前後の部分で、直さずに文脈として使ってください。
+{context}「対象」の各行を、読みやすい文字起こしに整えてください。「前」「後」は前後の部分で、直さずに文脈として使ってください。
 {hyp_note}
-直してよいのは次の3つだけです。
-- 聞き間違い・変換ミス(音の近い別の言葉や漢字になっている所)。前後の文脈から、本来の言葉が確かに分かるものだけ
+必ずすること:
+- すべての行に句読点を付ける。文の終わりに「。」(問いかけは「？」)、意味の切れ目に「、」。
+  意味のはっきりしない行でも、言葉の切れ目に付ける
+  例: 「えーと今日の予定なんですけど午前中は買い物に行きます」
+      →「えーと、今日の予定なんですけど、午前中は買い物に行きます。」
+
+確かなときだけすること:
+- 聞き間違い・変換ミス(音の近い別の言葉や漢字になっている所)を直す。前後の文脈から、本来の言葉が確かに分かるものだけ
   例: 会議を振り返る話の中の「反戦会」→「反省会」
-- 句読点の位置と有無(文の切れ目に「。」、区切りに「、」)
 - 音声認識が紛れ込ませた定型句(文脈に合わない「ありがとうございました」「ご視聴ありがとうございました」など)を取り除く
 
 してはいけないこと:
 - 方言・話し言葉・言いよどみ(「えー」「あの」「〜やんか」「〜へん」など)を標準語に直す。そのまま残す
 - 言葉を足す、要約する、言い換える
-- 意味の分からない部分を推測で埋める(分からない部分はそのまま残す)
+- 意味の分からない部分を推測で埋める(分からない言葉はそのまま残し、句読点だけ付ける)
 - 行をまとめる、分ける、順番を変える
 {glossary}
-出力は JSON だけ: {{"lines": [{{"n": 番号, "text": "直した文"}}, ...]}}
-「対象」のすべての番号について1つずつ出力してください。直す所がない行もそのまま入れてください。
+出力は JSON だけ: {{"lines": [{{"n": 番号, "text": "整えた文"}}, ...]}}
+"""
+
+PUNCT_PROMPT = """以下は、日本語の会話を音声認識で文字にしたものです。「対象」の各行に、句読点だけを付けてください。
+- 文の終わりに「。」(問いかけは「？」)、意味の切れ目に「、」を付ける
+- 意味のはっきりしない行でも、言葉の切れ目に付ける
+- 句読点を入れる以外は、1文字も変えない・足さない・消さない
+出力は JSON だけ: {{"lines": [{{"n": 番号, "text": "句読点を付けた文"}}, ...]}}
 """
 
 COUNT_NOTE = """
@@ -63,8 +80,9 @@ COUNT_NOTE = """
 """
 
 HYP_NOTE = """「対象」の行には、同じ音声を条件を変えて認識した結果が A・B… として並んでいます
-(A: 元の音声、B: 雑音を除いた音声 など)。A を基本に、食い違う所は前後の文脈と日本語として
-自然な方を選んで1つの文にしてください。どの結果にも無い言葉は足さないでください。
+(A: 元の音声、B: 雑音を除いた音声 など)。A を基本に、食い違う所は前後の文脈から日本語として
+自然な方を選んで1つの文にしてください。B が意味の通らない文のときは A を使ってください。
+どの結果にも無い内容は足さないでください(音の近い言葉への聞き間違いの直しは、下の決まりのとおりしてよい)。
 """
 
 SCHEMA = {
@@ -250,48 +268,91 @@ def build_prompt(chunk, before=(), after=(), context="", glossary=(), alts=None)
     return prompt + COUNT_NOTE.format(n=len(chunk))
 
 
+_END_MARK = re.compile(r"[。．.！？!?…」』)）]\s*$")
+_COMMA = re.compile(r"[、，,]")
+_SENT_SPLIT = re.compile(r"(?<=[。．！？!?])")
+_DOUBLE = re.compile(r"([。、！？])\1+")
+_COMMA_END = re.compile(r"、+(?=[。！？])")
+
+
+def needs_punct(text):
+    """句読点が足りない行か(終わりに句点などが無い・読点の無い長い文がある)。"""
+    if len(textfilter.core(text)) < 4:
+        return False
+    if not _END_MARK.search(text):
+        return True
+    return any(len(textfilter.core(x)) >= 25 and not _COMMA.search(x)
+               for x in _SENT_SPLIT.split(text))
+
+
+def tidy(text):
+    """返答に混ざりやすい「。。」「、。」をまとめる。"""
+    return _COMMA_END.sub("", _DOUBLE.sub(r"\1", text.strip()))
+
+
+def build_punct_prompt(chunk):
+    prompt = PUNCT_PROMPT + "\n"
+    for i, c in enumerate(chunk):
+        prompt += f"対象 {i + 1}\t{c}\n"
+    return prompt + COUNT_NOTE.format(n=len(chunk))
+
+
+def _keep_reply(raw_dir, name, reply):
+    if not raw_dir:
+        return
+    try:
+        os.makedirs(raw_dir, exist_ok=True)
+        with open(os.path.join(raw_dir, name), "w", encoding="utf-8") as f:
+            f.write(reply)
+    except OSError:
+        pass
+
+
 def polish_lines(lines, api_key, base_url, models, batch=40, min_sim=0.6,
                  context="", glossary=(), alts=None, raw_dir="", log=print):
     """lines(文字列のリスト)を直したリストと、直した行の数と、使ったモデルを返す。
 
     alts: 行ごとの別の認識結果のリスト(lines と同じ長さ。無ければ None)。
     raw_dir: 読めなかった返答を残すフォルダ。
+    使ったモデルは、聞き間違いなどを直す段で返答を受け取れた最後のモデル
+    (1つも受け取れなければ空)。
     """
     result = list(lines)
-    changed = 0
     model_iter = list(models)
     current = 0
-    unreadable = 0
+    answered = ""
+
+    def ask(prompt):
+        nonlocal current, answered
+        while current < len(model_iter):
+            try:
+                reply = _chat(base_url, api_key, model_iter[current], prompt, log=log)
+                answered = model_iter[current]
+                return reply
+            except PolishError as e:
+                log(f"  [整形] {model_iter[current]} が使えませんでした({str(e)[:120]})")
+                current += 1
+        log("  [整形] 使えるモデルがないため、残りは元のままにします。")
+        return None
+
+    def read(reply, n, name):
+        fixed = parse_reply(reply, n)
+        if len(fixed) < n / 2:
+            _keep_reply(raw_dir, name, reply)
+            log(f"  [整形] 返答のうち読めたのは {len(fixed)}/{n} 行でした"
+                + (f"(返答は {raw_dir} に残しました)" if raw_dir else ""))
+        return fixed
+
     for b0 in range(0, len(lines), batch):
         chunk = lines[b0:b0 + batch]
         calts = alts[b0:b0 + batch] if alts else None
         prompt = build_prompt(chunk, lines[max(0, b0 - 8):b0], lines[b0 + batch:b0 + batch + 4],
                               context, glossary, calts)
-        reply = None
-        while current < len(model_iter):
-            try:
-                reply = _chat(base_url, api_key, model_iter[current], prompt, log=log)
-                break
-            except PolishError as e:
-                log(f"  [整形] {model_iter[current]} が使えませんでした({str(e)[:120]})")
-                current += 1
+        reply = ask(prompt)
         if reply is None:
-            log("  [整形] 使えるモデルがないため、残りは元のままにします。")
             break
-        fixed = parse_reply(reply, len(chunk))
-        if len(fixed) < len(chunk) / 2:
-            unreadable += 1
-            if raw_dir:
-                try:
-                    os.makedirs(raw_dir, exist_ok=True)
-                    with open(os.path.join(raw_dir, f"polish_reply_{b0 // batch + 1}.txt"), "w",
-                              encoding="utf-8") as f:
-                        f.write(reply)
-                except OSError:
-                    pass
-            log(f"  [整形] 返答のうち読めたのは {len(fixed)}/{len(chunk)} 行でした"
-                + (f"(返答は {raw_dir} に残しました)" if raw_dir else ""))
-        for i, new in fixed.items():
+        for i, new in read(reply, len(chunk), f"polish_reply_{b0 // batch + 1}.txt").items():
+            new = tidy(new)
             old = chunk[i]
             if not new or new == old:
                 continue
@@ -300,6 +361,24 @@ def polish_lines(lines, api_key, base_url, models, batch=40, min_sim=0.6,
             if best < min_sim:
                 continue
             result[b0 + i] = new
-            changed += 1
         log(f"  [整形] {min(b0 + batch, len(lines))}/{len(lines)} 行")
-    return result, changed, (model_iter[current] if current < len(model_iter) else "")
+
+    used = answered
+
+    # 句読点がまだ足りない行は、句読点を付けることだけを頼む。句読点のほかに
+    # 1文字でも変わった行は使わない
+    todo = [i for i, t in enumerate(result) if needs_punct(t)] if used else []
+    if todo:
+        log(f"  [整形] 句読点の足りない {len(todo)}行に、句読点だけを付けます")
+    for b0 in range(0, len(todo), batch):
+        part = todo[b0:b0 + batch]
+        chunk = [result[i] for i in part]
+        reply = ask(build_punct_prompt(chunk))
+        if reply is None:
+            break
+        for k, new in read(reply, len(chunk), f"punct_reply_{b0 // batch + 1}.txt").items():
+            new = tidy(new)
+            if new and new != chunk[k] and textfilter.core(new) == textfilter.core(chunk[k]):
+                result[part[k]] = new
+    changed = sum(1 for a, b in zip(lines, result) if a != b)
+    return result, changed, used

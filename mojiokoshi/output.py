@@ -28,6 +28,7 @@ def human(sec):
 
 
 _SENT_END = re.compile(r"(?<=[。！？!?])\s*")
+_ONLY_PUNCT = re.compile(r"[\s。、．，.,！？!?…]+")
 
 
 def split_lines(text, width=60):
@@ -35,7 +36,7 @@ def split_lines(text, width=60):
     lines = []
     for sent in _SENT_END.split(text or ""):
         sent = sent.strip()
-        if not sent:
+        if not sent or _ONLY_PUNCT.fullmatch(sent):
             continue
         if len(sent) <= width + 20:
             lines.append(sent)
