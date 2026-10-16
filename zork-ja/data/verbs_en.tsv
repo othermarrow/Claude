@@ -1,0 +1,111 @@
+# 英語の動詞<TAB>日本語（言い切りの形）。patterns.tsv の {v1} などで使う。# で始まる行は無視。
+take	取る
+get	取る
+pick up	拾う
+drop	置く
+put	置く
+open	開ける
+close	閉める
+read	読む
+examine	調べる
+look at	見る
+look in	のぞく
+look under	下を見る
+look behind	後ろを見る
+look through	のぞく
+look on	上を見る
+turn on	つける
+turn off	消す
+turn	回す
+attack	攻撃する
+kill	殺す
+hit	たたく
+break	壊す
+destroy	壊す
+smash	たたき壊す
+burn	燃やす
+light	火をつける
+extinguish	消す
+blow out	吹き消す
+lock	鍵をかける
+unlock	鍵を開ける
+tie	結ぶ
+tie up	しばる
+untie	ほどく
+give	渡す
+throw	投げる
+inflate	ふくらませる
+pump up	ふくらませる
+deflate	しぼませる
+fill	満たす
+pour	注ぐ
+drink	飲む
+eat	食べる
+wave	振る
+shake	振る
+swing	振る
+ring	鳴らす
+search	探す
+find	探す
+smell	かぐ
+listen to	聞く
+count	数える
+cross	渡る
+climb	登る
+climb up	登る
+climb down	下りる
+enter	入る
+board	乗る
+launch	出す
+dig in	掘る
+dig	掘る
+move	動かす
+push	押す
+pull	引く
+lift	持ち上げる
+raise	持ち上げる
+lower	下ろす
+oil	油をさす
+melt	溶かす
+fix	直す
+repair	修理する
+plug	ふさぐ
+slide	滑らせる
+hide	隠す
+cut	切る
+stab	刺す
+wear	身につける
+remove	はずす
+touch	触る
+rub	こする
+kick	蹴る
+knock on	ノックする
+talk to	話しかける
+tell	話す
+ask	たずねる
+follow	ついていく
+wake	起こす
+wind	巻く
+wind up	巻く
+play	遊ぶ
+squeeze	握る
+kiss	キスする
+strike	打つ
+jump over	飛び越える
+swim in	泳ぐ
+apply	使う
+send for	呼ぶ
+spin	回す
+sit on	座る
+stand on	立つ
+brush	磨く
+chomp	かじる
+bite	かむ
+pray to	祈る
+hello	あいさつする
+wave at	手を振る
+go	行く
+go to	行く
+walk to	歩いていく
+leave	去る
+exit	出る

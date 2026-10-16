@@ -24,6 +24,10 @@
 | `research_bot/` | テーマ文から文献を集め、抄録カタログを作るツール |
 | `zork-ja/` | 英語版 Zork I を Termux で日本語で遊ぶためのラッパー |
 | `zork-watch/` | Zork I を Balance 2 の中だけで動かすミニアプリ（日英表示・英語入力） |
+| `brain-zork/` | 自分の考え方を Backrooms 風に描いたテキストアドベンチャー（脳内バックルーム） |
+| `mirror-zork/` | 三つのAIの人物像だけを素材にした、Backrooms 風の鏡のテキストアドベンチャー（三面鏡） |
+| `story-zork/` | 自分の 251 作品の物語の中身だけを素材にした、Zork + Backrooms 風のテキストアドベンチャー（六一三号室） |
+| `portrait-zork/` | 四つのAIの人物像と自分の物語を素材にした、Zork + Backrooms 風のテキストアドベンチャー（五枚目の額） |
 
 新しいプロジェクトを足したら、この表も更新する。
 
