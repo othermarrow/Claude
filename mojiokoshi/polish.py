@@ -113,18 +113,37 @@ class _TooLong(Exception):
     """返答全体が上限の時間を超えた。"""
 
 
+_WORD_SEP = re.compile(r"[、,，\s]+")
+_ODD_CHAR = re.compile(r"[\x00-\x1f\ue000-\uf8ff\ufffd]")   # 制御文字・私用領域(文字化け)
+
+
 def load_glossary(path):
-    """よく出る言葉・人名(1行に1つ。# で始まる行は無視)。"""
-    words = []
+    """足したい言葉・人名。1行に1つ、または「、」や空白で区切って並べる(# で始まる行は無視)。
+
+    スマホのメモ帳などで作ったファイルでも読めるよう、先頭の BOM を外し、UTF-8 で
+    読めなければ Shift_JIS(cp932)として読む(UTF-16 は BOM で見分ける)。
+    見つからない・読めないときは空。文字化けした語は使わない。
+    """
     try:
-        with open(os.path.expanduser(path), encoding="utf-8") as f:
-            for line in f:
-                w = line.strip()
-                if w and not w.startswith("#"):
-                    words.append(w)
+        with open(os.path.expanduser(path or ""), "rb") as f:
+            data = f.read()
     except OSError:
-        pass
-    return words
+        return []
+    encs = ("utf-16",) if data[:2] in (b"\xff\xfe", b"\xfe\xff") else ("utf-8-sig", "cp932")
+    for enc in encs:
+        try:
+            text = data.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        return []
+    words = []
+    for line in text.splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            words.extend(w for w in _WORD_SEP.split(line) if w and not _ODD_CHAR.search(w))
+    return list(dict.fromkeys(words))
 
 
 _no_guided = set()      # guided_json を受け付けなかったモデル

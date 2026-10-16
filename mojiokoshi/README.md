@@ -162,7 +162,7 @@ moji check                                           # 準備ができている�
 
 ```bash
 cat >> ~/.bashrc <<'EOF'
-alias mojiconv='python ~/mojiokoshi/mojiokoshi.py /storage/emulated/0/Converter -r -o /storage/emulated/0/Converter/Output'
+alias mojiconv='python ~/mojiokoshi/mojiokoshi.py /storage/emulated/0/Converter -o /storage/emulated/0/Converter/Output'
 EOF
 source ~/.bashrc
 ```
@@ -264,20 +264,27 @@ LLM で整えるとき、録音の場面の説明と、出てきうる言葉を�
 - 用語集(`glossary.py`): 障害・特性、支援の方法(構造化・氷山モデルなど)、暮らし、
   施設・会議、勤務(夏季休暇・年休・時間休など)の言葉 約100語
 
-人名や、その録音によく出る言葉は `~/.config/mojiokoshi/words.txt` に1行に1つずつ
-書き足す(既定の用語集と合わせて渡す)。場面が違う録音では、settings.env で
-`POLISH_CONTEXT` を書き換える(空にすると渡さない)。既定の用語集を使わないときは
-`BUILTIN_GLOSSARY=false`。
+人名や、その録音によく出る言葉は、自分の用語集に書き足す(既定の用語集と合わせて
+渡す)。用語集は 1行に1つ、または「、」や空白で区切って並べる(`#` で始まる行は無視)。
+メモ帳などで作ったファイル(UTF-8・BOM 付き・Shift_JIS)でも読める。
+
+置き場所は既定では `~/.config/mojiokoshi/words.txt`。ほかのアプリ(メモ帳・Obsidian
+など)で書き足したいときは、共有ストレージに置いて settings.env で場所を指定する。
 
 ```bash
 mkdir -p ~/.config/mojiokoshi
-cat >> ~/.config/mojiokoshi/words.txt <<'EOF'
-# 職員・利用者の名字、よく出る行事や場所の名前など(# の行は無視される)
+cat >> ~/.config/mojiokoshi/settings.env <<'EOF'
+GLOSSARY_FILE=/storage/emulated/0/Converter/用語.txt
 EOF
 ```
 
-何を渡したかは、md の表の「手直しの手がかり」に出る。人名を書くと、文字起こしの
-文と一緒に NVIDIA のサーバーに送られる(下の「個人情報の扱い」)。
+録音と同じフォルダに置いても、`.txt` は録音として拾わない。場面が違う録音では、
+settings.env で `POLISH_CONTEXT` を書き換える(空にすると渡さない)。既定の用語集を
+使わないときは `BUILTIN_GLOSSARY=false`。
+
+何を渡したかは、md の表の「手直しの手がかり」に出る(自分の用語集はファイル名と語数。
+見つからなければ「なし」)。人名を書くと、文字起こしの文と一緒に NVIDIA のサーバーに
+送られる(下の「個人情報の扱い」)。
 
 ### 誤認識の見分け方
 
@@ -312,7 +319,7 @@ EOF
 | `POLISH` | true | txt を LLM で整える(`--no-polish` で一時的に切る) |
 | `POLISH_CONTEXT` | 施設の職員の会話(上の説明) | 録音の場面の説明(LLM に渡す。空で渡さない) |
 | `BUILTIN_GLOSSARY` | true | 既定の用語集(`glossary.py`)も LLM に渡す |
-| `GLOSSARY_FILE` | ~/.config/mojiokoshi/words.txt | 足したい言葉・人名(LLM に渡す) |
+| `GLOSSARY_FILE` | ~/.config/mojiokoshi/words.txt | 自分の用語集(足したい言葉・人名。LLM に渡す。共有ストレージに置いてもよい) |
 | `ASR_MODEL` | whisper | 文字起こしのモデル(whisper / parakeet / canary) |
 | `VERIFY_MODEL` | 空 | 確認用のモデル(`--verify` と同じ) |
 | `VAD_THRESHOLD` | 0.3 | 声とみなす確からしさ。下げると拾うが誤検出も増える |

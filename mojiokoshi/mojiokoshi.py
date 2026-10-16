@@ -888,14 +888,18 @@ class Job:
             alts = None
         models = [o.polish_model or config.POLISH_MODEL] + [
             m for m in config.POLISH_FALLBACK_MODELS if m != (o.polish_model or config.POLISH_MODEL)]
-        mine = polish.load_glossary(config.GLOSSARY_FILE)
+        gpath = os.path.expanduser(config.GLOSSARY_FILE or "")
+        mine = polish.load_glossary(gpath) if config.GLOSSARY_FILE else []
         base = list(builtin.TERMS) if config.BUILTIN_GLOSSARY else []
         words = list(dict.fromkeys(base + mine))
         hints = []
         if config.POLISH_CONTEXT:
             hints.append("場面の説明")
-        if words:
-            hints.append(f"用語 {len(words)}語(既定 {len(base)}・words.txt {len(mine)})")
+        if words or config.GLOSSARY_FILE:
+            # 自分の用語集は、読めたかどうかが分かるようにファイル名と語数を出す
+            gname = os.path.basename(gpath) or "words.txt"
+            mine_desc = f"{gname} {len(mine)}語" if os.path.isfile(gpath) else f"{gname} なし"
+            hints.append(f"用語 {len(words)}語(既定 {len(base)}・{mine_desc})")
         say(f"読みやすく整える({models[0]}): {len(lines)}区間"
             + (f"({'・'.join(hints)})" if hints else ""))
         fixed, changed, used, notes = polish.polish_lines(
