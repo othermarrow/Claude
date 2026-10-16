@@ -76,7 +76,7 @@ const path = require('path');
   const bt = await ev(() => { S.flash = true; S.bat = 100; S.spare = 1; sim(250); return { bat: S.bat, spare: S.spare, flash: S.flash }; });
   ok(bt.spare === 0 && bt.bat > 50, `電池が切れると予備に替わる（${JSON.stringify(bt)}）`);
   // 5) 第4層では正気が戻る
-  const calm = await ev(() => { enterLevel(4, true); startPlay(); S.san = 40; sim(20); return S.san; });
+  const calm = await ev(() => { enterLevel(LEVELS.length - 1, true); startPlay(); S.san = 40; sim(20); return S.san; });
   ok(calm > 45, `白いタイルの部屋で正気が戻る（${calm.toFixed(0)}）`);
   // 6) 出現：第1層では、そのうち徘徊者が現れる
   const sp = await ev(() => { enterLevel(1, true); startPlay(); G.spawn.wander = 0.1; sim(1); return G.ents.length; });

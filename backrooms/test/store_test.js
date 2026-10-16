@@ -21,7 +21,7 @@ const TASKER = `(function () { const db = () => { try { return JSON.parse(window
     return page;
   };
   const ovText = p => p.$eval('#ov', e => e.innerText);
-  const click = async (page, label) => { const bs = await page.$$('#ov button'); for (const b of bs) if ((await b.innerText()).includes(label)) { await b.click(); await page.waitForTimeout(80); return; } throw new Error('ボタンなし ' + label); };
+  const click = async (page, label) => { const bs = await page.$$('#ov button'); const tx = []; for (const b of bs) tx.push(await b.innerText()); let i = tx.findIndex(t => t.split('\n')[0].trim() === label); if (i < 0) i = tx.findIndex(t => t.includes(label)); if (i >= 0) { await bs[i].click(); await page.waitForTimeout(80); return; } throw new Error('ボタンなし ' + label); };
 
   // 1) Tasker の関数がはじめからある
   let page = await open(NO_LS + TASKER + 'window.__tk();');

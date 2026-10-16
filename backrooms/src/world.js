@@ -63,7 +63,8 @@ function genChunk(cx, cy) {
   } else if (cfg.gen === 'maze') {
     const s2 = WD.seed + 11;
     const north = (X, Y) => hash3(s2, X, Y) < 0.5;           // 節(偶数,偶数)が北へつながるか（そうでなければ東）
-    const extra = (X, Y) => hash3(s2 + 1, X, Y) < 0.2;       // 余分な抜け道
+    const loops = cfg.loops || 0.2;
+    const extra = (X, Y) => hash3(s2 + 1, X, Y) < loops;     // 余分な抜け道（多いほど逃げ道ができる）
     for (let ly = 0; ly < CH; ly++) for (let lx = 0; lx < CH; lx++) {
       const X = X0 + lx, Y = Y0 + ly, ex = (X & 1) === 0, ey = (Y & 1) === 0;
       let wall;
@@ -74,6 +75,27 @@ function genChunk(cx, cy) {
       // ときどき小部屋
       const bx = Math.floor(X / 6), by = Math.floor(Y / 6);
       if (hash3(s2 + 2, bx, by) < 0.1) { const ix = X - bx * 6, iy = Y - by * 6; if (ix >= 1 && iy >= 1 && ix <= 4 && iy <= 4) wall = false; }
+      set(lx, ly, wall ? 1 : 0);
+    }
+  } else if (cfg.gen === 'hall') {
+    // 廊下と部屋：8マスごとに幅2の廊下が縦横に通り、そのあいだに扉のある部屋（ときどき行き止まり）
+    const B = 8, s3 = WD.seed + 21, P = cfg.hall || { block: 0.15, solid: 0.1 };
+    for (let ly = 0; ly < CH; ly++) for (let lx = 0; lx < CH; lx++) {
+      const X = X0 + lx, Y = Y0 + ly, mx = ((X % B) + B) % B, my = ((Y % B) + B) % B;
+      const bx = Math.floor(X / B), by = Math.floor(Y / B), corX = mx <= 1, corY = my <= 1;
+      let wall;
+      if (corX || corY) {
+        wall = false;
+        if (corX && !corY && my === 4 && hash3(s3, bx, by) < P.block) wall = true;        // 縦の廊下をふさぐ
+        if (corY && !corX && mx === 4 && hash3(s3 + 1, bx, by) < P.block) wall = true;    // 横の廊下をふさぐ
+      } else if (hash3(s3 + 7, bx, by) < P.solid) wall = true;                            // 部屋のない区画
+      else if (mx === 2 || mx === 7 || my === 2 || my === 7) {
+        wall = true;
+        if (my === 2 && mx === 4 && hash3(s3 + 2, bx, by) < 0.6) wall = false;
+        if (my === 7 && mx === 5 && hash3(s3 + 3, bx, by) < 0.45) wall = false;
+        if (mx === 2 && my === 5 && hash3(s3 + 4, bx, by) < 0.45) wall = false;
+        if (mx === 7 && my === 4 && hash3(s3 + 5, bx, by) < 0.45) wall = false;
+      } else wall = hash3(s3 + 6, X, Y) < 0.1;                                           // 部屋の中の家具
       set(lx, ly, wall ? 1 : 0);
     }
   } else if (cfg.gen === 'pool') {

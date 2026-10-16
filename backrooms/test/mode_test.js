@@ -14,7 +14,7 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
   await page.reload(); await page.waitForTimeout(400);
   const ev = (f, a) => page.evaluate(f, a);
   const shot = n => page.screenshot({ path: path.join(OUT, n + '.png') });
-  const click = async label => { const bs = await page.$$('#ov button'); for (const b of bs) if ((await b.innerText()).includes(label)) { await b.click(); await page.waitForTimeout(80); return; } throw new Error('ボタンなし ' + label); };
+  const click = async label => { const bs = await page.$$('#ov button'); const tx = []; for (const b of bs) tx.push(await b.innerText()); let i = tx.findIndex(t => t.split('\n')[0].trim() === label); if (i < 0) i = tx.findIndex(t => t.includes(label)); if (i >= 0) { await bs[i].click(); await page.waitForTimeout(80); return; } throw new Error('ボタンなし ' + label); };
   await ev(() => { window.sim = (sec, each) => { for (let t = 0; t < sec; t += 0.033) { if (G.mode === 'note') startPlay(); if (G.mode !== 'play') return G.mode; update(0.033); if (each) each(); } return G.mode; }; });
   await shot('m01_title');
 
@@ -52,14 +52,14 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
   await click('救いのない版');
   await click('進む'); await click('進む');
   ok(await ev(() => G.mode === 'play' && S.mode === 'hard' && WD.cfg.n === '第0層'), '救いのない版が始まる');
-  // 出口を5回くぐる → 第5層は、また黄色い部屋
-  for (let i = 0; i < 5; i++) {
+  // 出口を10回くぐる → 第10層は、また黄色い部屋
+  for (let i = 0; i < 10; i++) {
     await ev(() => { DBG.toExit(); update(0.01); enterExit(); finishTrans(); });
-    if (i === 4) await shot('m05_hard_card5');
+    if (i === 9) await shot('m05_hard_card10');
     await click('進む');
   }
   const c5 = await ev(() => ({ lv: S.lv, n: WD.cfg.n, name: WD.cfg.name, amb: WD.cfg.amb, ents: WD.cfg.ents, desat: WD.cfg.desat, mode: G.mode }));
-  ok(c5.lv === 5 && c5.name === '黄色い部屋' && c5.mode === 'play', `光の扉の先は第5層「黄色い部屋」（${c5.n}）`);
+  ok(c5.lv === 10 && c5.name === '黄色い部屋' && c5.mode === 'play', `光の扉の先は第10層「黄色い部屋」（${c5.n}）`);
   ok(c5.amb < LEVELS_AMB0() && c5.ents.wander.max >= 2 && c5.ents.grin && c5.desat > 0, `2周目は暗く、怪物が多い（${JSON.stringify(c5.ents)}）`);
   function LEVELS_AMB0() { return 0.16; }
   await ev(() => { S.a = 0.7; }); await page.waitForTimeout(300);
@@ -69,7 +69,7 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
   ok(dr.san === 50 && dr.th === 80, `水で正気は戻らない（${JSON.stringify(dr)}）`);
   // 死んだら終わり：記録が消え、メモが残る
   await ev(() => { G.ents = [{ type: 'wander', x: S.x, y: S.y + 0.1, st: 'chase', tgt: null, next: null, repath: 0, lost: 5, stepT: 0, sndT: 1, burn: 0 }]; update(0.03); });
-  ok(await ev(() => G.mode === 'over' && !loadSave() && OPT.hardBest === 5 && OPT.graves.length === 1), '捕まると終わり（やり直しなし）。第5層までと記録');
+  ok(await ev(() => G.mode === 'over' && !loadSave() && OPT.hardBest === 10 && OPT.graves.length === 1), '捕まると終わり（やり直しなし）。第10層までと記録');
   await shot('m07_hard_over');
   ok(!(await page.$$eval('#ov button', bs => bs.some(b => b.innerText.includes('最初から')))), 'やり直しのボタンがない');
   await click('タイトルへ');
@@ -80,9 +80,9 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
     for (let i = 0; i < 20; i++) { pickUp({ id: 'test' + i, t: 'note', x: 0, y: 0 }); startPlay(); if (S.notes.some(n => n.mine)) break; }
     return S.notes.find(n => n.mine);
   });
-  ok(g && /第5層まで来た/.test(g.t), '前に死んだ自分のメモを拾う：' + (g && g.t.split('\n')[0]));
+  ok(g && /第10層まで来た/.test(g.t), '前に死んだ自分のメモを拾う：' + (g && g.t.split('\n')[0]));
   // ---- 五つの報告書・山羊文学版 ----
-  for (const [mode, label, monster, first] of [['self', '五つの報告書', 'sp_wander', 'エラーから直す部屋'], ['yagi', '山羊文学版', 'sp_goat', '地下室の山羊']]) {
+  for (const [mode, label, monster, first] of [['self', '五つの報告書', 'sp_wander', 'エラーから直す部屋'], ['yagi', '山羊文学版', 'sp_goat', '地下室の山羊'], ['wiki', 'Wiki設定版', 'sp_wander', 'ロビー']]) {
     await ev(() => { clearSave(); S = null; showTitle(); });
     await click('ほかの版'); await click(label);
     await shot(`m1_${mode}_intro`);
@@ -90,7 +90,7 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
     ok(await ev(() => WD.cfg.name), `${label}：第0層の札が出る`);
     await shot(`m1_${mode}_card0`);
     await click('進む');
-    ok(await ev(f => G.mode === 'play' && WD.cfg.name === f && WD.cfg.itemSpr === 'sp_claude', first), `${label}：第0層「${first}」が始まり、拾う物は印`);
+    ok(await ev(f => G.mode === 'play' && WD.cfg.name === f && (WD.cfg.itemSpr === 'sp_claude' || (S.mode === 'wiki' && OPT.claude && sprites().some(o => o.spr === 'sp_claude'))), first), `${label}：第0層「${first}」が始まり、拾う物は印`);
     // 印の前に立って撮る
     await ev(() => { const it = nearbyItems()[0]; if (it) { S.x = it.x - Math.cos(0.3) * 2; S.y = it.y - Math.sin(0.3) * 2; S.a = 0.3; if (blocked(S.x, S.y)) { S.x = it.x - 1.5; S.y = it.y; S.a = 0; } } });
     await page.waitForTimeout(300);
@@ -107,22 +107,46 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
     // 捕まったときの文
     await ev(() => { G.ents = [{ type: 'wander', x: S.x, y: S.y + 0.1, st: 'chase', tgt: null, next: null, repath: 0, lost: 5, stepT: 0, sndT: 1, burn: 0 }]; update(0.03); });
     const ov1 = await page.$eval('#ov', e => e.innerText);
-    ok(/最初から/.test(ov1) && (mode === 'self' ? /要約/.test(ov1) : /山羊/.test(ov1)), `${label}：捕まったときの文（やり直せる）`);
+    ok(/最初から/.test(ov1) && (mode === 'self' ? /要約/.test(ov1) : mode === 'wiki' ? /引き倒/.test(ov1) : /山羊/.test(ov1)), `${label}：捕まったときの文（やり直せる）`);
     await click('この層の最初から'); await click('進む');
-    // 5つの層を通ってエンディング
-    for (let lv = 0; lv < 5; lv++) { await ev(() => { DBG.toExit(); update(0.01); enterExit(); finishTrans(); }); if (lv < 4) await click('進む'); }
+    // すべての層を通ってエンディング
+    const nlv = await ev(m => THEMES[m].levels.length, mode);
+    ok(nlv === 10, `${label}：層は${nlv}`);
+    for (let lv = 0; lv < nlv; lv++) {
+      if (lv === 7 && mode === 'wiki') await shot('m1_wiki_card7');
+      await ev(() => { DBG.toExit(); update(0.01); enterExit(); finishTrans(); }); if (lv < nlv - 1) await click('進む');
+    }
     const end = await page.$eval('#ov', e => e.innerText);
     ok(await ev(() => G.mode === 'end'), `${label}：エンディング`);
-    ok(mode === 'self' ? /記録にないことは/.test(end) : /幕が上がる/.test(end), `${label}：エンディングの文`);
+    ok(mode === 'self' ? /記録にないことは/.test(end) : mode === 'wiki' ? /少しだけ黄色い/.test(end) && /CC BY-SA 3\.0/.test(end) : /幕が上がる/.test(end), `${label}：エンディングの文`);
     await shot(`m1_${mode}_end`);
     await click('タイトルへ');
   }
   // 山羊文学版の各層の札
   const names = await ev(() => [0, 1, 2, 3, 4].map(i => levelCfg(i, 'yagi').name + '/' + levelCfg(i, 'self').name));
   console.log('  層の名前:', names.join(' | '));
-  // ふつうの版は、これまでどおり第4層の先でエンディング
-  const nm = await ev(() => { S = newState('normal'); enterLevel(4, true); startPlay(); DBG.toExit(); update(0.01); enterExit(); finishTrans(); return G.mode; });
-  ok(nm === 'end', 'ふつうの版は第4層の先でエンディング');
+  // ふつうの版は、第9層の先でエンディング
+  const nm = await ev(() => { S = newState('normal'); enterLevel(9, true); startPlay(); DBG.toExit(); update(0.01); enterExit(); finishTrans(); return G.mode; });
+  ok(nm === 'end', 'ふつうの版は第9層（白いタイルの部屋）の先でエンディング');
+  // ---- Wiki設定版のしくみ ----
+  await ev(() => { clearSave(); S = null; showTitle(); });
+  await click('ほかの版'); await click('Wiki設定版');
+  const wi = await page.$eval('#ov', e => e.innerText);
+  ok(/Level 0/.test(wi) && /CC BY-SA 3\.0/.test(wi), 'Wiki設定版：はじまりの文に、設定のもとと CC BY-SA 3.0');
+  await click('進む');
+  const wc = await page.$eval('#ov', e => e.innerText);
+  ok(/Level 0 - "The Lobby"/.test(wc), 'Wiki設定版：札に Level の英語名');
+  await click('進む');
+  const aw = await ev(() => { S.water = 1; S.san = 50; S.thirst = 50; drinkWater(); return { san: S.san, t: $('#toast').textContent }; });
+  ok(aw.san === 75 && /アーモンドウォーター/.test(aw.t), `Wiki設定版：アーモンドウォーターで正気がよく戻る（${aw.san}）`);
+  const ff = await ev(() => { enterLevel(4, true); startPlay(); G.ents = [{ type: 'face', x: S.x + 0.1, y: S.y, st: 'wander', tgt: null, next: null, repath: 0, lost: 0, stepT: 0, sndT: 1, burn: 0 }]; for (let i = 0; i < 30; i++) update(0.033); return { m: G.mode, name: WD.cfg.name, face: sprites().some(o => o.spr === 'sp_face') }; });
+  ok(ff.m === 'play' && ff.face, `Wiki設定版：${ff.name}のフェイスリングは、さわっても何もしてこない`);
+  const rn = await ev(() => { enterLevel(7, true); startPlay(); G.spawn = {}; for (let i = 0; i < 200; i++) update(0.033); const e = G.ents[0]; return { name: WD.cfg.name, n: G.ents.length, st: e && e.st, d: e && Math.hypot(e.x - S.x, e.y - S.y) }; });
+  ok(rn.n >= 1 && (rn.st === 'hunt' || rn.st === 'chase' || rn.m === 'over'), `Wiki設定版：${rn.name}では、すぐに追われる（${JSON.stringify(rn)}）`);
+  await ev(() => { G.ents = []; enterLevel(8, true); startPlay(); S.a = 0.6; G.ents = [{ type: 'wander', x: S.x + 2.4, y: S.y, st: 'wander', tgt: null, next: null, repath: 0, lost: 0, stepT: 0, sndT: 1, burn: 0 }]; if (blocked(S.x + 2.4, S.y)) { G.ents[0].x = S.x; G.ents[0].y = S.y + 2.4; S.a = Math.PI / 2; } else S.a = 0; });
+  await page.waitForTimeout(250);
+  await shot('m1_wiki_party');
+  ok(await ev(() => sprites().some(o => o.spr === 'sp_party')), 'Wiki設定版：Level Fun にはパーティーゴーアー');
   // ふつうの版・救いのない版でも、拾う物を Claude のマークにできる（設定で切りかえ）
   for (const md of ['normal', 'hard']) {
     const ic = await ev(m => {

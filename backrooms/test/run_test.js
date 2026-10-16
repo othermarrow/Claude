@@ -11,10 +11,11 @@ const path = require('path');
   const seeds = (process.env.SEEDS || '1,2,3').split(',').map(Number);
   let fail = 0;
   for (const seed of seeds) {
-    const r = await page.evaluate(([seed, WANDER]) => {
-      S = newState(); S.seed = seed; enterLevel(0, true); startPlay();
+    const r = await page.evaluate(([seed, WANDER, MODE]) => {
+      S = newState(MODE); S.seed = seed; enterLevel(0, true); startPlay();
+      const NLV = THEMES[MODE] ? THEMES[MODE].levels.length : LEVELS.length;
       const log = [];
-      for (let lv = 0; lv < 5; lv++) {
+      for (let lv = 0; lv < NLV; lv++) {
         let t = 0, stuck = 0, last = { x: S.x, y: S.y };
         const ex = WD.exit;
         while (t < 240 + WANDER) {
@@ -50,7 +51,7 @@ const path = require('path');
         if (t >= 240 + WANDER) { log.push(`L${lv}:時間切れ`); return { log, done: false }; }
       }
       return { log, done: G.mode === 'end', deaths: S && S.deaths };
-    }, [seed, +(process.env.WANDER || 0)]);
+    }, [seed, +(process.env.WANDER || 0), process.env.MODE || 'normal']);
     console.log(`種${seed}:`, r.done ? 'クリア' : '失敗', r.log.join(' / '));
     if (!r.done) fail++;
   }

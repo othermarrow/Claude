@@ -1,9 +1,9 @@
-// 5つの層を、いくつもの種で作って、出口に歩いて行けるか確かめる
+// すべての層を、いくつもの種で作って、出口に歩いて行けるか確かめる
 const { load } = require('./load');
 const E = load();
 let fail = 0;
 const ok = (c, m) => { if (!c) { console.log('NG:', m); fail++; } };
-for (let lv = 0; lv < 5; lv++) {
+for (let lv = 0; lv < E('LEVELS.length'); lv++) {
   let sum = 0, mn = 1e9, mx = 0, t0 = Date.now(), items = {};
   for (let s = 1; s <= 30; s++) {
     E(`newWorld(${lv}, ${s * 7919})`);
@@ -28,8 +28,8 @@ ok(a === b, '同じ種で同じ出口');
 // 見通し
 E('newWorld(0, 5)');
 ok(E('lineOfSight(8.5, 8.5, 9.5, 8.5)'), 'となりのマスは見える');
-// ASCII で第0層と第2層の様子
-for (const lv of [0, 2]) {
+// ASCII で第2層と第8層の様子
+for (const lv of [2, 8]) {
   E(`newWorld(${lv}, 99)`);
   const ex = E('WD.exit'); const lines = [];
   for (let y = -2; y < 22; y++) { let s = ''; for (let x = -2; x < 40; x++) s += (x === 8 && y === 8) ? '@' : (x === ex.wx && y === ex.wy) ? 'E' : E(`isWall(${x}, ${y})`) ? '#' : (E(`lampAt(${x}, ${y})`) === 1 ? '+' : E(`lampAt(${x}, ${y})`) ? '-' : '.'); lines.push(s); }

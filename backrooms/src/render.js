@@ -267,7 +267,7 @@ function renderFrame(t, cam, sprites, fx) {
   }
   // ---- 床と天井 ----
   const rdxL = dirX - planeX, rdyL = dirY - planeY, rdxR = dirX + planeX, rdyR = dirY + planeY;
-  const fd = ft.d, cd = ctt.d, shimmer = cfg.calm ? 1 : 0;
+  const fd = ft.d, cd = ctt.d, shimmer = cfg.calm || cfg.shimmer ? 1 : 0;
   if (wire) wireScene(t, cfg);
   for (let y = 0; y < (wire ? 0 : H); y++) {
     const isFloor = y > hor;

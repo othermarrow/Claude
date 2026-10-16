@@ -14,7 +14,7 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
   await page.reload(); await page.waitForTimeout(400);
   const ev = (f, a) => page.evaluate(f, a);
   const shot = n => page.screenshot({ path: path.join(OUT, n + '.png') });
-  const click = async label => { const bs = await page.$$('#ov button'); for (const b of bs) if ((await b.innerText()).includes(label)) { await b.click(); await page.waitForTimeout(80); return; } throw new Error('ボタンなし ' + label); };
+  const click = async label => { const bs = await page.$$('#ov button'); const tx = []; for (const b of bs) tx.push(await b.innerText()); let i = tx.findIndex(t => t.split('\n')[0].trim() === label); if (i < 0) i = tx.findIndex(t => t.includes(label)); if (i >= 0) { await bs[i].click(); await page.waitForTimeout(80); return; } throw new Error('ボタンなし ' + label); };
   // 画面の明るさ：黒い所の割合と、平均
   const stats = () => ev(() => { const d = RD.ctx.getImageData(0, 0, RD.W, RD.H).data; let blk = 0, sum = 0; for (let i = 0; i < d.length; i += 4) { const v = d[i] + d[i + 1] + d[i + 2]; sum += v; if (v < 40) blk++; } return { black: blk / (d.length / 4), mean: sum / (d.length / 4) / 3 }; });
 

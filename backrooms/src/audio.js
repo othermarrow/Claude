@@ -81,9 +81,11 @@ function sfx(name, o) {
   const t = AU.ctx.currentTime;
   switch (name) {
     case 'step': {
-      const sf = { carpet: [380, 0.09], concrete: [1400, 0.13], metal: [2600, 0.16], tile: [2200, 0.12] }[o.surf] || [800, 0.1];
-      noiseHit(0.09, sf[1] * (o.loud ? 1.6 : 1), o.surf === 'metal' ? 'bandpass' : 'lowpass', sf[0], o.surf === 'metal' ? 4 : 0);
-      if (o.surf === 'metal') tone(420 + Math.random() * 80, 0.12, 0.02, 'triangle');
+      // 自分の足音は控えめに（前の半分くらい）。走ると少し大きくなる
+      const sf = { carpet: [380, 0.045], concrete: [1300, 0.055], metal: [2200, 0.05], tile: [2000, 0.05], water: [700, 0.05], wood: [600, 0.05] }[o.surf] || [800, 0.05];
+      noiseHit(0.08, sf[1] * (o.loud ? 1.45 : 1), o.surf === 'metal' ? 'bandpass' : 'lowpass', sf[0], o.surf === 'metal' ? 2 : 0);
+      if (o.surf === 'metal') tone(420 + Math.random() * 80, 0.1, 0.008, 'triangle');
+      if (o.surf === 'water') noiseHit(0.14, 0.03, 'bandpass', 1400 + Math.random() * 500, 3, null, t + 0.03);
       break;
     }
     case 'pick': tone(880, 0.12, 0.12, 'sine', null, t, 1320); tone(1320, 0.2, 0.06, 'sine', null, t + 0.08); break;
@@ -127,6 +129,12 @@ const MELODY = {
   wind: { notes: [0], gap: 2, type: 'sine', dur: 0, g: 0, wind: 1 },
   ding: { notes: [1319, 1047, 0, 0, 0, 0, 0, 0], gap: 0.45, type: 'sine', dur: 1.6, g: 0.45 },
   chord: { notes: [523, 659, 784, 988, 0, 0, 0, 0, 0, 0], gap: 0.6, type: 'triangle', dur: 3.5, g: 0.18 },
+  drip: { notes: [1760, 0, 2093, 0, 0, 1568, 0, 0, 2349, 0, 1976, 0, 0, 0], gap: 0.3, type: 'sine', dur: 0.22, g: 0.32 },
+  alarm: { notes: [880, 660, 880, 660, 880, 660, 880, 660, 0, 0, 0, 0, 0], gap: 0.2, type: 'square', dur: 0.18, g: 0.07 },
+  clock: { notes: [[2400, 0.04, 0.16, 'triangle'], [1800, 0.04, 0.16, 'triangle'], [2400, 0.04, 0.16, 'triangle'], [1800, 0.04, 0.16, 'triangle'], [2400, 0.04, 0.16, 'triangle'], [1800, 0.04, 0.16, 'triangle'], [523, 2.2, 0.3, 'sine'], 0], gap: 0.5, type: 'sine', dur: 0.1, g: 0.2 },
+  chip: { notes: [523, 659, 784, 1047, 784, 659, 523, 0, 587, 698, 880, 1175, 880, 0, 0, 0], gap: 0.15, type: 'square', dur: 0.13, g: 0.06 },
+  monitor: { notes: [1000, 0, 0, 0, 0], gap: 0.24, type: 'sine', dur: 0.11, g: 0.3 },
+  party: { notes: [784, 784, 880, 784, 1047, 988, 0, 784, 784, 880, 784, 1175, 1047, 0, 0, 0, 0], gap: 0.32, type: 'triangle', dur: 0.4, g: 0.15 },   // 「ハッピーバースデー」（作者不明の古い歌）
 };
 function audioUpdate(info) {
   if (!AU.on) return;
@@ -140,10 +148,11 @@ function audioUpdate(info) {
   AU.bLP.frequency.setTargetAtTime(info.exitLos ? 5000 : 650, t, 0.3);
   if (m.wind && cfg.beacon) AU.amb.gain.setTargetAtTime(0.025 + vol * 0.12, t, 0.4);
   if (t >= AU.bNext && vol > 0.005) {
-    const f = m.notes[AU.bStep % m.notes.length]; AU.bStep++;
+    const nt = m.notes[AU.bStep % m.notes.length]; AU.bStep++;
+    const f = Array.isArray(nt) ? nt[0] : nt, dur = Array.isArray(nt) ? nt[1] : m.dur, gg = Array.isArray(nt) ? nt[2] : m.g, ty = Array.isArray(nt) ? nt[3] : m.type;
     if (f) {
-      tone(f, m.dur, m.g, m.type, AU.bGain, t);
-      if (m.type === 'sine') tone(f * 2, m.dur * 0.5, m.g * 0.25, 'sine', AU.bGain, t);
+      tone(f, dur, gg, ty, AU.bGain, t);
+      if (ty === 'sine') tone(f * 2, dur * 0.5, gg * 0.25, 'sine', AU.bGain, t);
       if (m.noisy) noiseHit(0.4, 0.06, 'bandpass', 1800, 1, AU.bGain, t);
     }
     if (m.noisy && Math.random() < 0.4) noiseHit(0.3, 0.05, 'bandpass', 2500, 1, AU.bGain, t + 0.1);

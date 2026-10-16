@@ -110,10 +110,11 @@ function nearbyItems() {
   return G.items.filter(it => !S.taken[it.id]);
 }
 const ITEM_SPR = { water: 'sp_water', battery: 'sp_battery', map: 'sp_map', note: 'sp_note' };
+function waterName(def) { const n = WD && WD.cfg.itemNames; return (n && n.water) || def; }
 function pickUp(it) {
   S.taken[it.id] = 1;
   sfx('pick'); vibe(15);
-  if (it.t === 'water') { S.water++; toast(`水のボトルを拾った（${S.water}本）`); }
+  if (it.t === 'water') { S.water++; toast(`${waterName('水のボトル')}を拾った（${S.water}本）`); }
   else if (it.t === 'battery') { S.spare++; toast(`電池を拾った（予備 ${S.spare}本）`); }
   else if (it.t === 'map') { S.maps++; toast(`地図の切れ端を拾った（${S.maps}枚）`); }
   else if (it.t === 'note') {
@@ -145,6 +146,7 @@ function drinkWater() {
   if (!S.water || G.mode !== 'play') return;
   S.water--;
   if (S.mode === 'hard') { S.thirst = Math.min(100, S.thirst + 30); sfx('drink'); toast(`水を飲んだ。渇きはおさまった。気分は晴れない（残り ${S.water}本）`); }
+  else if (WD.cfg.itemNames) { S.thirst = Math.min(100, S.thirst + 45); S.san = Math.min(100, S.san + 25); sfx('drink'); toast(`${waterName('水')}を飲んだ。ほのかに甘い。気持ちが落ち着いた（残り ${S.water}本）`); }
   else { S.thirst = Math.min(100, S.thirst + 45); S.san = Math.min(100, S.san + 15); sfx('drink'); toast(`水を飲んだ。少し落ち着いた（残り ${S.water}本）`); }
   saveGame();
 }
@@ -225,7 +227,7 @@ function randomTarget(e, r, ok) {
   return null;
 }
 function updateEnts(dt) {
-  G.fear = 0; G.seen = false;
+  G.fear = 0; G.seen = false; G.seenFace = false;
   let caught = null;
   for (const e of G.ents) {
     const P = ENTS[e.type];
@@ -235,9 +237,17 @@ function updateEnts(dt) {
     const inView = los && Math.abs(rel) < 0.75 && d < 14;
     const mul = (WD.cfg.speedMul || 1) * (WD.cfg.orig ? 1 + Math.min(0.25, S.time / 1800) : 1);
     let speed = 0;
-    if (e.type === 'wander') {
-      if (los && d < (WD.cfg.orig ? 8 : P.see)) { e.st = 'chase'; e.lost = 5; e.tgt = { x: S.x, y: S.y }; }
-      else if (G.noise && d < G.noise) { if (e.st !== 'chase') e.st = 'hunt'; e.tgt = { x: S.x, y: S.y }; }
+    if (e.type === 'face') {           // 顔のない人：ゆっくり歩き回るだけ。見ると少し落ち着かない
+      if (!e.tgt) e.tgt = randomTarget(e, 6);
+      stepEntity(e, P.speed[0], dt);
+      if (inView && d < 7) G.seenFace = true;
+      e.sndT -= dt;
+    } else if (e.type === 'wander') {
+      const seeR = (WD.cfg.orig ? 8 : P.see) * (WD.cfg.seeMul || 1), hearR = G.noise * (WD.cfg.hearMul || 1);
+      if (WD.cfg.huntAlways) {          // Level !：いつも、こちらの居場所を知っている
+        e.st = los ? 'chase' : 'hunt'; e.lost = 5; e.tgt = { x: S.x, y: S.y };
+      } else if (los && d < seeR) { e.st = 'chase'; e.lost = 5; e.tgt = { x: S.x, y: S.y }; }
+      else if (G.noise && d < hearR) { if (e.st !== 'chase') e.st = 'hunt'; e.tgt = { x: S.x, y: S.y }; }
       else if (e.st === 'chase') { e.lost -= dt; if (e.lost <= 0) e.st = 'hunt'; }
       if (e.st === 'hunt' && e.tgt && Math.hypot(e.tgt.x - e.x, e.tgt.y - e.y) < 0.3) { e.st = 'wander'; e.tgt = null; }
       if (WD.cfg.orig) {
@@ -300,7 +310,7 @@ function updateEnts(dt) {
       if (e.sndT <= 0 && d < 13) { sfx('giggle', { pan: Math.sin(rel), gain: 0.22 * (1 - d / 13) }); e.sndT = 1.6 + Math.random() * 2.5; }
       if (inView) G.seen = true;
     }
-    if (d < 0.42 && e.st !== 'flee') caught = e;
+    if (d < 0.42 && e.st !== 'flee' && e.type !== 'face') caught = e;
     if (d > 42 && !WD.cfg.orig) e.gone = true;
   }
   G.ents = G.ents.filter(e => !e.gone);
@@ -323,7 +333,7 @@ function update(dt) {
   const moving = mag > 0.12;
   if (G.tired && S.stam > 30) G.tired = false;
   const running = (G.run || k.Shift) && moving && !G.tired && S.stam > 0;
-  const speed = (running ? RUN : WALK) * (S.thirst <= 0 ? 0.75 : 1) * Math.min(1, mag + 0.15);
+  const speed = (running ? RUN : WALK) * (S.thirst <= 0 ? 0.75 : 1) * (WD.cfg.moveMul || 1) * Math.min(1, mag + 0.15);
   if (moving) {
     const ca = Math.cos(S.a), sa = Math.sin(S.a);
     movePlayer((ca * fw - sa * st) * speed * dt, (sa * fw + ca * st) * speed * dt);
@@ -347,7 +357,7 @@ function update(dt) {
   }
   // 渇きと正気
   const calm = !!cfg.calm;
-  if (!cfg.noStats) S.thirst = Math.max(0, S.thirst - (calm ? 0.03 : 0.085) * dt);
+  if (!cfg.noStats) S.thirst = Math.max(0, S.thirst - (calm ? 0.03 : 0.085) * (cfg.thirstMul || 1) * dt);
   const lh = lightAt(S.x, S.y);
   G.dark = lh;
   let drain = cfg.sanDrain || 0.05;
@@ -364,6 +374,7 @@ function update(dt) {
   spawnTick(dt);
   const caught = updateEnts(dt);
   if (G.seen) drain += 1.5;
+  if (G.seenFace) drain += 0.25;
   if (calm) drain = -0.7;
   if (!cfg.noStats) S.san = clamp(S.san - drain * dt, 0, 100);
   // 音
@@ -391,9 +402,11 @@ function sprites() {
   const out = [];
   const cfg = WD.cfg, es = cfg.entSpr || {};
   const ic = cfg.itemSpr || (OPT.claude ? 'sp_claude' : '');   // 拾う物を Claude のマークで描く
-  for (const it of nearbyItems()) out.push(ic ? { x: it.x, y: it.y, spr: ic, h: 0.4, lift: 0.08 + 0.04 * Math.sin(G.t * 2 + it.x), emit: 1 } : { x: it.x, y: it.y, spr: ITEM_SPR[it.t], h: 0.42 });
+  const itx = cfg.itemTex || {};
+  for (const it of nearbyItems()) out.push(ic ? { x: it.x, y: it.y, spr: ic, h: 0.4, lift: 0.08 + 0.04 * Math.sin(G.t * 2 + it.x), emit: 1 } : { x: it.x, y: it.y, spr: itx[it.t] || ITEM_SPR[it.t], h: 0.42 });
   for (const e of G.ents) {
-    if (e.type === 'wander') out.push({ x: e.x, y: e.y, spr: es.wander || 'sp_wander', h: 1.22 });
+    if (e.type === 'wander') out.push({ x: e.x, y: e.y, spr: es.wander || 'sp_wander', h: es.wanderH || 1.22 });
+    else if (e.type === 'face') out.push({ x: e.x, y: e.y, spr: es.face || 'sp_face', h: 1.12 });
     else out.push({ x: e.x, y: e.y, spr: es.grin || 'sp_grin', h: 0.75, lift: 0.3, glow: e.st === 'flee' ? 0.5 + Math.random() * 0.5 : 1 });
   }
   return out;

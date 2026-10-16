@@ -16,7 +16,7 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
   await page.waitForTimeout(600);
   const shot = n => page.screenshot({ path: path.join(OUT, n + '.png') });
   const ev = (f, a) => page.evaluate(f, a);
-  const click = async label => { const bs = await page.$$('#ov button'); for (const b of bs) if ((await b.innerText()).includes(label)) { await b.click(); await page.waitForTimeout(80); return; } throw new Error('ボタンなし ' + label); };
+  const click = async label => { const bs = await page.$$('#ov button'); const tx = []; for (const b of bs) tx.push(await b.innerText()); let i = tx.findIndex(t => t.split('\n')[0].trim() === label); if (i < 0) i = tx.findIndex(t => t.includes(label)); if (i >= 0) { await bs[i].click(); await page.waitForTimeout(80); return; } throw new Error('ボタンなし ' + label); };
   await shot('b01_title');
   await click('はじめから'); await shot('b02_intro');
   await click('進む'); await shot('b03_card');
@@ -97,7 +97,7 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
   await click('つづきから');
   ok(await ev(() => DBG.G.mode === 'play' && DBG.S.lv === 3), 'つづきから第3層');
   // エンディング
-  await ev(() => { DBG.level(4); DBG.toExit(); });
+  await ev(() => { DBG.level(LEVELS.length - 1); DBG.toExit(); });
   await page.waitForTimeout(200);
   await page.tap('#act');
   await page.waitForTimeout(2200);
