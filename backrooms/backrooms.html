@@ -1673,7 +1673,8 @@ function wireScene(t, cfg) {
       wLine(s0[0], s0[1], WH * 0.93, s1[0], s1[1], WH * 0.93, 0, 0, em);
     }
   }
-  // 天井の灯り：四角いふちだけ。ちらつきはそのまま
+  // 天井の灯り：四角いふちだけ。ちらつきはそのまま（空の Level では描かない）
+  if (cfg.sky) return;
   const R = 13, cx = Math.floor(C.px), cy = Math.floor(C.py);
   for (let j = -R; j <= R; j++) for (let i = -R; i <= R; i++) {
     const X = cx + i, Y = cy + j, lb = lampBright(X, Y);
@@ -1758,8 +1759,20 @@ function renderFrame(t, cam, sprites, fx) {
   const rdxL = dirX - planeX, rdyL = dirY - planeY, rdxR = dirX + planeX, rdyR = dirY + planeY;
   const fd = ft.d, cd = ctt.d, shimmer = cfg.calm || cfg.shimmer ? 1 : 0;
   if (wire) wireScene(t, cfg);
+  const sky = cfg.sky;   // 外の Level：天井のかわりに空（上ほど暗い色、星）
   for (let y = 0; y < (wire ? 0 : H); y++) {
     const isFloor = y > hor;
+    if (sky && !isFloor) {
+      const tt = clamp(y / Math.max(1, hor), 0, 1), T0 = sky.top, T1 = sky.hor;
+      const r0 = T0[0] + (T1[0] - T0[0]) * tt, g0 = T0[1] + (T1[1] - T0[1]) * tt, b0 = T0[2] + (T1[2] - T0[2]) * tt;
+      for (let x = 0; x < W; x++) {
+        if (y >= TOP[x]) continue;
+        let r = r0, g = g0, b = b0;
+        if (sky.stars && hash3(77, Math.floor((cam.a + Math.atan((2 * x / W - 1) * pl)) * 260), y) > 0.995) { r = 190; g = 196; b = 210; }
+        buf[y * W + x] = (255 << 24) | (b << 16) | (g << 8) | r;
+      }
+      continue;
+    }
     const p = isFloor ? y + 0.5 - hor : hor - y - 0.5;
     if (p <= 0.3) { for (let x = 0; x < W; x++) if (y < TOP[x] || y > BOT[x]) buf[y * W + x] = fogPix; continue; }
     const rowD = WH * 0.5 * vs / p;
