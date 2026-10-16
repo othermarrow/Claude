@@ -243,6 +243,10 @@ def _sha256(path, n=16):
     return h.hexdigest()[:n]
 
 
+def _alike(a, b):
+    return bool(a and b) and (a in b or b in a or textfilter.similarity(a, b) >= 0.5)
+
+
 def assemble(s, text, atext, vtext, language):
     """1区間の結果をまとめる。text: 元の音声での認識、atext: 雑音を除いた音声での認識。
 
@@ -252,28 +256,36 @@ def assemble(s, text, atext, vtext, language):
     雑音を除いた音声の結果が、定型句など除外にあたるものや、物音でも出やすい言葉
     だけ(「どうもありがとうございました」など)なら、並べも渡しも使いもしない
     (実際の録音で、1回目と違う2回目がこうした定型句になっていた)。
+    1回目が物音でも出やすい言葉だけで、2回目がそれを確かめられなかったときは、2回目が
+    中身のある文ならそちらを使い、何も聞き取れない・別の誤認識なら1回目を除外にする。
     atext が None なら2回目は送っていない(送って何も聞き取れなかったときは "")。
     """
     alt_ran = atext is not None
     atext = textfilter.normalize(atext or "")
     ja = textfilter.judge(s, atext, language, verify_text=vtext, **_judge_kw()) if atext else None
     j = textfilter.judge(s, text, language, verify_text=vtext, **_judge_kw())
+    # 2回目(雑音を除いた音声)も、1回目と同じような中身を聞き取ったか
+    confirmed = bool(ja and ja["status"] != "drop" and textfilter.core(ja["text"])
+                     and _alike(textfilter.core(text), textfilter.core(ja["text"])))
     if ja and textfilter.stock_only(ja["text"]) and textfilter.core(ja["text"]) != textfilter.core(text):
         ja = None
+    a_stock = bool(textfilter.core(text)) and textfilter.stock_only(text)
     from_alt = False
-    if not textfilter.core(text) and ja and ja["status"] == "ok":
+    if ja and ja["status"] == "ok" and (not textfilter.core(text) or (a_stock and not confirmed)):
+        # 1回目が文字にならなかった、または物音でも出やすい言葉だけで2回目と食い違う
+        # (2回目は中身のある文)→ 2回目を使う
         j, text, from_alt = ja, atext, True
         ja = None
     item = {**s, "raw": text, **j}
     item["alt"] = ja["text"] if ja and ja["status"] != "drop" else ""
     if from_alt:
         item["reasons"] = item["reasons"] + ["雑音を除いた音声で認識した"]
-    if (alt_ran and not textfilter.core(atext) and item["status"] == "ok"
-            and textfilter.core(item["text"]) and textfilter.stock_only(item["text"])):
-        # 「ありがとうございました」などだけで、雑音を除いた音声では何も聞き取れなかった。
-        # 物音から出た定型句かもしれない(小さい声を雑音として消した場合もあるので、外さない)
-        item["status"] = "flag"
-        item["reasons"] = item["reasons"] + ["雑音を除いた音声では聞き取れなかった定型句"]
+    if (alt_ran and not from_alt and not confirmed and item["status"] == "ok" and a_stock):
+        # 「ありがとうございました」などだけで、雑音を除いた音声では何も聞き取れないか、
+        # 別の誤認識(「ご視聴ありがとうございました」など)だった。物音から出た定型句と
+        # みて本文から外す(md の末尾の一覧には残る)
+        item["status"] = "drop"
+        item["reasons"] = item["reasons"] + ["物音でも出やすい言葉だけで、雑音を除いた音声では確かめられなかった"]
     item["alt_show"] = (bool(item["alt"]) and item["status"] != "drop"
                         and textfilter.core(item["text"]) != textfilter.core(item["alt"]))
     if vtext is not None:
@@ -891,7 +903,7 @@ class Job:
         gpath = os.path.expanduser(config.GLOSSARY_FILE or "")
         mine = polish.load_glossary(gpath) if config.GLOSSARY_FILE else []
         base = list(builtin.TERMS) if config.BUILTIN_GLOSSARY else []
-        words = list(dict.fromkeys(base + mine))
+        words = builtin.merge(base, mine)
         hints = []
         if config.POLISH_CONTEXT:
             hints.append("場面の説明")

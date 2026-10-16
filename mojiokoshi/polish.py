@@ -33,10 +33,11 @@ research_bot での同じ API の実測から、次の3つも入れてある。
 句読点は「必ずすること」として頼む。実際の録音で、句読点を「直してよいこと」の
 1つとして並べていたときは、ultra が句読点の無い行をほぼそのまま返した
 (10区間のうち直ったのは、2回目の認識を取り入れた2区間だけだった)。
-それでも句読点の無い行が残れば、句読点を付けることだけを別に頼み、句読点の
-ほかに1文字でも変わった返答は使わない。
+それでも句読点の無い行が残れば、句読点を付けることだけを別に頼み、返答からは
+句読点の位置だけを使う(言葉まで直した返答でも、元の行の文字は変えない)。
 """
 
+import difflib
 import json
 import os
 import random
@@ -153,6 +154,10 @@ MAX_TIMEOUTS = 2        # 時間切れがこの回数続いたら、そのモデ
 READ_TIMEOUT = 120      # 秒。少しずつ受け取る形で、この間何も届かなければ時間切れ
 TOTAL_TIMEOUT = 600     # 秒。1回の返答全体の上限
 _THINK_HINTS = ("chat_template_kwargs", "enable_thinking", "reasoning_effort")
+# NVIDIA 側でモデルが一時的に使えない状態(実測: ultra が「DEGRADED function cannot be
+# invoked」を HTTP 400 で返した)。送り直しても今は同じで、JSON の形の指定とも関係ない
+_UNAVAILABLE = re.compile(r"degraded|inactive function|not ready|"
+                          r"no (healthy|available) (instance|worker)", re.I)
 
 
 def _timed_out(e):
@@ -244,6 +249,13 @@ def _chat(base_url, api_key, model, prompt, retries=4, log=print,
             detail = e.read().decode("utf-8", "replace")[:300]
             last = f"HTTP {e.code}: {detail}"
             low = detail.lower()
+            if _UNAVAILABLE.search(detail):
+                # 次の回にまた試す(何度も続けば、その録音では使わなくなる)
+                try:
+                    why = json.loads(detail).get("detail") or detail
+                except (ValueError, AttributeError):
+                    why = detail
+                raise PolishError(f"NVIDIA 側でモデルが一時的に使えない状態でした(HTTP {e.code}: {why[:160]})")
             if use_think and e.code in (400, 404, 422) and any(k in low for k in _THINK_HINTS):
                 # 思考を止める指定を受け付けないモデル → 外して送り直す(試行回数は使わない)
                 _no_think.add(model)
@@ -346,8 +358,9 @@ def build_prompt(chunk, before=(), after=(), context="", glossary=(), alts=None)
     ctx = f"録音の場面: {context}\n" if context else ""
     glo = ""
     if glossary:
-        glo = ("\nこの録音に出てきうる言葉・人名(聞き間違いを直すときの手がかり。"
-               "無理に当てはめない): " + "、".join(glossary) + "\n")
+        glo = ("\nこの録音に出てきうる言葉・人名(かっこ内は読み。音の近い聞き間違いを見つける"
+               "手がかりにする。当てはまらない所に無理に使わない。読みは書き込まない): "
+               + "、".join(glossary) + "\n")
     has_alt = bool(alts) and any(a for a in alts)
     prompt = PROMPT.format(context=ctx, glossary=glo,
                            hyp_note=HYP_NOTE if has_alt else "") + "\n"
@@ -385,6 +398,73 @@ def needs_punct(text):
 def tidy(text):
     """返答に混ざりやすい「。。」「、。」をまとめる。"""
     return _COMMA_END.sub("", _DOUBLE.sub(r"\1", text.strip()))
+
+
+_MARKS = "、。，,！!？?"
+_LONG_MARKS = "ー〜~ｰ"
+
+
+def _is_core(ch):
+    return not textfilter._PUNCT.fullmatch(ch)
+
+
+def transfer_punct(old, new, min_ratio=0.75):
+    """new(句読点を付けた文)の句読点を、old の文字は変えずに old へ写す。
+
+    句読点だけを頼んでも、ついでに言葉まで直してしまうモデルがある(実測: 句読点の
+    足りない行がまとまって元のまま残った)。言葉の直しは使わず、句読点の位置だけを
+    使う。似ていない(対応が取れない)ときは old のまま。元からある句読点は残す。
+    """
+    nb, after = [], {}
+    for ch in new:
+        if _is_core(ch):
+            nb.append(ch)
+        elif ch in _MARKS and nb:
+            after[len(nb) - 1] = after.get(len(nb) - 1, "") + ch
+    oa = [ch for ch in old if _is_core(ch)]
+    if not oa or not nb or not after:
+        return old
+    sm = difflib.SequenceMatcher(None, "".join(oa), "".join(nb), autojunk=False)
+    if sm.ratio() < min_ratio:
+        return old
+    # new の文字の位置 → old の文字の位置。言葉が直された所(replace)は端どうしを、
+    # 足された所(insert)は直前の文字を対応させる(句読点がその言葉の後ろに付くように)
+    jmap = {}
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            for k in range(j2 - j1):
+                jmap[j1 + k] = i1 + k
+        elif tag == "replace":
+            for j in range(j1, j2):
+                jmap[j] = min(i2 - 1, i1 + (j - j1) * (i2 - i1) // (j2 - j1))
+        elif tag == "insert" and i1 > 0:
+            for j in range(j1, j2):
+                jmap[j] = i1 - 1
+    ins = {}
+    for j, marks in after.items():
+        if j in jmap:
+            ins[jmap[j]] = ins.get(jmap[j], "") + marks
+    out, k, pending = [], -1, None
+    for ch in old:
+        if _is_core(ch):
+            if pending:
+                out.append(pending)
+            k += 1
+            out.append(ch)
+            pending = ins.get(k)
+        elif ch in _MARKS:
+            pending = None          # 元からある句読点を使う
+            out.append(ch)
+        elif ch in _LONG_MARKS:
+            out.append(ch)          # 長音は前の文字に付いたまま(句読点はその後ろ)
+        else:
+            if pending:
+                out.append(pending)
+                pending = None
+            out.append(ch)
+    if pending:
+        out.append(pending)
+    return tidy("".join(out))
 
 
 def build_punct_prompt(chunk):
@@ -486,8 +566,8 @@ def polish_lines(lines, api_key, base_url, models, batch=40, min_sim=0.6,
     else:
         used = next(iter(answered), "")
 
-    # 句読点がまだ足りない行は、句読点を付けることだけを頼む。句読点のほかに
-    # 1文字でも変わった行は使わない
+    # 句読点がまだ足りない行は、句読点を付けることだけを頼む。返答からは句読点の
+    # 位置だけを使い、元の行の文字は変えない(transfer_punct)
     todo = [i for i, t in enumerate(result) if needs_punct(t)] if used else []
     if todo:
         log(f"  [整形] 句読点の足りない {len(todo)}行に、句読点だけを付けます")
@@ -500,8 +580,8 @@ def polish_lines(lines, api_key, base_url, models, batch=40, min_sim=0.6,
                 break
             continue
         for k, new in read(reply, len(chunk), f"punct_reply_{b0 // batch + 1}.txt").items():
-            new = tidy(new)
-            if new and new != chunk[k] and textfilter.core(new) == textfilter.core(chunk[k]):
-                result[part[k]] = new
+            fixed = transfer_punct(chunk[k], tidy(new))
+            if fixed != chunk[k]:
+                result[part[k]] = fixed
     changed = sum(1 for a, b in zip(lines, result) if a != b)
     return result, changed, used, notes
