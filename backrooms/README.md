@@ -211,7 +211,7 @@ Wiki の文章は CC BY-SA 3.0（各ページの下に「Unless otherwise stated
 ## スマホに入れる
 
 zip で受け取った場合は、Download フォルダ（`/storage/emulated/0/Download`）に保存してから、Termux で次を実行する。
-Download の中のいちばん新しい `backrooms〜.zip`（`backrooms (1).zip` のように名前が変わっていてもよい）を展開して、
+Download の中で、ゲームの入ったいちばん新しい `backrooms〜.zip`（`backrooms (1).zip` のように名前が変わっていてもよい）を展開して、
 Tasker 用のフォルダ `/storage/emulated/0/Tasker/backrooms/` に `backrooms.html` を置く。
 
 ```bash
@@ -220,13 +220,18 @@ cat > ~/update_backrooms.sh <<'EOF'
 set -e
 DL=/storage/emulated/0/Download
 DST=/storage/emulated/0/Tasker/backrooms
-ZIP=$(ls -t "$DL"/backrooms*.zip 2>/dev/null | head -n 1)
+command -v unzip >/dev/null || pkg install -y unzip
+# 新しい順に見て、中に backrooms/backrooms.html が入っている zip だけを使う
+# （Wiki のページを保存した backrooms_wiki.zip などは選ばない）
+ZIP=""
+while IFS= read -r z; do
+  if unzip -l "$z" 2>/dev/null | grep -q "backrooms/backrooms.html"; then ZIP="$z"; break; fi
+done < <(ls -t "$DL"/backrooms*.zip 2>/dev/null)
 if [ -z "$ZIP" ]; then
-  echo "$DL に backrooms の zip が見つかりません"
+  echo "$DL に、ゲームの入った backrooms の zip が見つかりません"
   exit 1
 fi
 echo "使う zip: $ZIP"
-command -v unzip >/dev/null || pkg install -y unzip
 TMP=$HOME/.backrooms_unzip
 rm -rf "$TMP"
 mkdir -p "$TMP" "$DST"
