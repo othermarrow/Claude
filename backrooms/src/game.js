@@ -61,7 +61,7 @@ function enterLevel(lv, fresh) {
   if (!S.mode) S.mode = 'normal';
   newWorld(lv, S.seed, levelCfg(lv, S.mode));
   if (fresh) { S.x = START.x; S.y = START.y; S.a = 0; S.snap = snapshot(); }
-  G.ents = []; G.items = []; G.itemChunk = null; G.hint = 0; S.flash = false;
+  G.ents = []; G.items = []; G.itemChunk = null; G.hint = 0; S.flash = false; G.blackout = false; G.blackT = null;
   refreshCaches(S.x, S.y); updateLight(G.t);
   G.spawn = {};
   const E = WD.cfg.ents; for (const k in E) G.spawn[k] = E[k].first;
@@ -157,6 +157,7 @@ function useMap() {
 }
 function toggleFlash() {
   if (G.mode !== 'play' || WD.cfg.orig) return;
+  if (WD.cfg.noLight) { S.flash = false; toast('スイッチを入れても、光が出ない。ここでは、明かりが死んでいる'); sfx('click'); return; }
   if (!S.flash && S.bat <= 0) {
     if (S.spare > 0) { S.spare--; S.bat = 100; toast('電池を入れ替えた'); }
     else { toast('電池がない'); sfx('click'); return; }
@@ -278,7 +279,8 @@ function updateEnts(dt) {
       const ecx = Math.floor(e.x), ecy = Math.floor(e.y);
       const dark = (x, y) => lightAt(x + 0.5, y + 0.5) < 0.34 || (x === Math.floor(S.x) && y === Math.floor(S.y)) || (x === ecx && y === ecy);
       const lh = lightAt(S.x, S.y);
-      const beam = S.flash && S.bat > 0 && los && d < 9 && Math.abs(rel) < 0.33;
+      const lure = WD.cfg.lightLure, lit = S.flash && S.bat > 0;   // Wiki設定版：光と物音に寄ってくる
+      const beam = !lure && lit && los && d < 9 && Math.abs(rel) < 0.33;
       if (beam) e.fleeT = 2.2;
       if (e.fleeT > 0) {
         e.fleeT -= dt; e.st = 'flee'; if (beam) e.burn += dt;
@@ -296,7 +298,7 @@ function updateEnts(dt) {
           if (md > 1e-4) { e.x += mx / md * s; e.y += my / md * s; }
         }
         if (e.burn > 1.6) { e.gone = true; toast('笑い声が、遠ざかっていった'); }
-      } else if (lh < 0.34 && d < P.see) {
+      } else if (lure ? ((lit && d < P.see) || (G.noise && d < G.noise)) : (lh < 0.34 && d < P.see)) {
         e.st = 'chase'; e.tgt = { x: S.x, y: S.y }; speed = P.speed[2] * mul;
         if (los && d < 2.5) { const s = Math.min(d, speed * dt); e.x += dx / d * s; e.y += dy / d * s; }
         else stepEntity(e, speed, dt, dark);
@@ -343,10 +345,26 @@ function update(dt) {
     G.bob = Math.sin(G.bobPh) * (running ? 1.5 : 1);
   } else G.bob *= 0.9;
   G.noise = running ? ENTS.wander.hear : moving ? 4 : 0;
+  // Level 1 のフリッカリング：ときどき灯りがいっせいに消え、何かが狩りに出てくる
+  const bo = WD.cfg.blackout;
+  if (bo) {
+    if (G.blackT == null) G.blackT = bo.every[0] + Math.random() * (bo.every[1] - bo.every[0]);
+    G.blackT -= dt;
+    if (G.blackT <= 0) {
+      G.blackout = !G.blackout;
+      if (G.blackout) {
+        G.blackT = bo.dur[0] + Math.random() * (bo.dur[1] - bo.dur[0]);
+        toast('灯りが、いっせいに消えた。……フリッカリングだ'); sfx('zap', { pan: 0 }); vibe(30);
+        if (G.ents.filter(e => e.type === 'wander').length < (WD.cfg.ents.wander ? WD.cfg.ents.wander.max : 1) + 1) trySpawn('wander');
+      } else { G.blackT = bo.every[0] + Math.random() * (bo.every[1] - bo.every[0]); toast('灯りが戻った'); }
+    }
+    if (G.blackout && S.flash && S.bat > 0) G.noise = Math.max(G.noise, 10);   // 暗闇で明かりをつけると、気づかれる
+  }
   // 体力
   if (running) { S.stam -= 22 * dt; if (S.stam <= 0) { S.stam = 0; G.tired = true; toast('息が切れた'); } }
   else S.stam = Math.min(100, S.stam + (moving ? 11 : 20) * dt);
   const cfg = WD.cfg;
+  if (cfg.noLight) S.flash = false;   // Level 6：明かりがつかない
   // 懐中電灯
   if (S.flash) {
     S.bat -= 0.42 * (cfg.hard ? 1.3 : 1) * dt;

@@ -134,6 +134,7 @@ function lampAt(X, Y) {
   const L = WD.cfg.lamps, e = L.every, off = WD.cfg.gen === 'maze' ? 0 : 1;
   if ((((X - off) % e) + e) % e !== 0 || (((Y - off) % e) + e) % e !== 0) return 0;
   if (cellAt(X, Y) === 1) return 0;
+  if (L.on > 0 && Math.abs(X - 8) <= 4 && Math.abs(Y - 8) <= 4) return 1;   // 始まりの場所は明るく
   if (L.darkBlock && hash3(WD.seed + 5, Math.floor(X / 8), Math.floor(Y / 8)) < L.darkBlock) return 3;
   const r = hash3(WD.seed + 3, X, Y);
   return r < L.on ? 1 : r < L.on + L.flick ? 2 : 3;

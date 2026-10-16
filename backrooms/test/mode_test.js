@@ -82,7 +82,7 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
   });
   ok(g && /第10層まで来た/.test(g.t), '前に死んだ自分のメモを拾う：' + (g && g.t.split('\n')[0]));
   // ---- 五つの報告書・山羊文学版 ----
-  for (const [mode, label, monster, first] of [['self', '五つの報告書', 'sp_wander', 'エラーから直す部屋'], ['yagi', '山羊文学版', 'sp_goat', '地下室の山羊'], ['wiki', 'Wiki設定版', 'sp_wander', 'ロビー']]) {
+  for (const [mode, label, monster, first] of [['self', '五つの報告書', 'sp_wander', 'エラーから直す部屋'], ['yagi', '山羊文学版', 'sp_goat', '地下室の山羊'], ['wiki', 'Wiki設定版', 'sp_hound', 'スレッショルド']]) {
     await ev(() => { clearSave(); S = null; showTitle(); });
     await click('ほかの版'); await click(label);
     await shot(`m1_${mode}_intro`);
@@ -99,7 +99,7 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
     const n = await ev(() => { pickUp({ id: 'tn1', t: 'note', x: 0, y: 0 }); const t = $('#ov').innerText; startPlay(); return { t, n: S.notes.length, src: S.notes[0] && S.notes[0].src }; });
     ok(n.n === 1 && n.src, `${label}：メモを拾う（${n.src}）${n.t.replace(/\s+/g, ' ').slice(0, 40)}`);
     // 怪物の絵
-    const spr = await ev(() => { G.ents = [{ type: 'wander', x: S.x + 3, y: S.y, st: 'wander', tgt: null, next: null, repath: 0, lost: 0, stepT: 0, sndT: 1, burn: 0 }]; return sprites().find(o => o.h > 1).spr; });
+    const spr = await ev(() => { G.ents = [{ type: 'wander', x: S.x + 3, y: S.y, st: 'wander', tgt: null, next: null, repath: 0, lost: 0, stepT: 0, sndT: 1, burn: 0 }]; return sprites().find(o => o.x === G.ents[0].x && o.y === G.ents[0].y).spr; });
     ok(spr === monster, `${label}：追ってくるものの絵（${spr}）`);
     await ev(() => { S.a = 0; G.ents[0].x = S.x + 2.5; G.ents[0].y = S.y; if (blocked(G.ents[0].x, G.ents[0].y)) { G.ents[0].x = S.x; G.ents[0].y = S.y + 2.5; S.a = Math.PI / 2; } });
     await page.waitForTimeout(250);
@@ -107,11 +107,11 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
     // 捕まったときの文
     await ev(() => { G.ents = [{ type: 'wander', x: S.x, y: S.y + 0.1, st: 'chase', tgt: null, next: null, repath: 0, lost: 5, stepT: 0, sndT: 1, burn: 0 }]; update(0.03); });
     const ov1 = await page.$eval('#ov', e => e.innerText);
-    ok(/最初から/.test(ov1) && (mode === 'self' ? /要約/.test(ov1) : mode === 'wiki' ? /引き倒/.test(ov1) : /山羊/.test(ov1)), `${label}：捕まったときの文（やり直せる）`);
+    ok(/最初から/.test(ov1) && (mode === 'self' ? /要約/.test(ov1) : mode === 'wiki' ? /四つ足/.test(ov1) : /山羊/.test(ov1)), `${label}：捕まったときの文（やり直せる）`);
     await click('この層の最初から'); await click('進む');
     // すべての層を通ってエンディング
     const nlv = await ev(m => THEMES[m].levels.length, mode);
-    ok(nlv === 10, `${label}：層は${nlv}`);
+    ok(nlv === (mode === 'wiki' ? 9 : 10), `${label}：層は${nlv}`);
     for (let lv = 0; lv < nlv; lv++) {
       if (lv === 7 && mode === 'wiki') await shot('m1_wiki_card7');
       await ev(() => { DBG.toExit(); update(0.01); enterExit(); finishTrans(); }); if (lv < nlv - 1) await click('進む');
@@ -135,15 +135,28 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
   ok(/Level 0/.test(wi) && /CC BY-SA 3\.0/.test(wi), 'Wiki設定版：はじまりの文に、設定のもとと CC BY-SA 3.0');
   await click('進む');
   const wc = await page.$eval('#ov', e => e.innerText);
-  ok(/Level 0 - "The Lobby"/.test(wc), 'Wiki設定版：札に Level の英語名');
+  ok(/Level 0 - "Threshold"/.test(wc) && /生存難易度 1/.test(wc), 'Wiki設定版：札に Level の英語名と生存難易度');
   await click('進む');
   const aw = await ev(() => { S.water = 1; S.san = 50; S.thirst = 50; drinkWater(); return { san: S.san, t: $('#toast').textContent }; });
   ok(aw.san === 75 && /アーモンドウォーター/.test(aw.t), `Wiki設定版：アーモンドウォーターで正気がよく戻る（${aw.san}）`);
-  const ff = await ev(() => { enterLevel(4, true); startPlay(); G.ents = [{ type: 'face', x: S.x + 0.1, y: S.y, st: 'wander', tgt: null, next: null, repath: 0, lost: 0, stepT: 0, sndT: 1, burn: 0 }]; for (let i = 0; i < 30; i++) update(0.033); return { m: G.mode, name: WD.cfg.name, face: sprites().some(o => o.spr === 'sp_face') }; });
+  const ff = await ev(() => { enterLevel(2, true); startPlay(); G.ents = [{ type: 'face', x: S.x + 0.1, y: S.y, st: 'wander', tgt: null, next: null, repath: 0, lost: 0, stepT: 0, sndT: 1, burn: 0 }]; for (let i = 0; i < 30; i++) update(0.033); return { m: G.mode, name: WD.cfg.name, face: sprites().some(o => o.spr === 'sp_face') }; });
   ok(ff.m === 'play' && ff.face, `Wiki設定版：${ff.name}のフェイスリングは、さわっても何もしてこない`);
-  const rn = await ev(() => { enterLevel(7, true); startPlay(); G.spawn = {}; for (let i = 0; i < 200; i++) update(0.033); const e = G.ents[0]; return { name: WD.cfg.name, n: G.ents.length, st: e && e.st, d: e && Math.hypot(e.x - S.x, e.y - S.y) }; });
-  ok(rn.n >= 1 && (rn.st === 'hunt' || rn.st === 'chase' || rn.m === 'over'), `Wiki設定版：${rn.name}では、すぐに追われる（${JSON.stringify(rn)}）`);
-  await ev(() => { G.ents = []; enterLevel(8, true); startPlay(); S.a = 0.6; G.ents = [{ type: 'wander', x: S.x + 2.4, y: S.y, st: 'wander', tgt: null, next: null, repath: 0, lost: 0, stepT: 0, sndT: 1, burn: 0 }]; if (blocked(S.x + 2.4, S.y)) { G.ents[0].x = S.x; G.ents[0].y = S.y + 2.4; S.a = Math.PI / 2; } else S.a = 0; });
+  // Level 1：フリッカリング（灯りがいっせいに消える）
+  const bo = await ev(() => { enterLevel(1, true); startPlay(); S.san = 100; const before = lightAt(S.x, S.y); G.blackT = 0.01; update(0.033); for (let i = 0; i < 10; i++) update(0.033); updateLight(G.t); const r = { name: WD.cfg.name, on: G.blackout, before, after: lightAt(S.x, S.y), t: $('#toast').textContent }; G.blackT = 0.01; update(0.033); r.back = !G.blackout; return r; });
+  ok(bo.on && bo.after < bo.before * 0.6 && /フリッカリング/.test(bo.t) && bo.back, `Wiki設定版：${bo.name}で灯りがいっせいに消えて、また戻る（${bo.before.toFixed(2)}→${bo.after.toFixed(2)}）`);
+  // スマイラーは光に寄ってくる（明かりを消して静かにしていれば来ない）
+  const sm = await ev(() => {
+    enterLevel(2, true); startPlay(); G.spawn = { grin: 1e9, wander: 1e9, face: 1e9 };
+    const put = () => { G.ents = [{ type: 'grin', x: S.x + 4.5, y: S.y, st: 'lurk', tgt: null, next: null, repath: 0, lost: 0, stepT: 0, sndT: 1, burn: 0 }]; };
+    S.a = 0; put(); S.flash = true; S.bat = 100; update(0.033); const a = G.ents[0] && G.ents[0].st;
+    put(); S.flash = false; update(0.033); const b = G.ents[0] && G.ents[0].st;
+    return { a, b };
+  });
+  ok(sm.a === 'chase' && sm.b !== 'chase' && sm.b !== 'flee', `Wiki設定版：スマイラーは明かりに寄ってきて、明かりを消すと寄ってこない（${JSON.stringify(sm)}）`);
+  // Level 6：明かりがつかない
+  const l6 = await ev(() => { enterLevel(6, true); startPlay(); S.bat = 100; toggleFlash(); return { name: WD.cfg.name, flash: S.flash, t: $('#toast').textContent }; });
+  ok(!l6.flash && /光が出ない/.test(l6.t), `Wiki設定版：${l6.name}では明かりがつかない`);
+  await ev(() => { G.ents = []; enterLevel(7, true); startPlay(); S.a = 0.6; G.ents = [{ type: 'wander', x: S.x + 2.4, y: S.y, st: 'wander', tgt: null, next: null, repath: 0, lost: 0, stepT: 0, sndT: 1, burn: 0 }]; if (blocked(S.x + 2.4, S.y)) { G.ents[0].x = S.x; G.ents[0].y = S.y + 2.4; S.a = Math.PI / 2; } else S.a = 0; });
   await page.waitForTimeout(250);
   await shot('m1_wiki_party');
   ok(await ev(() => sprites().some(o => o.spr === 'sp_party')), 'Wiki設定版：Level Fun にはパーティーゴーアー');

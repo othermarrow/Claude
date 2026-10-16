@@ -382,54 +382,72 @@ function buildTextures() {
     g.fillStyle = '#d8c070'; g.fillRect(21, 4, 22, 6); g.fillStyle = '#2a2215'; g.font = 'bold 5px sans-serif'; g.fillText('BOILER', 23, 9);
     eg.fillStyle = '#fff'; eg.fillRect(21, 4, 22, 6);
   });
-  // Level 6 の出口：赤く光る扉
-  makeTex('ex_red', 64, 64, (g, w, h, R, eg) => {
-    copyTex(g, 'wp3');
-    g.fillStyle = '#ff2a1a'; g.fillRect(12, 10, 40, 54); eg.fillStyle = '#fff'; eg.fillRect(12, 10, 40, 54);
-    g.fillStyle = '#3a1210'; g.fillRect(15, 13, 34, 51); eg.clearRect(15, 13, 34, 51);
-    g.fillStyle = '#5a1c18'; g.fillRect(17, 15, 30, 49);
-    g.fillStyle = '#c8a0a0'; g.fillRect(41, 40, 4, 2);
+  // Level 1 の出口：配管と計器が増えていく通路
+  makeTex('ex_l1', 64, 64, (g, w, h, R, eg) => {
+    copyTex(g, 'cn1');
+    g.fillStyle = '#0d0e10'; g.fillRect(18, 18, 28, 46);
+    const gr = g.createLinearGradient(0, 18, 0, 64); gr.addColorStop(0, '#1d2024'); gr.addColorStop(1, '#0a0b0c'); g.fillStyle = gr; g.fillRect(20, 20, 24, 44);
+    const pipe = (y, c) => { g.fillStyle = c; g.fillRect(0, y, w, 4); g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(0, y, w, 1); };
+    pipe(6, '#56655a'); pipe(12, '#7a4b2a'); g.fillStyle = '#56655a'; g.fillRect(8, 0, 4, h); g.fillRect(52, 0, 4, h);
+    for (const [x, y] of [[4, 30], [56, 34], [6, 46]]) { g.fillStyle = '#d8d4c4'; g.beginPath(); g.arc(x, y, 3.2, 0, 7); g.fill(); g.strokeStyle = '#222'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 2, y - 1.5); g.stroke(); }
+    g.fillStyle = '#0b9a57'; g.fillRect(24, 13, 16, 5); eg.fillStyle = '#fff'; eg.fillRect(24, 13, 16, 5);
+  }, (d, w, h, R) => noisePix(d, 5, R));
+  // Level 2 の出口：前の誰かが印をつけた、鍵の開いている鉄の扉
+  makeTex('ex_l2', 64, 64, (g, w, h, R, eg) => {
+    copyTex(g, 'pp2');
+    g.fillStyle = '#2a2a28'; g.fillRect(14, 12, 36, 52);
+    g.fillStyle = '#b9b8ae'; g.fillRect(16, 14, 32, 50);
+    g.fillStyle = '#9f9e95'; g.fillRect(16, 38, 32, 2);
+    g.fillStyle = '#6a6a62'; g.fillRect(42, 38, 4, 3);
+    g.strokeStyle = '#f2f0e6'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(22, 20); g.lineTo(34, 20); g.lineTo(28, 26); g.quadraticCurveTo(36, 26, 32, 33); g.quadraticCurveTo(26, 36, 22, 31); g.stroke();
+    g.beginPath(); g.moveTo(22, 46); g.lineTo(40, 46); g.lineTo(36, 43); g.moveTo(40, 46); g.lineTo(36, 49); g.stroke();
+    g.fillStyle = '#ff9a2a'; g.fillRect(28, 4, 8, 4); eg.fillStyle = '#fff'; eg.fillRect(28, 4, 8, 4);
+  }, (d, w, h, R) => { noisePix(d, 6, R); stains(d, w, h, R, 16, 0.6, 0.3); });
+  // Level 6：なめらかで冷たいコンクリートの壁
+  makeTex('lo6', 64, 64, (g, w, h) => { g.fillStyle = '#6c6e70'; g.fillRect(0, 0, w, h); g.fillStyle = '#5e6062'; g.fillRect(0, 31, w, 1); }, (d, w, h, R) => noisePix(d, 4, R));
+  // Level 6 の出口：暗闇で手にふれた風船
+  makeTex('ex_l6', 64, 64, (g, w, h) => {
+    copyTex(g, 'lo6');
+    g.strokeStyle = '#ddd'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(32, 30); g.quadraticCurveTo(28, 44, 33, 62); g.stroke();
+    g.fillStyle = '#c8282a'; g.beginPath(); g.ellipse(32, 20, 8, 10, 0, 0, 7); g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.45)'; g.fillRect(28, 14, 2, 4);
+    g.fillStyle = '#e8c52a'; g.fillRect(26, 40, 12, 9); g.fillStyle = '#111'; g.font = 'bold 6px sans-serif'; g.fillText('=)', 29, 47);
   });
-  // Level !：赤い線の通路
-  makeTex('rn_w', 64, 64, (g, w, h) => {
-    g.fillStyle = '#9a9a96'; g.fillRect(0, 0, w, h);
-    g.fillStyle = '#8a8a86'; for (let y = 0; y < h; y += 16) g.fillRect(0, y, w, 1);
-    g.fillStyle = '#b3201a'; g.fillRect(0, 34, w, 6);
-    g.fillStyle = '#e8e8e2'; for (let x = 6; x < w; x += 22) { g.beginPath(); g.moveTo(x, 35); g.lineTo(x + 7, 37); g.lineTo(x, 39); g.closePath(); g.fill(); }
-    g.fillStyle = '#4a4a46'; g.fillRect(0, h - 4, w, 4);
-  }, (d, w, h, R) => { noisePix(d, 6, R); stains(d, w, h, R, 16, 0.6, 0.35); });
-  makeTex('ex_run', 64, 64, (g, w, h, R, eg) => {
-    copyTex(g, 'rn_w');
-    g.fillStyle = '#3a3a38'; g.fillRect(14, 14, 36, 50);
-    g.fillStyle = '#6a6a66'; g.fillRect(16, 16, 32, 48);
-    g.fillStyle = '#c8c8c0'; g.fillRect(16, 38, 32, 3);
-    g.fillStyle = '#e8221a'; g.fillRect(18, 3, 28, 10); eg.fillStyle = '#fff'; eg.fillRect(18, 3, 28, 10);
-    g.fillStyle = '#fff2f0'; g.font = 'bold 8px sans-serif'; g.fillText('EXIT', 23, 11);
-  });
-  // Level Fun =)
-  makeTex('fn_w', 64, 64, (g, w, h, R) => {
-    g.fillStyle = '#f2e7b8'; g.fillRect(0, 0, w, h);
+  // Level 26：SS Fun =) の船内の廊下（荒らされたパーティー）
+  makeTex('ss_w', 64, 64, (g, w, h, R) => {
+    g.fillStyle = '#d9cfb4'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#c4b998'; for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 1, h);
+    g.fillStyle = '#7a5a3a'; g.fillRect(0, 50, w, 14); g.fillStyle = '#9a7650'; g.fillRect(0, 50, w, 2);
     const c = ['#e8483f', '#3f8fe8', '#5ec95a', '#f0b72f', '#c35fd1'];
-    for (let k = 0; k < 4; k++) {
-      const x = 8 + k * 15 + (R() - 0.5) * 4, y = 10 + R() * 18;
-      g.strokeStyle = '#8a8270'; g.lineWidth = 0.6; g.beginPath(); g.moveTo(x, y + 6); g.quadraticCurveTo(x + 3, y + 16, x, y + 26); g.stroke();
-      g.fillStyle = c[k % 5]; g.beginPath(); g.ellipse(x, y, 4.2, 5.4, 0, 0, 7); g.fill();
-      g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillRect(x - 2, y - 3, 1, 2);
+    for (let k = 0; k < 3; k++) {
+      const x = 10 + k * 20 + (R() - 0.5) * 4, y = 12 + R() * 10;
+      g.strokeStyle = '#8a8270'; g.lineWidth = 0.6; g.beginPath(); g.moveTo(x, y + 6); g.quadraticCurveTo(x + 3, y + 14, x, y + 24); g.stroke();
+      g.fillStyle = c[(k * 2) % 5]; g.beginPath(); g.ellipse(x, y, 4, 5, 0, 0, 7); g.fill();
     }
-    g.fillStyle = '#6b5a2a'; g.font = 'bold 7px sans-serif'; g.fillText('=)', 26, 54);
-    g.fillStyle = '#c9b87a'; g.fillRect(0, h - 4, w, 4);
-  }, (d, w, h, R) => { noisePix(d, 4, R); stains(d, w, h, R, 32, 0.8, 0.15); });
-  makeTex('fn_f', 64, 64, (g, w, h, R) => {
-    g.fillStyle = '#d9cfa6'; g.fillRect(0, 0, w, h);
+    for (let k = 0; k < 7; k++) { g.fillStyle = 'rgba(110,8,8,0.75)'; g.beginPath(); g.arc(20 + R() * 30, 30 + R() * 18, 0.8 + R() * 2.4, 0, 7); g.fill(); }
+    g.fillStyle = '#6b5a2a'; g.font = 'bold 7px sans-serif'; g.fillText('=)', 44, 44);
+  }, (d, w, h, R) => { noisePix(d, 5, R); stains(d, w, h, R, 16, 0.55, 0.35); });
+  makeTex('ss_f', 64, 64, (g, w, h, R) => {
+    g.fillStyle = '#5a2a2c'; g.fillRect(0, 0, w, h);
     const c = ['#e8483f', '#3f8fe8', '#5ec95a', '#f0b72f', '#c35fd1'];
-    for (let k = 0; k < 40; k++) { g.fillStyle = c[k % 5]; g.fillRect(Math.floor(R() * w), Math.floor(R() * h), 2, 1 + (k & 1)); }
-  }, (d, w, h, R) => noisePix(d, 6, R));
-  makeTex('ex_fun', 64, 64, (g, w, h, R, eg) => {
-    copyTex(g, 'fn_w');
-    const c = ['#e8483f', '#f2f2f2'];
-    for (let i = 0; i < 12; i++) { g.fillStyle = c[i & 1]; g.fillRect(10 + i * 3.7, 16, 4, 48); }
-    g.fillStyle = '#0a0a0a'; g.beginPath(); g.ellipse(32, 46, 15, 16, 0, Math.PI, 0); g.fill(); g.fillRect(17, 46, 30, 18);
-    g.fillStyle = '#f0b72f'; g.font = 'bold 9px sans-serif'; g.fillText('=)', 26, 11); eg.fillStyle = '#fff'; eg.font = 'bold 9px sans-serif'; eg.fillText('=)', 26, 11);
+    for (let k = 0; k < 34; k++) { g.fillStyle = c[k % 5]; g.fillRect(Math.floor(R() * w), Math.floor(R() * h), 2, 1 + (k & 1)); }
+  }, (d, w, h, R) => { noisePix(d, 8, R); stains(d, w, h, R, 16, 0.5, 0.45); });
+  // Level 26 の出口：裏返しの、ぼやけたパーティーのポスター
+  makeTex('ex_poster', 64, 64, (g, w, h, R, eg) => {
+    copyTex(g, 'ss_w');
+    g.fillStyle = '#f2e7b8'; g.fillRect(14, 8, 36, 42);
+    g.fillStyle = '#e8483f'; g.fillRect(16, 10, 32, 3);
+    g.save(); g.translate(64, 0); g.scale(-1, 1);
+    g.fillStyle = '#5a3a8a'; g.font = 'bold 8px sans-serif'; g.fillText('TIME', 22, 24); g.fillText('4 FUN', 20, 34);
+    g.fillStyle = '#e8c52a'; g.beginPath(); g.arc(32, 43, 4, 0, 7); g.fill();
+    g.restore();
+    eg.fillStyle = 'rgba(255,255,255,0.6)'; eg.fillRect(14, 8, 36, 2); eg.fillRect(14, 48, 36, 2);
+  }, (d, w, h, R) => {   // ぼかす
+    const c = new Uint8ClampedArray(d);
+    for (let y = 9; y < 49; y++) for (let x = 15; x < 49; x++) for (let k = 0; k < 3; k++) {
+      let s = 0; for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) s += c[((y + oy) * w + x + ox) * 4 + k];
+      d[(y * w + x) * 4 + k] = s / 9;
+    }
   });
   // Level 37：ぬるい水に沈んだタイル
   makeTex('pw37', 64, 64, (g, w, h) => {
@@ -437,6 +455,12 @@ function buildTextures() {
     g.fillStyle = '#7fb0b8'; for (let i = 0; i < w; i += 16) { g.fillRect(i, 0, 1, h); g.fillRect(0, i, w, 1); }
     g.strokeStyle = 'rgba(235,255,255,0.5)'; g.lineWidth = 1;
     for (let k = 0; k < 5; k++) { g.beginPath(); for (let x = 0; x <= w; x += 4) g.lineTo(x, k * 13 + 4 + Math.sin(x / 7 + k) * 2); g.stroke(); }
+  }, (d, w, h, R) => noisePix(d, 3, R));
+  makeTex('ex_37', 64, 64, (g, w, h) => {
+    copyTex(g, 'tl9');
+    g.fillStyle = '#16343a'; g.beginPath(); g.moveTo(12, 64); g.lineTo(12, 22); g.quadraticCurveTo(32, 6, 52, 22); g.lineTo(52, 64); g.closePath(); g.fill();
+    for (let k = 0; k < 6; k++) { const y = 40 + k * 4; g.fillStyle = `rgba(200,235,235,${0.55 - k * 0.08})`; g.fillRect(14 + k * 2, y, 36 - k * 4, 1.5); }
+    g.fillStyle = 'rgba(120,200,200,0.35)'; g.fillRect(12, 56, 40, 8);
   }, (d, w, h, R) => noisePix(d, 3, R));
 
   // ---- 拾う物（下が床） ----
@@ -540,6 +564,28 @@ function buildTextures() {
     g.fillStyle = '#111'; g.beginPath(); g.arc(28, 13, 1.8, 0, 7); g.fill(); g.beginPath(); g.arc(36, 13, 1.8, 0, 7); g.fill();
     g.strokeStyle = '#111'; g.lineWidth = 1.6; g.beginPath(); g.arc(32, 15, 7, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
     g.fillStyle = '#e8483f'; g.beginPath(); g.moveTo(26, 6); g.lineTo(32, -8); g.lineTo(38, 6); g.closePath(); g.fill();   // 三角帽子
+  });
+  // デスモス：大きな蛾（光に寄ってくる）
+  makeTex('sp_moth', 64, 64, (g, w, h, R, eg) => {
+    g.fillStyle = '#5a5040';
+    for (const sx of [-1, 1]) {
+      g.beginPath(); g.moveTo(32, 30); g.quadraticCurveTo(32 + sx * 30, 6, 32 + sx * 30, 26); g.quadraticCurveTo(32 + sx * 24, 36, 32, 34); g.fill();
+      g.beginPath(); g.moveTo(32, 34); g.quadraticCurveTo(32 + sx * 24, 40, 32 + sx * 18, 54); g.quadraticCurveTo(32 + sx * 8, 50, 32, 38); g.fill();
+      g.fillStyle = '#2e281e'; g.beginPath(); g.arc(32 + sx * 16, 22, 4, 0, 7); g.fill(); g.fillStyle = '#5a5040';
+    }
+    g.fillStyle = '#3a3226'; g.beginPath(); g.ellipse(32, 36, 4, 12, 0, 0, 7); g.fill();
+    g.strokeStyle = '#3a3226'; g.lineWidth = 1; g.beginPath(); g.moveTo(31, 25); g.lineTo(25, 15); g.moveTo(33, 25); g.lineTo(39, 15); g.stroke();
+    g.fillStyle = '#e8d070'; g.fillRect(29, 26, 2, 2); g.fillRect(33, 26, 2, 2); eg.fillStyle = '#fff'; eg.fillRect(29, 26, 2, 2); eg.fillRect(33, 26, 2, 2);
+  });
+  // 肉食の風船：暗い隅にいる、歯のある風船
+  makeTex('sp_cballoon', 64, 64, (g, w, h, R, eg) => {
+    g.strokeStyle = '#aaa'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(32, 44); g.quadraticCurveTo(28, 54, 33, 64); g.stroke();
+    g.fillStyle = '#b81e24'; g.beginPath(); g.ellipse(32, 26, 15, 18, 0, 0, 7); g.fill();
+    g.fillStyle = '#8a1418'; g.beginPath(); g.moveTo(29, 43); g.lineTo(35, 43); g.lineTo(32, 47); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.4)'; g.beginPath(); g.ellipse(25, 17, 3, 5, -0.4, 0, 7); g.fill();
+    const mouth = c => { c.beginPath(); c.moveTo(20, 28); c.quadraticCurveTo(32, 42, 44, 28); c.quadraticCurveTo(32, 34, 20, 28); c.fill(); };
+    g.fillStyle = '#f1ead2'; mouth(g); eg.fillStyle = '#fff'; mouth(eg);
+    g.fillStyle = '#2a0406'; for (let x = 22; x < 43; x += 2.4) g.fillRect(x, 29, 0.9, 6);
   });
   // アーモンドウォーター（拾う物の絵を「ふつう」にしたとき）
   makeTex('sp_almond', 32, 32, (g) => {

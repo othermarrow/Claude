@@ -99,7 +99,7 @@ function showCard(lv) {
   if (THEMES[S.mode]) {
     const L = THEMES[S.mode].levels[lv];
     fl = L.flavor;
-    tag = S.mode === 'yagi' ? `――『${L.src}』` : S.mode === 'wiki' ? L.en : `${L.src} の報告書より`;
+    tag = S.mode === 'yagi' ? `――『${L.src}』` : S.mode === 'wiki' ? `${L.en}　生存難易度 ${L.sd}` : `${L.src} の報告書より`;
   }
   sfx('whoosh');
   ov(`<div class="card"><div class="cn">${c.n}</div><div class="cname">${c.name}</div><p>${br(fl)}</p>${tag ? `<div class="small">${esc(tag)}</div>` : ''}</div>${btn('go', '進む', 'main')}`, { go: startPlay }, 'dark');
@@ -148,8 +148,9 @@ function showHow(back) {
     <p><b>五つの報告書</b>：5つのAIがあなたについて書いた報告書を、10の層で歩く（1つの報告書に2層ずつ）。床のメモは、その報告書の言葉。追ってくるのは「推測」、暗がりにいるのは「ラベル」。</p>
     <p><b>山羊文学版</b>：山羊文学の作品を、10の層で歩く。床のメモは、作品の言葉。追ってくるのは「山羊」、暗がりにいるのは「笑う山羊」。</p>
     <p>この2つの版では、拾う物はすべて同じ印に見える。拾うまで、水か電池かメモか分からない。</p>
-    <p><b>Wiki設定版</b>：2019年の投稿のあと、ネットの Backrooms Wiki で広がった設定で歩く。Level 0「ロビー」から Level 37「サブリミティ」まで10の Level。水のかわりにアーモンドウォーター（正気がよく戻る）。ハウンド、スマイラー、フェイスリング（何もしてこない）、パーティーゴーアーなどが出る。Level ! では、ずっと追われる。走れ。</p>
-    <p class="small">Wiki設定版の設定のもと：The Backrooms Wiki（Wikidot ほか）。CC BY-SA 3.0。文章はこのゲームのために書いたもの。</p>
+    <p><b>Wiki設定版</b>：2019年の投稿のあと、The Backrooms Wiki で広がった設定で歩く。Level 0「Threshold」から 1・2・3・4・5・6 と下り、Level 26「SS Fun =)」、Level 37「Sublimity」まで9つの Level。水のかわりにアーモンドウォーター（正気がよく戻る）。</p>
+    <p>Level 1 では、ときどき灯りがいっせいに消える（フリッカリング）。暗いあいだは明かりをつけず、走らず、緑の非常口の灯りを目指す。スマイラーとデスモスは、光と物音に寄ってくる（ライトを向けても逃げない）。フェイスリングは何もしてこない。Level 6 では明かりがつかない。音を頼りに進む。</p>
+    <p class="small">Wiki設定版の設定のもと：The Backrooms Wiki（backrooms-wiki.wikidot.com）の Level 0・1・2・3・4・5・6・26・37 のページ。CC BY-SA 3.0。書いた人の名前は README にある。文章はこのゲームのために書いたもの。</p>
     <p><b>原作版</b>：2019年の最初の投稿に合わせた版。黄色い部屋だけが続き、出口も、持ち物も、正気の表示もない。できるのは歩くことと走ることだけ。しばらくすると「何か」が現れる。それはときどき、あなたの居場所を聞きつける。時間がたつほど、正確に。どれだけ生き延びられるか。</p>
     <p class="small">キーボード：WASD・矢印で移動、Shiftで走る、Fでライト、Qで水、Mで地図、Eで出口、Escで一時停止</p>
     </div>${btn('back', '戻る')}`, { back });

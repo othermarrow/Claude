@@ -68,7 +68,7 @@ for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
   KER.push([dx, dy, d === 0 ? 0.95 : d < 1.1 ? 0.7 : d < 1.5 ? 0.55 : d < 2.1 ? 0.33 : d < 2.3 ? 0.26 : 0.15]);
 }
 function updateLight(t) {
-  const S4 = LG + 4, amb = WD.cfg.amb, lk = WD.cfg.lampK || 1;
+  const S4 = LG + 4, amb = WD.cfg.amb, lk = (WD.cfg.lampK || 1) * (typeof G !== 'undefined' && G.blackout ? 0 : 1);
   for (let j = 0; j < S4; j++) for (let i = 0; i < S4; i++) {
     const k = j * S4 + i, ty = LAMPS[k];
     PGRID[k] = (ty === 1 ? 1 : ty === 2 ? flickAt(lox - 2 + i, loy - 2 + j, t) : 0) * lk;

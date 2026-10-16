@@ -134,12 +134,16 @@ const MELODY = {
   clock: { notes: [[2400, 0.04, 0.16, 'triangle'], [1800, 0.04, 0.16, 'triangle'], [2400, 0.04, 0.16, 'triangle'], [1800, 0.04, 0.16, 'triangle'], [2400, 0.04, 0.16, 'triangle'], [1800, 0.04, 0.16, 'triangle'], [523, 2.2, 0.3, 'sine'], 0], gap: 0.5, type: 'sine', dur: 0.1, g: 0.2 },
   chip: { notes: [523, 659, 784, 1047, 784, 659, 523, 0, 587, 698, 880, 1175, 880, 0, 0, 0], gap: 0.15, type: 'square', dur: 0.13, g: 0.06 },
   monitor: { notes: [1000, 0, 0, 0, 0], gap: 0.24, type: 'sine', dur: 0.11, g: 0.3 },
+  jazz: { notes: [392, 466, 587, 698, 523, 659, 784, 932, 349, 440, 523, 659, 0, 0, 0, 0], gap: 0.28, type: 'triangle', dur: 0.55, g: 0.11 },
   party: { notes: [784, 784, 880, 784, 1047, 988, 0, 784, 784, 880, 784, 1175, 1047, 0, 0, 0, 0], gap: 0.32, type: 'triangle', dur: 0.4, g: 0.15 },   // 「ハッピーバースデー」（作者不明の古い歌）
 };
 function audioUpdate(info) {
   if (!AU.on) return;
   const ctx = AU.ctx, t = ctx.currentTime, cfg = WD.cfg;
-  AU.hum.gain.setTargetAtTime(0.06 * cfg.hum * clamp(info.lightHere * 1.3, 0.05, 1.2), t, 0.3);
+  // Level 0：蛍光灯のうなりが、ときどき急に大きくなる
+  if (cfg.humSpike && t > (AU.spikeNext || 0)) { if (AU.spikeNext) AU.spikeEnd = t + 1.4; AU.spikeNext = t + 25 + Math.random() * 35; }
+  const spike = cfg.humSpike && t < (AU.spikeEnd || 0) ? 3.2 : 1;
+  AU.hum.gain.setTargetAtTime(0.06 * cfg.hum * spike * clamp(info.lightHere * 1.3, 0.05, 1.2), t, spike > 1 ? 0.05 : 0.3);
   // 出口
   const m = MELODY[cfg.beacon] || MELODY.wind;
   const vol = cfg.beacon ? Math.pow(clamp(1 - info.exitDist / (cfg.beaconRange || 38), 0, 1), 1.6) : 0;
@@ -164,7 +168,7 @@ function audioUpdate(info) {
     AU.heartNext = t + lerp(1.1, 0.42, clamp(info.fear, 0, 1));
   }
   // 正気が減ると、ないはずの音がする
-  if (info.sanity < 35 && t >= AU.halluNext) {
+  if ((info.sanity < 35 || cfg.hallu) && t >= AU.halluNext) {   // cfg.hallu：その Level では、正気でも聞こえる
     const r = Math.random(), pan = Math.random() * 2 - 1;
     if (r < 0.4) sfx('knock', { pan }); else if (r < 0.7) sfx('thump', { pan, gain: 0.25 }); else sfx('giggle', { pan, gain: 0.08 });
     AU.halluNext = t + 6 + Math.random() * 12 * (info.sanity / 35 + 0.3);

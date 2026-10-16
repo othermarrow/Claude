@@ -456,124 +456,123 @@ const THEMES = {
   },
 };
 // ===== Wiki設定版 =====
-// 2019年の投稿のあと、ネットの Backrooms Wiki（Wikidot ほか、CC BY-SA 3.0）で広がった設定をもとにした版。
-// Level の名前・様子・Entity・アーモンドウォーター・M.E.G. は Wiki の設定から。文章はこのゲームのために書いた。
-// 細かいところ（出口の形、Entity の動き方など）は、このゲームでの解釈。
+// 2019年の投稿のあと、The Backrooms Wiki（backrooms-wiki.wikidot.com、CC BY-SA 3.0）で広がった設定をもとにした版。
+// Level 0〜6・26・37 のページ（利用者が保存したもの）を読んで、名前・様子・出てくるもの・出入りを合わせた。
+// 文章はこのゲームのために書いた（Wiki の文章は写していない）。動き方の細かいところは、このゲームでの解釈。
 const MEG = 'M.E.G. の記録';
 THEMES.wiki = {
   title: 'Wiki設定版',
-  sub: 'その後に広がった Backrooms Wiki の設定で歩く（CC BY-SA 3.0）',
+  sub: 'その後に広がった The Backrooms Wiki の設定で、9つの Level を歩く（CC BY-SA 3.0）',
   freeIcon: 1, itemNames: { water: 'アーモンドウォーター' }, itemTex: { water: 'sp_almond' },
-  intro: '現実の、まちがった場所で「すり抜けて」しまった。\n\n気がつくと、黄色い部屋にいた。\nここは Level 0。The Backrooms の入り口。\n\n探索者たちの団体 M.E.G. の記録によれば、\nLevel から Level へとすり抜けていった先で、\n記録は、どれも途中で途切れている。\n\nアーモンドウォーターを切らすな。',
-  ending: 'ぬるい水の底で、白いタイルがふっと途切れた。\n\n落ちていく感覚。\n目を開けると、見慣れた天井だった。\n自分の部屋。自分の布団。\n蛍光灯は、うなっていない。\n\n……本当に？\n壁紙の色が、少しだけ黄色い気がした。',
-  endingSrc: '設定のもと：The Backrooms Wiki（Wikidot ほか）／ CC BY-SA 3.0',
-  ents: { wander: '何か', grin: 'スマイラー', face: 'フェイスリング' },
+  intro: '現実の、やわらかなすき間から「すり抜けて」しまった。\n\n腐った湿ったカーペットの匂い。\nうなり続ける蛍光灯。\nここは Level 0。The Backrooms の入り口――Threshold。\n\n探索者の団体 M.E.G. は、この先の Level を記録しつづけている。\nそして、出口を探しつづけている。\n\nアーモンドウォーターを切らすな。',
+  ending: '水の底へ続く階段を、下りていった。\nぬるい水が、肩まで、頭まで。\n\n苦しくない。\n目を開けると、見慣れた天井だった。\n自分の部屋。自分の布団。\n蛍光灯は、うなっていない。\n\n……本当に？\n壁紙の色が、少しだけ黄色い気がした。',
+  endingSrc: '設定のもと：The Backrooms Wiki（backrooms-wiki.wikidot.com）／ CC BY-SA 3.0',
+  ents: { wander: 'ハウンド', grin: 'スマイラー', face: 'フェイスリング' },
   over: {
-    wander: ['捕まった', '後ろから、何かに引き倒された。\n蛍光灯のうなりが、遠くなっていく。'],
-    grin: ['スマイラー', '暗闇に、白い目と歯だけが浮かんでいた。\nそれが、最後に見たものだった。'],
+    wander: ['ハウンドに捕まった', '四つ足の影が、低くうなりながら飛びかかってきた。'],
+    grin: ['スマイラー', '暗闇に、光る目と歯だけが浮かんでいた。\nそれが、最後に見たものだった。'],
     lost: ['正気を失った', '壁紙の模様が、こちらを見ている。\nアーモンドウォーターは、もう一本もない。'],
   },
-  spr: { wander: 'sp_wander', grin: 'sp_grin', face: 'sp_face' },
+  spr: { wander: 'sp_hound', wanderH: 0.62, grin: 'sp_grin', face: 'sp_face' },
   levels: [
-    { n: 'Level 0', en: 'Level 0 - "The Lobby"', name: 'ロビー', base: 0, src: MEG,
-      cfg: { ents: {}, sanDrain: 0.09, beacon: 'wind', tex: { wall: 'wp0', floor: 'cp0', ceil: 'ct0', exit: 'nc0' } },
-      exitName: '揺らいでいる壁', exitVerb: '壁をすり抜ける',
-      flavor: '黄ばんだ壁紙。湿ったカーペット。蛍光灯のうなり。\nここには、ほとんど何もいない。\nいるのは、あなただけだ。',
-      notes: ['ここで、ほかの探索者に会うことはまずない。ひとりきりでいること自体が、この Level の危なさだ。',
-        '壁の一部が、ときどき揺らいで見える。そこに体を押しつけると、別の Level へすり抜けることがある。',
-        'アーモンドウォーターを見つけたら、必ず持っていけ。正気を保つのに、これほど効くものはない。',
-        '同じ部屋に、何度も戻ってくる。ここは、店の裏の倉庫のようで、どこまでも続いている。'] },
-    { n: 'Level 1', en: 'Level 1 - "Habitable Zone"', name: '居住可能区域', base: 1, src: MEG,
-      cfg: { fog: [46, 48, 50], fogK: 0.17, amb: 0.08, items: { water: 0.55, battery: 0.42, map: 0.1, note: 0.16 }, ents: { wander: { first: 70, every: 100, max: 2 } } },
-      spr: { wander: 'sp_hound', wanderH: 0.62 }, ent: { wander: 'ハウンド' },
-      over: { wander: ['ハウンドに捕まった', '四つ足の影が、低くうなりながら飛びかかってきた。'] },
-      exitName: '階段室の扉', exitVerb: '階段を下りる',
-      flavor: 'コンクリートの床と壁。むき出しの鉄筋。\n低くたちこめる霧と、床の水たまり。\n水と電気が途切れないこの場所には、人が住みついている。',
-      notes: ['補給品の箱は、ふと振り返ると置いてある。中身は、アーモンドウォーターのことが多い。',
-        '灯りがちらつき始めたら、身構えろ。灯りが戻ったとき、何かが増えていることがある。',
-        '四つ足で這う人影を見たら、それはハウンドだ。こちらを見つけたら、追ってくる。',
-        'ここなら拠点が作れる。M.E.G. の仲間たちも、この Level で暮らしている。'] },
-    { n: 'Level 2', en: 'Level 2 - "Pipe Dreams"', name: 'パイプ・ドリームス', base: 2, src: MEG,
-      cfg: { thirstMul: 1.6, ents: { grin: { first: 50, every: 80, max: 1 } } },
-      exitName: '点検口', exitVerb: '点検口をくぐる',
-      flavor: '長く、薄暗い、コンクリートの整備用通路。\n壁と天井を、蒸気の配管が埋めている。\n暑い。喉が渇く。',
-      notes: ['配管は熱い。触るな。ここでは喉が、いつもの倍の速さで渇く。',
-        '暗がりに白い目と歯が浮かんでいたら、スマイラーだ。明かりを向けると、下がっていく。',
-        '通路はどこまで行っても似ている。角を曲がるたびに、壁に印をつけて歩け。',
-        '点検口の向こうから、機械のうなりと、電気のはじける音が聞こえる。'] },
-    { n: 'Level 3', en: 'Level 3 - "Electrical Station"', name: '電気室', base: 2, src: MEG,
+    { n: 'Level 0', en: 'Level 0 - "Threshold"', sd: '1', name: 'スレッショルド', base: 0, src: MEG,
+      cfg: { ents: {}, sanDrain: 0.09, beacon: 'wind', humSpike: 1, tex: { wall: 'wp0', floor: 'cp0', ceil: 'ct0', exit: 'nc0' } },
+      exitName: 'ちらつく壁', exitVerb: '壁に飛びこむ',
+      flavor: '「黄色い地獄」とも呼ばれる、果てしない迷路。\nここは入り口であり、\n多くの者にとっては、墓場でもある。',
+      notes: ['湿ったカーペットは、写真で見るより茶色い。いつも濡れている。中の水は飲むな。',
+        '見ていないあいだに、通路の形が変わる。来た道を戻れると思うな。',
+        '蛍光灯のうなりが、ときどき急に大きくなる。耳をふさいで、歩き続けろ。',
+        'ちらつく壁を見つけたら、そこに体ごと飛びこめ。その先が Level 1 だ。'] },
+    { n: 'Level 1', en: 'Level 1 - "Habitable Zone"', sd: '1', name: '居住可能区域', base: 1, src: MEG,
+      cfg: { tex: { wall: 'cn1', floor: 'cf1', ceil: 'cc1', exit: 'ex_l1' }, fog: [40, 42, 44], fogK: 0.14, amb: 0.06, hum: 0.4,
+        lamps: { every: 4, on: 0.8, flick: 0.12, darkBlock: 0.1 }, blackout: { every: [45, 90], dur: [10, 16] },
+        items: { water: 0.55, battery: 0.42, map: 0.1, note: 0.16 }, ents: { wander: { first: 90, every: 110, max: 1 } } },
+      exitName: '配管と計器が増えていく通路', exitVerb: '配管の奥へ進む',
+      flavor: '地下駐車場と、廃倉庫を混ぜたような場所。\nコンクリートの柱、床の水たまり、\nときどき鳴る天井の配管。',
+      notes: ['灯りがいっせいに消えたら、それは「フリッカリング」だ。暗いあいだに、何かが狩りに出てくる。',
+        '暗くなっても、広間では明かりをつけるな。走るな。緑の非常口の灯りを目指せ。',
+        '補給品の箱は、目を離したすきに現れて、目を離したすきに消える。中身はアーモンドウォーターのことが多い。',
+        '四つ足で歩く人の形――ハウンドを見たら、道をゆずれ。',
+        'M.E.G. の Base Alpha はこの Level にある。黄緑の服の巡回隊に会えたら、助かる。',
+        '配管と計器が少しずつ増えていく方へ歩きつづけると、いつのまにか Level 2 にいる。'] },
+    { n: 'Level 2', en: 'Level 2 - "Abandoned Utility Halls"', sd: '3', name: '放棄された設備通路', base: 2, src: MEG,
+      cfg: { tex: { wall: 'pp2', floor: 'gr2', ceil: 'pc2', exit: 'ex_l2' }, thirstMul: 1.5, lightLure: 1,
+        lamps: { every: 4, on: 0.72, flick: 0.12, darkBlock: 0.16 },
+        ents: { grin: { first: 45, every: 75, max: 1 }, wander: { first: 140, every: 160, max: 1 }, face: { first: 20, every: 60, max: 1 } } },
+      exitName: '印のついた鉄の扉', exitVerb: '扉を開ける',
+      flavor: '狭く、終わりのない整備用トンネル。\n床から天井まで、配管と機械が埋めている。\nひどく暑い場所がある。',
+      notes: ['灯りは数珠つなぎになっている。一本切れると、まわりの灯りもまとめて消える。暗い区画はそのせいだ。',
+        'スマイラーはここで一番よく見かける。暗闇と、光と、物音が好きだ。見つけたら明かりを消して、静かに下がれ。',
+        '顔のない人たち――フェイスリングは、じゃまをしなければ何もしてこない。',
+        '窓のある扉の向こうは、光も音もない何もない場所だ。開けるな。',
+        '鍵の開いている扉に、前の誰かが印を残している。Level 3 へ続く扉だ。'] },
+    { n: 'Level 3', en: 'Level 3 - "Electrical Station"', sd: '4', name: '電気室', base: 2, src: MEG,
       cfg: { tex: { wall: 'el3', floor: 'gr2', ceil: 'pc2', exit: 'ex_el' }, light: [205, 222, 255], amb: 0.045, fog: [6, 8, 12], fogK: 0.13,
-        lamps: { every: 4, on: 0.45, flick: 0.35, darkBlock: 0.12 }, loops: 0.3, hum: 1.8, beacon: 'ding', exitD: 42,
-        ents: { wander: { first: 40, every: 70, max: 2 }, grin: { first: 60, every: 80, max: 1 } } },
-      spr: { wander: 'sp_hound', wanderH: 0.62 }, ent: { wander: 'ハウンド' },
-      over: { wander: ['ハウンドに捕まった', '機械のうなりにまぎれて、四つ足の足音が近づいていた。'] },
+        lamps: { every: 4, on: 0.45, flick: 0.35, darkBlock: 0.12 }, loops: 0.28, hum: 1.5, beacon: 'ding', exitD: 42, thirstMul: 1.2, lightLure: 1,
+        ents: { wander: { first: 35, every: 60, max: 2 }, grin: { first: 60, every: 80, max: 1 } } },
       exitName: 'エレベーター', exitVerb: 'エレベーターに乗る',
-      flavor: '機械のうなりと、電気のはじける音。\nレンガの壁を、太い配線がはっている。\n危ない Level だ。長居するな。',
-      notes: ['機械の音が大きすぎて、足音が聞こえない。向こうにも、こちらの足音は聞こえていないといいが。',
-        '危険な Level とされている。用がなければ、すぐに抜けろ。',
-        '配電盤のランプが、ひとつずつ消えていく。消えた方向へは行くな。',
-        'エレベーターを見つけた。上の階は、事務所だったはずだ。'] },
-    { n: 'Level 4', en: 'Level 4 - "Abandoned Office"', name: '無人のオフィス', base: 0, src: MEG,
+      flavor: '色のそろわないレンガの壁。\n配線と機械が、うなり、はじけ、きしむ。\n生存難易度 4。長居するな。',
+      notes: ['ここのものたちは群れで動く。一体だけを見かけたら、残りはもう近くにいる。',
+        '黒い液体の流れる配管には触るな。やけどでは済まない。',
+        '暗く狭い場所で、泣き声や笑い声が聞こえても、それは幻聴だ。何人も同じ声を聞いている。',
+        '天使の像のある、聖堂のような部屋には、何も入ってこない。ここでただ一つの安全な場所だ。',
+        'M.E.G. の Base Gamma がある。この Level の物資は、なぜか尽きない。',
+        'エレベーターに乗れ。行き先は Level 4 か Level 5。ただし、エレベーターそのものが生き物のこともある。'] },
+    { n: 'Level 4', en: 'Level 4 - "Abandoned Office"', sd: '1', name: '無人のオフィス', base: 0, src: MEG,
       cfg: { tex: { wall: 'wo4', floor: 'co4', ceil: 'ct3', exit: 'ex_of' }, light: [240, 246, 255], amb: 0.14, fog: [40, 42, 46], fogK: 0.1,
         lamps: { every: 3, on: 0.9, flick: 0.05, darkBlock: 0.02 }, sanDrain: 0.03, beacon: 'chord', hum: 0.6,
-        items: { water: 0.5, battery: 0.25, map: 0.08, note: 0.16 }, ents: { face: { first: 8, every: 25, max: 3 } } },
-      exitName: '非常階段の扉', exitVerb: '階段を下りる',
-      flavor: '空っぽの事務所。机も椅子も、だれもいない。\n蛍光灯は明るく、静かだ。\n比較的、安全な場所とされている。',
-      notes: ['顔のない人たちが、机のあいだを歩いている。フェイスリングだ。こちらには、何もしてこない。',
-        '書類は全部白紙だった。会社の名前すら書いていない。',
-        '給水器のそばに、アーモンドウォーターがまとめて置いてあった。だれが置いたのだろう。',
-        '階段の扉の先から、古いホテルの匂いがした。'] },
-    { n: 'Level 5', en: 'Level 5 - "Terror Hotel"', name: 'テラー・ホテル', base: 8, src: MEG,
-      cfg: { tex: { wall: 'ht5', floor: 'hc5', ceil: 'hce5', exit: 'ex_ht' }, light: [255, 206, 156], amb: 0.06, fog: [16, 8, 6], fogK: 0.12,
-        lamps: { every: 4, on: 0.62, flick: 0.2, darkBlock: 0.14 }, step: 'carpet', beacon: 'clock', hum: 0.4,
-        ents: { wander: { first: 45, every: 80, max: 2 } } },
-      spr: { wander: 'sp_skin' }, ent: { wander: 'スキン・スティーラー' },
-      over: { wander: ['捕まった', '人の形をしたものが、あなたの顔をのぞきこんだ。\n……つぎは、その顔を着るつもりだ。'] },
-      exitName: 'ボイラー室の扉', exitVerb: 'ボイラー室へ下りる',
-      flavor: '朽ちかけた、何階もあるホテル。\nロビー、客室、郵便室……\nどこかに、ボイラー室がある。',
-      notes: ['客室の扉は、どれも鍵がかかっていない。それでも、中には入るな。',
-        '人の形をしたものが、人の皮をかぶって歩いている。近くで見ると、つなぎ目がある。',
-        'ボイラー室の熱が、壁ごしに伝わってくる方へ。',
-        'フロントのベルを鳴らした。だれも来なかった。来なくてよかった。'] },
-    { n: 'Level 6', en: 'Level 6 - "Lights Out"', name: 'ライツ・アウト', base: 3, src: MEG,
-      cfg: { tex: { wall: 'wp3', floor: 'cp3', ceil: 'ct3', exit: 'ex_red' }, amb: 0.012, lamps: { every: 3, on: 0, flick: 0, darkBlock: 0 }, beacon: 'monitor', hum: 0.05,
-        items: { water: 0.32, battery: 0.6, map: 0.06, note: 0.16 }, ents: { grin: { first: 18, every: 32, max: 3 } } },
-      exitName: '赤く光る扉', exitVerb: '扉を開ける',
-      flavor: '明かりが、ひとつもない。\n自分の手さえ見えない。\n懐中電灯だけが頼りだ。',
-      notes: ['暗闇で笑い声がしたら、すぐに明かりを向けろ。',
-        '電池を数えろ。ここで電池が切れたら、二度と出られない。',
-        'この Level の記録は少ない。戻ってきた者が少ないからだ。',
-        '赤く光る扉の向こうから、たくさんの足音が聞こえた。開けたら、走れ。'] },
-    { n: 'Level !', en: 'Level ! - "Run For Your Life"', name: 'ラン・フォー・ユア・ライフ', base: 8, src: MEG,
-      cfg: { tex: { wall: 'rn_w', floor: 'hf8', ceil: 'hc8', exit: 'ex_run' }, light: [255, 74, 54], amb: 0.09, fog: [20, 2, 2], fogK: 0.11,
-        lamps: { every: 3, on: 0.3, flick: 0.6, darkBlock: 0 }, hall: { block: 0.05, solid: 0.3 }, exitD: 34, beacon: 'alarm', hum: 0.3,
-        huntAlways: 1, speedMul: 0.92, items: { water: 0.2, battery: 0.1, map: 0, note: 0.2 }, ents: { wander: { first: 4, every: 9, max: 3 } } },
-      ent: { wander: '追ってくるもの' },
-      over: { wander: ['追いつかれた', '後ろの足音が、ひとつになった。\nあなたの足音と、重なった。'] },
-      exitName: '非常口', exitVerb: '非常口へ飛びこむ',
-      flavor: '赤い非常灯が点滅している。\n後ろから、たくさんの足音。\n走れ。',
-      notes: ['振り返るな。走れ。', '息が切れたら、角を曲がってから歩け。まっすぐな廊下で止まるな。',
-        'ここに休む場所はない。', 'この Level から戻った者の記録には、どれも「走れ」としか書いていない。'] },
-    { n: 'Level Fun', en: 'Level Fun =)', name: 'パーティーの部屋 =)', base: 0, src: MEG,
-      cfg: { tex: { wall: 'fn_w', floor: 'fn_f', ceil: 'ct0', exit: 'ex_fun' }, light: [255, 244, 226], amb: 0.22, fog: [70, 60, 50], fogK: 0.09,
-        lamps: { every: 3, on: 0.95, flick: 0.03, darkBlock: 0 }, beacon: 'party', hum: 0.5, sanDrain: 0.08,
-        seeMul: 0.55, hearMul: 0.6, speedMul: 0.9, ents: { wander: { first: 15, every: 30, max: 3 } } },
-      spr: { wander: 'sp_party' }, ent: { wander: 'パーティーゴーアー' },
-      over: { wander: ['パーティーに招かれた', '黄色い手が、あなたの肩をつかんだ。\n「いっしょに、パーティーしよう =)」'] },
-      exitName: 'すべり台', exitVerb: 'すべり台をすべり降りる',
-      flavor: '風船。紙吹雪。明るい壁紙。\nだれかの誕生日らしい。\n=)',
-      notes: ['黄色い人たちが、部屋のあちこちに立っている。近づかなければ、気づかれない。',
-        '話しかけられても、返事をするな。いっしょにパーティーをしてはいけない。',
-        'ケーキの甘い匂い。この匂いが強くなったら、近くに何かいる。',
-        '奥のすべり台を下りると、水の音のする Level に出るという。'] },
-    { n: 'Level 37', en: 'Level 37 - "Sublimity"', name: 'サブリミティ', base: 9, src: MEG,
-      cfg: { tex: { wall: 'tl9', floor: 'pw37', ceil: 'tc9', exit: 'ex9' }, shimmer: 1, step: 'water' },
-      exitName: '光の漏れる扉', exitVerb: '光の中へ出る',
-      flavor: '白いタイルの部屋と通路が、どこまでも続く。\n床は、ぬるい水に少しだけ沈んでいる。\nだれもいない。静かだ。',
-      notes: ['水はぬるい。ずっとここにいてもいい気がする。……それが、この Level の危ないところだ。',
-        'ここでは、ほとんど何にも出会わない。広すぎるからなのか、ここが人を遠ざけるのか、分かっていない。',
-        '水の底に、光の差しこむ場所があった。',
-        '帰りたいのかどうか、もう分からない。'] },
+        items: { water: 0.75, battery: 0.3, map: 0.08, note: 0.16 }, ents: { wander: { first: 160, every: 200, max: 1 } } },
+      exitName: '事務所の階段', exitVerb: '階段を下りる',
+      flavor: 'ほとんど何もない、空っぽの事務所。\n窓の多くは、黒く塗りつぶされている。\n生存難易度 1。休むならここだ。',
+      notes: ['給水器、自動販売機、水飲み場。アーモンドウォーターはここが一番多い。Level 5 と 6 の前に、たくさん持っていけ。',
+        '黒く塗られていない窓には近づくな。罠だ。',
+        '出口から目を離すと、出口が消えることがある。',
+        'ここは空っぽだから、人が集まる。M.E.G. の Base Omega もこの Level にある。',
+        '階段を下りると、古いホテルに出る。'] },
+    { n: 'Level 5', en: 'Level 5 - "Terror Hotel"', sd: '2', name: 'テラー・ホテル', base: 8, src: MEG,
+      cfg: { tex: { wall: 'ht5', floor: 'hc5', ceil: 'hce5', exit: 'ex_ht' }, light: [255, 214, 166], amb: 0.07, fog: [16, 8, 6], fogK: 0.12,
+        lamps: { every: 4, on: 0.7, flick: 0.12, darkBlock: 0.14 }, step: 'carpet', beacon: 'jazz', hum: 0.3, lightLure: 1,
+        ents: { grin: { first: 40, every: 70, max: 2 }, wander: { first: 90, every: 120, max: 1 } } },
+      spr: { grin: 'sp_moth', wander: 'sp_skin', wanderH: 1.22 }, ent: { grin: 'デスモス', wander: 'スキン・スティーラー' },
+      over: { grin: ['デスモスの群れ', '羽音が、口と鼻と耳に入りこんできた。'], wander: ['捕まった', '親しげだった人の顔が、ずるりとずれた。\nその下は、黄色かった。'] },
+      exitName: 'ボイラー室の扉', exitVerb: 'ボイラー室の奥へ下りる',
+      flavor: '1930年代ふうの、終わりのないホテル。\nどこからかジャズが流れ、\n壁の向こうでは、パーティーの話し声がする。',
+      notes: ['ほこりひとつない。汚しても、数分できれいになる。それが一番気味が悪い。',
+        'エレベーターで13階より上へ行った者は、帰ってこない。',
+        '暗い部屋には、デスモスの巣がある。大きな蛾だ。明かりに寄ってくる。',
+        '親しげに話しかけてくる人がいても、長話はするな。人の皮をかぶったものがいる。',
+        'ボイラー室の奥は、ひどく暑い。その先が Level 6。行かないほうがいい、と M.E.G. は言う。'] },
+    { n: 'Level 6', en: 'Level 6 - "Lights Out"', sd: '未定', name: 'ライツ・アウト', base: 3, src: MEG,
+      cfg: { tex: { wall: 'lo6', floor: 'cf1', ceil: 'cc1', exit: 'ex_l6' }, amb: 0.016, fog: [0, 0, 0], lamps: { every: 3, on: 0, flick: 0, darkBlock: 0 },
+        noLight: 1, hallu: 1, beacon: 'party', beaconRange: 46, hum: 0, reverb: 0.4, exitD: 30, step: 'concrete', sanDrain: 0.05,
+        items: { water: 0.3, battery: 0, map: 0.12, note: 0.16 }, ents: {} },
+      exitName: '手にふれた風船', exitVerb: '風船のひもをつかむ',
+      flavor: '何も見えない。持ちこんだ明かりも、つかない。\n音もしない。\n手さぐりで進むしかない。',
+      notes: ['ここが危ないのは、何かがいるからじゃない。何もいないからだ。',
+        '息づかい、ささやき、何かが這う音。どれも本物ではない――たぶん。',
+        '人の声をまねる者たちがいる。知っている声で呼ばれても、ついていくな。',
+        '暗闇で、指先に風船のひもがふれた。パーティーの飾りには、どこにいても、さわってはいけない。'] },
+    { n: 'Level 26', en: 'Level 26 - "The SS Fun =)"', sd: '5', name: 'SSファン号 =)', base: 8, src: MEG,
+      cfg: { tex: { wall: 'ss_w', floor: 'ss_f', ceil: 'ct0', exit: 'ex_poster' }, light: [255, 238, 214], amb: 0.12, fog: [40, 26, 20], fogK: 0.11,
+        lamps: { every: 3, on: 0.82, flick: 0.1, darkBlock: 0.22 }, hall: { block: 0.12, solid: 0.08 }, beacon: 'party', hum: 0.4, sanDrain: 0.08,
+        speedMul: 0.85, seeMul: 0.8, ents: { wander: { first: 15, every: 30, max: 3 }, grin: { first: 40, every: 60, max: 1 } } },
+      spr: { wander: 'sp_party', wanderH: 1.22, grin: 'sp_cballoon' }, ent: { wander: 'パーティーゴーアー', grin: '肉食の風船' },
+      over: { wander: ['パーティーに招かれた', '黄色い手が、あなたの肩をつかんだ。\n急ぐ様子は、まったくなかった。'], grin: ['風船に食べられた', '暗い隅の風船が、口を開けた。'] },
+      exitName: '裏返しの、ぼやけたポスター', exitVerb: 'ポスターにさわる',
+      flavor: '客船「アドベンチャー」号。\nその名前は線で消され、「SS Fun =)」と書きなおされている。\n終わらないパーティーの、終わらない船内。',
+      notes: ['パーティーの飾りにさわった者は、この船に引きこまれる。',
+        '下の甲板は終わりがない。廊下と、パーティー部屋が、どこまでも続く。',
+        '黄色い人たち――パーティーゴーアーは、急いで追ってこない。それが、かえっておそろしい。',
+        '暗い隅には、歯のある風船がいる。',
+        '裏返しの、ぼやけたポスターを探せ。それにさわれば、この船から別の Level へ抜けられる。'] },
+    { n: 'Level 37', en: 'Level 37 - "Sublimity"', sd: '0', name: 'サブリミティ', base: 9, src: MEG,
+      cfg: { tex: { wall: 'tl9', floor: 'pw37', ceil: 'tc9', exit: 'ex_37' }, shimmer: 1, step: 'water', reverb: 0.6 },
+      exitName: '水の底へ続く階段', exitVerb: '階段を下りて、水に潜る',
+      flavor: 'ぬるい、青緑の水に沈んだ、白いタイルの部屋と通路。\n落ち着いた気持ちになる。\n生存難易度 0。ここには、何もいない。',
+      notes: ['水はぬるい。痛みがやわらいで、気持ちが落ち着く。ずっとここにいてもいい気がする。',
+        'ここでは、だれにも会わない。ほかの人にも、何にも。',
+        '音がおかしい。声は水にくぐもって、すぐに途切れる。',
+        '階段が、深い水の底へ下りていく。その先がどこなのか、確かめた者は少ない。'] },
   ],
 };
 // 版ごとのメモ：{ t: 本文, src: 出どころ }
@@ -734,6 +733,7 @@ function lampAt(X, Y) {
   const L = WD.cfg.lamps, e = L.every, off = WD.cfg.gen === 'maze' ? 0 : 1;
   if ((((X - off) % e) + e) % e !== 0 || (((Y - off) % e) + e) % e !== 0) return 0;
   if (cellAt(X, Y) === 1) return 0;
+  if (L.on > 0 && Math.abs(X - 8) <= 4 && Math.abs(Y - 8) <= 4) return 1;   // 始まりの場所は明るく
   if (L.darkBlock && hash3(WD.seed + 5, Math.floor(X / 8), Math.floor(Y / 8)) < L.darkBlock) return 3;
   const r = hash3(WD.seed + 3, X, Y);
   return r < L.on ? 1 : r < L.on + L.flick ? 2 : 3;
@@ -1199,54 +1199,72 @@ function buildTextures() {
     g.fillStyle = '#d8c070'; g.fillRect(21, 4, 22, 6); g.fillStyle = '#2a2215'; g.font = 'bold 5px sans-serif'; g.fillText('BOILER', 23, 9);
     eg.fillStyle = '#fff'; eg.fillRect(21, 4, 22, 6);
   });
-  // Level 6 の出口：赤く光る扉
-  makeTex('ex_red', 64, 64, (g, w, h, R, eg) => {
-    copyTex(g, 'wp3');
-    g.fillStyle = '#ff2a1a'; g.fillRect(12, 10, 40, 54); eg.fillStyle = '#fff'; eg.fillRect(12, 10, 40, 54);
-    g.fillStyle = '#3a1210'; g.fillRect(15, 13, 34, 51); eg.clearRect(15, 13, 34, 51);
-    g.fillStyle = '#5a1c18'; g.fillRect(17, 15, 30, 49);
-    g.fillStyle = '#c8a0a0'; g.fillRect(41, 40, 4, 2);
+  // Level 1 の出口：配管と計器が増えていく通路
+  makeTex('ex_l1', 64, 64, (g, w, h, R, eg) => {
+    copyTex(g, 'cn1');
+    g.fillStyle = '#0d0e10'; g.fillRect(18, 18, 28, 46);
+    const gr = g.createLinearGradient(0, 18, 0, 64); gr.addColorStop(0, '#1d2024'); gr.addColorStop(1, '#0a0b0c'); g.fillStyle = gr; g.fillRect(20, 20, 24, 44);
+    const pipe = (y, c) => { g.fillStyle = c; g.fillRect(0, y, w, 4); g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(0, y, w, 1); };
+    pipe(6, '#56655a'); pipe(12, '#7a4b2a'); g.fillStyle = '#56655a'; g.fillRect(8, 0, 4, h); g.fillRect(52, 0, 4, h);
+    for (const [x, y] of [[4, 30], [56, 34], [6, 46]]) { g.fillStyle = '#d8d4c4'; g.beginPath(); g.arc(x, y, 3.2, 0, 7); g.fill(); g.strokeStyle = '#222'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 2, y - 1.5); g.stroke(); }
+    g.fillStyle = '#0b9a57'; g.fillRect(24, 13, 16, 5); eg.fillStyle = '#fff'; eg.fillRect(24, 13, 16, 5);
+  }, (d, w, h, R) => noisePix(d, 5, R));
+  // Level 2 の出口：前の誰かが印をつけた、鍵の開いている鉄の扉
+  makeTex('ex_l2', 64, 64, (g, w, h, R, eg) => {
+    copyTex(g, 'pp2');
+    g.fillStyle = '#2a2a28'; g.fillRect(14, 12, 36, 52);
+    g.fillStyle = '#b9b8ae'; g.fillRect(16, 14, 32, 50);
+    g.fillStyle = '#9f9e95'; g.fillRect(16, 38, 32, 2);
+    g.fillStyle = '#6a6a62'; g.fillRect(42, 38, 4, 3);
+    g.strokeStyle = '#f2f0e6'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(22, 20); g.lineTo(34, 20); g.lineTo(28, 26); g.quadraticCurveTo(36, 26, 32, 33); g.quadraticCurveTo(26, 36, 22, 31); g.stroke();
+    g.beginPath(); g.moveTo(22, 46); g.lineTo(40, 46); g.lineTo(36, 43); g.moveTo(40, 46); g.lineTo(36, 49); g.stroke();
+    g.fillStyle = '#ff9a2a'; g.fillRect(28, 4, 8, 4); eg.fillStyle = '#fff'; eg.fillRect(28, 4, 8, 4);
+  }, (d, w, h, R) => { noisePix(d, 6, R); stains(d, w, h, R, 16, 0.6, 0.3); });
+  // Level 6：なめらかで冷たいコンクリートの壁
+  makeTex('lo6', 64, 64, (g, w, h) => { g.fillStyle = '#6c6e70'; g.fillRect(0, 0, w, h); g.fillStyle = '#5e6062'; g.fillRect(0, 31, w, 1); }, (d, w, h, R) => noisePix(d, 4, R));
+  // Level 6 の出口：暗闇で手にふれた風船
+  makeTex('ex_l6', 64, 64, (g, w, h) => {
+    copyTex(g, 'lo6');
+    g.strokeStyle = '#ddd'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(32, 30); g.quadraticCurveTo(28, 44, 33, 62); g.stroke();
+    g.fillStyle = '#c8282a'; g.beginPath(); g.ellipse(32, 20, 8, 10, 0, 0, 7); g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.45)'; g.fillRect(28, 14, 2, 4);
+    g.fillStyle = '#e8c52a'; g.fillRect(26, 40, 12, 9); g.fillStyle = '#111'; g.font = 'bold 6px sans-serif'; g.fillText('=)', 29, 47);
   });
-  // Level !：赤い線の通路
-  makeTex('rn_w', 64, 64, (g, w, h) => {
-    g.fillStyle = '#9a9a96'; g.fillRect(0, 0, w, h);
-    g.fillStyle = '#8a8a86'; for (let y = 0; y < h; y += 16) g.fillRect(0, y, w, 1);
-    g.fillStyle = '#b3201a'; g.fillRect(0, 34, w, 6);
-    g.fillStyle = '#e8e8e2'; for (let x = 6; x < w; x += 22) { g.beginPath(); g.moveTo(x, 35); g.lineTo(x + 7, 37); g.lineTo(x, 39); g.closePath(); g.fill(); }
-    g.fillStyle = '#4a4a46'; g.fillRect(0, h - 4, w, 4);
-  }, (d, w, h, R) => { noisePix(d, 6, R); stains(d, w, h, R, 16, 0.6, 0.35); });
-  makeTex('ex_run', 64, 64, (g, w, h, R, eg) => {
-    copyTex(g, 'rn_w');
-    g.fillStyle = '#3a3a38'; g.fillRect(14, 14, 36, 50);
-    g.fillStyle = '#6a6a66'; g.fillRect(16, 16, 32, 48);
-    g.fillStyle = '#c8c8c0'; g.fillRect(16, 38, 32, 3);
-    g.fillStyle = '#e8221a'; g.fillRect(18, 3, 28, 10); eg.fillStyle = '#fff'; eg.fillRect(18, 3, 28, 10);
-    g.fillStyle = '#fff2f0'; g.font = 'bold 8px sans-serif'; g.fillText('EXIT', 23, 11);
-  });
-  // Level Fun =)
-  makeTex('fn_w', 64, 64, (g, w, h, R) => {
-    g.fillStyle = '#f2e7b8'; g.fillRect(0, 0, w, h);
+  // Level 26：SS Fun =) の船内の廊下（荒らされたパーティー）
+  makeTex('ss_w', 64, 64, (g, w, h, R) => {
+    g.fillStyle = '#d9cfb4'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#c4b998'; for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 1, h);
+    g.fillStyle = '#7a5a3a'; g.fillRect(0, 50, w, 14); g.fillStyle = '#9a7650'; g.fillRect(0, 50, w, 2);
     const c = ['#e8483f', '#3f8fe8', '#5ec95a', '#f0b72f', '#c35fd1'];
-    for (let k = 0; k < 4; k++) {
-      const x = 8 + k * 15 + (R() - 0.5) * 4, y = 10 + R() * 18;
-      g.strokeStyle = '#8a8270'; g.lineWidth = 0.6; g.beginPath(); g.moveTo(x, y + 6); g.quadraticCurveTo(x + 3, y + 16, x, y + 26); g.stroke();
-      g.fillStyle = c[k % 5]; g.beginPath(); g.ellipse(x, y, 4.2, 5.4, 0, 0, 7); g.fill();
-      g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillRect(x - 2, y - 3, 1, 2);
+    for (let k = 0; k < 3; k++) {
+      const x = 10 + k * 20 + (R() - 0.5) * 4, y = 12 + R() * 10;
+      g.strokeStyle = '#8a8270'; g.lineWidth = 0.6; g.beginPath(); g.moveTo(x, y + 6); g.quadraticCurveTo(x + 3, y + 14, x, y + 24); g.stroke();
+      g.fillStyle = c[(k * 2) % 5]; g.beginPath(); g.ellipse(x, y, 4, 5, 0, 0, 7); g.fill();
     }
-    g.fillStyle = '#6b5a2a'; g.font = 'bold 7px sans-serif'; g.fillText('=)', 26, 54);
-    g.fillStyle = '#c9b87a'; g.fillRect(0, h - 4, w, 4);
-  }, (d, w, h, R) => { noisePix(d, 4, R); stains(d, w, h, R, 32, 0.8, 0.15); });
-  makeTex('fn_f', 64, 64, (g, w, h, R) => {
-    g.fillStyle = '#d9cfa6'; g.fillRect(0, 0, w, h);
+    for (let k = 0; k < 7; k++) { g.fillStyle = 'rgba(110,8,8,0.75)'; g.beginPath(); g.arc(20 + R() * 30, 30 + R() * 18, 0.8 + R() * 2.4, 0, 7); g.fill(); }
+    g.fillStyle = '#6b5a2a'; g.font = 'bold 7px sans-serif'; g.fillText('=)', 44, 44);
+  }, (d, w, h, R) => { noisePix(d, 5, R); stains(d, w, h, R, 16, 0.55, 0.35); });
+  makeTex('ss_f', 64, 64, (g, w, h, R) => {
+    g.fillStyle = '#5a2a2c'; g.fillRect(0, 0, w, h);
     const c = ['#e8483f', '#3f8fe8', '#5ec95a', '#f0b72f', '#c35fd1'];
-    for (let k = 0; k < 40; k++) { g.fillStyle = c[k % 5]; g.fillRect(Math.floor(R() * w), Math.floor(R() * h), 2, 1 + (k & 1)); }
-  }, (d, w, h, R) => noisePix(d, 6, R));
-  makeTex('ex_fun', 64, 64, (g, w, h, R, eg) => {
-    copyTex(g, 'fn_w');
-    const c = ['#e8483f', '#f2f2f2'];
-    for (let i = 0; i < 12; i++) { g.fillStyle = c[i & 1]; g.fillRect(10 + i * 3.7, 16, 4, 48); }
-    g.fillStyle = '#0a0a0a'; g.beginPath(); g.ellipse(32, 46, 15, 16, 0, Math.PI, 0); g.fill(); g.fillRect(17, 46, 30, 18);
-    g.fillStyle = '#f0b72f'; g.font = 'bold 9px sans-serif'; g.fillText('=)', 26, 11); eg.fillStyle = '#fff'; eg.font = 'bold 9px sans-serif'; eg.fillText('=)', 26, 11);
+    for (let k = 0; k < 34; k++) { g.fillStyle = c[k % 5]; g.fillRect(Math.floor(R() * w), Math.floor(R() * h), 2, 1 + (k & 1)); }
+  }, (d, w, h, R) => { noisePix(d, 8, R); stains(d, w, h, R, 16, 0.5, 0.45); });
+  // Level 26 の出口：裏返しの、ぼやけたパーティーのポスター
+  makeTex('ex_poster', 64, 64, (g, w, h, R, eg) => {
+    copyTex(g, 'ss_w');
+    g.fillStyle = '#f2e7b8'; g.fillRect(14, 8, 36, 42);
+    g.fillStyle = '#e8483f'; g.fillRect(16, 10, 32, 3);
+    g.save(); g.translate(64, 0); g.scale(-1, 1);
+    g.fillStyle = '#5a3a8a'; g.font = 'bold 8px sans-serif'; g.fillText('TIME', 22, 24); g.fillText('4 FUN', 20, 34);
+    g.fillStyle = '#e8c52a'; g.beginPath(); g.arc(32, 43, 4, 0, 7); g.fill();
+    g.restore();
+    eg.fillStyle = 'rgba(255,255,255,0.6)'; eg.fillRect(14, 8, 36, 2); eg.fillRect(14, 48, 36, 2);
+  }, (d, w, h, R) => {   // ぼかす
+    const c = new Uint8ClampedArray(d);
+    for (let y = 9; y < 49; y++) for (let x = 15; x < 49; x++) for (let k = 0; k < 3; k++) {
+      let s = 0; for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) s += c[((y + oy) * w + x + ox) * 4 + k];
+      d[(y * w + x) * 4 + k] = s / 9;
+    }
   });
   // Level 37：ぬるい水に沈んだタイル
   makeTex('pw37', 64, 64, (g, w, h) => {
@@ -1254,6 +1272,12 @@ function buildTextures() {
     g.fillStyle = '#7fb0b8'; for (let i = 0; i < w; i += 16) { g.fillRect(i, 0, 1, h); g.fillRect(0, i, w, 1); }
     g.strokeStyle = 'rgba(235,255,255,0.5)'; g.lineWidth = 1;
     for (let k = 0; k < 5; k++) { g.beginPath(); for (let x = 0; x <= w; x += 4) g.lineTo(x, k * 13 + 4 + Math.sin(x / 7 + k) * 2); g.stroke(); }
+  }, (d, w, h, R) => noisePix(d, 3, R));
+  makeTex('ex_37', 64, 64, (g, w, h) => {
+    copyTex(g, 'tl9');
+    g.fillStyle = '#16343a'; g.beginPath(); g.moveTo(12, 64); g.lineTo(12, 22); g.quadraticCurveTo(32, 6, 52, 22); g.lineTo(52, 64); g.closePath(); g.fill();
+    for (let k = 0; k < 6; k++) { const y = 40 + k * 4; g.fillStyle = `rgba(200,235,235,${0.55 - k * 0.08})`; g.fillRect(14 + k * 2, y, 36 - k * 4, 1.5); }
+    g.fillStyle = 'rgba(120,200,200,0.35)'; g.fillRect(12, 56, 40, 8);
   }, (d, w, h, R) => noisePix(d, 3, R));
 
   // ---- 拾う物（下が床） ----
@@ -1357,6 +1381,28 @@ function buildTextures() {
     g.fillStyle = '#111'; g.beginPath(); g.arc(28, 13, 1.8, 0, 7); g.fill(); g.beginPath(); g.arc(36, 13, 1.8, 0, 7); g.fill();
     g.strokeStyle = '#111'; g.lineWidth = 1.6; g.beginPath(); g.arc(32, 15, 7, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
     g.fillStyle = '#e8483f'; g.beginPath(); g.moveTo(26, 6); g.lineTo(32, -8); g.lineTo(38, 6); g.closePath(); g.fill();   // 三角帽子
+  });
+  // デスモス：大きな蛾（光に寄ってくる）
+  makeTex('sp_moth', 64, 64, (g, w, h, R, eg) => {
+    g.fillStyle = '#5a5040';
+    for (const sx of [-1, 1]) {
+      g.beginPath(); g.moveTo(32, 30); g.quadraticCurveTo(32 + sx * 30, 6, 32 + sx * 30, 26); g.quadraticCurveTo(32 + sx * 24, 36, 32, 34); g.fill();
+      g.beginPath(); g.moveTo(32, 34); g.quadraticCurveTo(32 + sx * 24, 40, 32 + sx * 18, 54); g.quadraticCurveTo(32 + sx * 8, 50, 32, 38); g.fill();
+      g.fillStyle = '#2e281e'; g.beginPath(); g.arc(32 + sx * 16, 22, 4, 0, 7); g.fill(); g.fillStyle = '#5a5040';
+    }
+    g.fillStyle = '#3a3226'; g.beginPath(); g.ellipse(32, 36, 4, 12, 0, 0, 7); g.fill();
+    g.strokeStyle = '#3a3226'; g.lineWidth = 1; g.beginPath(); g.moveTo(31, 25); g.lineTo(25, 15); g.moveTo(33, 25); g.lineTo(39, 15); g.stroke();
+    g.fillStyle = '#e8d070'; g.fillRect(29, 26, 2, 2); g.fillRect(33, 26, 2, 2); eg.fillStyle = '#fff'; eg.fillRect(29, 26, 2, 2); eg.fillRect(33, 26, 2, 2);
+  });
+  // 肉食の風船：暗い隅にいる、歯のある風船
+  makeTex('sp_cballoon', 64, 64, (g, w, h, R, eg) => {
+    g.strokeStyle = '#aaa'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(32, 44); g.quadraticCurveTo(28, 54, 33, 64); g.stroke();
+    g.fillStyle = '#b81e24'; g.beginPath(); g.ellipse(32, 26, 15, 18, 0, 0, 7); g.fill();
+    g.fillStyle = '#8a1418'; g.beginPath(); g.moveTo(29, 43); g.lineTo(35, 43); g.lineTo(32, 47); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.4)'; g.beginPath(); g.ellipse(25, 17, 3, 5, -0.4, 0, 7); g.fill();
+    const mouth = c => { c.beginPath(); c.moveTo(20, 28); c.quadraticCurveTo(32, 42, 44, 28); c.quadraticCurveTo(32, 34, 20, 28); c.fill(); };
+    g.fillStyle = '#f1ead2'; mouth(g); eg.fillStyle = '#fff'; mouth(eg);
+    g.fillStyle = '#2a0406'; for (let x = 22; x < 43; x += 2.4) g.fillRect(x, 29, 0.9, 6);
   });
   // アーモンドウォーター（拾う物の絵を「ふつう」にしたとき）
   makeTex('sp_almond', 32, 32, (g) => {
@@ -1511,7 +1557,7 @@ for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
   KER.push([dx, dy, d === 0 ? 0.95 : d < 1.1 ? 0.7 : d < 1.5 ? 0.55 : d < 2.1 ? 0.33 : d < 2.3 ? 0.26 : 0.15]);
 }
 function updateLight(t) {
-  const S4 = LG + 4, amb = WD.cfg.amb, lk = WD.cfg.lampK || 1;
+  const S4 = LG + 4, amb = WD.cfg.amb, lk = (WD.cfg.lampK || 1) * (typeof G !== 'undefined' && G.blackout ? 0 : 1);
   for (let j = 0; j < S4; j++) for (let i = 0; i < S4; i++) {
     const k = j * S4 + i, ty = LAMPS[k];
     PGRID[k] = (ty === 1 ? 1 : ty === 2 ? flickAt(lox - 2 + i, loy - 2 + j, t) : 0) * lk;
@@ -1963,12 +2009,16 @@ const MELODY = {
   clock: { notes: [[2400, 0.04, 0.16, 'triangle'], [1800, 0.04, 0.16, 'triangle'], [2400, 0.04, 0.16, 'triangle'], [1800, 0.04, 0.16, 'triangle'], [2400, 0.04, 0.16, 'triangle'], [1800, 0.04, 0.16, 'triangle'], [523, 2.2, 0.3, 'sine'], 0], gap: 0.5, type: 'sine', dur: 0.1, g: 0.2 },
   chip: { notes: [523, 659, 784, 1047, 784, 659, 523, 0, 587, 698, 880, 1175, 880, 0, 0, 0], gap: 0.15, type: 'square', dur: 0.13, g: 0.06 },
   monitor: { notes: [1000, 0, 0, 0, 0], gap: 0.24, type: 'sine', dur: 0.11, g: 0.3 },
+  jazz: { notes: [392, 466, 587, 698, 523, 659, 784, 932, 349, 440, 523, 659, 0, 0, 0, 0], gap: 0.28, type: 'triangle', dur: 0.55, g: 0.11 },
   party: { notes: [784, 784, 880, 784, 1047, 988, 0, 784, 784, 880, 784, 1175, 1047, 0, 0, 0, 0], gap: 0.32, type: 'triangle', dur: 0.4, g: 0.15 },   // 「ハッピーバースデー」（作者不明の古い歌）
 };
 function audioUpdate(info) {
   if (!AU.on) return;
   const ctx = AU.ctx, t = ctx.currentTime, cfg = WD.cfg;
-  AU.hum.gain.setTargetAtTime(0.06 * cfg.hum * clamp(info.lightHere * 1.3, 0.05, 1.2), t, 0.3);
+  // Level 0：蛍光灯のうなりが、ときどき急に大きくなる
+  if (cfg.humSpike && t > (AU.spikeNext || 0)) { if (AU.spikeNext) AU.spikeEnd = t + 1.4; AU.spikeNext = t + 25 + Math.random() * 35; }
+  const spike = cfg.humSpike && t < (AU.spikeEnd || 0) ? 3.2 : 1;
+  AU.hum.gain.setTargetAtTime(0.06 * cfg.hum * spike * clamp(info.lightHere * 1.3, 0.05, 1.2), t, spike > 1 ? 0.05 : 0.3);
   // 出口
   const m = MELODY[cfg.beacon] || MELODY.wind;
   const vol = cfg.beacon ? Math.pow(clamp(1 - info.exitDist / (cfg.beaconRange || 38), 0, 1), 1.6) : 0;
@@ -1993,7 +2043,7 @@ function audioUpdate(info) {
     AU.heartNext = t + lerp(1.1, 0.42, clamp(info.fear, 0, 1));
   }
   // 正気が減ると、ないはずの音がする
-  if (info.sanity < 35 && t >= AU.halluNext) {
+  if ((info.sanity < 35 || cfg.hallu) && t >= AU.halluNext) {   // cfg.hallu：その Level では、正気でも聞こえる
     const r = Math.random(), pan = Math.random() * 2 - 1;
     if (r < 0.4) sfx('knock', { pan }); else if (r < 0.7) sfx('thump', { pan, gain: 0.25 }); else sfx('giggle', { pan, gain: 0.08 });
     AU.halluNext = t + 6 + Math.random() * 12 * (info.sanity / 35 + 0.3);
@@ -2064,7 +2114,7 @@ function enterLevel(lv, fresh) {
   if (!S.mode) S.mode = 'normal';
   newWorld(lv, S.seed, levelCfg(lv, S.mode));
   if (fresh) { S.x = START.x; S.y = START.y; S.a = 0; S.snap = snapshot(); }
-  G.ents = []; G.items = []; G.itemChunk = null; G.hint = 0; S.flash = false;
+  G.ents = []; G.items = []; G.itemChunk = null; G.hint = 0; S.flash = false; G.blackout = false; G.blackT = null;
   refreshCaches(S.x, S.y); updateLight(G.t);
   G.spawn = {};
   const E = WD.cfg.ents; for (const k in E) G.spawn[k] = E[k].first;
@@ -2160,6 +2210,7 @@ function useMap() {
 }
 function toggleFlash() {
   if (G.mode !== 'play' || WD.cfg.orig) return;
+  if (WD.cfg.noLight) { S.flash = false; toast('スイッチを入れても、光が出ない。ここでは、明かりが死んでいる'); sfx('click'); return; }
   if (!S.flash && S.bat <= 0) {
     if (S.spare > 0) { S.spare--; S.bat = 100; toast('電池を入れ替えた'); }
     else { toast('電池がない'); sfx('click'); return; }
@@ -2281,7 +2332,8 @@ function updateEnts(dt) {
       const ecx = Math.floor(e.x), ecy = Math.floor(e.y);
       const dark = (x, y) => lightAt(x + 0.5, y + 0.5) < 0.34 || (x === Math.floor(S.x) && y === Math.floor(S.y)) || (x === ecx && y === ecy);
       const lh = lightAt(S.x, S.y);
-      const beam = S.flash && S.bat > 0 && los && d < 9 && Math.abs(rel) < 0.33;
+      const lure = WD.cfg.lightLure, lit = S.flash && S.bat > 0;   // Wiki設定版：光と物音に寄ってくる
+      const beam = !lure && lit && los && d < 9 && Math.abs(rel) < 0.33;
       if (beam) e.fleeT = 2.2;
       if (e.fleeT > 0) {
         e.fleeT -= dt; e.st = 'flee'; if (beam) e.burn += dt;
@@ -2299,7 +2351,7 @@ function updateEnts(dt) {
           if (md > 1e-4) { e.x += mx / md * s; e.y += my / md * s; }
         }
         if (e.burn > 1.6) { e.gone = true; toast('笑い声が、遠ざかっていった'); }
-      } else if (lh < 0.34 && d < P.see) {
+      } else if (lure ? ((lit && d < P.see) || (G.noise && d < G.noise)) : (lh < 0.34 && d < P.see)) {
         e.st = 'chase'; e.tgt = { x: S.x, y: S.y }; speed = P.speed[2] * mul;
         if (los && d < 2.5) { const s = Math.min(d, speed * dt); e.x += dx / d * s; e.y += dy / d * s; }
         else stepEntity(e, speed, dt, dark);
@@ -2346,10 +2398,26 @@ function update(dt) {
     G.bob = Math.sin(G.bobPh) * (running ? 1.5 : 1);
   } else G.bob *= 0.9;
   G.noise = running ? ENTS.wander.hear : moving ? 4 : 0;
+  // Level 1 のフリッカリング：ときどき灯りがいっせいに消え、何かが狩りに出てくる
+  const bo = WD.cfg.blackout;
+  if (bo) {
+    if (G.blackT == null) G.blackT = bo.every[0] + Math.random() * (bo.every[1] - bo.every[0]);
+    G.blackT -= dt;
+    if (G.blackT <= 0) {
+      G.blackout = !G.blackout;
+      if (G.blackout) {
+        G.blackT = bo.dur[0] + Math.random() * (bo.dur[1] - bo.dur[0]);
+        toast('灯りが、いっせいに消えた。……フリッカリングだ'); sfx('zap', { pan: 0 }); vibe(30);
+        if (G.ents.filter(e => e.type === 'wander').length < (WD.cfg.ents.wander ? WD.cfg.ents.wander.max : 1) + 1) trySpawn('wander');
+      } else { G.blackT = bo.every[0] + Math.random() * (bo.every[1] - bo.every[0]); toast('灯りが戻った'); }
+    }
+    if (G.blackout && S.flash && S.bat > 0) G.noise = Math.max(G.noise, 10);   // 暗闇で明かりをつけると、気づかれる
+  }
   // 体力
   if (running) { S.stam -= 22 * dt; if (S.stam <= 0) { S.stam = 0; G.tired = true; toast('息が切れた'); } }
   else S.stam = Math.min(100, S.stam + (moving ? 11 : 20) * dt);
   const cfg = WD.cfg;
+  if (cfg.noLight) S.flash = false;   // Level 6：明かりがつかない
   // 懐中電灯
   if (S.flash) {
     S.bat -= 0.42 * (cfg.hard ? 1.3 : 1) * dt;
@@ -2527,7 +2595,7 @@ function showCard(lv) {
   if (THEMES[S.mode]) {
     const L = THEMES[S.mode].levels[lv];
     fl = L.flavor;
-    tag = S.mode === 'yagi' ? `――『${L.src}』` : S.mode === 'wiki' ? L.en : `${L.src} の報告書より`;
+    tag = S.mode === 'yagi' ? `――『${L.src}』` : S.mode === 'wiki' ? `${L.en}　生存難易度 ${L.sd}` : `${L.src} の報告書より`;
   }
   sfx('whoosh');
   ov(`<div class="card"><div class="cn">${c.n}</div><div class="cname">${c.name}</div><p>${br(fl)}</p>${tag ? `<div class="small">${esc(tag)}</div>` : ''}</div>${btn('go', '進む', 'main')}`, { go: startPlay }, 'dark');
@@ -2576,8 +2644,9 @@ function showHow(back) {
     <p><b>五つの報告書</b>：5つのAIがあなたについて書いた報告書を、10の層で歩く（1つの報告書に2層ずつ）。床のメモは、その報告書の言葉。追ってくるのは「推測」、暗がりにいるのは「ラベル」。</p>
     <p><b>山羊文学版</b>：山羊文学の作品を、10の層で歩く。床のメモは、作品の言葉。追ってくるのは「山羊」、暗がりにいるのは「笑う山羊」。</p>
     <p>この2つの版では、拾う物はすべて同じ印に見える。拾うまで、水か電池かメモか分からない。</p>
-    <p><b>Wiki設定版</b>：2019年の投稿のあと、ネットの Backrooms Wiki で広がった設定で歩く。Level 0「ロビー」から Level 37「サブリミティ」まで10の Level。水のかわりにアーモンドウォーター（正気がよく戻る）。ハウンド、スマイラー、フェイスリング（何もしてこない）、パーティーゴーアーなどが出る。Level ! では、ずっと追われる。走れ。</p>
-    <p class="small">Wiki設定版の設定のもと：The Backrooms Wiki（Wikidot ほか）。CC BY-SA 3.0。文章はこのゲームのために書いたもの。</p>
+    <p><b>Wiki設定版</b>：2019年の投稿のあと、The Backrooms Wiki で広がった設定で歩く。Level 0「Threshold」から 1・2・3・4・5・6 と下り、Level 26「SS Fun =)」、Level 37「Sublimity」まで9つの Level。水のかわりにアーモンドウォーター（正気がよく戻る）。</p>
+    <p>Level 1 では、ときどき灯りがいっせいに消える（フリッカリング）。暗いあいだは明かりをつけず、走らず、緑の非常口の灯りを目指す。スマイラーとデスモスは、光と物音に寄ってくる（ライトを向けても逃げない）。フェイスリングは何もしてこない。Level 6 では明かりがつかない。音を頼りに進む。</p>
+    <p class="small">Wiki設定版の設定のもと：The Backrooms Wiki（backrooms-wiki.wikidot.com）の Level 0・1・2・3・4・5・6・26・37 のページ。CC BY-SA 3.0。書いた人の名前は README にある。文章はこのゲームのために書いたもの。</p>
     <p><b>原作版</b>：2019年の最初の投稿に合わせた版。黄色い部屋だけが続き、出口も、持ち物も、正気の表示もない。できるのは歩くことと走ることだけ。しばらくすると「何か」が現れる。それはときどき、あなたの居場所を聞きつける。時間がたつほど、正確に。どれだけ生き延びられるか。</p>
     <p class="small">キーボード：WASD・矢印で移動、Shiftで走る、Fでライト、Qで水、Mで地図、Eで出口、Escで一時停止</p>
     </div>${btn('back', '戻る')}`, { back });
