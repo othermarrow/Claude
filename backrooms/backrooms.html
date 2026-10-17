@@ -2116,7 +2116,7 @@ function audioInit() {
   });
   const bz = ctx.createBufferSource(); bz.buffer = nb; bz.loop = true;
   const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3600; bp.Q.value = 6;
-  const bg = ctx.createGain(); bg.gain.value = 0.05; bz.connect(bp); bp.connect(bg); bg.connect(AU.hum); bz.start();
+  const bg = ctx.createGain(); bg.gain.value = 0.09; bz.connect(bp); bp.connect(bg); bg.connect(AU.hum); bz.start();
   // 風・水の音（層によって使う）
   const amb = ctx.createBufferSource(); amb.buffer = nb; amb.loop = true;
   AU.ambF = ctx.createBiquadFilter(); AU.ambF.type = 'lowpass'; AU.ambF.frequency.value = 500;
@@ -2178,10 +2178,10 @@ function sfx(name, o) {
       if (o.surf === 'water') noiseHit(0.14, 0.03, 'bandpass', 1400 + Math.random() * 500, 3, null, t + 0.03);
       break;
     }
-    case 'pick': tone(880, 0.12, 0.12, 'sine', null, t, 1320); tone(1320, 0.2, 0.06, 'sine', null, t + 0.08); break;
+    case 'pick': tone(880, 0.1, 0.025, 'sine', null, t, 1320); tone(1320, 0.15, 0.012, 'sine', null, t + 0.08); break;   // 拾う音は小さく
     case 'drink': for (let i = 0; i < 4; i++) noiseHit(0.08, 0.12, 'bandpass', 600 + i * 90, 3, null, t + i * 0.16); break;
     case 'click': noiseHit(0.03, 0.25, 'highpass', 3000, 0, null, t); break;
-    case 'zap': noiseHit(0.05, 0.08, 'bandpass', 2400, 2, null, t, o.pan); break;
+    case 'zap': noiseHit(0.06, 0.26, 'bandpass', 2400, 2, null, t, o.pan); tone(120, 0.07, 0.07, 'square', null, t); break;   // ちらつく灯りのジッという音
     case 'whoosh': {
       const s = AU.ctx.createBufferSource(); s.buffer = AU.noise;
       const f = AU.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(200, t); f.frequency.exponentialRampToValueAtTime(4000, t + 1.2); f.frequency.exponentialRampToValueAtTime(100, t + 2.4);
@@ -2234,7 +2234,7 @@ function audioUpdate(info) {
   // Level 0：蛍光灯のうなりが、ときどき急に大きくなる
   if (cfg.humSpike && t > (AU.spikeNext || 0)) { if (AU.spikeNext) AU.spikeEnd = t + 1.4; AU.spikeNext = t + 25 + Math.random() * 35; }
   const spike = cfg.humSpike && t < (AU.spikeEnd || 0) ? 3.2 : 1;
-  AU.hum.gain.setTargetAtTime(0.06 * cfg.hum * spike * clamp(info.lightHere * 1.3, 0.05, 1.2), t, spike > 1 ? 0.05 : 0.3);
+  AU.hum.gain.setTargetAtTime(0.15 * cfg.hum * spike * clamp(info.lightHere * 1.3, 0.05, 1.2), t, spike > 1 ? 0.05 : 0.3);
   // 出口
   const m = MELODY[cfg.beacon] || MELODY.wind;
   const vol = cfg.beacon ? Math.pow(clamp(1 - info.exitDist / (cfg.beaconRange || 38), 0, 1), 1.6) : 0;
@@ -2684,9 +2684,9 @@ function update(dt) {
   if (G.flashT <= 0) {
     G.flashT = 0.25;
     const X = Math.floor(S.x), Y = Math.floor(S.y);
-    for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) if (lampAt(X + i, Y + j) === 2 && Math.random() < 0.5) {
+    for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) if (lampAt(X + i, Y + j) === 2 && Math.random() < 0.5) {
       const b = flickAt(X + i, Y + j, G.t);
-      if (b > 0.4) sfx('zap', { pan: clamp(i / 2, -1, 1) });
+      if (b > 0.4) sfx('zap', { pan: clamp(i / 3, -1, 1) });   // 少し離れたちらつきも聞こえる
     }
   }
   if (caught) { gameOver('caught', caught); return; }

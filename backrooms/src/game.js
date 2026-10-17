@@ -414,9 +414,9 @@ function update(dt) {
   if (G.flashT <= 0) {
     G.flashT = 0.25;
     const X = Math.floor(S.x), Y = Math.floor(S.y);
-    for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) if (lampAt(X + i, Y + j) === 2 && Math.random() < 0.5) {
+    for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) if (lampAt(X + i, Y + j) === 2 && Math.random() < 0.5) {
       const b = flickAt(X + i, Y + j, G.t);
-      if (b > 0.4) sfx('zap', { pan: clamp(i / 2, -1, 1) });
+      if (b > 0.4) sfx('zap', { pan: clamp(i / 3, -1, 1) });   // 少し離れたちらつきも聞こえる
     }
   }
   if (caught) { gameOver('caught', caught); return; }
