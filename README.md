@@ -10,3 +10,4 @@
 | [kuuran-watch](kuuran-watch/) | 「空欄」を Amazfit Balance 2 で遊ぶミニアプリ (Zepp OS) |
 | [noclip](noclip/) | 本家 Backrooms の設定で作ったテキストアドベンチャー「ノークリップ」(HTML) |
 | [yacho](yacho/) | Backrooms Wiki をもとに、観察して野帳に書くテキストアドベンチャー「野帳」(HTML) |
+| [yacho-watch](yacho-watch/) | 「野帳」を Amazfit Balance 2 で遊ぶミニアプリ (Zepp OS) |

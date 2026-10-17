@@ -63,7 +63,7 @@ python3 -m http.server 8000
 ## 時計版について
 
 ゲーム本体（`// ==== ENGINE BEGIN ====` から `// ==== ENGINE END ====` まで）は画面に触らないように書いてある。
-`kuuran-watch` と同じやり方で、Amazfit Balance 2 版を作れる（まだ作っていない）。
+Amazfit Balance 2 版は `yacho-watch/` にある（このゲーム本体を自動で抜き出して使う）。
 
 <details>
 <summary>しくみと手順（ネタばれ）</summary>
