@@ -2,7 +2,7 @@
   "configVersion": "v3",
   "app": {
     "appId": 1098767,
-    "appName": "空欄",
+    "appName": "Kuuran",
     "appType": "app",
     "version": { "code": 1, "name": "1.0.0" },
     "icon": "icon.png",
