@@ -270,6 +270,7 @@ function renderFrame(t, cam, sprites, fx) {
   const rdxL = dirX - planeX, rdyL = dirY - planeY, rdxR = dirX + planeX, rdyR = dirY + planeY;
   const fd = ft.d, cd = ctt.d, shimmer = cfg.calm || cfg.shimmer ? 1 : 0;
   if (wire) wireScene(t, cfg);
+  const blob = cfg.lampStyle === 'blob';   // 洞窟：灯りは丸く光るもの（菌類など）
   const sky = cfg.sky;   // 外の Level：天井のかわりに空（上ほど暗い色、星）
   for (let y = 0; y < (wire ? 0 : H); y++) {
     const isFloor = y > hor;
@@ -299,9 +300,9 @@ function renderFrame(t, cam, sprites, fx) {
       let r, g, b;
       if (!isFloor) {
         const lb = lampBright(cx, cy);
-        if (lb >= 0 && ux > 0.18 && ux < 0.82 && uy > 0.34 && uy < 0.66) {
+        if (lb >= 0 && (blob ? (ux - 0.5) * (ux - 0.5) + (uy - 0.5) * (uy - 0.5) < 0.05 : ux > 0.18 && ux < 0.82 && uy > 0.34 && uy < 0.66)) {
           const lv = lb < 0.08 ? 0.28 : lb;
-          const lou = (((ux * 20) | 0) & 3) === 0 ? 0.82 : 1;
+          const lou = blob ? 0.75 + 0.25 * Math.sin(ux * 9 + uy * 7) : (((ux * 20) | 0) & 3) === 0 ? 0.82 : 1;
           const base = lb < 0.08 ? 70 : 255;
           r = (lb < 0.08 ? base : pR) * lv * lou; g = (lb < 0.08 ? base : pG) * lv * lou; b = (lb < 0.08 ? base : pB) * lv * lou;
           r = r * fe + fogR * fe1; g = g * fe + fogG * fe1; b = b * fe + fogB * fe1;

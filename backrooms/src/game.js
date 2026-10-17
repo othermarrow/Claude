@@ -146,7 +146,7 @@ function drinkWater() {
   if (!S.water || G.mode !== 'play') return;
   S.water--;
   if (S.mode === 'hard') { S.thirst = Math.min(100, S.thirst + 30); sfx('drink'); toast(`水を飲んだ。渇きはおさまった。気分は晴れない（残り ${S.water}本）`); }
-  else if (WD.cfg.itemNames) { S.thirst = Math.min(100, S.thirst + 45); S.san = Math.min(100, S.san + 25); sfx('drink'); toast(`${waterName('水')}を飲んだ。ほのかに甘い。気持ちが落ち着いた（残り ${S.water}本）`); }
+  else if (WD.cfg.itemNames) { S.thirst = Math.min(100, S.thirst + 45); S.san = Math.min(100, S.san + 25); sfx('drink'); toast(`${waterName('水')}を飲んだ。ほのかに甘く、アーモンドの香りがする。気持ちが落ち着いた（残り ${S.water}本）`); }
   else { S.thirst = Math.min(100, S.thirst + 45); S.san = Math.min(100, S.san + 15); sfx('drink'); toast(`水を飲んだ。少し落ち着いた（残り ${S.water}本）`); }
   saveGame();
 }
@@ -264,6 +264,10 @@ function updateEnts(dt) {
       }
       if (e.st === 'wander' && !e.tgt) e.tgt = randomTarget(e, 7);
       speed = P.speed[e.st === 'chase' ? 2 : e.st === 'hunt' ? 1 : 0] * mul;
+      // Wiki設定版のハウンド：にらみ返すと、少しのあいだだけ止まる
+      if (WD.cfg.stare && (WD.cfg.entSpr || {}).wander === 'sp_hound' && inView && d < 7 && !G.run && !(e.stareCd > 0)) { e.stareT = 2.2; e.stareCd = 7; }
+      if (e.stareCd > 0) e.stareCd -= dt;
+      if (e.stareT > 0) { e.stareT -= dt; speed *= 0.12; }
       if (e.st === 'chase' && los && d < 2.5) {   // 目の前なら、まっすぐ来る
         const s = Math.min(d, speed * dt); e.x += dx / d * s; e.y += dy / d * s; e.moving = true;
       } else stepEntity(e, speed, dt);
@@ -272,7 +276,7 @@ function updateEnts(dt) {
       e.stepT -= dt;
       if (e.moving && e.stepT <= 0 && d < 20) {
         e.stepT = e.st === 'chase' ? 0.36 : 0.62;
-        sfx('thump', { pan: Math.sin(rel), gain: 0.35 * Math.pow(1 - d / 20, 1.5) });
+        sfx('thump', { pan: Math.sin(rel), gain: 0.35 * Math.pow(1 - d / 20, 1.5) * (WD.cfg.quietEnts ? 0.3 : 1) });
       }
       if (inView) G.seen = true;
     } else if (e.type === 'grin') {
@@ -280,9 +284,13 @@ function updateEnts(dt) {
       const dark = (x, y) => lightAt(x + 0.5, y + 0.5) < 0.34 || (x === Math.floor(S.x) && y === Math.floor(S.y)) || (x === ecx && y === ecy);
       const lh = lightAt(S.x, S.y);
       const lure = WD.cfg.lightLure, lit = S.flash && S.bat > 0;   // Wiki設定版：光と物音に寄ってくる
-      const beam = !lure && lit && los && d < 9 && Math.abs(rel) < 0.33;
+      const beam = !lure && !WD.cfg.grinStill && lit && los && d < 9 && Math.abs(rel) < 0.33;
+      // Wiki設定版のスマイラー：目を合わせたまま、明かりを消して静かにしていれば、寄ってこない
+      const held = WD.cfg.eyeContact && ((WD.cfg.entSpr || {}).grin || 'sp_grin') === 'sp_grin' && inView && !lit && G.noise < 5;
       if (beam) e.fleeT = 2.2;
-      if (e.fleeT > 0) {
+      if (WD.cfg.grinStill) {           // 肉食の風船：動かない。近づいたものをつかまえる
+        e.st = 'lurk'; if (d < 1.0) caught = e;
+      } else if (e.fleeT > 0) {
         e.fleeT -= dt; e.st = 'flee'; if (beam) e.burn += dt;
         if (e.sndT <= 0) { sfx('hiss', { pan: Math.sin(rel), gain: 0.25 }); e.sndT = 0.6; }
         // となりのマスのうち、こちらから一番遠くなる所へ下がる
@@ -298,7 +306,7 @@ function updateEnts(dt) {
           if (md > 1e-4) { e.x += mx / md * s; e.y += my / md * s; }
         }
         if (e.burn > 1.6) { e.gone = true; toast('笑い声が、遠ざかっていった'); }
-      } else if (lure ? ((lit && d < P.see) || (G.noise && d < G.noise)) : (lh < 0.34 && d < P.see)) {
+      } else if (!held && (lure ? ((lit && d < P.see) || (G.noise >= 5 && d < G.noise)) : (lh < 0.34 && d < P.see))) {
         e.st = 'chase'; e.tgt = { x: S.x, y: S.y }; speed = P.speed[2] * mul;
         if (los && d < 2.5) { const s = Math.min(d, speed * dt); e.x += dx / d * s; e.y += dy / d * s; }
         else stepEntity(e, speed, dt, dark);
@@ -367,7 +375,7 @@ function update(dt) {
   if (cfg.noLight) S.flash = false;   // Level 6：明かりがつかない
   // 懐中電灯
   if (S.flash) {
-    S.bat -= 0.42 * (cfg.hard ? 1.3 : 1) * dt;
+    S.bat -= 0.42 * (cfg.hard ? 1.3 : 1) * (cfg.batMul || 1) * dt;
     if (S.bat <= 0) {
       if (S.spare > 0) { S.spare--; S.bat = 100; toast('電池を入れ替えた'); }
       else { S.bat = 0; S.flash = false; toast('電池が切れた'); sfx('click'); }
@@ -434,7 +442,7 @@ function frameFx() {
   return {
     desat: Math.min(0.85, (cfg.desat || 0) + (cfg.hard ? low * 0.3 : 0)),
     yellow: cfg.orig ? Math.min(0.55, S.time / 1500) : 0,
-    bob: G.bob, flash: S.flash && S.bat > 0 ? 1.75 * (S.bat < 15 && Math.random() < 0.08 ? 0.3 : 1) : 0,
+    bob: G.bob, flash: S.flash && S.bat > 0 ? 1.75 * (cfg.flashMul || 1) * (S.bat < 15 && Math.random() < 0.08 ? 0.3 : 1) : 0,
     noise: 0.04 + low * 0.32 + G.fear * 0.12 + (cfg.orig ? Math.min(0.12, S.time / 4000) : 0), glitch: low > 0.5 ? low : 0,
     dark: G.mode === 'trans' ? Math.min(1, G.transT) : 0, fogMul: 1 + low * 0.6,
   };

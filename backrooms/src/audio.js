@@ -134,6 +134,7 @@ const MELODY = {
   clock: { notes: [[2400, 0.04, 0.16, 'triangle'], [1800, 0.04, 0.16, 'triangle'], [2400, 0.04, 0.16, 'triangle'], [1800, 0.04, 0.16, 'triangle'], [2400, 0.04, 0.16, 'triangle'], [1800, 0.04, 0.16, 'triangle'], [523, 2.2, 0.3, 'sine'], 0], gap: 0.5, type: 'sine', dur: 0.1, g: 0.2 },
   chip: { notes: [523, 659, 784, 1047, 784, 659, 523, 0, 587, 698, 880, 1175, 880, 0, 0, 0], gap: 0.15, type: 'square', dur: 0.13, g: 0.06 },
   monitor: { notes: [1000, 0, 0, 0, 0], gap: 0.24, type: 'sine', dur: 0.11, g: 0.3 },
+  waves: { notes: [0], gap: 3.2, type: 'sine', dur: 0, g: 0, waves: 1 },   // 波の音
   jazz: { notes: [392, 466, 587, 698, 523, 659, 784, 932, 349, 440, 523, 659, 0, 0, 0, 0], gap: 0.28, type: 'triangle', dur: 0.55, g: 0.11 },
   party: { notes: [784, 784, 880, 784, 1047, 988, 0, 784, 784, 880, 784, 1175, 1047, 0, 0, 0, 0], gap: 0.32, type: 'triangle', dur: 0.4, g: 0.15 },   // 「ハッピーバースデー」（作者不明の古い歌）
 };
@@ -153,6 +154,7 @@ function audioUpdate(info) {
   if (m.wind && cfg.beacon) AU.amb.gain.setTargetAtTime(0.025 + vol * 0.12, t, 0.4);
   if (t >= AU.bNext && vol > 0.005) {
     const nt = m.notes[AU.bStep % m.notes.length]; AU.bStep++;
+    if (m.waves) noiseHit(2.8, 0.3, 'lowpass', 520, 0, AU.bGain, t);
     const f = Array.isArray(nt) ? nt[0] : nt, dur = Array.isArray(nt) ? nt[1] : m.dur, gg = Array.isArray(nt) ? nt[2] : m.g, ty = Array.isArray(nt) ? nt[3] : m.type;
     if (f) {
       tone(f, dur, gg, ty, AU.bGain, t);

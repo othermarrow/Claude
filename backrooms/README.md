@@ -1,7 +1,7 @@
 # 迷い部屋（backrooms）
 
 Backrooms 風の探索ホラー。終わりのない黄色い部屋をさまよい、出口を探して下の層へ進む。
-ゲームは HTML 1枚（`backrooms.html`、約160KB）だけでできていて、ネットにはつながない。
+ゲームは HTML 1枚（`backrooms.html`、約180KB）だけでできていて、ネットにはつながない。
 Tasker のシーンに WebView を1つ置いて遊ぶ（Chrome でも動く）。
 
 - 一人称でなめらかに歩く3D（昔の3Dシューティングと同じ「レイキャスト」という描き方）
@@ -21,7 +21,7 @@ Tasker のシーンに WebView を1つ置いて遊ぶ（Chrome でも動く）�
 | はじめから | 出口を探して10の層を抜けると、エンディング。捕まってもその層の最初からやり直せる |
 | 救いのない版 | 層が終わらない。最後の光の扉の先も、また黄色い部屋（第10層、第11層…と続く） |
 | 原作版 | 2019年の最初の投稿に合わせた版。黄色い部屋だけで、出口はない |
-| Wiki設定版 | その後ネットの The Backrooms Wiki で広がった設定（Level・Entity・アーモンドウォーター）で、9つの Level を歩く |
+| Wiki設定版 | その後ネットの The Backrooms Wiki で広がった設定（Level・Entity・アーモンドウォーター）で、14の Level を歩く |
 | 五つの報告書 | 5つのAI（Perplexity・Manus・Gemini・Claude・ChatGPT）が書いた「あなたについての報告書」の中を、10の層で歩く |
 | 山羊文学版 | 山羊文学の作品の言葉が、メモになって床に落ちている。10の層 |
 
@@ -50,9 +50,9 @@ Tasker のシーンに WebView を1つ置いて遊ぶ（Chrome でも動く）�
 ### Wiki設定版
 
 2019年の投稿のあと、The Backrooms Wiki（[backrooms-wiki.wikidot.com](https://backrooms-wiki.wikidot.com/)）でみんなが書き足して広がった設定をもとにした版。
-利用者が Termux で保存した Wiki のページ（Level 0〜6・26・37、Entity の一覧、M.E.G.）を読んで、Level の名前・様子・出てくるもの・Level どうしのつながりを合わせた。
+利用者が Termux で保存した Wiki のページ（Level 0〜11・26・37、Entity 3・4・8・9・10・67・110 と一覧、Object 1「Almond Water」、M.E.G.）を読んで、Level の名前・様子・出てくるもの・Level どうしのつながり・Entity の動きを合わせた。
 画面の文章（メモ・札・捕まったときの文・エンディング）は、Wiki の説明をもとに、このゲームのために短く書いた。
-いくつかの文は Wiki の一文の訳に近い（Level 0 の札の「入り口であり、墓場でもある」、Level 6 の「何もいないから危ない」、Level 37 の「落ち着いた気持ちになる」など）。
+いくつかの文は Wiki の一文の訳に近い（Level 0 の札の「入り口であり、墓場でもある」、Level 6 の「何もいないから危ない」、Level 10 の「一瞬、Backrooms から出られたのかと思った」、Level 37 の「落ち着いた気持ちになる」など）。
 
 | Level | 名前 | 生存難易度 | ようす（Wiki より） | このゲームでの出てくるもの・しかけ | 出口（Wiki より） |
 |---|---|---|---|---|---|
@@ -62,21 +62,37 @@ Tasker のシーンに WebView を1つ置いて遊ぶ（Chrome でも動く）�
 | Level 3 | Electrical Station（電気室） | 4 | レンガと配線、機械のうなり。柵で区切られた迷路。M.E.G. の Base Gamma | ハウンド2体まで、スマイラー | エレベーター → Level 4 か 5 |
 | Level 4 | Abandoned Office（無人のオフィス） | 1 | 空っぽの事務所。アーモンドウォーターが一番多い。Base Omega | アーモンドウォーターが多い。ハウンドがまれに | 階段 → Level 5 |
 | Level 5 | Terror Hotel（テラー・ホテル） | 2 | 1930年代ふうのホテル。ジャズ。デスモスの巣。ボイラー室 | デスモス（大きな蛾。光に寄ってくる）、スキン・スティーラー。出口の音はジャズ | ボイラー室の奥 → Level 6 |
-| Level 6 | Lights Out（ライツ・アウト） | 未定 | 真っ暗で、持ちこんだ明かりもつかない。音もしない | **懐中電灯がつかない**。何もいないが、ないはずの音がする | （下の「つなぎ方」） |
-| Level 26 | The SS Fun =)（SSファン号 =)） | 5 | パーティーゴーアーの本拠地になった客船。終わらない廊下とパーティー部屋 | パーティーゴーアー（急がずに追ってくる）、暗い隅の肉食の風船 | 裏返しのぼやけたポスターにさわる → 別の Level |
+| Level 6 | Lights Out（ライツ・アウト） | 未定 | 真っ暗で、持ちこんだ明かりもつかない。音もしない | **懐中電灯がつかない**。何もいないが、ないはずの音がする | 波の音のする階段 → Level 7 |
+| Level 7 | Thalassophobia（タラソフォビア） | 4 | コンクリートの天井の下の、灯りのない果てしない海。岩の島 | 海を歩く（遅い）。耳のいいタイニー、光に弱い「7層のもの」 | 岩山の水中洞窟 → Level 8 |
+| Level 8 | Cave Systems（洞窟群） | 4 | 天然の洞窟。光るのは菌類とコケ。アーモンドウォーターが流れる。M.E.G. の「9番目の道」 | 灯りは丸く光る菌類。**懐中電灯が弱く、電池が早く減る**。レッチ、デスモス | 道の終わり（岩→砂→砂利→アスファルト）→ Level 9 |
+| Level 9 | The Suburbs（郊外） | 5 | いつまでも真夜中の住宅街。街灯はほとんど消えている。霧 | 夜空。ハウンド、スマイラー | 野原へ続く小道 → Level 10 |
+| Level 10 | Bumper Crop（バンパー・クロップ） | 1 | 曇り空の下の麦畑。生け垣と木の列。襲うものはいない | 昼の空。何も出てこない | 道をたどる → Level 11 |
+| Level 11 | The City That Never Sleeps（眠らない街） | 2 | だれもいない西洋の街。Backrooms の非公式な中心地。敵意のあるものもあまり襲わない | 夜空と明かりのついた窓。フェイスリングが多い。ハウンドは見つけにくく遅い | （下の「つなぎ方」） |
+| Level 26 | The SS Fun =)（SSファン号 =)） | 5 | パーティーゴーアーの本拠地になった客船。終わらない廊下とパーティー部屋 | パーティーゴーアー（目が悪く遅いが静か）、暗い隅の肉食の風船（動かず、近づくとつかまえる） | 裏返しのぼやけたポスターにさわる → 別の Level |
 | Level 37 | Sublimity（サブリミティ） | 0 | ぬるい水に沈んだ白いタイルの部屋。何もいない。落ち着く | 正気が戻る | 水の底へ続く階段 → エンディング |
 
-- 水のかわりに**アーモンドウォーター**を拾う。飲むと渇きと正気が戻る（正気は「はじめから」の水より多く戻る）。
+- 水のかわりに**アーモンドウォーター**を拾う。飲むと渇きと正気が戻る（正気は「はじめから」の水より多く戻る）。Wiki では、ほのかに甘くアーモンドの香りがして、1本で食事1回ぶんになる。
+- Entity の動き（Wiki の Entity のページから）：
+  - **ハウンド**：人を見つけると襲ってくる。にらみ返すと、少しのあいだだけひるむ（このゲームでは2秒ほど止まる）。
+  - **スマイラー**：光を持っているものを追う。目を合わせたまま、ゆっくり下がるのが一番。走ったり大きな音を立てたりすると襲ってくる。
+  - **デスモス**：明るい光に寄ってくる。
+  - **フェイスリング**：ほとんどはおとなしい（このゲームでは何もしてこない）。
+  - **パーティーゴーアー**：近くしか見えず、足も遅いが、とても静か。群れで動く。
+  - **肉食の風船**：自分では動かない。近づいたものをリボンでつかまえる。光や音には寄ってこない。
 - メモは「M.E.G.（Major Explorer Group）の記録」。札には Level の英語名と生存難易度が出る。
 - 捕まっても、その Level の最初からやり直せる。拾う物の絵は設定で切りかえられる（ふつうの絵にするとアーモンドウォーターの瓶になる）。
 
 **このゲームでの解釈（Wiki のとおりではないところ）**
-- Level 6 → Level 26：Wiki では、Level 6 の出口は Level 7 への階段。また「どこにいても、パーティーの飾りにさわると Level 26 へ引きこまれる」とある。このゲームでは、Level 6 の暗闇で手にふれた風船から Level 26 へ行く。
+- Level 0〜11 は、Wiki に書かれたつながりのとおりにつないだ（Level 7 → 8 は Level 7 のページの「水中の洞窟」。Level 8 のページは Level 6 からの道として書いている）。
+- Level 11 → Level 26：Wiki では「どこにいても、パーティーの飾りにさわると Level 26 へ引きこまれる」とある。このゲームでは、Level 11 の壁に貼られたパーティーのポスターから行く。
+- Level 7 は本当は泳いで深く潜る海だが、このゲームでは水の上を歩く（遅くなる）。息や深さはない。タイニーと「7層のもの」の姿はページにくわしく書かれていないので、影として描いた。
+- Level 9〜11 は外だが、このゲームでは建物や生け垣を同じ高さの壁で描き、天井のかわりに空を描いた。
 - Level 26 → Level 37：Wiki では、ポスターから行く先は「別の Level」としか書かれていない（Level 4 に出た人の話がある）。このゲームでは Level 37 へ出る。
 - Level 37 の先：Wiki では、水に潜ると別の Level（Level 130 など）へ出る。このゲームではエンディングにした。
 - Level 6 は、まったく見えないと遊べないので、ほんの少しだけ形が見える。出口からはパーティーの音楽がかすかに聞こえる。
 - Entity の動き（速さ、何に寄ってくるか）は、Wiki の説明をもとにした、このゲームでの作り。
 - 以前この版に入れていた Level !（Run For Your Life）は、今の Wiki の Level の一覧になかったので外した。Level Fun は、今の Wiki では Level 26「The SS Fun =)」になっていた。
+- アーモンドウォーターで正気が戻るのは、このゲームのしくみ（Wiki には正気という数値はない。青いアーモンドウォーターが不安をやわらげる、とある）。
 
 **出典とライセンス**
 Wiki の文章は CC BY-SA 3.0（各ページの下に「Unless otherwise stated, the content of this page is licensed under Creative Commons Attribution-ShareAlike 3.0 License」とある）。
@@ -92,9 +108,22 @@ Wiki の文章は CC BY-SA 3.0（各ページの下に「Unless otherwise stated
 | [Level 4 - "Abandoned Office"](https://backrooms-wiki.wikidot.com/level-4) | u/M654zy |
 | [Level 5 - "Terror Hotel"](https://backrooms-wiki.wikidot.com/level-5) | Stretchsterz |
 | [Level 6 - "Lights Out"](https://backrooms-wiki.wikidot.com/level-6) | Bart0nius |
+| [Level 7 - "Thalassophobia"](https://backrooms-wiki.wikidot.com/level-7) | Bart0nius |
+| [Level 8 - "Cave Systems"](https://backrooms-wiki.wikidot.com/level-8) | C-Graph, kai4C |
+| [Level 9 - "The Suburbs"](https://backrooms-wiki.wikidot.com/level-9) | Stretchsterz |
+| [Level 10 - "Bumper Crop"](https://backrooms-wiki.wikidot.com/level-10) | scutoid studios, egglord |
+| [Level 11 - "The City That Never Sleeps"](https://backrooms-wiki.wikidot.com/level-11) | Greggita Mahayfaio（もとの Level 11 は nerdykiddo4884） |
 | [Level 26 - "The SS Fun =)"](https://backrooms-wiki.wikidot.com/level-26) | Robert Goerman, MC_Crafter_24_7（もとの Level Fun は 1000dumplings） |
 | [Level 37 - "Sublimity"](https://backrooms-wiki.wikidot.com/level-37) | egglord |
-| [Entities](https://backrooms-wiki.wikidot.com/entities)、[The M.E.G.](https://backrooms-wiki.wikidot.com/the-m-e-g) | Entity の名前と番号（Smiler 3、Deathmoths 4、Hound 8、Facelings 9、Skin-Stealer 10、Partygoers 67）、M.E.G. の拠点 |
+| [Entity 3 - "Smilers"](https://backrooms-wiki.wikidot.com/entity-3) | Palico22（書き直し Stretchsterz） |
+| [Entity 4 - "Deathmoths"](https://backrooms-wiki.wikidot.com/entity-4) | DrAkimoto |
+| [Entity 8 - "Hound"](https://backrooms-wiki.wikidot.com/entity-8) | Palico 22（書き直し 1000dumplings） |
+| [Entity 9 - "Facelings"](https://backrooms-wiki.wikidot.com/entity-9) | Jo, Higher Being Love Cereal!（書き直し 1000dumplings, Nikuchan） |
+| [Entity 10 - "Skin-Stealer"](https://backrooms-wiki.wikidot.com/entity-10) | AndromedaMapping1（書き直し 1000dumplings） |
+| [Entity 67 - "Partygoers =)"](https://backrooms-wiki.wikidot.com/entity-67) | Robert Goerman, MC_Crafter_24_7（もとは 1000dumplings） |
+| [Entity 110 - "Carnivorous Balloons"](https://backrooms-wiki.wikidot.com/entity-110) | Nukboi |
+| [Object 1 - "Almond Water"](https://backrooms-wiki.wikidot.com/object-1) | Natedagreat563 |
+| [Entities](https://backrooms-wiki.wikidot.com/entities)、[The M.E.G.](https://backrooms-wiki.wikidot.com/the-m-e-g) | Entity の名前と番号の一覧、M.E.G. の拠点 |
 
 ### 五つの報告書
 
@@ -314,12 +343,12 @@ node test/world_test.js     # 10の層を30通りずつ、救いのない版は�
 `test/ui_test.js`・`ai_test.js`・`run_test.js`・`mode_test.js`・`wire_test.js`・`land_test.js`・`store_test.js` は Playwright でブラウザを動かすテスト（Claude の作業環境で実行した）。
 スマホの画面の大きさ（411×890）で、全部の画面、怪物の動き、正気・渇き・電池の減り方を確かめた。
 Wiki設定版・五つの報告書・山羊文学版は、始まり・拾う物の絵・メモと出典・怪物の絵・捕まったときの文・すべての層を抜けたエンディングの文を確かめた。
-Wiki設定版は、はじめと終わりの CC BY-SA 3.0 の表示、札の生存難易度、アーモンドウォーター、フェイスリングが何もしてこないこと、Level 1 のフリッカリング、スマイラーが明かりに寄ってくること、Level 6 で明かりがつかないことも確かめた。
+Wiki設定版は、はじめと終わりの CC BY-SA 3.0 の表示、札の生存難易度、アーモンドウォーター、フェイスリングが何もしてこないこと、Level 1 のフリッカリング、スマイラーが明かりに寄ってくること、Level 6 で明かりがつかないこと、ハウンドがにらみ返すと止まること、Level 8 で電池が早く減ること、Level 26 の風船が動かず近づくとつかまえることも確かめた。
 「拾う物の絵」の設定で、はじめからと救いのない版の絵が切りかわり、保存されることも確かめた。
 `land_test.js` で、横向き（960×411）の全部の画面が収まりボタンが押せること、遊んでいる途中に縦横を回せることを確かめた。
 `store_test.js` で、`localStorage` が使えないときに Tasker の変数（テスト用のかわり）へ保存し、読み込み直しても続けられることを確かめた。
 `wire_test.js` で、「線だけ」の見た目を5つの層・出口・怪物・拾う物で撮って確かめた（描画は1フレーム約4.4ms、作業環境のパソコンで）。
-自動操縦で最初の層からエンディングまで、道を知っている場合は種3通りすべてで通った（ふつうの版の10の層・Wiki設定版の9つの Level。`MODE=wiki node test/run_test.js`）。
+自動操縦で最初の層からエンディングまで、道を知っている場合は種3通りすべてで通った（ふつうの版の10の層・Wiki設定版の14の Level。`MODE=wiki node test/run_test.js`）。
 寄り道しながらの場合（`WANDER=40`）も通った（2回捕まってやり直した）。
 描画は1フレーム約3.5ms（作業環境のパソコンで。スマホではもっとかかる）。
 

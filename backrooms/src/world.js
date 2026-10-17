@@ -99,11 +99,15 @@ function genChunk(cx, cy) {
       set(lx, ly, wall ? 1 : 0);
     }
   } else if (cfg.gen === 'pool') {
+    // 柱の間隔・残す割合・壁のかたまりの数と長さは、層ごとに変えられる（海の岩の島、畑の生け垣と木など）
+    const E = cfg.poolEvery || 7, keep = cfg.pillarKeep == null ? 1 : cfg.pillarKeep, s4 = WD.seed + 31;
     for (let ly = 0; ly < CH; ly++) for (let lx = 0; lx < CH; lx++) {
       const X = X0 + lx, Y = Y0 + ly;
-      if (((X % 7) + 7) % 7 === 3 && ((Y % 7) + 7) % 7 === 3) set(lx, ly, 1);
+      if (((X % E) + E) % E === 3 && ((Y % E) + E) % E === 3 && (keep >= 1 || hash3(s4, X, Y) < keep)) set(lx, ly, 1);
     }
-    if (R() < 0.5) { const hz = R() < 0.5, len = ri(3, 7), x0 = ri(0, CH - 1), y0 = ri(0, CH - 1); for (let i = 0; i < len; i++) set(hz ? x0 + i : x0, hz ? y0 : y0 + i, 1); }
+    const PS = cfg.poolSegs || [0, 1], PL = cfg.segLen || [3, 7];
+    const nseg = cfg.poolSegs ? ri(PS[0], PS[1]) : (R() < 0.5 ? 1 : 0);
+    for (let s = 0; s < nseg; s++) { const hz = R() < 0.5, len = ri(PL[0], PL[1]), x0 = ri(0, CH - 1), y0 = ri(0, CH - 1), gap = R() < 0.5 ? ri(1, len - 2) : -1; for (let i = 0; i < len; i++) if (i !== gap) set(hz ? x0 + i : x0, hz ? y0 : y0 + i, 1); }
   }
   // スタート地点のまわりは空ける
   if (cx === 0 && cy === 0) for (let y = 5; y <= 11; y++) for (let x = 5; x <= 11; x++) {
@@ -134,6 +138,7 @@ function lampAt(X, Y) {
   const L = WD.cfg.lamps, e = L.every, off = WD.cfg.gen === 'maze' ? 0 : 1;
   if ((((X - off) % e) + e) % e !== 0 || (((Y - off) % e) + e) % e !== 0) return 0;
   if (cellAt(X, Y) === 1) return 0;
+  if (L.on <= 0 && L.flick <= 0) return 0;   // 灯りのない層には、灯りの枠も描かない
   if (L.on > 0 && Math.abs(X - 8) <= 4 && Math.abs(Y - 8) <= 4) return 1;   // 始まりの場所は明るく
   if (L.darkBlock && hash3(WD.seed + 5, Math.floor(X / 8), Math.floor(Y / 8)) < L.darkBlock) return 3;
   const r = hash3(WD.seed + 3, X, Y);

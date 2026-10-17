@@ -449,6 +449,113 @@ function buildTextures() {
       d[(y * w + x) * 4 + k] = s / 9;
     }
   });
+  // Level 6 の出口：波の音のする、下りの階段
+  makeTex('ex_st6', 64, 64, (g, w, h) => {
+    copyTex(g, 'lo6');
+    g.fillStyle = '#0a0b0c'; g.fillRect(14, 10, 36, 54);
+    for (let k = 0; k < 7; k++) { g.fillStyle = `rgba(110,114,118,${0.5 - k * 0.06})`; g.fillRect(14, 30 + k * 5, 36, 2); }
+    g.fillStyle = '#4a4c4e'; g.fillRect(12, 10, 2, 54); g.fillRect(50, 10, 2, 54);
+  });
+  // Level 7：暗い海と、岩の島
+  makeTex('pw7', 64, 64, (g, w, h) => {
+    g.fillStyle = '#284652'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = 'rgba(170,210,220,0.3)'; g.lineWidth = 1;
+    for (let k = 0; k < 6; k++) { g.beginPath(); for (let x = 0; x <= w; x += 4) g.lineTo(x, k * 11 + 4 + Math.sin(x / 6 + k * 1.7) * 2.2); g.stroke(); }
+  }, (d, w, h, R) => noisePix(d, 4, R));
+  makeTex('rk7', 64, 64, (g, w, h, R) => {
+    g.fillStyle = '#2e2f32'; g.fillRect(0, 0, w, h);
+    for (let k = 0; k < 26; k++) { g.fillStyle = R() < 0.5 ? '#3c3d41' : '#232427'; g.beginPath(); g.ellipse(R() * w, R() * h, 3 + R() * 9, 2 + R() * 6, R() * 3, 0, 7); g.fill(); }
+    g.fillStyle = 'rgba(20,40,46,0.6)'; g.fillRect(0, 54, w, 10);
+  }, (d, w, h, R) => { noisePix(d, 10, R); stains(d, w, h, R, 16, 0.55, 0.35); });
+  makeTex('ex_cave7', 64, 64, (g, w, h) => {
+    copyTex(g, 'rk7');
+    g.fillStyle = '#050607'; g.beginPath(); g.moveTo(12, 64); g.quadraticCurveTo(14, 28, 32, 26); g.quadraticCurveTo(52, 28, 54, 64); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(60,110,120,0.5)'; g.fillRect(12, 56, 42, 8);
+  });
+  // Level 8：洞窟
+  makeTex('rk8', 64, 64, (g, w, h, R) => {
+    g.fillStyle = '#4a4238'; g.fillRect(0, 0, w, h);
+    for (let k = 0; k < 30; k++) { g.fillStyle = R() < 0.5 ? '#5a5144' : '#3a332b'; g.beginPath(); g.ellipse(R() * w, R() * h, 3 + R() * 10, 2 + R() * 6, R() * 3, 0, 7); g.fill(); }
+    g.strokeStyle = 'rgba(20,16,12,0.7)'; g.lineWidth = 1;
+    for (let k = 0; k < 4; k++) { let x = R() * w, y = 0; g.beginPath(); g.moveTo(x, y); while (y < h) { x += (R() - 0.5) * 8; y += 4 + R() * 6; g.lineTo(x, y); } g.stroke(); }
+    for (let k = 0; k < 14; k++) { g.fillStyle = 'rgba(200,190,160,0.5)'; g.fillRect(Math.floor(R() * w), Math.floor(R() * h), 1, 1); }
+  }, (d, w, h, R) => { noisePix(d, 10, R); stains(d, w, h, R, 16, 0.5, 0.35); });
+  makeTex('gf8', 64, 64, (g, w, h, R) => {
+    g.fillStyle = '#3a352e'; g.fillRect(0, 0, w, h);
+    for (let k = 0; k < 120; k++) { g.fillStyle = ['#4d463c', '#2c2822', '#5a5246'][k % 3]; g.beginPath(); g.arc(R() * w, R() * h, 0.6 + R() * 1.6, 0, 7); g.fill(); }
+  }, (d, w, h, R) => noisePix(d, 8, R));
+  makeTex('rc8', 64, 64, (g, w, h, R) => {
+    g.fillStyle = '#2a2520'; g.fillRect(0, 0, w, h);
+    for (let k = 0; k < 20; k++) { g.fillStyle = R() < 0.5 ? '#36302a' : '#1e1a16'; g.beginPath(); g.ellipse(R() * w, R() * h, 4 + R() * 10, 3 + R() * 7, R() * 3, 0, 7); g.fill(); }
+  }, (d, w, h, R) => noisePix(d, 8, R));
+  makeTex('ex_road8', 64, 64, (g, w, h, R, eg) => {
+    copyTex(g, 'rk8');
+    g.fillStyle = '#0c0b0a'; g.beginPath(); g.moveTo(10, 64); g.quadraticCurveTo(12, 22, 32, 20); g.quadraticCurveTo(52, 22, 54, 64); g.closePath(); g.fill();
+    const gr = g.createRadialGradient(32, 40, 2, 32, 40, 18); gr.addColorStop(0, 'rgba(255,190,120,0.75)'); gr.addColorStop(1, 'rgba(255,190,120,0)');
+    g.fillStyle = gr; g.fillRect(14, 24, 36, 40); eg.fillStyle = 'rgba(255,255,255,0.8)'; eg.beginPath(); eg.arc(32, 40, 6, 0, 7); eg.fill();
+    g.fillStyle = '#2a2a2c'; g.beginPath(); g.moveTo(22, 64); g.lineTo(29, 44); g.lineTo(35, 44); g.lineTo(42, 64); g.closePath(); g.fill();
+    g.fillStyle = '#9a9a7a'; g.fillRect(31, 50, 2, 3); g.fillRect(31, 57, 2, 4);
+  });
+  // Level 9：真夜中の住宅街
+  makeTex('hs9', 64, 64, (g, w, h, R) => {
+    g.fillStyle = '#5d6168'; g.fillRect(0, 0, w, h);
+    for (let y = 0; y < h; y += 5) { g.fillStyle = '#4c5056'; g.fillRect(0, y, w, 1); g.fillStyle = '#6a6e75'; g.fillRect(0, y + 1, w, 1); }
+    g.fillStyle = '#1a1c20'; g.fillRect(8, 14, 16, 18); g.fillRect(40, 14, 16, 18);
+    g.fillStyle = '#e8e6de'; g.fillRect(8, 22, 16, 1); g.fillRect(15, 14, 1, 18); g.fillRect(40, 22, 16, 1); g.fillRect(47, 14, 1, 18);
+    g.fillStyle = '#3a3d42'; g.fillRect(0, 56, w, 8);
+  }, (d, w, h, R) => { noisePix(d, 6, R); stains(d, w, h, R, 16, 0.6, 0.3); });
+  makeTex('as9', 64, 64, (g, w, h, R) => {
+    g.fillStyle = '#26282b'; g.fillRect(0, 0, w, h);
+    for (let k = 0; k < 9; k++) { g.fillStyle = ['#5a3a1c', '#6a4a22', '#4a3018'][k % 3]; g.save(); g.translate(R() * w, R() * h); g.rotate(R() * 3); g.beginPath(); g.ellipse(0, 0, 2.4, 1.2, 0, 0, 7); g.fill(); g.restore(); }
+    g.fillStyle = 'rgba(120,140,160,0.25)'; g.beginPath(); g.ellipse(40, 44, 12, 5, 0.2, 0, 7); g.fill();
+  }, (d, w, h, R) => noisePix(d, 10, R));
+  makeTex('ex_walk9', 64, 64, (g, w, h) => {
+    copyTex(g, 'hs9');
+    g.fillStyle = '#20301c'; g.fillRect(12, 18, 40, 46);
+    g.fillStyle = '#3a5a2a'; for (let x = 12; x < 52; x += 3) g.fillRect(x, 20 + ((x * 7) % 9), 2, 44);
+    g.fillStyle = '#8a8478'; g.beginPath(); g.moveTo(24, 64); g.lineTo(30, 30); g.lineTo(34, 30); g.lineTo(40, 64); g.closePath(); g.fill();
+    g.fillStyle = '#c8c4b8'; g.fillRect(12, 18, 40, 2);
+  });
+  // Level 10：麦畑と生け垣
+  makeTex('hg10', 64, 64, (g, w, h, R) => {
+    g.fillStyle = '#2f4a24'; g.fillRect(0, 0, w, h);
+    for (let k = 0; k < 70; k++) { g.fillStyle = ['#3d5e2c', '#24391b', '#4a6e34'][k % 3]; g.beginPath(); g.arc(R() * w, R() * 56, 2 + R() * 4, 0, 7); g.fill(); }
+    g.fillStyle = '#5a4630'; g.fillRect(0, 58, w, 6);
+  }, (d, w, h, R) => noisePix(d, 8, R));
+  makeTex('wh10', 64, 64, (g, w, h, R) => {
+    g.fillStyle = '#b8984a'; g.fillRect(0, 0, w, h);
+    for (let k = 0; k < 140; k++) { g.fillStyle = ['#d0b060', '#a08038', '#c8a854'][k % 3]; g.fillRect(Math.floor(R() * w), Math.floor(R() * h), 1, 2 + Math.floor(R() * 3)); }
+  }, (d, w, h, R) => noisePix(d, 6, R));
+  makeTex('ex_road10', 64, 64, (g, w, h) => {
+    copyTex(g, 'hg10');
+    g.fillStyle = '#a8a69c'; g.fillRect(14, 16, 36, 48);
+    g.fillStyle = '#3a3a3c'; g.beginPath(); g.moveTo(16, 64); g.lineTo(28, 30); g.lineTo(36, 30); g.lineTo(48, 64); g.closePath(); g.fill();
+    g.fillStyle = '#d8d0a0'; g.fillRect(31, 40, 2, 4); g.fillRect(31, 50, 2, 6);
+    g.fillStyle = '#5a5048'; g.fillRect(52, 8, 2, 40); g.fillStyle = '#2a6a3a'; g.fillRect(44, 6, 18, 8); g.fillStyle = '#eee'; g.fillRect(47, 9, 10, 1); g.fillRect(55, 8, 2, 3);
+  });
+  // Level 11：眠らない街
+  makeTex('bd11', 64, 64, (g, w, h, R, eg) => {
+    g.fillStyle = '#6a6862'; g.fillRect(0, 0, w, h);
+    for (let y = 4; y < 56; y += 12) for (let x = 3; x < w; x += 12) {
+      const lit = R() < 0.18;
+      g.fillStyle = lit ? '#e8c880' : '#121418'; g.fillRect(x, y, 8, 8);
+      if (lit) { eg.fillStyle = '#fff'; eg.fillRect(x, y, 8, 8); } else { g.fillStyle = 'rgba(160,170,190,0.25)'; g.fillRect(x, y, 3, 8); }
+    }
+    g.fillStyle = '#4a4844'; g.fillRect(0, 56, w, 8);
+  }, (d, w, h, R) => { noisePix(d, 6, R); stains(d, w, h, R, 16, 0.6, 0.3); });
+  makeTex('as11', 64, 64, (g, w, h) => {
+    g.fillStyle = '#2c2d30'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#d8c060'; g.fillRect(30, 0, 2, 24); g.fillRect(30, 40, 2, 24);
+  }, (d, w, h, R) => { noisePix(d, 10, R); stains(d, w, h, R, 16, 0.6, 0.3); });
+  makeTex('ex_party11', 64, 64, (g, w, h, R, eg) => {
+    copyTex(g, 'bd11');
+    g.fillStyle = '#f2e7b8'; g.fillRect(16, 10, 32, 42);
+    g.fillStyle = '#e8483f'; g.fillRect(16, 10, 32, 3);
+    g.fillStyle = '#5a3a8a'; g.font = 'bold 8px sans-serif'; g.fillText('TIME', 22, 24); g.fillText('4 FUN', 20, 34);
+    const c = ['#e8483f', '#3f8fe8', '#f0b72f']; for (let k = 0; k < 3; k++) { g.fillStyle = c[k]; g.beginPath(); g.ellipse(22 + k * 10, 44, 3, 4, 0, 0, 7); g.fill(); }
+    eg.fillStyle = 'rgba(255,255,255,0.7)'; eg.fillRect(16, 10, 32, 3);
+  });
+
   // Level 37：ぬるい水に沈んだタイル
   makeTex('pw37', 64, 64, (g, w, h) => {
     g.fillStyle = '#9cc9cf'; g.fillRect(0, 0, w, h);
@@ -587,6 +694,34 @@ function buildTextures() {
     g.fillStyle = '#f1ead2'; mouth(g); eg.fillStyle = '#fff'; mouth(eg);
     g.fillStyle = '#2a0406'; for (let x = 22; x < 43; x += 2.4) g.fillRect(x, 29, 0.9, 6);
   });
+  // Level 7 のもの（姿はページにくわしく書かれていないので、水から出た大きな影にした）
+  makeTex('sp_tiny', 64, 64, (g, w, h, R, eg) => {
+    g.fillStyle = '#101418';
+    g.beginPath(); g.ellipse(32, 30, 16, 14, 0, 0, 7); g.fill();
+    g.beginPath(); g.moveTo(8, 64); g.quadraticCurveTo(12, 40, 32, 40); g.quadraticCurveTo(52, 40, 56, 64); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(120,170,180,0.35)'; g.fillRect(0, 58, 64, 6);
+    g.fillStyle = '#c8d4d0'; g.fillRect(25, 28, 3, 2); g.fillRect(36, 28, 3, 2); eg.fillStyle = '#fff'; eg.fillRect(25, 28, 3, 2); eg.fillRect(36, 28, 3, 2);
+  });
+  makeTex('sp_deep', 64, 64, (g, w, h, R, eg) => {
+    g.fillStyle = '#06080a';
+    for (let i = 0; i < 36; i++) { const a = R() * Math.PI * 2, r = R() * 22; g.beginPath(); g.ellipse(32 + Math.cos(a) * r, 34 + Math.sin(a) * r * 0.8, 4 + R() * 8, 3 + R() * 7, R() * 3, 0, 7); g.fill(); }
+    const eye = c => { c.beginPath(); c.arc(22, 28, 6, 0, 7); c.fill(); c.beginPath(); c.arc(42, 28, 6, 0, 7); c.fill(); };
+    g.fillStyle = '#d8dcd0'; eye(g); eg.fillStyle = '#fff'; eye(eg);
+    g.fillStyle = '#9aa098'; g.beginPath(); g.arc(22, 28, 2, 0, 7); g.fill(); g.beginPath(); g.arc(42, 28, 2, 0, 7); g.fill();
+  });
+  // レッチ：ゾンビのような、やせた人の形
+  makeTex('sp_wretch', 64, 128, (g) => {
+    g.fillStyle = '#7a7c70';
+    g.beginPath(); g.ellipse(34, 22, 7, 9, 0.2, 0, 7); g.fill();
+    g.beginPath(); g.moveTo(22, 34); g.lineTo(42, 32); g.lineTo(40, 80); g.lineTo(26, 82); g.closePath(); g.fill();
+    g.lineWidth = 3; g.strokeStyle = '#7a7c70'; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(24, 36); g.lineTo(14, 62); g.lineTo(18, 84); g.stroke();
+    g.beginPath(); g.moveTo(40, 36); g.lineTo(50, 58); g.lineTo(46, 80); g.stroke();
+    g.lineWidth = 4; g.beginPath(); g.moveTo(29, 80); g.lineTo(26, 127); g.stroke(); g.beginPath(); g.moveTo(37, 80); g.lineTo(41, 127); g.stroke();
+    g.fillStyle = '#3a2a24'; g.fillRect(24, 50, 16, 14); g.fillRect(26, 66, 6, 10);
+    g.fillStyle = '#1a1412'; g.fillRect(30, 20, 2, 2); g.fillRect(36, 20, 2, 2); g.fillRect(31, 26, 6, 2);
+  });
+
   // アーモンドウォーター（拾う物の絵を「ふつう」にしたとき）
   makeTex('sp_almond', 32, 32, (g) => {
     g.fillStyle = 'rgba(236,228,206,0.95)'; g.fillRect(12, 13, 8, 18);

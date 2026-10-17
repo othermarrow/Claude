@@ -45,6 +45,19 @@ for (let depth = 0; depth <= 20; depth++) {
   ok(d >= 0, `救いのない版 第${depth}層 出口に行けない`);
   if (depth % 5 === 0 || depth === 20) console.log(`救いのない版 第${depth}層「${cfg.name}」出口まで${d}歩 明るさ${cfg.amb.toFixed(3)} 灯り${cfg.lamps.on.toFixed(2)} 怪物${JSON.stringify(Object.fromEntries(Object.entries(cfg.ents).map(([k, v]) => [k, v.max])))} 速さ×${cfg.speedMul.toFixed(2)}`);
 }
+// Wiki設定版：どの Level も出口に歩いて行けるか
+for (let i = 0; i < E('THEMES.wiki.levels.length'); i++) {
+  let mn = 1e9, mx = 0;
+  for (let s = 1; s <= 12; s++) {
+    E(`newWorld(${i}, ${s * 7919}, levelCfg(${i}, 'wiki'))`);
+    const ex = E('WD.exit');
+    ok(!E('isWall(8, 8)'), `wiki ${i} スタートが壁`);
+    const d = ex ? E('bfsFrom')(8, 8, 140).at(ex.fx, ex.fy) : -1;
+    ok(d >= 0, `wiki ${i} seed${s} 出口に行けない`);
+    mn = Math.min(mn, d); mx = Math.max(mx, d);
+  }
+  console.log(`Wiki ${E(`levelCfg(${i}, 'wiki').n`)} ${E(`levelCfg(${i}, 'wiki').name`)}: 出口まで ${mn}〜${mx}歩`);
+}
 // 原作版：出口も物もない
 E(`newWorld(0, 77, levelCfg(0, 'orig'))`);
 ok(E('WD.exit') === null, '原作版に出口がある');

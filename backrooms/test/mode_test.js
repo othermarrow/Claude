@@ -111,7 +111,7 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
     await click('この層の最初から'); await click('進む');
     // すべての層を通ってエンディング
     const nlv = await ev(m => THEMES[m].levels.length, mode);
-    ok(nlv === (mode === 'wiki' ? 9 : 10), `${label}：層は${nlv}`);
+    ok(nlv === (mode === 'wiki' ? 14 : 10), `${label}：層は${nlv}`);
     for (let lv = 0; lv < nlv; lv++) {
       if (lv === 7 && mode === 'wiki') await shot('m1_wiki_card7');
       await ev(() => { DBG.toExit(); update(0.01); enterExit(); finishTrans(); }); if (lv < nlv - 1) await click('進む');
@@ -156,7 +156,24 @@ const OUT = process.env.SHOTS || path.join(__dirname, 'shots');
   // Level 6：明かりがつかない
   const l6 = await ev(() => { enterLevel(6, true); startPlay(); S.bat = 100; toggleFlash(); return { name: WD.cfg.name, flash: S.flash, t: $('#toast').textContent }; });
   ok(!l6.flash && /光が出ない/.test(l6.t), `Wiki設定版：${l6.name}では明かりがつかない`);
-  await ev(() => { G.ents = []; enterLevel(7, true); startPlay(); S.a = 0.6; G.ents = [{ type: 'wander', x: S.x + 2.4, y: S.y, st: 'wander', tgt: null, next: null, repath: 0, lost: 0, stepT: 0, sndT: 1, burn: 0 }]; if (blocked(S.x + 2.4, S.y)) { G.ents[0].x = S.x; G.ents[0].y = S.y + 2.4; S.a = Math.PI / 2; } else S.a = 0; });
+  // ハウンドは、にらみ返すと少しのあいだ止まる
+  const hs = await ev(() => { enterLevel(1, true); startPlay(); G.spawn = { wander: 1e9 }; S.a = 0; G.run = false;
+    let ex = S.x + 4.5, ey = S.y; if (blocked(ex, ey) || !lineOfSight(S.x, S.y, ex, ey)) { ex = S.x; ey = S.y + 4.5; S.a = Math.PI / 2; }
+    G.ents = [{ type: 'wander', x: ex, y: ey, st: 'chase', tgt: null, next: null, repath: 0, lost: 5, stepT: 0, sndT: 1, burn: 0 }];
+    const d0 = Math.hypot(ex - S.x, ey - S.y); for (let i = 0; i < 30; i++) update(0.033); const e = G.ents[0];
+    return { stare: e.stareT > 0, moved: d0 - Math.hypot(e.x - S.x, e.y - S.y) }; });
+  ok(hs.stare && hs.moved < 0.6, `Wiki設定版：ハウンドはにらみ返すと止まる（1秒で ${hs.moved.toFixed(2)} マスしか近づかない）`);
+  // Level 8：電池の減りが早い
+  const bt = await ev(() => { enterLevel(8, true); startPlay(); G.spawn = { wander: 1e9, grin: 1e9 }; S.flash = true; S.bat = 100; for (let i = 0; i < 300; i++) update(0.033); const a = 100 - S.bat; enterLevel(0, true); startPlay(); S.flash = true; S.bat = 100; for (let i = 0; i < 300; i++) update(0.033); return { cave: a, lobby: 100 - S.bat }; });
+  ok(bt.cave > bt.lobby * 2, `Wiki設定版：洞窟群では電池が早く減る（${bt.cave.toFixed(1)} と ${bt.lobby.toFixed(1)}）`);
+  // Level 26：肉食の風船は動かず、近づくとつかまえる
+  const bl = await ev(() => { enterLevel(12, true); startPlay(); G.spawn = { wander: 1e9, grin: 1e9 };
+    G.ents = [{ type: 'grin', x: S.x + 3, y: S.y, st: 'lurk', tgt: null, next: null, repath: 0, lost: 0, stepT: 0, sndT: 1, burn: 0 }];
+    for (let i = 0; i < 60; i++) update(0.033); const e = G.ents[0], still = Math.abs(e.x - (S.x + 3)) < 1e-6;
+    e.x = S.x + 0.8; update(0.033); return { name: WD.cfg.name, still, over: G.mode === 'over' }; });
+  ok(bl.still && bl.over, `Wiki設定版：${bl.name}の風船は動かず、近づくとつかまえる`);
+  await ev(() => { G.mode = 'play'; ov(''); });
+  await ev(() => { G.ents = []; enterLevel(12, true); startPlay(); S.a = 0.6; G.ents = [{ type: 'wander', x: S.x + 2.4, y: S.y, st: 'wander', tgt: null, next: null, repath: 0, lost: 0, stepT: 0, sndT: 1, burn: 0 }]; if (blocked(S.x + 2.4, S.y)) { G.ents[0].x = S.x; G.ents[0].y = S.y + 2.4; S.a = Math.PI / 2; } else S.a = 0; });
   await page.waitForTimeout(250);
   await shot('m1_wiki_party');
   ok(await ev(() => sprites().some(o => o.spr === 'sp_party')), 'Wiki設定版：Level Fun にはパーティーゴーアー');
