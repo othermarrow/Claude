@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>階層目録</title>
+<meta name="theme-color" content="#0d0c07">
+<meta name="description" content="Backrooms のテキストアドベンチャー4本を選んで遊ぶ">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Shippori+Mincho:wght@500;700&display=swap">
+<style>
+/* 起動画面。暗い画面に、蛍光灯の黄色とネオンの二色。背景・走査線・格言は fx.js */
+:root {
+  --screen: #0d0c07;
+  --wall: #d9c875;
+  --bright: #fff4b8;
+  --dim: #8c7f48;
+  --faint: #3a351e;
+  --warn: #ff3864;
+  --dot: "DotGothic16", ui-monospace, "Noto Sans Mono CJK JP", monospace;
+  --mincho: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  background: var(--screen); color: var(--wall);
+  font-family: var(--dot); font-size: 16px; line-height: 1.6;
+  overflow-x: hidden; -webkit-tap-highlight-color: transparent;
+}
+#app {
+  max-width: 560px; margin: 0 auto;
+  padding: calc(1.2em + env(safe-area-inset-top, 0px)) 16px calc(2em + env(safe-area-inset-bottom, 0px));
+}
+
+/* 題字。三色にずれて、ときどき裂ける */
+header { text-align: center; margin: 0.6em 0 1.2em; }
+.logo {
+  position: relative; display: inline-block;
+  font-size: clamp(2.3em, 12vw, 3.4em); letter-spacing: 0.12em; line-height: 1.1;
+  color: var(--bright);
+  text-shadow: 0 0 10px var(--fx-a, #ffe66d), 0 0 26px var(--fx-a, #ffe66d);
+}
+.logo::before, .logo::after {
+  content: attr(data-t); position: absolute; inset: 0; pointer-events: none; opacity: 0.75;
+}
+.logo::before { color: #ff2a85; transform: translate(-2px, 0); mix-blend-mode: screen; }
+.logo::after { color: #00f5d4; transform: translate(2px, 0); mix-blend-mode: screen; }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.fx-still) .logo::before { animation: rip 3.7s steps(1, end) infinite; }
+  body:not(.fx-still) .logo::after { animation: rip 3.7s steps(1, end) infinite reverse; }
+  @keyframes rip {
+    0%, 86%, 100% { clip-path: inset(0 0 0 0); transform: translate(-2px, 0); }
+    88% { clip-path: inset(10% 0 55% 0); transform: translate(-9px, 0); }
+    90% { clip-path: inset(60% 0 8% 0); transform: translate(7px, 0); }
+    92% { clip-path: inset(35% 0 40% 0); transform: translate(-4px, 0); }
+  }
+}
+.sub { margin-top: 0.4em; font-size: 0.72em; letter-spacing: 0.3em; color: var(--fx-a, #ffe66d); text-shadow: 0 0 8px var(--fx-a, #ffe66d); }
+
+/* 起動の文字列 */
+#boot {
+  font-size: 0.8em; color: var(--dim); min-height: 7.4em; margin-bottom: 1em;
+  border-left: 2px solid var(--faint); padding-left: 0.8em; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+#boot .ok { color: #5ce1b6; }
+#boot .ng { color: var(--warn); text-shadow: 0 0 8px rgba(255, 56, 100, 0.5); }
+#boot .caret::after { content: "▌"; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ゲームの札 */
+#list { display: grid; gap: 14px; }
+.card {
+  position: relative; display: block; width: 100%; text-align: left;
+  font: inherit; color: var(--wall); cursor: pointer;
+  background: rgba(10, 10, 14, 0.78); backdrop-filter: blur(2px);
+  border: 1px solid var(--c); border-radius: 4px;
+  padding: 0.85em 1em 0.8em;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--c) 30%, transparent), inset 0 0 18px color-mix(in srgb, var(--c) 10%, transparent);
+  overflow: hidden;
+}
+.card::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c);
+  box-shadow: 0 0 12px var(--c);
+}
+.card:active { transform: translateY(1px); filter: brightness(1.25); }
+.card:focus-visible { outline: 2px solid var(--c); outline-offset: 3px; }
+.card .no { font-size: 0.66em; letter-spacing: 0.2em; color: var(--c); opacity: 0.9; }
+.card h2 { margin: 0.05em 0 0; font-size: 1.5em; font-weight: normal; color: #fff; letter-spacing: 0.08em; text-shadow: 0 0 10px var(--c); }
+.card h2 .en { font-size: 0.48em; margin-left: 0.6em; letter-spacing: 0.18em; color: var(--c); }
+.card p { margin: 0.35em 0 0.5em; font-family: var(--mincho); font-size: 0.95em; color: var(--bright); }
+.card .st { display: flex; flex-wrap: wrap; gap: 0.3em 0.9em; font-size: 0.74em; color: var(--dim); }
+.card .st b { font-weight: normal; color: var(--c); }
+.card .tag {
+  position: absolute; top: 0.7em; right: 0.8em; font-size: 0.66em; letter-spacing: 0.1em;
+  border: 1px solid var(--c); color: var(--c); padding: 0 0.5em; border-radius: 2px;
+}
+.card .tag.new { color: var(--warn); border-color: var(--warn); text-shadow: 0 0 6px var(--warn); }
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.fx-still) .card .tag.new { animation: blink 1.4s steps(1) infinite; }
+}
+
+/* 設定と導入 */
+.panel { margin-top: 1.6em; border-top: 1px solid var(--faint); padding-top: 1em; }
+.panel h3 { margin: 0 0 0.5em; font-size: 0.8em; font-weight: normal; letter-spacing: 0.2em; color: var(--dim); }
+.toggles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tg, .btn {
+  font: inherit; font-size: 0.9em; min-height: 2.8em; cursor: pointer; border-radius: 3px;
+  background: rgba(15, 15, 18, 0.7); color: var(--dim); border: 1px solid var(--faint);
+}
+.tg[aria-pressed="true"] { color: var(--bright); border-color: var(--wall); box-shadow: inset 0 0 10px rgba(217, 200, 117, 0.25); }
+.btn { width: 100%; margin-top: 10px; color: var(--bright); border-color: var(--wall); }
+.btn[hidden] { display: none; }
+.note { font-size: 0.78em; color: var(--dim); margin: 0.6em 0 0; }
+details { margin-top: 1.2em; font-size: 0.8em; color: var(--dim); }
+details summary { cursor: pointer; color: var(--wall); }
+details p, details li { font-family: var(--mincho); }
+details a { color: var(--wall); }
+footer { margin-top: 1.6em; text-align: center; font-size: 0.66em; color: var(--faint); letter-spacing: 0.15em; }
+
+/* 札を押したときの、裂けて落ちる遷移 */
+/* 起動画面では、格言を下に灯す（題字を隠さないように） */
+#fx-truism { top: auto; bottom: calc(1em + env(safe-area-inset-bottom, 0px)); }
+#veil { position: fixed; inset: 0; z-index: 30; pointer-events: none; background: #000; opacity: 0; }
+#veil.go { animation: veil 0.75s ease-in forwards; }
+@keyframes veil { 0% { opacity: 0; } 40% { opacity: 0.2; } 55% { opacity: 0.9; background: #fff; } 70% { background: #000; } 100% { opacity: 1; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="logo" data-t="階層目録">階層目録</div>
+    <div class="sub">LEVEL INDEX // UNCLASSIFIED</div>
+  </header>
+
+  <div id="boot" aria-live="polite"></div>
+
+  <main id="list"></main>
+
+  <section class="panel">
+    <h3>設定</h3>
+    <div class="toggles">
+      <button class="tg" type="button" data-k="sound" aria-pressed="true">音</button>
+      <button class="tg" type="button" data-k="vibe" aria-pressed="true">振動</button>
+      <button class="tg" type="button" data-k="motion" aria-pressed="true">動き</button>
+    </div>
+    <button class="btn" type="button" id="install" hidden>ホーム画面にインストール</button>
+    <p class="note" id="install-note"></p>
+  </section>
+
+  <details>
+    <summary>もとにしたもの・ライセンス</summary>
+    <p>この4本は、共同創作 The Backrooms と Backrooms Wiki（https://backrooms-wiki.wikidot.com/ ）の設定・記事をもとにした二次創作です。wiki の記事は CC BY-SA 3.0 で公開されており、記事をもとにした部分もそれに従います（https://creativecommons.org/licenses/by-sa/3.0/ ）。</p>
+    <p>使った記事と作者の一覧は、リポジトリの <code>backrooms-pwa/README.md</code> にあります。</p>
+    <ul id="credit-list"></ul>
+  </details>
+
+  <footer>M.E.G. TERMINAL // RECORDS ARE NOT GUARANTEED</footer>
+</div>
+<div id="veil" aria-hidden="true"></div>
+
+<script src="fx.js"></script>
+<script>
+(function () {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const GAMES = [
+    { id: "koka", file: "games/tane-wo-niru.html", no: "記録 01", ja: "降下記録", en: "DESCENT LOG", lv: 0, c: "#ffe66d",
+      p: "下へ。降りる理由は書かれていない。" },
+    { id: "kuuran", file: "games/kuuran.html", no: "記録 02", ja: "空欄", en: "BLANK", lv: "white", c: "#c8f6ff",
+      p: "白い部屋。欄は、まだ埋まっていない。" },
+    { id: "noclip", file: "games/noclip.html", no: "記録 03", ja: "ノークリップ", en: "NOCLIP", lv: 1, c: "#00f5d4",
+      p: "すり抜けた先に、誰かの手引きが一冊。" },
+    { id: "yacho", file: "games/yacho.html", no: "記録 04", ja: "野帳", en: "FIELD NOTES", lv: 7, c: "#3fa9ff",
+      p: "見たものを、ただ書きとめる。" },
+  ];
+  const read = k => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } };
+  const has = k => { try { return localStorage.getItem(k) != null; } catch (e) { return false; } };
+
+  // ---- 札 ----
+  function card(g) {
+    const m = read("bpwa." + g.id + ".meta");
+    const saved = has("bpwa." + g.id + ".state");
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "card"; b.style.setProperty("--c", g.c);
+    const st = [];
+    if (m && m.total) st.push("結末 <b>" + (m.endings || []).length + " / " + m.total + "</b>");
+    else if (m && m.endings && m.endings.length) st.push("結末 <b>" + m.endings.length + "</b>");
+    if (m && m.deepest) st.push("最深 <b>" + esc(m.deepest) + "</b>");
+    if (m && m.runs) st.push("周回 <b>" + m.runs + "</b>");
+    if (!st.length) st.push("生存難易度 <b>クラス ?</b>", "到達記録 <b>なし</b>");
+    b.innerHTML =
+      '<span class="tag' + (saved ? "" : " new") + '">' + (saved ? "つづき" : "未踏") + "</span>" +
+      '<div class="no">' + g.no + "</div>" +
+      "<h2>" + g.ja + '<span class="en">' + g.en + "</span></h2>" +
+      "<p>" + g.p + "</p>" +
+      '<div class="st">' + st.map(x => "<span>" + x + "</span>").join("") + "</div>";
+    // 触れた札の色に、背景が変わる
+    b.addEventListener("pointerenter", () => window.FX && FX.level(g.lv));
+    b.addEventListener("focus", () => window.FX && FX.level(g.lv));
+    b.addEventListener("click", () => go(g));
+    return b;
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]); }
+  function go(g) {
+    if (window.FX) { FX.level(g.lv); FX.shock(2); FX.flash(); }
+    const fast = window.FX && !FX.settings.motion;
+    if (fast) { location.href = g.file; return; }
+    $("veil").classList.add("go");
+    setTimeout(() => { location.href = g.file; }, 760);
+  }
+  function render() {
+    const list = $("list");
+    list.textContent = "";
+    GAMES.forEach(g => list.appendChild(card(g)));
+  }
+
+  // ---- 起動の文字列。一度見たら、次からは短くなる ----
+  function boot() {
+    const box = $("boot");
+    const seen = sessionStorage.getItem("bpwa.boot");
+    const total = GAMES.length;
+    const done = GAMES.filter(g => has("bpwa." + g.id + ".state")).length;
+    const lines = [
+      ["M.E.G. 端末 起動……", ""],
+      ["電源 ", "ok:安定"],
+      ["基地との通信 ", "ng:途絶"],
+      ["保管された記録 ", "ok:" + total + " 件"],
+      ["うち、読みかけ ", (done ? "ok:" : "ng:") + done + " 件"],
+      ["閲覧の目的 ", "ng:[未記入]"],
+    ];
+    if (seen) {
+      box.innerHTML = lines.map(l => esc(l[0]) + tagged(l[1])).join("\n");
+      return;
+    }
+    sessionStorage.setItem("bpwa.boot", "1");
+    let i = 0;
+    const step = () => {
+      if (i >= lines.length) { box.innerHTML = box.innerHTML.replace(' class="caret"', ""); return; }
+      const l = lines[i++];
+      box.innerHTML = lines.slice(0, i - 1).map(x => esc(x[0]) + tagged(x[1])).join("\n") + (i > 1 ? "\n" : "") +
+        '<span class="caret">' + esc(l[0]) + "</span>";
+      setTimeout(() => {
+        box.innerHTML = lines.slice(0, i).map(x => esc(x[0]) + tagged(x[1])).join("\n");
+        if (l[1].startsWith("ng:") && window.FX) FX.glitch();
+        setTimeout(step, 160);
+      }, 260);
+    };
+    step();
+  }
+  function tagged(v) {
+    if (!v) return "";
+    const ok = v.startsWith("ok:");
+    return '<span class="' + (ok ? "ok" : "ng") + '">' + esc(v.slice(3)) + "</span>";
+  }
+
+  // ---- 設定 ----
+  function initToggles() {
+    document.querySelectorAll(".tg").forEach(b => {
+      const k = b.dataset.k;
+      const on = window.FX ? FX.settings[k] !== false : true;
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.addEventListener("click", () => {
+        const v = b.getAttribute("aria-pressed") !== "true";
+        b.setAttribute("aria-pressed", v ? "true" : "false");
+        if (window.FX) { FX.set(k, v); if (v) { FX.click(); if (k === "vibe") FX.vibrate(40); } }
+      });
+    });
+  }
+
+  // ---- インストール ----
+  let deferred = null;
+  const standalone = () => (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone;
+  function initInstall() {
+    const btn = $("install"), note = $("install-note");
+    if (standalone()) { note.textContent = "ホーム画面から開いています。"; return; }
+    if (!window.isSecureContext) {
+      note.textContent = "インストールするには、https か http://localhost で開いてください。";
+      return;
+    }
+    note.textContent = "Chrome の右上の ⋮ から「ホーム画面に追加」または「アプリをインストール」でも入れられます。";
+    window.addEventListener("beforeinstallprompt", e => {
+      e.preventDefault(); deferred = e; btn.hidden = false;
+    });
+    btn.addEventListener("click", async () => {
+      if (!deferred) return;
+      deferred.prompt();
+      try { await deferred.userChoice; } catch (e) { /* 閉じられた */ }
+      deferred = null; btn.hidden = true;
+    });
+    window.addEventListener("appinstalled", () => { btn.hidden = true; note.textContent = "インストールしました。ホーム画面から開けます。"; });
+  }
+
+  // ---- オフラインで開けるように ----
+  if ("serviceWorker" in navigator && window.isSecureContext) {
+    window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => { /* 入れられなくても遊べる */ }); });
+  }
+
+  if (window.FX) {
+    FX.level(0);
+    FX.tags(["[記録 01]", "[記録 02]", "[記録 03]", "[記録 04]", "[目的：未記入]", "M.E.G.", "[クラス ?]", "[通信途絶]", "Lv.0 → Lv.?", "[到達者 0]"]);
+  }
+  render();
+  boot();
+  initToggles();
+  initInstall();
+  // ほかのタブ（ゲーム）から戻ったときに、札を新しくする
+  window.addEventListener("pageshow", () => { $("veil").classList.remove("go"); render(); });
+  // ときどき、格言が灯る
+  setTimeout(() => window.FX && FX.truism(), 2600);
+  setInterval(() => { if (!document.hidden && window.FX && Math.random() < 0.5) FX.truism(); }, 21000);
+})();
+</script>
+</body>
+</html>
