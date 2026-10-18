@@ -10,24 +10,24 @@
   const reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const moving = () => settings.motion && !reduced;
 
-  // 階層ごとのネオン2色と、背景の描き方
+  // 階層ごとのネオン2色と、背景の描き方と、環境音
   const LV = {
-    0: { a: "#ffe66d", b: "#ff2a85", bg: "tags", hum: 60 },
-    1: { a: "#00f5d4", b: "#ff007f", bg: "scope", hum: 55 },
-    2: { a: "#ff9e00", b: "#ff0055", bg: "scope", hum: 42 },
-    3: { a: "#00e5ff", b: "#ff2a85", bg: "spark", hum: 62.5 },
-    4: { a: "#00f0ff", b: "#ff2a85", bg: "wire", hum: 48 },
-    5: { a: "#ffaa44", b: "#ff2255", bg: "scope", hum: 36 },
-    6: { a: "#00ffcc", b: "#ff1e56", bg: "dark", hum: 0 },
-    7: { a: "#3fa9ff", b: "#00ffd0", bg: "sea", hum: 30 },
-    8: { a: "#d8a24a", b: "#7dff6a", bg: "drip", hum: 33 },
-    9: { a: "#b38cff", b: "#ff8a3d", bg: "stars", hum: 0 },
-    10: { a: "#ffd23f", b: "#9dff3f", bg: "field", hum: 0 },
-    11: { a: "#00f0ff", b: "#ff00c8", bg: "grid", hum: 50 },
-    37: { a: "#7ff7ff", b: "#ffffff", bg: "water", hum: 0 },
-    fun: { a: "#ff4fd8", b: "#ffe600", bg: "confetti", hum: 72 },
-    run: { a: "#ff2a2a", b: "#ffffff", bg: "rain", hum: 90 },
-    white: { a: "#c8f6ff", b: "#ff6bb0", bg: "tags", hum: 0 },
+    0: { a: "#ffe66d", b: "#ff2a85", bg: "tags", bed: "fluoro" },
+    1: { a: "#00f5d4", b: "#ff007f", bg: "scope", bed: "warehouse" },
+    2: { a: "#ff9e00", b: "#ff0055", bg: "scope", bed: "pipes" },
+    3: { a: "#00e5ff", b: "#ff2a85", bg: "spark", bed: "electric" },
+    4: { a: "#00f0ff", b: "#ff2a85", bg: "wire", bed: "office" },
+    5: { a: "#ffaa44", b: "#ff2255", bg: "scope", bed: "hotel" },
+    6: { a: "#00ffcc", b: "#ff1e56", bg: "dark", bed: "dark" },
+    7: { a: "#3fa9ff", b: "#00ffd0", bg: "sea", bed: "sea" },
+    8: { a: "#d8a24a", b: "#7dff6a", bg: "drip", bed: "cave" },
+    9: { a: "#b38cff", b: "#ff8a3d", bg: "stars", bed: "night" },
+    10: { a: "#ffd23f", b: "#9dff3f", bg: "field", bed: "field" },
+    11: { a: "#00f0ff", b: "#ff00c8", bg: "grid", bed: "city" },
+    37: { a: "#7ff7ff", b: "#ffffff", bg: "water", bed: "pool" },
+    fun: { a: "#ff4fd8", b: "#ffe600", bg: "confetti", bed: "party" },
+    run: { a: "#ff2a2a", b: "#ffffff", bg: "rain", bed: "electric" },
+    white: { a: "#c8f6ff", b: "#ff6bb0", bg: "tags", bed: "silence" },
   };
   // 流れる文字。標本の仕分け（core/related/off）、照合の一致率、bytebeat の式、ドラムの名前もまぜる
   const TAGS = ["[クラス ?]", "[未判定]", "M.E.G.", "[記録欠損]", "Lv.?", "[no-clip]", "[core]", "[related]", "[off]", "[年不明]",
@@ -88,13 +88,21 @@ body.fx-vhs-on #fx-vhs{display:block}
  body:not(.fx-still) #fx-vhs .band{animation:fxband 7s linear infinite}
  @keyframes fxband{0%,70%{top:-20px}100%{top:110%}}
 }
+#fx-tube{position:fixed;top:0;left:8%;right:8%;height:2px;pointer-events:none;z-index:9;background:#fffbe6;opacity:0;
+ box-shadow:0 0 10px 2px rgba(255,250,215,.6),0 0 42px 10px rgba(255,240,170,.16);transition:opacity .25s}
+body.fx-tube-on #fx-tube{opacity:.85}
+body.fx-flick #fx-tube{opacity:.05;transition:none}
+body.fx-flick #app{opacity:.42;transition:none}
+body.fx-flick #fx-bg{opacity:.08}
+body.fx-flick2 #app{opacity:.75;filter:brightness(1.35);transition:none}
+body.fx-still.fx-flick #app,body.fx-still.fx-flick2 #app{opacity:1;filter:none}
 body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter #app{animation:none}`;
 
-  let bg, ctx, crt, tru, flash, vhs, vhsTimer = 0, W = 360, H = 640, tick = 0, last = 0;
+  let bg, ctx, crt, tru, flash, vhs, tube, vhsTimer = 0, W = 360, H = 640, tick = 0, last = 0;
   // 黄道の12とへびつかい座。色つきの絵文字にならないよう、異体字セレクタ（U+FE0E）で線画にする
   const ZODIAC = ["♈", "♉", "♊", "♋", "♌", "♍", "♎", "♏", "⛎", "♐", "♑", "♒", "♓"].map(c => c + "\uFE0E");
   let aligned = false;
-  let cur = { key: 0, a: "#ffe66d", b: "#ff2a85", mode: "tags", hum: 60 }, stress = 0, tags = TAGS.slice(), truisms = TRUISMS.slice();
+  let cur = { key: 0, a: "#ffe66d", b: "#ff2a85", mode: "tags", bed: "fluoro" }, stress = 0, tags = TAGS.slice(), truisms = TRUISMS.slice();
   let ready = false;
 
   function mount() {
@@ -111,7 +119,8 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
     document.body.prepend(bg);
     vhs = document.createElement("div"); vhs.id = "fx-vhs"; vhs.setAttribute("aria-hidden", "true");
     vhs.innerHTML = '<span class="rec">REC</span><span class="tc"></span><span class="band"></span>';
-    document.body.append(crt, tru, flash, vhs);
+    tube = document.createElement("div"); tube.id = "fx-tube"; tube.setAttribute("aria-hidden", "true");
+    document.body.append(crt, tru, flash, vhs, tube);
     ctx = bg.getContext("2d");
     resize();
     window.addEventListener("resize", resize);
@@ -119,10 +128,14 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
     apply();
     requestAnimationFrame(draw);
     // 音は、最初に触ったときにしか鳴らせない
-    const unlock = () => { A.init(); A.hum(cur.hum); };
+    const unlock = () => { A.init(); A.bed(cur.bed); };
     window.addEventListener("pointerdown", unlock, { once: true, capture: true });
     window.addEventListener("keydown", unlock, { once: true, capture: true });
     document.addEventListener("visibilitychange", () => { if (A.ctx) { if (document.hidden) A.ctx.suspend(); else if (settings.sound) A.ctx.resume(); } });
+  }
+  function tubeState() {
+    const m = BEDS[cur.bed] || {};
+    if (document.body) document.body.classList.toggle("fx-tube-on", (m.hum || 0) >= 0.05);
   }
   function resize() { if (!bg) return; W = bg.width = window.innerWidth || 360; H = bg.height = window.innerHeight || 640; }
   function apply() {
@@ -284,6 +297,10 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
     tick += moving() ? 1 : 30;
     ctx.clearRect(0, 0, W, H);
     try { (P[cur.mode] || P.tags)(); } catch (e) { /* 描けなくてもよい */ }
+    if (stress > 0.3) {
+      ctx.fillStyle = "rgba(255,255,255," + (0.05 + stress * 0.12) + ")";
+      for (let i = 0, n = 60 + stress * 260; i < n; i++) ctx.fillRect(Math.random() * W, Math.random() * H, 1, 1);
+    }
     if (stress > 0.5 && moving() && Math.random() < (stress - 0.5) * 0.08) jitter();
   }
   function hexA(hex, a) {
@@ -301,36 +318,190 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
   function jitter() { pulse("fx-jitter", 200); }
 
   // ---- 音 ----
+  // ずっと鳴る層（うなり・じりじり・高い鳴き・ノイズの帯・機械・風・海）を音量だけで混ぜ、
+  // ときどき鳴る音（ちらつき・金属・雫・虫・囁き・ピアノ・警笛）を 250ms ごとのくじで鳴らす
+  const BEDS = {
+    fluoro: { hum: 0.24, buzz: 0.06, whine: 0.004, hiss: 0.03, flick: 0.035, crackle: 0.05 },
+    warehouse: { hum: 0.12, buzz: 0.02, rumble: 0.09, hiss: 0.012, flick: 0.012, clang: 0.006 },
+    pipes: { rumble: 0.24, hiss: 0.06, hum: 0.04, mach: 0.03, clang: 0.025, steam: 0.012 },
+    electric: { hum: 0.16, buzz: 0.07, mach: 0.1, hiss: 0.045, whine: 0.003, spark: 0.05, flick: 0.025 },
+    office: { hum: 0.07, buzz: 0.015, rumble: 0.035, flick: 0.01, drip: 0.012 },
+    hotel: { rumble: 0.16, hum: 0.03, piano: 0.07 },
+    dark: { rumble: 0.05, whisper: 0.012 },
+    sea: { sea: 1.0, rumble: 0.1 },
+    cave: { wind: 0.4, rumble: 0.1, drip: 0.14 },
+    night: { wind: 0.12, cricket: 0.55 },
+    field: { wind: 0.6, cricket: 0.04 },
+    city: { rumble: 0.15, hum: 0.05, buzz: 0.02, mach: 0.035, horn: 0.012 },
+    pool: { sea: 0.25, drip: 0.09, hum: 0.03 },
+    party: { party: 1, hum: 0.04 },
+    silence: {},
+  };
+  const LAYERS = ["hum", "buzz", "whine", "hiss", "rumble", "sea", "wind", "mach"];
+  const SCALE = [261.6, 293.7, 329.6, 392.0, 440.0, 523.3, 587.3];
   const A = {
-    ctx: null, osc: null, gain: null, filt: null,
+    ctx: null, master: null, G: {}, mix: {}, name: "silence", spike: 0, beatAt: 0, partyAt: 0,
     init() {
       if (this.ctx || !settings.sound) return;
       try {
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC) return;
-        this.ctx = new AC();
-        this.osc = this.ctx.createOscillator(); this.osc.type = "sawtooth"; this.osc.frequency.value = 60;
-        this.filt = this.ctx.createBiquadFilter(); this.filt.type = "lowpass"; this.filt.frequency.value = 160;
-        this.gain = this.ctx.createGain(); this.gain.gain.value = 0.0001;
-        this.osc.connect(this.filt); this.filt.connect(this.gain); this.gain.connect(this.ctx.destination);
-        this.osc.start();
+        const c = this.ctx = new AC();
+        this.master = c.createGain(); this.master.gain.value = 0.6; this.master.connect(c.destination);
+        const layer = n => { const g = c.createGain(); g.gain.value = 0; g.connect(this.master); this.G[n] = g; return g; };
+        // 蛍光灯：100Hz ののこぎり波と、少しずれた倍音
+        const lp = this.filt("lowpass", 900); lp.connect(layer("hum"));
+        const g1 = c.createGain(); g1.gain.value = 0.6; this.osc("sawtooth", 100).connect(g1); g1.connect(lp);
+        const g2 = c.createGain(); g2.gain.value = 0.14; this.osc("square", 200.6).connect(g2); g2.connect(lp);
+        const g3 = c.createGain(); g3.gain.value = 0.2; this.osc("sine", 50).connect(g3); g3.connect(lp);
+        // 安定器のじりじり：100Hz の矩形波を帯域で切り、揺らす
+        const bz = this.filt("bandpass", 2400, 2); this.osc("square", 100).connect(bz);
+        const am = c.createGain(); am.gain.value = 0.6; bz.connect(am); am.connect(layer("buzz"));
+        const lfo = c.createGain(); lfo.gain.value = 0.4; this.osc("sine", 7.3).connect(lfo); lfo.connect(am.gain);
+        // 管の高い鳴き
+        this.osc("sine", 7800).connect(layer("whine"));
+        // ノイズを一本鳴らしつづけ、じりじり・ごうごう・波・風に分ける
+        const n = c.createBufferSource(); n.buffer = this.noise(2); n.loop = true; n.start();
+        const hp = this.filt("bandpass", 3200, 0.8); n.connect(hp); hp.connect(layer("hiss"));
+        const lr = this.filt("lowpass", 320); n.connect(lr); lr.connect(layer("rumble"));
+        const ls = this.filt("lowpass", 700); const sw = c.createGain(); sw.gain.value = 0.5; n.connect(ls); ls.connect(sw); sw.connect(layer("sea"));
+        const sl = c.createGain(); sl.gain.value = 0.5; this.osc("sine", 0.09).connect(sl); sl.connect(sw.gain);
+        const wb = this.filt("bandpass", 520, 0.6); const ww = c.createGain(); ww.gain.value = 0.6; n.connect(wb); wb.connect(ww); ww.connect(layer("wind"));
+        const wl = c.createGain(); wl.gain.value = 260; this.osc("sine", 0.07).connect(wl); wl.connect(wb.frequency);
+        const wg = c.createGain(); wg.gain.value = 0.4; this.osc("sine", 0.13).connect(wg); wg.connect(ww.gain);
+        // 機械の低いうなり
+        const m = this.osc("triangle", 55); m.connect(layer("mach"));
+        const ml = c.createGain(); ml.gain.value = 2; this.osc("sine", 0.3).connect(ml); ml.connect(m.frequency);
+        setInterval(() => this.random(), 250);
       } catch (e) { this.ctx = null; }
     },
-    live() { if (!this.ctx || !settings.sound) return false; if (this.ctx.state === "suspended") this.ctx.resume(); return true; },
-    hum(f) {
-      if (!this.live() || !this.gain) return;
-      const now = this.ctx.currentTime;
-      if (!f) { this.gain.gain.setTargetAtTime(0.0001, now, 0.2); return; }
-      this.osc.frequency.setTargetAtTime(f * (1 - stress * 0.06), now, 0.3);
-      this.gain.gain.setTargetAtTime(0.012 + stress * 0.01, now, 0.3);
+    live() { if (!this.ctx || !settings.sound) return false; if (this.ctx.state === "suspended") this.ctx.resume(); return this.ctx.state !== "closed"; },
+    osc(type, f) { const o = this.ctx.createOscillator(); o.type = type; o.frequency.value = f; o.start(); return o; },
+    filt(type, f, q) { const n = this.ctx.createBiquadFilter(); n.type = type; n.frequency.value = f; if (q) n.Q.value = q; return n; },
+    noise(sec) {
+      const b = this.ctx.createBuffer(1, Math.max(1, Math.floor(this.ctx.sampleRate * sec)), this.ctx.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      return b;
     },
-    tone(freq, dur, type, vol) {
+    // 環境音を切り替える（名前か、層ごとの音量の表）
+    bed(name, fast) {
+      this.name = typeof name === "string" ? name : "custom";
+      this.mix = typeof name === "string" ? (BEDS[name] || {}) : (name || {});
       if (!this.live()) return;
-      const o = this.ctx.createOscillator(), g = this.ctx.createGain(), t = this.ctx.currentTime;
-      o.type = type || "triangle"; o.frequency.value = freq;
-      g.gain.setValueAtTime(vol || 0.03, t); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
-      o.connect(g); g.connect(this.ctx.destination); o.start(t); o.stop(t + dur + 0.02);
+      const t = this.ctx.currentTime;
+      for (const k of LAYERS) {
+        let v = this.mix[k] || 0;
+        if (k === "hum" || k === "buzz") v *= 1 + stress * 0.8 + this.spike * 2.2;
+        this.G[k].gain.cancelScheduledValues(t);
+        this.G[k].gain.setTargetAtTime(v, t, fast ? 0.03 : 0.4);
+      }
     },
+    env(node, peak, a, d, at) {
+      const g = this.ctx.createGain(), t = at || this.ctx.currentTime;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d);
+      node.connect(g); g.connect(this.master);
+      return t + a + d;
+    },
+    nz(f, q, peak, dur, delay, type) {
+      const at = this.ctx.currentTime + (delay || 0);
+      const s = this.ctx.createBufferSource(); s.buffer = this.noise(dur + 0.05);
+      const b = this.filt(type || "bandpass", f, q); s.connect(b);
+      const end = this.env(b, peak, 0.004, dur, at);
+      s.start(at); s.stop(end + 0.05);
+    },
+    tn(f, type, peak, dur, o) {
+      o = o || {};
+      const at = this.ctx.currentTime + (o.delay || 0);
+      const v = this.ctx.createOscillator(); v.type = type; v.frequency.setValueAtTime(f, at);
+      if (o.drop) v.frequency.exponentialRampToValueAtTime(f * o.drop, at + dur);
+      let node = v;
+      if (o.lp) { const l = this.filt("lowpass", o.lp); v.connect(l); node = l; }
+      const end = this.env(node, peak, o.a || 0.006, dur, at);
+      v.start(at); v.stop(end + 0.05);
+    },
+    // うなりが一瞬とぎれる（蛍光灯のちらつき）
+    stutter() {
+      const t = this.ctx.currentTime;
+      for (const k of ["hum", "buzz", "whine"]) {
+        const g = this.G[k].gain, v = (this.mix[k] || 0) * (k === "whine" ? 1 : 1 + stress * 0.8);
+        g.cancelScheduledValues(t);
+        g.setValueAtTime(0, t); g.setValueAtTime(v * 1.6, t + 0.06); g.setValueAtTime(0, t + 0.13); g.setValueAtTime(v * 1.3, t + 0.2); g.setTargetAtTime(v, t + 0.3, 0.06);
+      }
+      this.nz(5200, 1, 0.08, 0.02); this.nz(4800, 1, 0.06, 0.02, 0.13);
+    },
+    beat(v) { this.tn(62, "sine", v, 0.16, { drop: 0.6 }); this.tn(56, "sine", v * 0.7, 0.14, { drop: 0.6, delay: 0.24 }); },
+    random() {
+      if (!this.ctx || !settings.sound || this.ctx.state !== "running") return;
+      const M = this.mix, r = () => Math.random(), now = this.ctx.currentTime;
+      if (M.flick && r() < M.flick) { this.stutter(); FX._flickVisual(1); }
+      if (M.crackle && r() < M.crackle) this.nz(6000 + r() * 3000, 2, 0.025, 0.015);
+      if (M.clang && r() < M.clang) this.tn(300 + r() * 450, "triangle", 0.08, 0.9, { drop: 0.7, lp: 1800 });
+      if (M.steam && r() < M.steam) this.nz(3500, 0.5, 0.06, 1.2);
+      if (M.spark && r() < M.spark) { for (let i = 0; i < 4; i++) this.nz(4000 + r() * 4000, 3, 0.05, 0.012, i * 0.03); }
+      if (M.drip && r() < M.drip) this.tn(1100 + r() * 900, "sine", 0.06, 0.12, { drop: 0.45 });
+      if (M.piano && r() < M.piano) { const f = SCALE[r() * SCALE.length | 0] * (r() < 0.3 ? 0.5 : 1); this.tn(f, "sine", 0.09, 1.8, { lp: 650 }); this.tn(f * 2, "sine", 0.02, 1.0, { lp: 650 }); }
+      if (M.whisper && r() < M.whisper) this.sfx("whisper");
+      if (M.cricket && r() < M.cricket) { const f = 4300 + r() * 600; for (let i = 0; i < 3; i++) this.tn(f, "sine", 0.03, 0.03, { delay: i * 0.06 }); }
+      if (M.horn && r() < M.horn) { const f = 300 + r() * 120; this.tn(f, "sawtooth", 0.025, 0.9, { lp: 600, a: 0.08 }); this.tn(f * 1.26, "sawtooth", 0.02, 0.9, { lp: 600, a: 0.08 }); }
+      if (M.party && now >= this.partyAt) {
+        // こもった四つ打ちと和音（Level Fun）
+        for (let i = 0; i < 4; i++) { this.tn(110, "sine", 0.12, 0.12, { drop: 0.4, delay: i * 0.5 }); }
+        const ch = [261.6, 329.6, 392][r() * 3 | 0];
+        this.tn(ch, "square", 0.012, 1.6, { lp: 420 }); this.tn(ch * 1.5, "square", 0.01, 1.6, { lp: 420 });
+        this.partyAt = now + 2;
+      }
+      // 正気が削れているときの鼓動
+      if (stress >= 0.5 && now >= this.beatAt) {
+        this.beat(0.12 + (stress - 0.5) * 0.36);
+        this.beatAt = now + 1.05 - (stress - 0.5) * 0.9;
+      }
+    },
+    sfx(name) {
+      if (!this.live()) return;
+      const r = Math.random;
+      switch (name) {
+        case "step": this.nz(180, 0.7, 0.45, 0.09, 0, "lowpass"); this.nz(2500, 1, 0.05, 0.03); this.nz(180, 0.7, 0.38, 0.09, 0.42, "lowpass"); this.nz(2500, 1, 0.04, 0.03, 0.42); break;
+        case "door": {
+          const at = this.ctx.currentTime, v = this.ctx.createOscillator(); v.type = "sawtooth";
+          v.frequency.setValueAtTime(190, at); v.frequency.linearRampToValueAtTime(130, at + 0.7); v.frequency.linearRampToValueAtTime(160, at + 0.9);
+          const l = this.filt("bandpass", 900, 4); v.connect(l); const end = this.env(l, 0.16, 0.08, 0.85, at); v.start(at); v.stop(end + 0.05);
+          this.nz(140, 0.8, 0.6, 0.2, 0.9, "lowpass"); break;
+        }
+        case "knock": for (let i = 0; i < 3; i++) { this.nz(240, 1.5, 0.8, 0.07, i * 0.2); this.tn(110, "sine", 0.2, 0.08, { drop: 0.5, delay: i * 0.2 }); } break;
+        case "clang": this.tn(320 + r() * 400, "triangle", 0.12, 1.2, { drop: 0.7, lp: 2200 }); this.tn(1210, "sine", 0.03, 0.8, { drop: 0.9 }); break;
+        case "drip": this.tn(1400, "sine", 0.09, 0.14, { drop: 0.42 }); break;
+        case "splash": this.nz(1600, 0.5, 0.18, 0.6, 0, "lowpass"); this.nz(3500, 1, 0.05, 0.3, 0.05); break;
+        case "scratch": this.nz(4200, 3, 0.2, 0.05); this.nz(3800, 3, 0.16, 0.04, 0.07); this.nz(4500, 3, 0.16, 0.06, 0.13); break;
+        case "chime": this.tn(880, "sine", 0.1, 1.2); this.tn(1318.5, "sine", 0.08, 1.5, { delay: 0.14 }); break;
+        case "bell": for (let i = 0; i < 3; i++) { this.tn(1568, "sine", 0.08, 0.5, { delay: i * 0.12 }); this.tn(3920, "sine", 0.02, 0.3, { delay: i * 0.12 }); } break;
+        case "stinger":
+          [196, 207.7, 277.2, 415.3].forEach((f, i) => this.tn(f, "sawtooth", 0.05, 1.8, { lp: 1400 - i * 150, a: 0.01 }));
+          this.nz(900, 0.4, 0.2, 0.7); this.burst(2, 0.6); FX._flickVisual(2); break;
+        case "whisper": {
+          const at = this.ctx.currentTime, s = this.ctx.createBufferSource(); s.buffer = this.noise(1.4);
+          const b = this.filt("bandpass", 900, 6); b.frequency.setValueAtTime(800 + r() * 400, at); b.frequency.linearRampToValueAtTime(2200 + r() * 600, at + 1.2);
+          s.connect(b); const end = this.env(b, 0.25, 0.3, 0.9, at); s.start(at); s.stop(end + 0.05); break;
+        }
+        case "static": this.nz(2000, 0.3, 0.12, 0.7, 0, "highpass"); break;
+        case "thud": this.tn(90, "sine", 0.35, 0.35, { drop: 0.45 }); this.nz(200, 0.7, 0.2, 0.2, 0, "lowpass"); break;
+        case "glass": for (let i = 0; i < 7; i++) this.tn(2500 + r() * 3000, "sine", 0.03, 0.25, { delay: r() * 0.25 }); this.nz(6000, 1, 0.08, 0.2, 0, "highpass"); break;
+        case "beep": this.tn(1000, "square", 0.06, 0.12); break;
+        case "phone":
+          for (let k = 0; k < 2; k++) for (let i = 0; i < 12; i++) { const d = k * 1.5 + i * 0.08; this.tn(440, "square", 0.06, 0.04, { delay: d, lp: 2500 }); this.tn(480, "square", 0.06, 0.04, { delay: d + 0.04, lp: 2500 }); }
+          break;
+        case "breath": {
+          const at = this.ctx.currentTime, s = this.ctx.createBufferSource(); s.buffer = this.noise(1.6);
+          const b = this.filt("bandpass", 700, 1); s.connect(b); const end = this.env(b, 0.16, 0.6, 0.9, at); s.start(at); s.stop(end + 0.05); break;
+        }
+        case "heart": this.beat(0.3); break;
+        case "spark": for (let i = 0; i < 6; i++) this.nz(4000 + r() * 4000, 3, 0.2, 0.014, i * 0.025); FX._flickVisual(1); break;
+        case "hum":
+          this.spike = 1; this.bed(this.mix === BEDS[this.name] ? this.name : this.mix, true);
+          setTimeout(() => { this.spike = 0; this.bed(BEDS[this.name] ? this.name : this.mix); }, 1200); break;
+        default: break;
+      }
+    },
+    tone(freq, dur, type, vol) { if (!this.live()) return; this.tn(freq, type || "triangle", vol || 0.03, dur); },
     burst(mode, dur) {
       if (!this.live()) return;
       const sr = 8000, len = Math.floor(sr * (dur || 0.55));
@@ -341,9 +512,9 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
         const v = mode === 1 ? (t * (t >> 5 | t >> 8)) & 255
           : mode === 2 ? (t * 5 & t >> 7 | t * 3 & t >> 10) & 255
           : ((t & (t >> 4 | t >> 9)) * 4) & 255;
-        d[i] = ((v / 128) - 1) * 0.07 * (1 - i / len);
+        d[i] = ((v / 128) - 1) * 0.08 * (1 - i / len);
       }
-      const s = this.ctx.createBufferSource(); s.buffer = buf; s.connect(this.ctx.destination); s.start();
+      const s = this.ctx.createBufferSource(); s.buffer = buf; s.connect(this.master); s.start();
     },
   };
 
@@ -353,21 +524,45 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
     set(k, v) {
       settings[k] = v;
       try { localStorage.setItem(SKEY, JSON.stringify(settings)); } catch (e) { /* 残らなくてもよい */ }
-      if (k === "sound") { if (v) { A.init(); A.hum(cur.hum); } else if (A.ctx) A.hum(0); }
+      if (k === "sound") {
+        if (v) { A.init(); if (A.ctx) { A.master.gain.setTargetAtTime(0.6, A.ctx.currentTime, 0.1); A.bed(cur.bed); } }
+        else if (A.ctx) A.master.gain.setTargetAtTime(0, A.ctx.currentTime, 0.1);
+      }
       if (k === "motion" && document.body) document.body.classList.toggle("fx-still", !moving());
     },
-    // 階層を変える。key は 0〜11 の数か "37" "fun" "run" "white"。opt で色・背景・唸りを上書きできる
+    // 階層を変える。key は 0〜11 の数か "37" "fun" "run" "white"。opt で色・背景・環境音を上書きできる
+    // （opt.bed がなく opt.hum が 0 なら無音。ゲームが自分の環境音を鳴らすとき用）
     level(key, opt) {
       mount();
       const base = LV[key] || LV[String(key)] || LV[0];
-      cur = Object.assign({ key }, { a: base.a, b: base.b, mode: base.bg, hum: base.hum }, opt || {});
+      opt = opt || {};
+      const bed = opt.bed || (opt.hum === 0 ? "silence" : base.bed);
+      cur = Object.assign({ key }, { a: base.a, b: base.b, mode: base.bg }, opt, { bed });
       apply();
-      A.hum(cur.hum);
+      A.bed(bed);
+      tubeState();
+    },
+    bed(name) { cur.bed = name; A.bed(name); tubeState(); },
+    sfx(name) { A.sfx(name); },
+    // 蛍光灯のちらつき（音＋画面）
+    flicker(n) {
+      mount();
+      n = Math.max(1, Math.min(6, n || 1));
+      for (let i = 0; i < n; i++) setTimeout(() => { if (A.live()) A.stutter(); FX._flickVisual(1); }, i * 340 + Math.random() * 120);
+    },
+    _flickVisual(power) {
+      if (!document.body || !moving()) return;
+      const cls = power === 2 ? "fx-flick" : (Math.random() < 0.5 ? "fx-flick" : "fx-flick2");
+      document.body.classList.add(cls);
+      setTimeout(() => document.body.classList.remove(cls), 60);
+      setTimeout(() => document.body.classList.add(cls), 130);
+      setTimeout(() => document.body.classList.remove(cls), 200);
+      if (power === 2) { setTimeout(() => document.body.classList.add("fx-flick"), 300); setTimeout(() => document.body.classList.remove("fx-flick"), 420); }
     },
     stress(x) {
       stress = Math.max(0, Math.min(1, +x || 0));
       if (document.body) document.body.classList.toggle("fx-thermal", stress >= 0.6);
-      A.hum(cur.hum);
+      A.bed(BEDS[cur.bed] ? cur.bed : A.mix);
     },
     // 月と星座がそろう（true）か、ずれる（false）
     align(v) { aligned = !!v; },
@@ -382,20 +577,24 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
       tru.classList.add("show");
       clearTimeout(FX._tt);
       FX._tt = setTimeout(() => tru.classList.remove("show"), 4200);
-      A.tone(1320, 0.08, "square", 0.012);
+      if (A.live()) { A.tn(1320, "square", 0.014, 0.08); A.tn(1760, "square", 0.01, 0.12, { delay: 0.07 }); }
     },
     // 強さ 1：揺れと短いノイズ。2：反転まじりの大きな乱れ
     shock(power) {
       mount();
-      if (power === 2) { pulse("fx-shock2", 950); A.burst(2, 0.9); FX.vibrate([60, 40, 120, 40, 200]); }
+      if (power === 2) { pulse("fx-shock2", 950); A.burst(2, 0.9); if (A.live()) A.sfx("thud"); FX._flickVisual(2); FX.vibrate([60, 40, 120, 40, 200]); }
       else { pulse("fx-shock", 480); A.burst(1); FX.vibrate([30, 30, 60]); }
     },
     glitch() { jitter(); A.burst(0, 0.18); },
     flash() { mount(); if (!moving()) return; flash.classList.remove("on"); void flash.offsetWidth; flash.classList.add("on"); },
-    blackout(ms) { mount(); document.body.classList.add("fx-black"); setTimeout(() => document.body.classList.remove("fx-black"), ms || 700); },
+    blackout(ms) {
+      mount(); document.body.classList.add("fx-black");
+      if (A.live()) { A.stutter(); const keep = A.mix; A.bed("silence", true); setTimeout(() => A.bed(BEDS[cur.bed] ? cur.bed : keep), ms || 700); }
+      setTimeout(() => document.body.classList.remove("fx-black"), ms || 700);
+    },
     burst(mode, dur) { A.burst(mode, dur); },
     tone(freq, dur, type, vol) { A.tone(freq, dur, type, vol); },
-    click() { A.tone(880, 0.025, "triangle", 0.03); },
+    click() { /* タップの音は鳴らさない（利用者の希望）。呼ばれても何もしない */ },
     vibrate(p) {
       if (!settings.vibe) return;
       try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) { /* 振動できない端末 */ }
