@@ -60,9 +60,13 @@ header { text-align: center; margin: 0.6em 0 1.2em; }
 }
 .sub { margin-top: 0.4em; font-size: 0.72em; letter-spacing: 0.3em; color: var(--fx-a, #ffe66d); text-shadow: 0 0 8px var(--fx-a, #ffe66d); }
 
+/* 題字の下の波形。式の音の形をそのまま描く */
+#scope { display: block; width: 100%; height: 56px; margin-top: 0.6em; }
+.expr { font-size: 0.62em; letter-spacing: 0.2em; color: var(--fx-b, #ff2a85); text-shadow: 0 0 6px var(--fx-b, #ff2a85); opacity: 0.8; }
+
 /* 起動の文字列 */
 #boot {
-  font-size: 0.8em; color: var(--dim); min-height: 7.4em; margin-bottom: 1em;
+  font-size: 0.8em; color: var(--dim); min-height: 12em; margin-bottom: 1em;
   border-left: 2px solid var(--faint); padding-left: 0.8em; white-space: pre-wrap; overflow-wrap: anywhere;
 }
 #boot .ok { color: #5ce1b6; }
@@ -122,7 +126,7 @@ footer { margin-top: 1.6em; text-align: center; font-size: 0.66em; color: var(--
 
 /* 札を押したときの、裂けて落ちる遷移 */
 /* 起動画面では、格言を下に灯す（題字を隠さないように） */
-#fx-truism { top: auto; bottom: calc(1em + env(safe-area-inset-bottom, 0px)); }
+body #fx-truism { top: auto; bottom: calc(1em + env(safe-area-inset-bottom, 0px)); }
 #veil { position: fixed; inset: 0; z-index: 30; pointer-events: none; background: #000; opacity: 0; }
 #veil.go { animation: veil 0.75s ease-in forwards; }
 @keyframes veil { 0% { opacity: 0; } 40% { opacity: 0.2; } 55% { opacity: 0.9; background: #fff; } 70% { background: #000; } 100% { opacity: 1; } }
@@ -133,6 +137,8 @@ footer { margin-top: 1.6em; text-align: center; font-size: 0.66em; color: var(--
   <header>
     <div class="logo" data-t="階層目録">階層目録</div>
     <div class="sub">LEVEL INDEX // UNCLASSIFIED</div>
+    <canvas id="scope" width="520" height="56" aria-hidden="true"></canvas>
+    <div class="expr">t &amp; (t&gt;&gt;4 | t&gt;&gt;9)</div>
   </header>
 
   <div id="boot" aria-live="polite"></div>
@@ -152,6 +158,7 @@ footer { margin-top: 1.6em; text-align: center; font-size: 0.66em; color: var(--
 
   <details>
     <summary>もとにしたもの・ライセンス</summary>
+    <p>The Backrooms は、2019年に匿名掲示板 4chan へ投稿された一枚の写真（黄色い壁紙の、がらんとした部屋）と、「現実からすり抜けて（ノークリップして）落ちると、ここに出る」という短い書きこみから広まった共同創作です。2022年からは Kane Pixels による映像シリーズでも知られるようになりました。</p>
     <p>この4本は、共同創作 The Backrooms と Backrooms Wiki（https://backrooms-wiki.wikidot.com/ ）の設定・記事をもとにした二次創作です。wiki の記事は CC BY-SA 3.0 で公開されており、記事をもとにした部分もそれに従います（https://creativecommons.org/licenses/by-sa/3.0/ ）。</p>
     <p>使った記事と作者の一覧は、リポジトリの <code>backrooms-pwa/README.md</code> にあります。</p>
     <ul id="credit-list"></ul>
@@ -198,8 +205,8 @@ footer { margin-top: 1.6em; text-align: center; font-size: 0.66em; color: var(--
       "<p>" + g.p + "</p>" +
       '<div class="st">' + st.map(x => "<span>" + x + "</span>").join("") + "</div>";
     // 触れた札の色に、背景が変わる
-    b.addEventListener("pointerenter", () => window.FX && FX.level(g.lv));
-    b.addEventListener("focus", () => window.FX && FX.level(g.lv));
+    b.addEventListener("pointerenter", () => window.FX && FX.level(g.lv, { mode: "wire" }));
+    b.addEventListener("focus", () => window.FX && FX.level(g.lv, { mode: "wire" }));
     b.addEventListener("click", () => go(g));
     return b;
   }
@@ -229,6 +236,10 @@ footer { margin-top: 1.6em; text-align: center; font-size: 0.66em; color: var(--
       ["基地との通信 ", "ng:途絶"],
       ["保管された記録 ", "ok:" + total + " 件"],
       ["うち、読みかけ ", (done ? "ok:" : "ng:") + done + " 件"],
+      ["分析機 01〜05 の報告 ", "ok:受信"],
+      ["報告どうしの照合 ", "ng:一致しない箇所あり"],
+      ["要約による上書きの疑い ", "ng:3 件"],
+      ["閲覧者 ", "ng:[unknown]"],
       ["閲覧の目的 ", "ng:[未記入]"],
     ];
     if (seen) {
@@ -265,7 +276,7 @@ footer { margin-top: 1.6em; text-align: center; font-size: 0.66em; color: var(--
       b.addEventListener("click", () => {
         const v = b.getAttribute("aria-pressed") !== "true";
         b.setAttribute("aria-pressed", v ? "true" : "false");
-        if (window.FX) { FX.set(k, v); if (v) { FX.click(); if (k === "vibe") FX.vibrate(40); } }
+        if (window.FX) { FX.set(k, v); if (v && k === "vibe") FX.vibrate(40); }
       });
     });
   }
@@ -298,11 +309,44 @@ footer { margin-top: 1.6em; text-align: center; font-size: 0.66em; color: var(--
     window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => { /* 入れられなくても遊べる */ }); });
   }
 
+  // ---- 波形 ----
+  function scope() {
+    const cv = $("scope"), g = cv.getContext("2d");
+    let t0 = 0, last = 0;
+    const draw = ts => {
+      requestAnimationFrame(draw);
+      const still = window.FX && !FX.settings.motion;
+      if (document.hidden || ts - last < (still ? 1000 : 40)) return;
+      last = ts; t0 += still ? 0 : 6;
+      const w = cv.width, h = cv.height, col = getComputedStyle(document.documentElement).getPropertyValue("--fx-a").trim() || "#ffe66d";
+      g.clearRect(0, 0, w, h);
+      g.strokeStyle = col; g.lineWidth = 1.5; g.shadowColor = col; g.shadowBlur = 8;
+      g.beginPath();
+      for (let x = 0; x < w; x += 2) {
+        const t = x * 3 + t0 * 8;
+        const v = (t & (t >> 4 | t >> 9)) & 63;
+        const y = h - 4 - v * (h - 8) / 63;
+        x ? g.lineTo(x, y) : g.moveTo(x, y);
+      }
+      g.stroke();
+    };
+    requestAnimationFrame(draw);
+  }
+  // 題字を 13 回たたくと、月と星座がそろう
+  let taps = 0;
+  document.querySelector(".logo").addEventListener("click", () => {
+    if (!window.FX) return;
+    taps++;
+    FX.glitch();
+    if (taps === 13) { FX.align(true); FX.flash(); FX.truism("THIRTEEN, NOT TWELVE", "十二ではなく、十三", "ALIGNED"); }
+  });
+
   if (window.FX) {
-    FX.level(0);
+    FX.level(0, { mode: "wire" });
     FX.tags(["[記録 01]", "[記録 02]", "[記録 03]", "[記録 04]", "[目的：未記入]", "M.E.G.", "[クラス ?]", "[通信途絶]", "Lv.0 → Lv.?", "[到達者 0]"]);
   }
   render();
+  scope();
   boot();
   initToggles();
   initInstall();

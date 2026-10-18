@@ -29,7 +29,9 @@
     run: { a: "#ff2a2a", b: "#ffffff", bg: "rain", hum: 90 },
     white: { a: "#c8f6ff", b: "#ff6bb0", bg: "tags", hum: 0 },
   };
-  const TAGS = ["[クラス ?]", "[未判定]", "M.E.G.", "[記録欠損]", "Lv.?", "[no-clip]", "0x00", "[検証中]", "[到達者 0]", "[座標不明]", "A.W. 500ml", "[通信途絶]"];
+  // 流れる文字。標本の仕分け（core/related/off）、照合の一致率、bytebeat の式、ドラムの名前もまぜる
+  const TAGS = ["[クラス ?]", "[未判定]", "M.E.G.", "[記録欠損]", "Lv.?", "[no-clip]", "[core]", "[related]", "[off]", "[年不明]",
+    "一致率 98.8%", "取りこぼし 2", "t&(t>>4|t>>9)", "bd sd hh", "chr(10)", "[要再判定]", "[到達者 0]", "[座標不明]", "A.W. 500ml", "[通信途絶]", "☽ +90°", "13 星座"];
   const TRUISMS = [
     ["IF YOU ARE NOT CAREFUL YOU WILL NOCLIP", "気をつけなければ、すり抜ける"],
     ["A ROOM WITH NO PURPOSE STILL HAS A DOOR", "目的のない部屋にも、扉はある"],
@@ -39,6 +41,12 @@
     ["NO ONE HAS WRITTEN WHY YOU ARE HERE", "あなたがここにいる理由は、誰も書いていない"],
     ["WATER THAT TASTES OF ALMONDS IS STILL WATER", "アーモンドの味がしても、水は水だ"],
     ["THE MAP IS NEVER THE SAME TWICE", "地図は、二度と同じにならない"],
+    ["CHECK BEFORE YOU BELIEVE", "信じる前に、確かめよ"],
+    ["WHAT IS NOT WRITTEN SHOULD NOT BE FILLED IN", "書かれていないことを、埋めてはならない"],
+    ["KEEP THE PURPOSE, CHANGE THE MEANS", "目的は動かさず、手段を替えよ"],
+    ["EVERY BEHAVIOR IS TRYING TO SAY SOMETHING", "どの行動も、何かを伝えようとしている"],
+    ["ONE JUDGMENT IS NEVER ENOUGH", "ひとつの判定では、足りない"],
+    ["A SUMMARY CAN OVERWRITE A MEMORY", "要約は、記憶を上書きすることがある"],
   ];
 
   const css = `
@@ -68,9 +76,24 @@ body.fx-black #app{opacity:.04;transition:opacity .08s}
  body.fx-jitter #app{animation:fxjit .18s steps(3,end) 1}
  @keyframes fxjit{0%{transform:none}50%{transform:translate(2px,-1px);filter:drop-shadow(-2px 0 #f05)}100%{transform:none}}
 }
+#fx-vhs{position:fixed;inset:0;pointer-events:none;z-index:7;display:none;font-family:"DotGothic16",monospace;color:#fff;text-shadow:0 0 4px #000,1px 0 #f05,-1px 0 #0fd}
+body.fx-vhs-on #fx-vhs{display:block}
+#fx-vhs .rec{position:absolute;top:calc(2.6em + env(safe-area-inset-top,0px));left:14px;font-size:.8em;letter-spacing:.1em}
+#fx-vhs .rec::before{content:"●";color:#ff2a2a;margin-right:.35em}
+#fx-vhs .tc{position:absolute;bottom:calc(.6em + env(safe-area-inset-bottom,0px));right:14px;font-size:.72em;letter-spacing:.08em;opacity:.85}
+#fx-vhs .band{position:absolute;left:0;right:0;height:14px;top:-20px;background:linear-gradient(transparent,rgba(255,255,255,.18),transparent);mix-blend-mode:screen}
+@media (prefers-reduced-motion:no-preference){
+ body:not(.fx-still) #fx-vhs .rec::before{animation:fxrec 1s steps(1) infinite}
+ @keyframes fxrec{50%{opacity:0}}
+ body:not(.fx-still) #fx-vhs .band{animation:fxband 7s linear infinite}
+ @keyframes fxband{0%,70%{top:-20px}100%{top:110%}}
+}
 body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter #app{animation:none}`;
 
-  let bg, ctx, crt, tru, flash, W = 360, H = 640, tick = 0, last = 0;
+  let bg, ctx, crt, tru, flash, vhs, vhsTimer = 0, W = 360, H = 640, tick = 0, last = 0;
+  // 黄道の12とへびつかい座。色つきの絵文字にならないよう、異体字セレクタ（U+FE0E）で線画にする
+  const ZODIAC = ["♈", "♉", "♊", "♋", "♌", "♍", "♎", "♏", "⛎", "♐", "♑", "♒", "♓"].map(c => c + "\uFE0E");
+  let aligned = false;
   let cur = { key: 0, a: "#ffe66d", b: "#ff2a85", mode: "tags", hum: 60 }, stress = 0, tags = TAGS.slice(), truisms = TRUISMS.slice();
   let ready = false;
 
@@ -86,7 +109,9 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
     tru.innerHTML = '<span class="en"></span><span class="ja"></span><span class="src"></span>';
     flash = document.createElement("div"); flash.id = "fx-flash"; flash.setAttribute("aria-hidden", "true");
     document.body.prepend(bg);
-    document.body.append(crt, tru, flash);
+    vhs = document.createElement("div"); vhs.id = "fx-vhs"; vhs.setAttribute("aria-hidden", "true");
+    vhs.innerHTML = '<span class="rec">REC</span><span class="tc"></span><span class="band"></span>';
+    document.body.append(crt, tru, flash, vhs);
     ctx = bg.getContext("2d");
     resize();
     window.addEventListener("resize", resize);
@@ -149,8 +174,13 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
       ctx.beginPath();
       pts.forEach((p, i) => { const q = pts[(i + 4) % 13]; ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); });
       ctx.stroke();
-      ctx.font = "10px monospace";
-      pts.forEach((p, i) => ctx.fillText(String(i).padStart(2, "0"), p[0] - 6, p[1] + 3));
+      ctx.font = "15px monospace";
+      pts.forEach((p, i) => ctx.fillText(ZODIAC[i], p[0] - 7, p[1] + 5));
+      // 月。そろうまでは 90 度右にずれて見える
+      const ma = rot + (aligned ? 0 : Math.PI / 2);
+      ctx.font = "11px monospace";
+      ctx.fillStyle = aligned ? hexA(cur.a, 0.9) : "rgba(255,56,100,.85)";
+      ctx.fillText(aligned ? "☽ [ALIGNED 13]" : "☽ [+90° ERR]", cx + Math.cos(ma) * r * 0.45 - 34, cy + Math.sin(ma) * r * 0.45);
     },
     dark() {
       // ほとんど何も見えない。ときどき、二つの白い点
@@ -339,6 +369,8 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
       if (document.body) document.body.classList.toggle("fx-thermal", stress >= 0.6);
       A.hum(cur.hum);
     },
+    // 月と星座がそろう（true）か、ずれる（false）
+    align(v) { aligned = !!v; },
     tags(list) { if (Array.isArray(list) && list.length) tags = list.slice(); },
     truisms(list) { if (Array.isArray(list) && list.length) truisms = list.slice(); },
     truism(en, ja, src) {
@@ -367,6 +399,21 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
     vibrate(p) {
       if (!settings.vibe) return;
       try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) { /* 振動できない端末 */ }
+    },
+    // 記録映像の見た目（● REC・時刻・トラッキングの帯）。stamp を渡すと、その時刻から数える
+    vhs(on, stamp) {
+      mount();
+      clearInterval(vhsTimer);
+      document.body.classList.toggle("fx-vhs-on", !!on);
+      if (!on) return;
+      const t0 = Date.now(), base = stamp ? new Date(stamp).getTime() : t0;
+      const pad = n => String(n).padStart(2, "0");
+      const tick = () => {
+        const d = new Date(base + (Date.now() - t0));
+        vhs.querySelector(".tc").textContent = "PLAY  " + d.getFullYear() + "." + pad(d.getMonth() + 1) + "." + pad(d.getDate()) + "  " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+      };
+      tick();
+      vhsTimer = setInterval(tick, 1000);
     },
     home() { location.href = "../index.html"; },
     get audio() { return A.ctx; },
