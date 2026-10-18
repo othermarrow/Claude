@@ -32,7 +32,14 @@
 ^You can't use multiple indirect objects with "(.+)"\.$	「{r1}」には間接目的語を複数使えない。
 ^I don't know the word "(.+)"\.$	「{r1}」という単語は知らない。
 ^You used the word "(.+)" in a way that I don't understand\.$	「{r1}」という単語の使い方がわからない。
-^What do you want to (.+)\?$	何を対象にする？（{r1}）
+^What do you want to (.+) the (.+) with\?$	{2}を何で{v1}？
+^What do you want to (.+) the (.+) to\?$	{2}を何に{v1}？
+^What do you want to (.+) the (.+) in\?$	{2}を何の中に{v1}？
+^What do you want to (.+) the (.+) on\?$	{2}を何の上に{v1}？
+^What do you want to (.+) the (.+) at\?$	{2}を何に向かって{v1}？
+^What do you want to (.+) the (.+) from\?$	{2}を何から{v1}？
+^What do you want to (.+) the (.+) under\?$	{2}を何の下に{v1}？
+^What do you want to (.+)\?$	何を{v1}？
 ^Which (.+) do you mean, (.+)\?$	どの{1}のこと？　{2}？
 ^\(How about the (.+)\?\)$	（{1}はどう？）
 ^\(with the (.+)\)$	（{1}を使って）
@@ -62,3 +69,273 @@
 ^(.+): Your load is too heavy\.$	{1}：荷物が重すぎる。
 ^(.+): It's already in the (.+)\.$	{1}：もう{2}の中にある。
 ^Please enter a filename \[(.+)\]:$	ファイル名を入力してください（英数字。何も入れずに Enter で「{r1}」）：
+# ---- 名前が入る決まった返事（zork-watch で追加）----
+^(\S+) \1 \.\.\.$	{r1} {r1} ……
+^You can't talk to the (.+)!$	{1}とは話せない！
+^I've known strange people, but fighting an? (.+)\?$	変わった人はいろいろ見てきたが、{1}と戦うとは？
+^I don't think that the (.+) would agree with you\.$	{1}はあなたの口に合わないと思う。
+^Playing in this way with the (.+) isn't notably helpful\.$	そんなふうに{1}をいじっても、たいして役に立たない。
+^Playing in this way with the (.+) has no effect\.$	そんなふうに{1}をいじっても、何も起こらない。
+^Playing in this way with the (.+) doesn't seem to work\.$	そんなふうに{1}をいじっても、うまくいかないようだ。
+^Fiddling with the (.+) isn't notably helpful\.$	{1}をいじっても、たいして役に立たない。
+^Fiddling with the (.+) has no effect\.$	{1}をいじっても、何も起こらない。
+^Fiddling with the (.+) doesn't seem to work\.$	{1}をいじっても、うまくいかないようだ。
+^Kicking the (.+) isn't notably helpful\.$	{1}を蹴っても、たいして役に立たない。
+^Kicking the (.+) has no effect\.$	{1}を蹴っても、何も起こらない。
+^Kicking the (.+) doesn't seem to work\.$	{1}を蹴っても、うまくいかないようだ。
+^Waving the (.+) isn't notably helpful\.$	{1}を振っても、たいして役に立たない。
+^Waving the (.+) has no effect\.$	{1}を振っても、何も起こらない。
+^Waving the (.+) doesn't seem to work\.$	{1}を振っても、うまくいかないようだ。
+^Pushing the (.+) isn't notably helpful\.$	{1}を押しても、たいして役に立たない。
+^Pushing the (.+) has no effect\.$	{1}を押しても、何も起こらない。
+^Pushing the (.+) doesn't seem to work\.$	{1}を押しても、うまくいかないようだ。
+^Digging with the (.+) is slow and tedious\.$	{1}で掘るのは、時間がかかってうんざりする。
+^You can't wear the (.+)\.$	{1}は身につけられない。
+^You cannot wind up an? (.+)\.$	{1}のねじは巻けない。
+^The (.+) makes no sound\.$	{1}は音を立てない。
+^You can't climb onto the (.+)\.$	{1}の上には登れない。
+^It's a well known fact that only schizophrenics say "Hello" to an? (.+)\.$	{1}に「こんにちは」と言うのは正気でない者だけだ、というのはよく知られた話だ。
+^The (.+) isn't sleeping\.$	{1}は眠っていない。
+^There is nothing behind the (.+)\.$	{1}の後ろには何もない。
+^Why knock on an? (.+)\?$	なぜ{1}をノックする？
+^How does one read an? (.+)\?$	{1}をどうやって読むというのか？
+^How does one look through an? (.+)\?$	{1}をどうやってのぞくというのか？
+^It smells like an? (.+)\.$	{1}のようなにおいがする。
+^You have a theory on how to (.+) an? (.+), perhaps\?$	{2}に対して「{v1}」とは、何かうまいやり方でもあるのか？
+^Strange concept, cutting the (.+)\.\.\.\.$	{1}を切るとは、妙な考えだ……。
+^You can't tie the (.+) to that\.$	{1}をそれに結ぶことはできない。
+^You can't look inside an? (.+)\.$	{1}の中はのぞけない。
+^The (.+) leaks out of the (.+) and evaporates immediately\.$	{1}が{2}から漏れ出し、すぐに蒸発した。
+^If you wish to burn the (.+), you should say so\.$	{1}を燃やしたいなら、そう言えばいい。
+^The (.+) doesn't lead upward\.$	{1}は上へは続いていない。
+^The (.+) doesn't lead downward\.$	{1}は下へは続いていない。
+^It's in the (.+)\.$	それは{1}の中にある。
+^It's on the (.+)\.$	それは{1}の上にある。
+^It sounds like there is something inside the (.+)\.$	{1}の中に何か入っているような音がする。
+^You'll have to open the (.+) first\.$	先に{1}を開けなければならない。
+^Your skillful (.+)smanship slices the (.+) into innumerable slivers which blow away\.$	見事な{1}さばきで{2}は無数の切れ端になり、吹き飛んでいった。
+^Swimming isn't usually allowed in the (.+)\.$	{1}で泳ぐことは、ふつう許されていない。
+^You can't swim in the (.+)\.$	{1}では泳げない。
+^Moving the (.+) reveals nothing\.$	{1}を動かしても、何も出てこない。
+^The (.+) isn't in the (.+)\.$	{1}は{2}の中にない。
+^You can't move the (.+)\.$	{1}は動かせない。
+^That's easy for you to say since you don't even have the (.+)\.$	{1}を持ってもいないのに、よく言う。
+^You hit your head against the (.+) as you attempt this feat\.$	やってみたが、{1}に頭をぶつけた。
+^It's not clear that an? (.+) can be melted\.$	{1}が溶けるものかどうかは怪しい。
+^There is no (.+) here suitable for climbing\.$	ここには登れそうな{1}はない。
+^You have broken the (.+)\.$	{1}を壊してしまった。
+^No doubt you propose to stab the (.+) with your pinky\?$	まさか小指で{1}を刺すつもりか？
+^The (.+) pauses for a moment, perhaps thinking that you should reread the manual\.$	{1}は、あなたが説明書を読み直すべきだと思ったのか、一瞬動きを止めた。
+^In disturbing the (.+), an? (.+) is revealed\.$	{1}をどけると、{2}が現れた。
+^It is an integral part of the (.+)\.$	それは{1}と一体になっている。
+^The (.+) is many times your size\.$	{1}はあなたの何倍も大きい。
+^Your (.+) is glowing very brightly\.$	{1}がとても明るく光っている。
+^Your (.+) is glowing with a faint blue glow\.$	{1}がかすかに青く光っている。
+^Your (.+) has begun to glow very brightly\.$	{1}がとても明るく光りはじめた。
+^Your (.+) is no longer glowing\.$	{1}はもう光っていない。
+^The (.+) shrugs but otherwise ignores your pitiful attempt\.$	{1}は肩をすくめたが、あなたのみじめな試みは無視した。
+^The (.+) seems somewhat agitated\.$	{1}は少しいらだっているようだ。
+^The (.+) is open, but I can't tell what's beyond it\.$	{1}は開いているが、その先に何があるかはわからない。
+^Trying to destroy the (.+) with an? (.+) is futile\.$	{2}で{1}を壊そうとしても無駄だ。
+^You have to be holding the (.+) first\.$	先に{1}を手に持たなければならない。
+^Pump it up with an? (.+)\?$	{1}でふくらませる？
+^Which (.+) do you mean, the (.+) or the (.+)\?$	どの{1}のこと？　{2}、それとも{3}？
+^You can't open the (.+)\.$	{1}は開けられない。
+^You can't close the (.+)\.$	{1}は閉められない。
+^You can't burn an? (.+)\.$	{1}は燃やせない。
+^You can't eat the (.+)\.$	{1}は食べられない。
+^The (.+) catches fire and is consumed\.$	{1}に火がつき、燃え尽きた。
+^Taking the (.+) causes the (.+) to slip\.$	{1}を取ろうとしたら、{2}がすべり落ちた。
+^The (.+) is too heavy\.$	{1}は重すぎる。
+^Your load is too heavy, especially in light of your condition\.$	荷物が重すぎる。とくに今の体の具合では。
+^You are now in the (.+)\.$	{1}に乗った。
+^You are on your own feet again\.$	自分の足で立った。
+^You're already in the (.+)!$	もう{1}に乗っている！
+^You're not in the (.+)\.$	{1}には乗っていない。
+^You can't go there in the (.+)\.$	{1}に乗ったままそこへは行けない。
+^You can't go there without a vehicle\.$	乗り物なしでそこへは行けない。
+^The (.+) is now on the (.+)\.$	{1}は{2}の上に置かれた。
+^The (.+) is now in the (.+)\.$	{1}は{2}の中に入った。
+^The (.+) is now tied to the (.+)\.$	{1}は{2}に結ばれた。
+^You're holding the (.+)!$	{1}は手に持っている！
+# ---- 戦闘（zork-watch で追加）----
+^Your (.+) misses the (.+) by an inch\.$	あなたの{1}は、わずかに{2}をそれた。
+^A quick stroke, but the (.+) is on guard\.$	すばやく斬りつけたが、{1}は身構えていた。
+^You charge, but the (.+) jumps nimbly aside\.$	突進したが、{1}は身軽に飛びのいた。
+^The (.+) is struck on the arm; blood begins to trickle down\.$	{1}は腕を斬られ、血が流れはじめた。
+^The (.+) slowly regains his feet\.$	{1}はゆっくりと立ち上がった。
+^The (.+)'s weapon is knocked to the floor, leaving him unarmed\.$	{1}の武器は床に叩き落とされ、丸腰になった。
+^The (.+) is momentarily disoriented and can't fight back\.$	{1}は一瞬何が起きたかわからず、反撃できない。
+^The (.+) is confused and can't fight back\.$	{1}は混乱していて、反撃できない。
+^The quickness of your thrust knocks the (.+) back, stunned\.$	すばやい突きに{1}はのけぞり、ふらふらになった。
+^The force of your blow knocks the (.+) back, stunned\.$	力強い一撃に{1}はのけぞり、ふらふらになった。
+^The (.+) is staggered, and drops to his knees\.$	{1}はよろめき、ひざをついた。
+^It's curtains for the (.+) as your (.+) removes his head\.$	あなたの{2}が首をはね、{1}は一巻の終わりとなった。
+^The fatal blow strikes the (.+) square in the heart: He dies\.$	とどめの一撃が{1}の心臓をまっすぐ貫いた。{1}は死んだ。
+^The (.+) takes a fatal blow and slumps to the floor dead\.$	{1}は致命傷を受け、床に崩れ落ちて死んだ。
+^Your (.+) crashes down, knocking the (.+) into dreamland\.$	あなたの{1}が振り下ろされ、{2}は夢の世界へ旅立った。
+^The haft of your (.+) knocks out the (.+)\.$	{1}の柄で殴り、{2}を気絶させた。
+^The unarmed (.+) cannot defend himself: He dies\.$	丸腰の{1}は身を守れない。{1}は死んだ。
+^The (.+) swings, you parry, but the force of his blow knocks your (.+) away\.$	{1}の一撃を受け流したが、その勢いで{2}を弾き飛ばされた。
+^The axe hits your (.+) and knocks it spinning\.$	斧があなたの{1}に当たり、くるくると弾き飛ばした。
+^You parry a low thrust, and your (.+) slips out of your hand\.$	低い突きを受け流したが、{1}が手からすべり落ちた。
+^You catch it on your (.+), but the thief twists his knife, and the (.+) goes flying\.$	{1}で受け止めたが、盗賊が短剣をひねり、{2}は飛んでいった。
+^The thief neatly flips your (.+) out of your hands, and it drops to the floor\.$	盗賊はあざやかにあなたの{1}を手からはじき飛ばし、それは床に落ちた。
+^Fortunately, you still have an? (.+)\.$	幸い、まだ{1}がある。
+^The (.+) says nothing, as you have not been formally introduced\.$	{1}は何も言わない。まだきちんと紹介されていないからだ。
+^The (.+) does not understand this\.$	{1}にはこれが通じない。
+^You become so engrossed in the role of the (.+) that you kill yourself, just as he might have done!$	{1}の役になりきりすぎて、彼がしそうなとおりに自分を殺してしまった！
+^The (.+) is too big to jump over\.$	{1}は大きすぎて飛び越えられない。
+^Since you aren't versed in hand-to-hand combat, you'd better attack the (.+) with a weapon\.$	あなたは素手の格闘には慣れていないので、武器で{1}を攻撃したほうがいい。
+^The (.+) bows his head to you in greeting\.$	{1}はあいさつに頭を下げた。
+^Your (.+) misses the (.+)\.$	あなたの{1}は{2}をそれた。
+^The (.+) knocks you out\.$	{1}に殴られ、気を失った。
+# ---- そのほか（zork-watch で追加）----
+^(.+), in the magic boat$	{1}（魔法のボートの中）
+^It looks pretty much like an? (.+)\.$	どう見ても{1}だ。
+^The (.+) is burning\.$	{1}は燃えている。
+^The (.+) is securely fastened to the (.+)\.$	{1}は{2}にしっかり固定されている。
+^You have (\d+) matches\.$	マッチは{r1}本ある。
+^You have 1 match\.$	マッチは1本ある。
+^The (.+) has it\.$	それは{1}が持っている。
+^You have a light wound, which will be cured after (\d+) moves\.$	軽い傷を負っている。あと{r1}手で治る。
+^You have a serious wound, which will be cured after (\d+) moves\.$	重い傷を負っている。あと{r1}手で治る。
+^You have several wounds, which will be cured after (\d+) moves\.$	いくつか傷を負っている。あと{r1}手で治る。
+^You have serious wounds, which will be cured after (\d+) moves\.$	重い傷をいくつも負っている。あと{r1}手で治る。
+^The (.+) opens\.$	{1}が開いた。
+^The (.+) closes\.$	{1}が閉まった。
+^The (.+) are burning\.$	{1}は燃えている。
+# ---- ゲームファイルから取り出した型（zork-watch で追加）----
+^The (.+) seems confused\.$	{1}は困惑しているようだ。
+^"I don't see any (.+) here!"$	「ここに{1}なんて見当たらないよ！」
+^The (.+) is rudely awakened\.$	{1}は乱暴に起こされた。
+^Trying to attack an? (.+) with your bare hands is suicidal\.$	素手で{1}を攻撃するのは自殺行為だ。
+^You aren't even holding the (.+)\.$	{1}を手に持ってさえいない。
+^Trying to attack the (.+) with an? (.+) is suicidal\.$	{2}で{1}を攻撃するのは自殺行為だ。
+^The (.+) must be on the ground to be boarded\.$	{1}に乗るには、地面の上にないといけない。
+^You are already in the (.+)!$	もう{1}に乗っている！
+^With an? (.+)\?\?!\?$	{1}で？？！？
+^With an? (.+)\?$	{1}で？
+^The (.+) catches fire\.$	{1}に火がついた。
+^Unfortunately, you were holding (.+)\.$	残念ながら、あなたは{1}を持っていた。
+^The (.+) pays no attention\.$	{1}は気にもとめない。
+^The "cutting edge" of an? (.+) is hardly adequate\.$	{1}の「刃」では、とても足りない。
+^Digging with an? (.+) is silly\.$	{1}で掘るなんてばかげている。
+^You can't give an? (.+) to an? (.+)!$	{2}に{1}をあげることはできない！
+^The (.+) refuses it politely\.$	{1}は丁寧に断った。
+^Look on an? (.+)\?\?\?$	{1}の上を見る？？？
+^Trying to destroy the (.+) with your bare hands is futile\.$	素手で{1}を壊そうとしても無駄だ。
+^Ahoy -- (.+) overboard!$	おーい、{1}が水に落ちたぞ！
+^The (.+) is extinguished\.$	{1}の火が消えた。
+^The water spills over the (.+), to the floor, and evaporates\.$	水は{1}にかかって床にこぼれ、蒸発した。
+^The (.+) is already in the (.+)\.$	{1}はもう{2}の中にある。
+^There's no good surface on the (.+)\.$	{1}には物を置けるような面がない。
+^It is hardly likely that the (.+) is interested\.$	{1}が興味を持つとは思えない。
+^You must address the (.+) directly\.$	{1}に直接話しかけなければならない。
+^Why would you send for the (.+)\?$	なぜ{1}を呼び寄せるのか？
+^The contents of the (.+) spill out and disappears?\.$	{1}の中身がこぼれ出て、消えてしまった。
+^The contents of the (.+) spill to the ground\.$	{1}の中身が地面にこぼれた。
+^The (.+) sounds empty\.$	{1}は空っぽのような音がする。
+^You are now wearing the (.+)\.$	{1}を身につけた。
+^The (.+) ducks as the (.+) flies by and crashes to the ground\.$	{2}が飛んできたが、{1}は身をかわし、{2}は地面に落ちた。
+^([A-Z][^.!?]*), in the ([^.!?]+)$	{1}（{2}の中）
+^\(outside the (.+)\)$	（{1}の外で）
+^The (.+) is holding:$	{1}が持っているもの：
+^You can't go there in an? (.+)\.$	{1}に乗ったままそこへは行けない。
+^The (.+) comes to a rest on the shore\.$	{1}は岸に着いた。
+^The (.+) leaves the room\.$	{1}は部屋を出ていった。
+^There is now a puddle in the bottom of the (.+)\.$	{1}の底に水たまりができた。
+^The (.+) burns and is consumed\.$	{1}は燃え尽きた。
+^The (.+) swings it out of your reach\.$	{1}はそれをさっと振って、あなたの手の届かないところへやった。
+^The (.+) seems white-hot\.$	{1}は白く焼けているようだ。
+^You would have to get the (.+) first, and that seems unlikely\.$	まず{1}を手に入れなければならないが、それは無理そうだ。
+^The troll, who is remarkably coordinated, catches the (.+) and eats it hungrily\.$	トロールは驚くほど器用に{1}を受け止め、がつがつと食べた。
+^The troll, who is remarkably coordinated, catches the (.+) and, being for the moment sated, throws it back\.$	トロールは驚くほど器用に{1}を受け止めたが、今は腹がいっぱいなので投げ返した。
+^Fortunately, the troll has poor control, and the (.+) falls to the floor\.$	幸い、トロールはコントロールが悪く、{1}は床に落ちた。
+^Can you unlock a grating with an? (.+)\?$	{1}で格子の鍵を開けられるのか？
+^The (.+) goes through the grating into the darkness below\.$	{1}は格子を抜けて、下の暗闇へ落ちていった。
+^You feel a faint tingling transmitted through the (.+)\.$	{1}を通して、かすかなしびれが伝わってきた。
+^The bolt won't turn using the (.+)\.$	{1}ではボルトは回らない。
+^You hear, off in the distance, someone saying "My, I wonder what this fine (.+) is doing here\."$	遠くで誰かが言うのが聞こえた。「おや、こんな上等な{1}がなぜここに？」
+^The thief is taken aback by your unexpected generosity, but accepts the (.+) and stops to admire its beauty\.$	盗賊は思いがけない気前のよさに面食らったが、{1}を受け取り、手を止めてその美しさに見とれた。
+^The thief places the (.+) in his bag and thanks you politely\.$	盗賊は{1}を袋に入れ、丁寧に礼を言った。
+^You'd better have more light than from the (.+)\.$	{1}の明かりだけでは足りない。もっと明るくしたほうがいい。
+^How sad for an aspiring adventurer to light an? (.+) in a room which reeks of gas\.$	ガスのにおいが立ちこめる部屋で{1}に火をつけるとは、冒険者の卵として悲しいことだ。
+^The lid opens, revealing (.+)\.$	ふたが開き、{1}が現れた。
+^It seems that an? (.+) won't do\.$	{1}ではだめなようだ。
+^The (.+) floats for a moment, then sinks\.$	{1}は少しの間浮かんでいたが、沈んでしまった。
+^The (.+) splashes into the water and is gone forever\.$	{1}は水に落ち、永遠に失われた。
+^(?:The )?(.+) didn't agree with the boat, as evidenced by the loud hissing noise issuing therefrom\.$	{1}はボートと相性が悪かったらしく、シューッという大きな音がした。
+^On the ground below you can see: (.+)\.$	下の地面に見えるもの：{1}。
+^The (.+) falls to the ground\.$	{1}は地面に落ちた。
+^Not to say that using the (.+) isn't original too\.\.\.$	{1}を使うのも独創的でないとは言わないが……
+^The concept of using an? (.+) is certainly original\.$	{1}を使うという考えは、たしかに独創的だ。
+^The (.+) tumbles into the river and is seen no more\.$	{1}は川に転がり落ち、二度と見えなくなった。
+^Your attempt to tie up the (.+) awakens him\.$	しばろうとしたら、{1}が目を覚ました。
+^The (.+) struggles and you cannot tie him up\.$	{1}が暴れて、しばれない。
+^Why would you tie up an? (.+)\?$	なぜ{1}をしばるのか？
+^The (.+) falls into the slide and is gone\.$	{1}は滑り台に落ちて見えなくなった。
+^The (.+) drops out of sight into the chasm\.$	{1}は裂け目に落ちて見えなくなった。
+^Attacking the (.+) is pointless\.$	{1}を攻撃しても無意味だ。
+^Almost as soon as the (.+) breathes his last breath, a cloud of sinister black fog envelops him, and when the fog lifts, the carcass has disappeared\.$	{1}が息を引き取るとすぐ、不気味な黒い霧がその体を包み、霧が晴れると死体は消えていた。
+^You suddenly notice that the (.+) vanished\.$	ふと気づくと、{1}が消えていた。
+^It wouldn't be an? (.+) anymore\.$	それではもう{1}ではなくなってしまう。
+^The (.+) is now closed\.$	{1}が閉まった。
+^The (.+) is now on\.$	{1}の明かりがついた。
+^The (.+) is now off\.$	{1}の明かりが消えた。
+^Your load is too heavy\.$	荷物が重すぎる。
+^Oh, no! A lurking grue slithered into the (.+) and devoured you!$	しまった！ 潜んでいたグルーが{1}にするりと入り込み、あなたを食べてしまった！
+^You're not carrying the (.+)\.$	{1}は持っていない。
+^To the west is a cyclops-shaped opening in an old wooden door, above which is some strange gothic lettering, (?:a trophy case, )?and a large oriental rug in the center of the room\.$	西には、古い木の扉にサイクロプスの形の穴があいていて、その上に奇妙なゴシック文字が書かれている。トロフィー棚があり、部屋の中央には大きな東洋風のじゅうたんがある。
+^To the west is a cyclops-shaped opening in an old wooden door, above which is some strange gothic lettering, (?:a trophy case, )?and a closed trap door at your feet\.$	西には、古い木の扉にサイクロプスの形の穴があいていて、その上に奇妙なゴシック文字が書かれている。トロフィー棚があり、足もとには閉じた跳ね上げ戸がある。
+^To the west is a cyclops-shaped opening in an old wooden door, above which is some strange gothic lettering, (?:a trophy case, )?and an open trap door at your feet\.$	西には、古い木の扉にサイクロプスの形の穴があいていて、その上に奇妙なゴシック文字が書かれている。トロフィー棚があり、足もとには開いた跳ね上げ戸がある。
+^To the west is a cyclops-shaped opening in an old wooden door, above which is some strange gothic lettering, (?:a trophy case, )?and a rug lying beside an open trap door\.$	西には、古い木の扉にサイクロプスの形の穴があいていて、その上に奇妙なゴシック文字が書かれている。トロフィー棚があり、開いた跳ね上げ戸のそばにじゅうたんがある。
+^It seems that the (.+) didn't agree with the boat, as evidenced by the loud hissing noise issuing therefrom\.$	{1}はボートと相性が悪かったらしく、シューッという大きな音がした。
+^There are lots of (.+) in there\.$	中には{1}がたくさん入っている。
+^The (.+) are safely inside; there's no need to do that\.$	{1}はちゃんと中に入っている。そんなことをする必要はない。
+^You have a light wound, which will be cured after (\d+) move\.$	軽い傷を負っている。あと{r1}手で治る。
+^You have a serious wound, which will be cured after (\d+) move\.$	重い傷を負っている。あと{r1}手で治る。
+^You have several wounds, which will be cured after (\d+) move\.$	いくつか傷を負っている。あと{r1}手で治る。
+^You have serious wounds, which will be cured after (\d+) move\.$	重い傷をいくつも負っている。あと{r1}手で治る。
+# ---- ブラウザ版の会話で足した訳（統合）----
+^Your\ (.+?)\ misses\ the\ (.+?)\ by\ an\ inch\.$	あなたの{s1}は、ほんのわずかの差で{s2}に当たらなかった。
+^A\ good\ slash,\ but\ it\ misses\ the\ (.+?)\ by\ a\ mile\.$	見事な斬撃だが、{s1}には大きく外れた。
+^You\ charge,\ but\ the\ (.+?)\ jumps\ nimbly\ aside\.$	突進したが、{s1}は身軽に横へよけた。
+^The\ (.+?)\ parries\.$	{s1}が受け流した。
+^A\ quick\ stroke,\ but\ the\ (.+?)\ is\ on\ guard\.$	すばやい一撃だが、{s1}は身構えている。
+^A\ good\ stroke,\ but\ it's\ too\ slow;\ the\ (.+?)\ dodges\.$	いい一撃だが遅すぎた。{s1}がかわした。
+^Your\ (.+?)\ crashes\ down,\ knocking\ the\ (.+?)\ into\ dreamland\.$	あなたの{s1}が振り下ろされ、{s2}は夢の国へ送られた。
+^The\ (.+?)\ is\ battered\ into\ unconsciousness\.$	{s1}は打ちのめされて気を失った。
+^A\ furious\ exchange,\ and\ the\ (.+?)\ is\ knocked\ out!$	激しい打ち合いの末、{s1}は気絶した！
+^The\ haft\ of\ your\ (.+?)\ knocks\ out\ the\ (.+?)\.$	あなたの{s1}の柄が{s2}を打ち、気絶させた。
+^The\ (.+?)\ is\ knocked\ out!$	{s1}は気絶した！
+^It's\ curtains\ for\ the\ (.+?)\ as\ your\ (.+?)\ removes\ his\ head\.$	あなたの{s2}が{s1}の首をはね、{s1}は一巻の終わりだ。
+^The\ fatal\ blow\ strikes\ the\ (.+?)\ square\ in\ the\ heart:\ He\ dies\.$	致命の一撃が{s1}の心臓をまともにとらえた。{s1}は死んだ。
+^The\ (.+?)\ takes\ a\ fatal\ blow\ and\ slumps\ to\ the\ floor\ dead\.$	{s1}は致命の一撃を受け、床に崩れ落ちて死んだ。
+^The\ (.+?)\ is\ struck\ on\ the\ arm;\ blood\ begins\ to\ trickle\ down\.$	{s1}は腕を打たれ、血がしたたり始めた。
+^Your\ (.+?)\ pinks\ the\ (.+?)\ on\ the\ wrist,\ but\ it's\ not\ serious\.$	あなたの{s1}が{s2}の手首をかすめたが、深い傷ではない。
+^The\ blow\ lands,\ making\ a\ shallow\ gash\ in\ the\ (.+?)'s\ arm!$	一撃が決まり、{s1}の腕に浅い傷をつけた！
+^The\ (.+?)\ receives\ a\ deep\ gash\ in\ his\ side\.$	{s1}は脇腹に深い傷を負った。
+^The\ (.+?)\ is\ stunned\ but\ can\ still\ fight!$	{s1}はよろめいたが、まだ戦える！
+^The\ (.+?)\ is\ staggered,\ and\ drops\ to\ his\ knees\.$	{s1}はよろめき、ひざをついた。
+^The\ (.+?)\ is\ momentarily\ disoriented\ and\ can't\ fight\ back\.$	{s1}は一瞬方向を見失い、反撃できない。
+^The\ force\ of\ your\ blow\ knocks\ the\ (.+?)\ back,\ stunned\.$	あなたの一撃の勢いで{s1}は後ろへ吹き飛び、ふらふらになった。
+^The\ (.+?)\ is\ confused\ and\ can't\ fight\ back\.$	{s1}は混乱して反撃できない。
+^The\ quickness\ of\ your\ thrust\ knocks\ the\ (.+?)\ back,\ stunned\.$	あなたのすばやい突きで{s1}は後ろへ吹き飛び、ふらふらになった。
+^The\ (.+?)'s\ weapon\ is\ knocked\ to\ the\ floor,\ leaving\ him\ unarmed\.$	{s1}の武器が床にたたき落とされ、{s1}は丸腰になった。
+^The\ (.+?)\ is\ disarmed\ by\ a\ subtle\ feint\ past\ his\ guard\.$	巧みなフェイントで守りをかわされ、{s1}は武器を失った。
+^The\ Cyclops\ grabs\ your\ (.+?),\ tastes\ it,\ and\ throws\ it\ to\ the\ ground\ in\ disgust\.$	サイクロプスはあなたの{s1}をつかんでなめると、うんざりした様子で地面に投げ捨てた。
+^The\ monster\ grabs\ you\ on\ the\ wrist,\ squeezes,\ and\ you\ drop\ your\ (.+?)\ in\ pain\.$	怪物に手首をつかまれて締め上げられ、あなたは痛みで{s1}を落とした。
+^The\ troll\ charges,\ and\ his\ axe\ slashes\ you\ on\ your\ (.+?)\ arm\.$	トロールが突進し、斧があなたの{s1}の腕を切り裂いた。
+^The\ axe\ hits\ your\ (.+?)\ and\ knocks\ it\ spinning\.$	斧があなたの{s1}に当たり、はじき飛ばした。
+^The\ troll\ swings,\ you\ parry,\ but\ the\ force\ of\ his\ blow\ knocks\ your\ (.+?)\ away\.$	トロールの一撃を受け流したが、その勢いで{s1}が飛ばされた。
+^The\ axe\ knocks\ your\ (.+?)\ out\ of\ your\ hand\.$	斧があなたの手から{s1}をたたき落とした。
+^You\ catch\ it\ on\ your\ (.+?),\ but\ the\ thief\ twists\ his\ knife,\ and\ the\ (.+?)\ goes\ flying\.$	あなたは{s1}で受け止めたが、盗賊がナイフをひねり、{s1}は宙を舞った。
+^The\ thief\ neatly\ flips\ your\ (.+?)\ out\ of\ your\ hands,\ and\ it\ drops\ to\ the\ floor\.$	盗賊は見事にあなたの手から{s1}をはじき飛ばし、{s1}は床に落ちた。
+^You\ parry\ a\ low\ thrust,\ and\ your\ (.+?)\ slips\ out\ of\ your\ hand\.$	低い突きを受け流したが、{s1}が手からすべり落ちた。
+^You have a light wound, which will be cured after (\d+) moves?\.$	あなたは軽い傷を負っている。あと{r1}手で治る。
+^You have a serious wound, which will be cured after (\d+) moves?\.$	あなたは重い傷を負っている。あと{r1}手で治る。
+^You have several wounds, which will be cured after (\d+) moves?\.$	あなたはいくつも傷を負っている。あと{r1}手で治る。
+^You have serious wounds, which will be cured after (\d+) moves?\.$	あなたはひどい傷をいくつも負っている。あと{r1}手で治る。
+^On the ground below you can see: +(.+)\.$	下の地面に見えるもの：{s1}。
+^The (.+) is now full of water\.$	{s1}が水でいっぱいになった。

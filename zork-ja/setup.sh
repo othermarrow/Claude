@@ -6,13 +6,14 @@
 set -e
 cd "$(dirname "$0")"
 
-pkg install -y python clang make git curl
+pkg install -y python clang make git curl binutils which pkg-config
 
 if [ ! -x bin/dfrotz ]; then
   rm -rf build/frotz
   mkdir -p build bin
   git clone --depth 1 -b 2.55 https://gitlab.com/DavidGriffith/frotz.git build/frotz
-  make -C build/frotz CC=clang dumb
+  AR_BIN="$(command -v ar || command -v llvm-ar)"
+  make -C build/frotz CC=clang AR="$AR_BIN" dumb
   cp build/frotz/dfrotz bin/dfrotz
   rm -rf build
 fi
