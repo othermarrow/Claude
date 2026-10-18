@@ -6,7 +6,7 @@ Chrome で「インストール」すると、ホーム画面のアイコンか�
 | 札 | ゲーム | ファイル | 状態 |
 |---|---|---|---|
 | 記録 01 | 降下記録 | `games/tane-wo-niru.html` | 強化済み（Level 0〜11） |
-| 記録 02 | 空欄 | `games/kuuran.html` | 強化中 |
+| 記録 02 | 空欄 | `games/kuuran.html` | 強化済み（裏側 7か所、結末 5） |
 | 記録 03 | ノークリップ | `games/noclip.html` | 強化中 |
 | 記録 04 | 野帳 | `games/yacho.html` | 強化中 |
 
@@ -58,7 +58,7 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 | `icons/` | アイコン（192px、512px、マスク用 512px） |
 | `serve.sh` | Termux で動かすサーバー（`python3 -m http.server 8080 --bind 127.0.0.1`） |
 | `build_standalone.py` | ゲームに fx.js を埋めこんで、HTML 一枚で開ける版を `standalone/` に作る |
-| `standalone/tane-wo-niru-standalone.html` | 降下記録の HTML 一枚版（下の「降下記録だけを遊ぶ」） |
+| `standalone/*-standalone.html` | 各ゲームの HTML 一枚版（下の「HTML 一枚版」） |
 
 ### ゲームと起動画面の約束
 
@@ -70,6 +70,18 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 
 `FX.level(階層, {a, b, mode, bed})`（`{hum: 0}` だけを渡すと無音）、`FX.bed(環境音)`、`FX.sfx(効果音)`、`FX.flicker(回数)`、`FX.stress(0〜1)`、`FX.shock(1|2)`、`FX.glitch()`、`FX.flash()`、`FX.blackout(ミリ秒)`、`FX.truism(英, 日, 出典)`、`FX.tags([...])`、`FX.vhs(true|false)`、`FX.align(true|false)`、`FX.vibrate(パターン)`、`FX.set("sound"|"vibe"|"motion", 真偽)`。どれも `window.FX &&` で守って呼ぶ。
 
+## HTML 一枚版
+
+`standalone/` の `*-standalone.html` は、演出（fx.js）を中に埋めこんだ一枚のファイル。サーバーなしで、ブラウザや Tasker のシーンで直接開ける（インストールはできない）。起動画面がないので「起動画面へ」ボタンは出ない。
+
+| ファイル | Tasker のシーンで開くときの保存先（変数） |
+|---|---|
+| `tane-wo-niru-standalone.html`（降下記録） | `/storage/emulated/0/Tasker/koka/koka-data.json`（`%KOKA`） |
+| `kuuran-standalone.html`（空欄） | `/storage/emulated/0/Tasker/kuuran2/kuuran2-data.json`（`%KUURAN2`） |
+
+- 保存先は、もとの版（`Tasker/tane-wo-niru/`、`Tasker/kuuran/`）とは分けてあるので、もとの版の記録を上書きしない。
+- ゲームを直したら、`python3 build_standalone.py tane-wo-niru kuuran` で作り直す。
+
 ## 降下記録（強化版）
 
 - 階層：Level 0〜11。Level 0〜6 は、もとの物語の骨組み（記憶のない始まり、配線の塊に「ヨル」と名前をつける、書いて電話をとる、豆を煮る決まりごと、空いた椅子と「わからない」）を残したまま、Backrooms Wiki の各レベルの設定で作り直した。Level 7（海）、8（洞窟）、9（夜の住宅地）、10（麦畑）、11（眠らない街）を足した。
@@ -78,13 +90,6 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 - 「わからない」は 3回目から正気が減り、深い階では答えが遠回しになる。遊び方の説明は操作だけ。
 - 結末は5つ。どれが正解かは、どこにも書いていない。
 - 深い階の管理室に「五台の分析機」が「あなた」を標本にしている記録がある。利用者が渡した五つの分析レポートの要点を、名前などを出さずに書き下ろした。
-
-### 降下記録だけを遊ぶ（HTML 一枚版）
-
-`standalone/tane-wo-niru-standalone.html` は、演出（fx.js）を中に埋めこんだ一枚のファイル。サーバーなしで、ブラウザや Tasker のシーンで直接開ける（インストールはできない）。起動画面がないので「起動画面へ」ボタンは出ない。
-
-- Tasker のシーンで開くときの保存先は `/storage/emulated/0/Tasker/koka/koka-data.json`（変数 `%KOKA`）。もとの「降下記録」の保存（`Tasker/tane-wo-niru/`）とは分けてある。
-- ゲームを直したら、`python3 build_standalone.py tane-wo-niru` で作り直す。
 
 <details>
 <summary>降下記録の攻略（ネタばれ）</summary>
@@ -110,6 +115,41 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 - Level 10：麦を取る → 北（納屋）→ 西・西・西・西。
 - Level 11：北 → 東 → 東 → 郵便受けを開けて 312の鍵を取る（自販機の水も）→ 上 → 312の扉を開ける → 分電盤を押す → カーテンを閉める → 麦の穂（または戸棚を開ける・閉める・開けるで届く豆の袋）を小鍋に入れる → コンロを点ける → かき混ぜる×6（戸を叩かれても開けない・答えない）→ 火を消す → 眠る。
 - 管理室の十三星座盤を回すと月がそろい、正気が戻る。
+
+</details>
+
+## 空欄（強化版）
+
+- もとの骨組み（白い部屋、613 のファイルと五つの欄、曜日が進むこと、校舎の決まり、インコと公衆電話、体温、日曜の配達員と「613」か「　」）を残したまま、建物と「裏側」を Backrooms Wiki と JP Wiki の設定で作り直した。
+- 白いのは 613 の部屋だけ。扉の外の建物は夜で、病棟・喫煙所・喫茶・校舎・音楽室・屋上・図書室・土手で配色がはっきり変わる。
+- 建物の中：誰ともすれ違わない病棟（孤立効果）、前の人たちの「申し送りノート」、土曜にだけ来る看護師（職員のふりをする Skin-Stealer）、喫煙所の顔のない三人（Facelings）、アーモンドの匂いの水割り、並びに理由のない校舎と二階（JP Level 2 N 風。家庭科室の顔のない子どもたち、図画工作室の笑った風船）。
+- 裏側（すり抜けた先）：Level 37（白いタイルのプール）、Level 4（事務所）、Level 9（夜の住宅地）、Level 11（街）、Level Fun、Level 444 N（夕暮れの田園。バス停）。
+- 体温が上がると鼓動が鳴る。部屋ごとに環境音が変わり、扉・物・配達員のベル・公衆電話・実体の前ぶれに効果音が鳴る。
+- 「わからない」は1日3回までで、聞くたびに体温が上がる。遊び方の説明は操作だけ。結末は5つで、どれが正解かは書いていない。
+
+<details>
+<summary>空欄の攻略（ネタばれ）</summary>
+
+| id | 結末 | 条件 |
+|---|---|---|
+| number | 受け取った | 日曜、配達員に「613」と答える |
+| blank | 空欄 | 日曜、配達員に「　」と答える |
+| pool | 浮かぶ | 五つの欄が埋まった状態で 615 → 寝る×2 |
+| face | 顔 | Level 11 の大通りで待つ×3 |
+| dusk | 夕焼け | 五つの欄が埋まったあと、日曜に校舎 → 理科室の前から東 → Level 444 N → 東のバス停 → 座る×2 |
+
+1. 木曜：ベッドを調べる → 北 → 西（申し送りノートを読む）→ 東 → 北 → 西 → 待つ（皆が壁を向く）→ 鍵束を取る → 警備員室の扉を開ける → 北 → DVDプレーヤーを押す → 冷蔵庫を開ける →「エンドロールだけの映画」と言う。
+2. 南 → 東 → 東 → スイッチを押す → 弦を取る → 西 → 南 → 611 の扉を開ける → 蛍光灯を消す → 耳をすます。
+3. 東 → 東 → 東 → 下 → 鉛筆を取る → 上 → 北（校舎で走る・押す・しゃべると怪物が来て、言葉が分かる）→ 東（教室）→ チョークを取る →「おさない」「はしらない」「しゃべらない」と書く → 答案用紙を取る。
+4. 西 → 北 → 東 → ケースを開ける → 弦をバイオリンに入れる → 弾く →「きれい」→「帰る」。
+5. 正面玄関のガラスに額をぶつけて 37.0〜37.4℃ にする → 615 を開ける → 夢を書く（どれでもよい）→ 下。
+6. 詰所で Scroll Lock を押す → 待つ×2 → 返却口の硬貨を取る → 東 → 笑う顔を調べる → 東 → 待つ → 下。
+7. 寝る → 月曜：鏡の破片を取る → 理科室の鍵穴を調べる → のりを取る → パンフレットを折る → 破片を調べる → 寝る。
+8. 水曜：配達員のあとで 616 を開ける → しゃべらない家で皿を食べる → 標識を調べて矢印のとおりに×3 → 売店で硬貨を店番に渡す → 東 → 北 → 詰所で日曜の紙をカレンダーに貼る。
+9. 視聴覚室で質問を3回言う → 食べた料理を言う → 白い部屋で寝る。
+10. 日曜：正面玄関から北 → 配達員に「613」か「　」。
+
+- 寄り道：二階の泣いている子に、光る音符・水筒・硬貨のどれかを渡すと、料理の味を知れる。二階の風船 → Level Fun（裏返しのポスター → Level 4、手すりから下 → Level 37）。土曜の詰所は2手以内に出る。外階段は走って上ると屋上 → 天窓を開ける（熱が下がる）。
 
 </details>
 
@@ -143,6 +183,25 @@ The Backrooms は、2019年に匿名掲示板 4chan に投稿された黄色い�
 - 記事は 2026年10月に、利用者が保存したページの本文で読んだ。wiki のページは書き直されることがあり、今の版と食い違うところがあるかもしれない。
 - 記事にない細かい決まりごと（ヨル、点検表、豆を煮る決まりごと、九番目の道の迷路、息の数え方、312号室の手順など）は、このゲームで足したもの。
 
+### 空欄で使った Backrooms Wiki の記事
+
+| 記事 | 作者（各ページの「Cite this page as」の表記） |
+|---|---|
+| [Level 0 - "Threshold"](https://backrooms-wiki.wikidot.com/level-0) | DivineAtlas, DrAkimoto, and RobertGoerman |
+| [Level 4 - "Abandoned Office"](https://backrooms-wiki.wikidot.com/level-4) | u/M654zy on Reddit |
+| [Level 9 - "The Suburbs"](https://backrooms-wiki.wikidot.com/level-9) | Stretchsterz |
+| [Level 11 - "The City That Never Sleeps"](https://backrooms-wiki.wikidot.com/level-11) | Greggita Mahayfaio, inspired by the original Level 11 by nerdykiddo4884 |
+| [Level 26 - "The SS Fun =)"](https://backrooms-wiki.wikidot.com/level-26) | Robert Goerman and MC_Crafter_24_7 |
+| [Level 37 - "Sublimity"](https://backrooms-wiki.wikidot.com/level-37) | egglord |
+| [Entity 3 - "Smilers"](https://backrooms-wiki.wikidot.com/entity-3) | Palico22, rewritten by Stretchsterz |
+| [Entity 9 - "Facelings"](https://backrooms-wiki.wikidot.com/entity-9) | Original co authors: Jo and Higher Being Love Cereal!. Original collaborators: Backrooms explorers Reddit. Author of first rewrite: 1000dumplings. Author of current rewrite: Nikuchan |
+| [Entity 10 - "Skin-Stealer"](https://backrooms-wiki.wikidot.com/entity-10) | Original author is AndromedaMapping1; Rewritten by 1000dumplings |
+| [Entity 67 - "Partygoers =)"](https://backrooms-wiki.wikidot.com/entity-67) | Robert Goerman and MC_Crafter_24_7 |
+| [Object 1 - "Almond Water"](https://backrooms-wiki.wikidot.com/object-1) | Natedagreat563 |
+| [The M.E.G.](https://backrooms-wiki.wikidot.com/the-m-e-g) | Greggita Mahayfaio, Natedagreat563, Orb1t41, Poliacci, Positive123, Praetor3005, Robert Goerman, Reyday, Snomwriting and Squibblezombie |
+
+- 空欄で参考にした JP Wiki の記事：「Level 2 N」（https://japan-backrooms-wiki.wikidot.com/level-2-n ）、「Level 444 N」（https://japan-backrooms-wiki.wikidot.com/level-444-n ）。場所の設定だけを借り、文章は使っていない（ライセンスの表記は未確認）。
+
 ### そのほかに参考にしたもの
 
 - The Backrooms JP Wiki「Level 1 N」（https://japan-backrooms-wiki.wikidot.com/level-1-n ）：Level 11 の地下鉄の駅の様子だけを借りた。ライセンスの表記を確認できていないので、文章は使っていない。
@@ -151,11 +210,12 @@ The Backrooms は、2019年に匿名掲示板 4chan に投稿された黄色い�
 - Internet Archive にある Backrooms の記録映像：ビデオカメラの記録の見た目（`FX.vhs`）の参考にした。
 - 演出の水準は、利用者が別の AI で作った派手版の「降下記録」に合わせた。派手版の物語の文章は使っていない。
 
-空欄・ノークリップ・野帳で使う記事は、強化が済んだらここに足す。
+ノークリップ・野帳で使う記事は、強化が済んだらここに足す。
 
 ## 確認したこと
 
 - 起動画面：Playwright（Chromium、幅 390px）で開き、エラーが出ないこと、Service Worker が登録されること、オフラインでも開けること、Chrome がインストールできると判定すること（試験用の画面ではシークレット扱いになるので、その理由だけが出た）を確かめた。
 - 降下記録：Playwright で、5つの結末すべてに命令だけでたどり着けること、Level 0〜11 を全部通ること、21種類の失敗が前ぶれのあとで起き、そのあとも遊び続けられること、ランダムな命令 36,000 回で例外が出ないこと、幅 360px でも ≡ が押せること、古い保存があっても壊れずにはじめからになることを確かめた。
+- 空欄：Playwright で、5つの結末すべてに命令だけでたどり着けること、裏側と新しい部屋を通ること、13種類の失敗が前ぶれのあとで起き、翌朝から続けられること、ランダムな命令 72,000 回で例外が出ないこと、fx.js が読めなくても遊べること、古い保存（一つ前の版）から続きを遊べることを確かめた。
 - 音：環境音と効果音がエラーなく鳴り、音が割れないこと（ピークが 0.25 未満）をブラウザの中で測った。スピーカーでどう聞こえるかは確かめていない。
 - **実機（Xperia 1 IV の Chrome）では、まだ確かめていない。** インストールできるか、Termux を止めたあとにホーム画面から開けるか、音・振動が出るかは、未確認。

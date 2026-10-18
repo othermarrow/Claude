@@ -577,7 +577,7 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
       tru.classList.add("show");
       clearTimeout(FX._tt);
       FX._tt = setTimeout(() => tru.classList.remove("show"), 4200);
-      if (A.live()) { A.tn(1320, "square", 0.014, 0.08); A.tn(1760, "square", 0.01, 0.12, { delay: 0.07 }); }
+      // 音は鳴らさない（タップした直後に鳴ると、タップの音に聞こえるため）
     },
     // 強さ 1：揺れと短いノイズ。2：反転まじりの大きな乱れ
     shock(power) {
