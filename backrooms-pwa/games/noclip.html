@@ -35,6 +35,7 @@ body[data-lv="8"] { --screen: #06090a; --wall: #c9b48a; --bright: #f3e6c4; --dim
 body[data-lv="9"] { --screen: #07061a; --wall: #b7a9e0; --bright: #ece6ff; --dim: #5f5687; --faint: #1f1b3d; --key: #0d0b24; --bar-bg: #2b2550; --bar-fg: #ece6ff; --warn: #ff9a6a; --hot: #ffb38a; }
 body[data-lv="10"] { --screen: #d6d9cb; --wall: #3c4030; --bright: #15170f; --dim: #74786a; --faint: #b5b8a9; --key: #cbcec0; --bar-bg: #c9b25a; --bar-fg: #15170f; --warn: #9b2d1f; --hot: #8a1f10; color-scheme: light; }
 body[data-lv="11"] { --screen: #05060d; --wall: #9fe8ff; --bright: #ffffff; --dim: #4f6f86; --faint: #1a2333; --key: #0a0f1a; --bar-bg: #ff00c8; --bar-fg: #05060d; --warn: #ff4fd8; --hot: #ffe14f; }
+body[data-lv="433 N"] { --screen: #0b0e12; --wall: #c9d6e0; --bright: #ffffff; --dim: #66727c; --faint: #232a31; --key: #11161b; --bar-bg: #c9d6e0; --bar-fg: #0b0e12; --warn: #ffd27a; --hot: #ff8a7a; }
 body[data-lv="!"] #bar, body[data-lv="11"] #bar { box-shadow: 0 0 18px var(--bar-bg); }
 html, body { height: 100%; }
 [hidden] { display: none !important; }
@@ -195,12 +196,13 @@ body.typing #pad { display: none; }
   </div>
 </div>
 
+<script src="../fx.js"></script>
 <script>
 "use strict";
 // ==== ENGINE BEGIN ====
 // ゲーム本体。画面（DOM）には触らない。時計版に移すときは、この区切りの中だけを使う。
 // io: { loadState(), saveState(obj), loadLoop(), saveLoop(obj) }（どれも失敗してよい）
-// document / window / localStorage には触らない。演出のきっかけは fx() で返し、画面の側で鳴らす。
+// 画面やブラウザの保存領域には触らない。演出のきっかけは fx() で返し、画面の側で鳴らす。
 function createGame(io) {
   const VERSION = 2;
   function loadSaved() { try { return io.loadState(); } catch (e) { return null; } }
@@ -216,7 +218,9 @@ function createGame(io) {
   // ---- 物の置き場 ----
   const O = {};
   function thing(id, def) {
-    O[id] = Object.assign({ id, loc: null, take: false, en: id.toLowerCase(), aliases: [def.name] }, def);
+    // 英語の名前（「命令を作る」が内部で送る）は、英字の別名があればそれを使う
+    const ascii = (def.aliases || []).find(a => /^[a-z][a-z0-9 ]*$/i.test(a));
+    O[id] = Object.assign({ id, loc: null, take: false, en: (ascii || id).toLowerCase(), aliases: [def.name] }, def);
   }
   const text = v => (typeof v === "function" ? v() : v);
   const held = id => O[id].loc === "player";
@@ -235,23 +239,24 @@ function createGame(io) {
     l4a: "4", l4b: "4", l4c: "4", l5a: "5", l5b: "5", l5c: "5", l5d: "5", l6: "6", l7a: "7", l7b: "7",
     l8a: "8", l8r: "8", l8z: "8", l9a: "9", l9h: "9", l9y: "9", l10a: "10", l10b: "10", l10c: "10", l10d: "10",
     l11a: "11", l11b: "11", l11c: "11", l11p: "11", l11x: "11",
-    l37a: "37", l37b: "37", l37c: "37", lfun: "Fun", lrun: "!" };
+    l37a: "37", l37b: "37", l37c: "37", lfun: "Fun", lrun: "!", l433: "433 N" };
   const LEVEL_START = { "0": "l0", "1": "l1a", "2": "l2a", "3": "l3a", "4": "l4a", "5": "l5a", "6": "l6", "7": "l7a",
-    "8": "l8a", "9": "l9a", "10": "l10a", "11": "l11a", "37": "l37a", "Fun": "lfun", "!": "lrun" };
+    "8": "l8a", "9": "l9a", "10": "l10a", "11": "l11a", "37": "l37a", "Fun": "lfun", "!": "lrun", "433 N": "l433" };
   // どこまで深く行ったか（起動画面の要約に使う）
-  const DEPTH = { "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "Fun": 4.5, "!": 4.6, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "10": 10, "11": 11, "37": 12 };
+  const DEPTH = { "433 N": 0.5, "0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "Fun": 4.5, "!": 4.6, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "10": 10, "11": 11, "37": 12 };
   const ENDINGS = ["exit", "sublime", "party", "wretch", "harvest", "beta"];
   const LEVEL_INFO = {
     "0": ["ロビー", "クラス1"], "1": ["居住区", "クラス1"], "2": ["パイプの夢", "クラス2"], "3": ["電気室", "クラス4"],
     "4": ["放棄されたオフィス", "クラス1"], "5": ["恐怖のホテル", "クラス3"], "6": ["消灯", "クラス4"], "7": ["海洋恐怖症", "クラス3"],
     "8": ["洞窟", "クラス4"], "9": ["郊外", "クラス5"], "10": ["豊作", "クラス1"], "11": ["眠らない街", "クラス2"],
+    "433 N": ["カプセルホテル", "クラス？"],
     "37": ["崇高", "クラス0"], "Fun": ["ファン =)", "クラス5"], "!": ["走れ", "クラス5"],
   };
   const LV = () => LEVEL_OF[S.loc];
 
   // M.E.G. の生存手引き。見たもの、出会ったものが、ここに増えていく
   const PAGES = {
-    "0": "レベル0「ロビー」\n生存難易度：クラス1（安全・不安定・実体はほぼ確認されていない）\n黄ばんだ壁紙、湿ったカーペット、最大出力でうなる蛍光灯。広さは推定で六億平方マイル。同じ部屋に二度入ることは、まずない。\n出口：壁紙の継ぎ目がずれている場所では、壁をすり抜けられることがある。",
+    "0": "レベル0「ロビー」\n生存難易度：クラス1（安全・不安定・実体はほぼ確認されていない）\n黄ばんだ壁紙、湿ったカーペット、最大出力でうなる蛍光灯。広さは推定で六億平方マイル。同じ部屋に二度入ることは、まずない。\nここにいると、ひどく一人きりだと感じる（孤立効果）。ほかの誰かに会えることは、まずない。\n出口：壁紙の継ぎ目がずれている場所では、壁をすり抜けられることがある。",
     "1": "レベル1「居住区」\n生存難易度：クラス1（安全・安定・実体は少数）\nコンクリートの倉庫がどこまでも続く。床に水たまり、天井近くに薄い霧。補給品の木箱が、いつのまにか置かれていることがある。\n照明はときどき消える。消えているあいだは、動かないこと。\nかつて M.E.G. の基地アルファがあった。",
     "2": "レベル2「パイプの夢」\n生存難易度：クラス2（ほぼ安全・安定・実体あり）\n暗く狭い整備用トンネル。奥へ行くほど暑い。\n分岐では管に触れて確かめること。冷たい管は、どこかへ続いている。",
     "3": "レベル3「電気室」\n生存難易度：クラス4（危険・安定・実体多数）\nレンガの廊下と、唸りつづける機械。\n内側から人の声がする扉は、開けないこと。返事もしないこと。\n配電盤のスイッチを全部上げると、過負荷になる。",
@@ -274,9 +279,10 @@ function createGame(io) {
     faceling: "実体「フェイスリング」\n顔のない人。たいてい無害。人のふりをして、人の暮らしを続けている。",
     party: "実体「パーティーゴアー」\n黄色い体に、描いたような笑顔。会えば、必ずパーティーに誘ってくる。=)\n風船と飾りつけは、たいてい罠の目印。",
     moth: "実体「デスモス」\n人の頭ほどもある蛾。雄は水をあさり、雌は群れで狩りをする。\n明るい光に集まる。羽音が聞こえたら、灯りを消して、じっとすること。\n肉のような膜がかかった穴は、巣。近づかないこと。",
+    wire: "実体（番号なし・記録は手書きのみ）「灰線」\n電線の束からぶら下がるように降りてくる、灰色の細い人の形。目はない。動くものと、音を聞きつける。\n近くの柱や壁に「うごくな」「しずかに」と引っかき傷があったら、その場で止まり、黙ること。しばらくすると、戻っていく。",
     balloon: "実体「人食い風船」\nリボンのついた、ただの風船に見える。中に食べ物を詰め、その匂いで獲物を誘う。\nリボンに触れると、しびれて動けなくなる。\n食べ物の匂いのするほうへ行かないこと。風船に近づかないこと。",
   };
-  const PAGE_ORDER = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "37", "Fun", "!", "water", "wretch", "smiler", "hound", "skin", "faceling", "party", "moth", "balloon"];
+  const PAGE_ORDER = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "37", "Fun", "!", "water", "wretch", "smiler", "hound", "skin", "faceling", "party", "moth", "balloon", "wire"];
   const pageTitle = k => PAGES[k].split("\n")[0];
 
   function initWorld() {
@@ -540,6 +546,8 @@ function createGame(io) {
       desc: "壁の黄色いポスター。", read: "「パーティー　今夜　みんな来てね =)」\n下の余白に、誰かの字で小さく。「行くな」" });
     thing("partydoor", { name: "=)の扉", aliases: ["=)の扉", "扉", "party door"], loc: "l11b", scenery: true,
       desc: "路地の奥の扉。ノブに「=)」のシール。隙間から、楽しそうな音楽。" });
+    thing("capsule", { name: "カプセル", aliases: ["カプセル", "寝台", "capsule"], loc: "l433", scenery: true,
+      desc: "人ひとりぶんの、白いカプセル。中は、きれいに整えられた布団。枕に、くぼみ。" });
     thing("pool11", { name: "プール", aliases: ["屋内プール", "プール", "水", "indoor pool"], loc: "l11p", scenery: true,
       desc: "二十五メートルのプール。水が張ってある。照明が半分だけ点いていて、底のタイルのレーンの線が揺れている。" });
     // ---- レベル37
@@ -577,6 +585,7 @@ function createGame(io) {
     "部屋の真ん中に、ぽつんと柱が一本。柱の裏に回っても、何もない。",
     "壁の低いところに、爪で引っかいた線。五本ずつ束ねてある。途中でやめている。",
     "どこかで、電話が鳴っているような気がする。耳をすますと、蛍光灯のうなりだけ。",
+    "床に、印刷された写真が一枚。この部屋とそっくりの、黄色い壁紙の廊下。裏に、鉛筆で「2019」とだけ書いてある。",
     "カーペットに、裸足の足跡。この部屋で、ぐるぐると円を描いて、途切れている。",
   ];
   const ROOMS = {
@@ -672,6 +681,8 @@ function createGame(io) {
       desc: "白いタイル貼りの、閉まった市民プール。ガラス戸は開いている。塩素の匂い。照明が半分だけ点いている。プールには、水が張ってある。\n南の出入口から大通りへ。" },
     l11x: { name: "バリケードの前", exits: { s: "l11a", n: "l11x" },
       desc: "通りが、車と家具のバリケードでふさがれている。足もとに、花と写真。\n南へ戻れば大通り。" },
+    l433: { name: "カプセルホテル", exits: { n: "l433", s: "l433", e: "l433", w: "l433" },
+      desc: "二段に積まれたカプセルが、蛍光灯の下、どこまでも並んでいる。どのカプセルも、ブラインドが下りている。空調の低い音。番号札は、どれも同じ「433」。\n自動販売機は、全部「売切」。給湯器は、空。" },
     l37a: { name: "プールルーム", exits: { e: "l37b", w: "l37c" },
       desc: "白いタイル。浅いプール。柔らかい光が、どこからともなく満ちていて、影がない。水の音が、いつまでも反響している。\nここに来たことがある気がする。来たことはないはずなのに。\n東に、深いプール。西に、浅いプール。" },
     l37b: { name: "深いプール", exits: { w: "l37a", d: "l37b" },
@@ -693,20 +704,20 @@ function createGame(io) {
     initWorld();
     S = { loc: "l0", moves: 0, done: false, seen: {}, san: 10, bat: 40, light: false, falls: 0, broken: false, hints: {},
       pages: {}, hist: [], said: {},
-      l0: { i: rnd(YELLOW.length), steps: 0, seam: false, foot: pick(["n", "s", "e", "w"]), idle: 0 },
+      l0: { i: rnd(YELLOW.length), steps: 0, seam: false, foot: pick(["n", "s", "e", "w"]), ac: pick(["n", "s", "e", "w"]), idle: 0 },
       l1v: 0, radio: 0, blk: 0, blkArmed: false, blkDone: false,
       pipes: shuffleDirs(4, ["n", "e", "w"]), j: 0, hound: 0, heat: 0,
       ss: 0, ssWait: 0, ssLine: 0, sw: { 1: false, 2: false, 3: false, 4: false }, power: false, burnt: false, smile: null, keyIn: false,
       bulletin: false, invited: false, facePointed: false,
       song: 0, boilerOpen: false, watched: 0,
       l6: 0, l6d: shuffleDirs(3, ["n", "e", "w"]), smile6: null,
-      row: 0, shadow: 0, shadowAt: shuffle([1, 2, 3, 4]).slice(0, 2),
+      row: 0, shadow: 0, shadowAt: shuffle([2, 3, 4]).slice(0, 2),
       calm: 0, drain: false,
       funWait: 0,
       run: 0, runDirs: shuffleDirs(5, ["n", "e", "w"]),
       // ここから下は、ゲームごとに変わる配置
       gear: pick([2, 5, 7]), swOk: pick([[1, 3], [2, 4], [1, 4], [2, 3], [3, 4]]), cooler: 2, darkStep: 0,
-      cold: 0, coat: false, lake: 0,
+      cold: 0, coat: false, lake: 0, h433: 0,
       c8: null, l9: null, l10: null, l11: null };
     const others = shuffle([2, 5, 7].filter(k => k !== S.gear));
     S.hairLk = others[0]; S.emptyLk = others[1];
@@ -724,7 +735,7 @@ function createGame(io) {
     S.l10 = { road: pick(["n", "w", "s"]), fork: pick(["e", "w"]), walk: 0, t: 0, ate: 0, slept: 0, lake: 0 };
     // レベル11：三色の矢印の向き、プールへ行く色
     const ds = shuffle(["n", "e", "w"]);
-    S.l11 = { dirs: { blue: ds[0], white: ds[1], red: ds[2] }, pool: pick(["white", "red"]), map: false, glass: false, met: false };
+    S.l11 = { dirs: { blue: ds[0], white: ds[1], red: ds[2] }, pool: pick(["white", "red"]), map: false, glass: false, met: false, wire: 0, wireFresh: false, wireDone: false };
   }
   const lamp9 = () => S.loc === "l9a" && S.l9.tick % 3 === 2;
   const SAVED_FIELDS = ["loc", "closed"];
@@ -952,6 +963,23 @@ function createGame(io) {
     if (S.loc === "l7b") { say("櫂で「漕ぐ」しかない。"); return; }
     if (S.loc === "l0") { move0(dir); return; }
     if (S.loc === "l2j") { move2(dir); return; }
+    if (S.loc === "l433") {
+      if (dir === "u" || dir === "d") { say("上段のカプセルによじ登っても、天井があるだけだ。"); return; }
+      say(`${DIR_JA[dir]}へ歩く。カプセル、カプセル、カプセル。……どこまで行っても、同じ通路だ。`);
+      describe(true);
+      return;
+    }
+    if (S.loc === "l11c" && dir === "s" && S.l11.map && !S.l11.wireDone && S.l11.wire === 0) {
+      say("基地を出て、大通りへ戻る。");
+      enter("l11a");
+      S.l11.wire = 2; S.l11.wireFresh = true;
+      gap();
+      say("信号機の柱に、新しい引っかき傷。「うごくな」「しずかに」。", "warn");
+      say("頭の上の電線の束が、たわんだ。灰色の、細い人の形が、ぶら下がるように降りてくる。顔に、目がない。", "warn");
+      note("wire");
+      emit("omen");
+      return;
+    }
     if (S.loc === "l8a" && dir === "n") { S.c8.step = 0; S.c8.guide = 0; S.c8.mothOn = 0; say("看板の矢印のほうへ、北の洞窟に入る。"); enter("l8r"); return; }
     if (S.loc === "l8r") { move8(dir); return; }
     if (S.loc === "l8z" && dir === "d") { fall9("床に、体重をかけた。"); return; }
@@ -998,6 +1026,14 @@ function createGame(io) {
     if (dir === "u" || dir === "d") { say(dir === "u" ? "天井は、手の届かない高さにある。" : "床は、ただの湿ったカーペットだ。"); return; }
     S.l0.steps++;
     S.l0.idle = 0;
+    // 空調の音のほうへ進みつづけると、別の場所に迷いこむことがある
+    if (dir === S.l0.ac && dir !== S.l0.foot && S.l0.steps >= 3 && Math.random() < 0.5) {
+      S.h433 = 0;
+      say("空調の音のほうへ歩く。黄色い壁紙が、いつのまにか、白い化粧板に変わっていた。");
+      gap();
+      enter("l433");
+      return;
+    }
     const toward = dir === S.l0.foot;
     S.l0.i = (S.l0.i + 1 + rnd(YELLOW.length - 1)) % YELLOW.length;
     S.l0.seam = (S.l0.steps >= 4 && Math.random() < 0.35) || S.l0.steps >= 8;
@@ -1496,7 +1532,7 @@ function createGame(io) {
     listen: () => {
       switch (S.loc) {
         case "l0":
-          say(`蛍光灯のうなり。……その奥で、${DIR_JA[S.l0.foot]}のほうから、何かが歩きまわる足音がする。`);
+          say(`蛍光灯のうなり。……その奥で、${DIR_JA[S.l0.foot]}のほうから、何かが歩きまわる足音がする。` + (S.l0.ac !== S.l0.foot && S.l0.steps >= 2 ? `それとは別に、${DIR_JA[S.l0.ac]}のほうから、空調の低い音。` : ""));
           return;
         case "l1a": say("水の滴る音。遠くで、鉄の扉が閉まる音。照明が、じじ、と鳴る。"); return;
         case "l1b": VERB_DO.listenTo(O.radio); return;
@@ -1603,7 +1639,7 @@ function createGame(io) {
         say(text(o.desc)); return;
       }
       if ((o.id === "sea" || o.id === "sea2") && S.shadow > 0) { addSan(-2, "影を、見てしまった。目が、いくつあるのか分からない。"); return; }
-      if (o.id === "tv9") { say(text(o.desc)); if (!S.l9.tv) { S.l9.tv = true; addSan(-1, "黒い画面の中で、ソファに、もう一人座っている。振り向いても、誰もいない。"); } return; }
+      if (o.id === "tv9") { emit("vhs"); say(text(o.desc)); if (!S.l9.tv) { S.l9.tv = true; addSan(-1, "黒い画面の中で、ソファに、もう一人座っている。振り向いても、誰もいない。"); } return; }
       if (o.id === "mirror11") { say(text(o.desc)); if (!S.l11.glass) { S.l11.glass = true; addSan(-1, "窓に映った自分が、一拍遅れて、まばたきをした。"); } return; }
       if (o.id === "moths" && lightOn()) { say(text(o.desc)); say("灯りの中で、いくつもの複眼が、いっせいにこちらを向いた。", "warn"); return; }
       say(text(o.desc) || `${o.name}に、特に変わったところはない。`);
@@ -1957,6 +1993,14 @@ function createGame(io) {
     },
     sleep: () => {
       if (LV() === "37") { S.calm += 1; say("白いタイルに横になる。水の音。……少しだけ眠った。何か大切なことを、夢の中に置いてきた気がする。"); return; }
+      if (S.loc === "l433") {
+        say("カプセルに潜りこみ、ブラインドを下ろす。布団は、ちょうど体温と同じ温度。……眠った。");
+        gap();
+        S.l0.seam = true; S.l0.steps = 0; O.seam.loc = "l0";
+        say("……目を覚ますと、カーペットの上だった。黄色。うなり。東の壁紙の継ぎ目が、ずれている。", "note");
+        enter("l0");
+        return;
+      }
       if (LV() === "8") { addSan(-3, "濡れた岩に横になる。まぶたが重い。……目を閉じたら、もう開かない気がした。飛び起きる。体が、氷のようだ。"); return; }
       if (S.loc === "l10b" || S.loc === "l10c") {
         if (S.l10.slept >= 1) { endHarvest(); return; }
@@ -2271,6 +2315,13 @@ function createGame(io) {
       return;
     }
     if (S.loc === "lrun" && !META.includes(p.v)) { runStep(p); return; }
+    // 灰色の人影がいるあいだは、動いても、声を出しても、物音を立ててもいけない
+    if (S.loc === "l11a" && S.l11.wire > 0 && !S.l11.wireFresh && !["wait", "look", "listen", "listenTo", "inventory", "examine", "read", "lookback", "help"].includes(p.v)) {
+      S.l11.wire = 0; S.l11.wireDone = true;
+      note("wire");
+      hurt(3, "物音を立てた瞬間、目のない顔が、まっすぐこちらを向いた。細い灰色の腕が、電線のように首に巻きつく。");
+      return;
+    }
     if (p.v === "go") { go(p.dir); after("go"); return; }
     if (p.v === "say") { VERB_DO.say(p.w); after("say"); return; }
     let a = p.ao, b = p.bo;
@@ -2287,6 +2338,7 @@ function createGame(io) {
     if (rows.length > 600) rows = rows.slice(-400);
     turnStart = rows.length;
     flashed = false;
+    fxq = [];
     gap();
     push({ t: "cmd", ja: label || cmd, en: en && en !== label ? en : "" });
     act(cmd, label || cmd);
@@ -2323,7 +2375,9 @@ function createGame(io) {
   }
   function start(fresh) {
     rows = [];
+    fxq = [];
     LOOP = loadLoop();
+    LOOP_AFTER = null;
     const saved = fresh ? null : loadSaved();
     if (saved && restore(saved)) {
       rows = (saved.log || []).slice();
@@ -2348,6 +2402,15 @@ function createGame(io) {
     turn: () => rows.slice(turnStart),
     pastCommands: n => rows.slice(0, turnStart).filter(r => r.t === "cmd").slice(-n).map(r => r.ja),
     flashed: () => flashed,
+    // 演出のきっかけ（直前の手で起きたこと）。[{ type, k }]
+    fx: () => fxq.slice(),
+    // 起動画面に渡す要約
+    meta: () => {
+      const L = LOOP_AFTER || LOOP;
+      const r = L.deep || 0;
+      const name = Object.keys(DEPTH).filter(k => DEPTH[k] <= r).sort((a, b) => DEPTH[b] - DEPTH[a])[0] || "0";
+      return { endings: (L.ends || []).slice(), total: ENDINGS.length, deepest: "Level " + name, runs: L.n || 0 };
+    },
     visible: () => visible().map(o => ({ id: o.id, name: o.name, en: o.en, held: o.loc === "player" })),
     wordsHere: () => wordsHere().map(w => ({ ja: w.ja, show: w.show || w.ja, en: w.en })),
     // テスト用：今の状態を覗く
@@ -2374,7 +2437,8 @@ function createGame(io) {
   })();
   const TK_FILE = "/storage/emulated/0/Tasker/noclip/noclip-data.json";
   const TK_VAR = "NOCLIP";
-  const KEY = "noclip.state";
+  const KEY = "bpwa.noclip.state";
+  const META_KEY = "bpwa.noclip.meta";
   // Tasker はないファイルを読むと止まるので、一度書いたことを変数 %NOCLIP に残し、書いたあとでだけ読む
   const io = {
     loadState() {
@@ -2419,6 +2483,37 @@ function createGame(io) {
     return p;
   }
   // 全部を描き直す（過去の行が書き換わることがあるので）。新しい行だけ、ふっと現れる
+  // ---- 演出（fx.js があれば使う。なくても遊べる） ----
+  const FXK = { "Fun": "fun", "!": "run" };
+  const FXO = { "433 N": { a: "#9ad0ff", b: "#ffe66d", mode: "grid", hum: 45 } };
+  let curLv = null, lastMetaLv = null;
+  function fxLevel(lv) {
+    if (!window.FX) return;
+    if (FXO[lv]) FX.level(0, FXO[lv]); else FX.level(FXK[lv] || (lv === "37" ? "37" : +lv || 0));
+  }
+  function runFx(list, s) {
+    if (s.lv !== curLv) { curLv = s.lv; fxLevel(s.lv); }
+    if (!window.FX) return;
+    FX.stress(Math.max((7 - s.san) / 7, s.danger ? 0.62 : 0, s.cold * 0.7));
+    for (const e of list) {
+      if (e.type === "hurt") FX.shock(1);
+      else if (e.type === "fall") { FX.shock(2); FX.blackout(900); }
+      else if (e.type === "shock2") FX.shock(2);
+      else if (e.type === "flicker") FX.glitch();
+      else if (e.type === "blackout") FX.blackout(1400);
+      else if (e.type === "flash") FX.flash();
+      else if (e.type === "omen") { FX.glitch(); FX.tone(70, 0.7, "sine", 0.05); FX.vibrate([20, 60, 20]); }
+      else if (e.type === "truism" && e.k) FX.truism(e.k[0], e.k[1], e.k[2]);
+      else if (e.type === "end") { FX.flash(); FX.shock(e.k === "exit" || e.k === "sublime" ? 1 : 2); }
+      else if (e.type === "vhs" && FX.vhs) { FX.vhs(true); setTimeout(() => FX.vhs(false), 4500); }
+    }
+  }
+  // 起動画面に見せる要約（場所が変わったとき・結末のとき）
+  function writeMeta(s, list) {
+    if (s.lv === lastMetaLv && !list.some(e => e.type === "end")) return;
+    lastMetaLv = s.lv;
+    try { localStorage.setItem(META_KEY, JSON.stringify(Object.assign(G.meta(), { updated: Date.now() }))); } catch (e) { /* 残らなくても遊べる */ }
+  }
   function render() {
     const all = G.rows();
     const from = G.turnStart();
@@ -2450,12 +2545,15 @@ function createGame(io) {
     sc.append(sv);
     if (s.bat !== null) sc.append(document.createTextNode(`　電池 ${s.bat}%${s.light ? "*" : ""}`));
     for (const b of document.querySelectorAll("[data-go]")) b.classList.toggle("open", s.exits.includes(b.dataset.go));
-    document.body.className = document.body.className.replace(/\bt(\d+|fun|run)\b/g, "").trim();
-    document.body.classList.add(s.theme);
+    document.body.dataset.lv = s.lv;
+    return s;
   }
   function submit(label, en) {
     G.submit(label, en);
     render();
+    const s = G.status(), list = G.fx();
+    runFx(list, s);
+    writeMeta(s, list);
   }
 
   // ---- 入力 ----
@@ -2558,11 +2656,24 @@ function createGame(io) {
   sheet.addEventListener("click", e => { if (e.target === sheet) openSheet(false); });
   $("restart-btn").addEventListener("click", () => { $("restart-btn").hidden = true; $("restart-yes").hidden = $("restart-no").hidden = false; });
   $("restart-no").addEventListener("click", () => openSheet(false));
-  $("restart-yes").addEventListener("click", () => { openSheet(false); G.start(true); render(); });
+  $("restart-yes").addEventListener("click", () => { openSheet(false); G.start(true); render(); lastMetaLv = null; curLv = null; const s = G.status(); runFx([], s); writeMeta(s, []); });
+  // 音・振動（起動画面と共有の設定）・起動画面へ
+  function optLabels() {
+    const st = window.FX ? FX.settings : { sound: false, vibe: false };
+    $("sound-btn").textContent = "音：" + (st.sound ? "入" : "切");
+    $("vibe-btn").textContent = "振動：" + (st.vibe ? "入" : "切");
+    $("sound-btn").disabled = $("vibe-btn").disabled = !window.FX;
+  }
+  $("sound-btn").addEventListener("click", () => { if (window.FX) { FX.set("sound", !FX.settings.sound); optLabels(); } });
+  $("vibe-btn").addEventListener("click", () => { if (window.FX) { FX.set("vibe", !FX.settings.vibe); optLabels(); if (FX.settings.vibe) FX.vibrate(40); } });
+  $("home-btn").addEventListener("click", () => { window.FX ? FX.home() : location.href = "../index.html"; });
+  $("menu-btn").addEventListener("click", optLabels);
   document.addEventListener("keydown", e => { if (e.key === "Escape") { closeBuilder(); openSheet(false); } });
 
+  if (window.FX) FX.tags(["M.E.G.", "[9番道路]", "A.W. 500ml", "[クラス ?]", "Lv.?", "[no-clip]", "=)", "[片道]", "[標識 #??]", "[記録欠損]", "[うごくな]", "[孤立効果]"]);
   G.start(false);
   render();
+  { const s = G.status(); runFx([], s); writeMeta(s, []); }
 })();
 </script>
 

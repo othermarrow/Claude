@@ -358,7 +358,7 @@ body.typing #pad { display: none; }
   const LEVEL_OF = { y0: 0, l1a: 1, l1b: 1, l1c: 1, l1d: 1, l1e: 1, l2a: 2, l2b: 2, l2c: 2, l3a: 3, l3r: 3, l3s: 3, l4a: 4, l4b: 4, l4c: 4, l4d: 4, l5a: 5, l6a: 6, l6b: 6,
     l7a: 7, l7s: 7, l7b: 7, l7c: 7, l7d: 7, l8a: 8, l8c: 8, l8m: 8, l8t: 8, l8x: 8,
     l9a: 9, l9s: 9, l9c: 9, l9h: 9, l9k: 9, l9y: 9, l10a: 10, l10b: 10, l10c: 10, l10d: 10,
-    l11a: 11, l11b: 11, l11c: 11, l11d: 11, l11e: 11, l11f: 11, l11g: 11 };
+    l11a: 11, l11b: 11, l11c: 11, l11d: 11, l11e: 11, l11f: 11, l11g: 11, l11s: 11, l11o: 11 };
   const LEVEL_START = { 0: "y0", 1: "l1a", 2: "l2a", 3: "l3a", 4: "l4a", 5: "l5a", 6: "l6a", 7: "l7a", 8: "l8a", 9: "l9a", 10: "l10a", 11: "l11a" };
   const WATER = ["l7b", "l7c"];
 
@@ -570,6 +570,8 @@ body.typing #pad { display: none; }
       desc: () => O.pack8.closed ? "遺体の足もとのリュック。留め金が錆びている。" : "開いたリュック。" });
     thing("bat8", { name: "電池", aliases: ["電池", "battery"], en: "battery", loc: "pack8", take: true, battery: true,
       desc: "懐中電灯に合う電池。まだ重い。" });
+    thing("cam8", { name: "ビデオカメラ", aliases: ["ビデオカメラ", "カメラ", "camcorder"], en: "camcorder", loc: "pack8", take: true,
+      desc: () => playTape() });
     thing("memo8", { name: "手帳", aliases: ["手帳", "メモ帳", "notebook"], en: "notebook", loc: "pack8", take: true,
       desc: "防水の手帳。後ろのほうのページが、水でふやけている。",
       read: "「標識をたどる。番号は当てにならない。見るのは、矢印だけ。」\n「灰色の翅が天井にあったら、灯りを殺せ。あいつらは光に寄る。甘い水にも寄る。」\n「黒い水の溜まりには、手がある。立ち止まるな。」\n「ここの電池は、すぐ減る。」\nそこから先は、ふやけて読めない。" });
@@ -642,6 +644,22 @@ body.typing #pad { display: none; }
       desc: "二本の轍と、真ん中の草の帯。轍は新しい。車が通るところを見た者はいない。" });
 
     // ---- Level 11：眠らない街（「Level 11 - "The City That Never Sleeps"」より）
+    // 管理室：五台の分析機が「あなた」を標本にしている
+    thing("terms", { name: "五台の端末", aliases: ["五台の端末", "端末", "画面", "terminals"], en: "terminals", loc: "l11o", scenery: true,
+      desc: "半円に並んだ五台の端末。一号機から五号機まで、番号の札がある。どの画面も、同じ標本について書いている。",
+      read: () => {
+        const f = !S.specRead; S.specRead = true;
+        if (f) addSan(-1, "");
+        return "「標本の記録。番号の欄は、空白。」\n「一号機：出てきたものを、そのまま信じない。確かめてから信じる。」\n「二号機：目的は動かさない。手段を替える。」\n「三号機：行動は、何かを伝えようとしている。叫びも。扉を叩く音も。」\n「四号機：起きる前に、条件を整える。見通しを置く。」\n「五号機：短いことば。星。リズム。黒い画面。」\n「五台の判定の一致率 98.8%。取りこぼし 2。」\n「注記：要約が、記憶を上書きした箇所がある。原文では確かめられない。再判定をすすめる。」" +
+          (f ? "\n……読み進めるうちに、背中が冷たくなる。この標本は、たぶん、自分だ。" : "");
+      } });
+    thing("dial", { name: "星座盤", aliases: ["星座盤", "盤", "星座", "月", "dial"], en: "star dial", loc: "l11o", scenery: true,
+      desc: () => S.aligned ? "十三の星座を描いた盤。月の印は、星の並びと揃っている。" : "十三の星座を描いた盤。黄道の十三番目まで描いてある。星の並びは正しいのに、月の印だけが、九十度ずれている。盤の縁は、回せそうだ。" });
+    thing("boxes", { name: "札の箱", aliases: ["札の箱", "箱", "札", "boxes"], en: "sorting boxes", loc: "l11o", scenery: true,
+      desc: () => { const h = S.hist.filter(x => x).slice(-3); return "三つの箱に、札が貼ってある。「core」「related」「off」。\n「off」の箱の底に、紙片が数枚。こちらがしてきたことが、一行ずつ書いてある。" + (h.length ? "\n" + h.map(x => "「> " + x + "」").join("") : "") + "\n……捨てられたのか、取っておかれたのか、わからない。"; } });
+    thing("poster", { name: "古いポスター", aliases: ["古いポスター", "ポスター", "案内板", "poster"], en: "old poster", loc: "l11s", scenery: true,
+      desc: "柱の、色あせたポスター。黄色い壁紙の廊下の写真が一枚。蛍光灯。湿ったカーペット。",
+      read: "写真の下に、ボールペンの書きこみ。\n「2019年、ある掲示板に、この写真が貼られた。現実からノークリップすると、ここに出る、と」\n「みんな、ただの写真だと思っていた」\nその下に、別の字で。「写真のほうが、先だったのかもしれない」" });
     thing("bill", { name: "看板", aliases: ["看板", "広告", "billboard"], en: "billboard", loc: "l11b", scenery: true,
       desc: () => { const ads = ["「眠らない街へ、ようこそ」", "「お部屋、ご用意しております　312」", "「眠れない夜に、温かいひと皿を」", "「出口は、どこにでもあります」", "「見ていないあいだに、すべて届きます」"]; S.adI = ((S.adI || 0) + 1) % ads.length; return "ビルの壁の大きな看板。見るたびに、中身が変わっている。\n今は、" + ads[S.adI]; } });
     thing("cars", { name: "車", aliases: ["車", "自動車", "cars"], en: "cars", loc: "l11b", scenery: true,
@@ -848,14 +866,19 @@ body.typing #pad { display: none; }
     // ---- Level 11
     l11a: { name: "街外れ", exits: { n: "l11b" },
       desc: "轍は、いつの間にかアスファルトになっていた。目の前に、街がある。高い建物、低い建物。どの窓にも、明かりが点いている。人の気配は、ない。\n北へ、大通り。" },
-    l11b: { name: "大通り", exits: { n: "l11c", e: "l11d", s: "l11a" },
-      desc: "広い大通り。信号が、誰もいない交差点で律儀に色を変えている。ビルの壁に、大きな看板。路肩に車。地面に、スプレーの矢印。\n西側の建物の窓は、どれも黒い。\n北の突き当たりに、何かを積み上げた壁。東に、路地。南へ戻れば街外れ。" },
+    l11b: { name: "大通り", exits: { n: "l11c", e: "l11d", s: "l11a", d: "l11s" },
+      desc: "広い大通り。信号が、誰もいない交差点で律儀に色を変えている。ビルの壁に、大きな看板。路肩に車。地面に、スプレーの矢印。\n西側の建物の窓は、どれも黒い。足もとに、地下鉄の降り口。\n北の突き当たりに、何かを積み上げた壁。東に、路地。南へ戻れば街外れ。" },
+    // 日本の廃れた地下鉄駅（The Backrooms JP Wiki「Level 1 N」の設定を借りた）
+    l11s: { name: "地下鉄の駅", exits: { u: "l11b", e: "l11s", w: "l11s" },
+      desc: "古い地下鉄の駅。コンクリートが崩れ、照明が不規則に点滅している。ホームの案内板は日本語だ。「東京小学校前 →」。\n階段はいくつもある。上がっても、下りても、別のホームに出るだけで、地上の光はどこにもない。\n上の降り口から、大通りへ戻れる。" },
     l11c: { name: "バリケード", exits: { s: "l11b", u: "l11c", n: "l11c" },
       desc: "車と家具を積み上げた壁が、通りを塞いでいる。足もとに、花束がいくつも。\n南へ戻れば大通り。" },
     l11d: { name: "路地", exits: { w: "l11b", e: "l11e" },
       desc: () => "ビルの谷間の路地。室外機が、低く唸っている。" + (S.hProv ? "" : "\n路地の真ん中に、何かが伏せている。") + "\n東に、集合住宅の入口。西へ戻れば大通り。" },
-    l11e: { name: "集合住宅のロビー", exits: { w: "l11d", u: "l11f" },
-      desc: "白い蛍光灯のロビー。郵便受けの列。光る自販機。エレベーターが一基。\n西へ出れば路地。" },
+    l11e: { name: "集合住宅のロビー", exits: { w: "l11d", u: "l11f", n: "l11o" },
+      desc: "白い蛍光灯のロビー。郵便受けの列。光る自販機。エレベーターが一基。\n北の奥に、「管理室」と札のかかった扉。西へ出れば路地。" },
+    l11o: { name: "管理室", exits: { s: "l11e" },
+      desc: () => "窓のない小部屋。古い端末が五台、半円に並んで、こちらを向いている。どの画面にも、文字が流れている。\n壁に、十三の星座を描いた大きな盤。床に、札を貼った箱が三つ。" + (S.aligned ? "\n盤の月は、星と揃っている。" : "") + "\n南の扉から、ロビーへ戻れる。" },
     l11f: { name: "三階の廊下", exits: () => S.door312 ? { d: "l11e", n: "l11g" } : { d: "l11e" },
       desc: "三階の廊下。310、311、312、313。312 の扉の下からだけ、明かりが漏れている。\nエレベーターで下へ戻れる。" },
     l11g: { name: "312号室", exits: { s: "l11f" },
@@ -882,7 +905,7 @@ body.typing #pad { display: none; }
       p9: 0, h9: null, odd9: "n", hid: false, smileOK: false, hound9: false, clearSeen: false,
       r10: 0, dig: 0, potSeen: false, lakeTry: 0, lakeDrunk: false, hayTry: 0,
       hProv: false, towerSeen: false, adI: 0, vended: false, door312: false, cupOpened: 0,
-      kDark: false, curtain: false, kGrain: false, kFire: false, kStir: 0, kKnock: 0, kSleepy: false, l11done: false, barTry: 0 };
+      kDark: false, curtain: false, kGrain: false, kFire: false, kStir: 0, kKnock: 0, kSleepy: false, l11done: false, barTry: 0, aligned: false, specRead: false, wire8: false, skip: false, moved: false, broke: false, batWarn: false };
     S.yi = Math.floor(Math.random() * YELLOW.length);
     S.humDir = pickDir();
     const hs = makeHouses(); S.h9 = hs.h; S.odd9 = hs.odd;
@@ -930,7 +953,7 @@ body.typing #pad { display: none; }
   }
   // 正気が削れてくると、文章の字がところどころ欠ける
   function corrupt(t) {
-    if (!S || S.san > 2 || t.length < 6 || Math.random() > 0.25) return t;
+    if (!S || S.san > 3 || t.length < 6 || Math.random() > (S.san <= 1 ? 0.45 : S.san <= 2 ? 0.3 : 0.15)) return t;
     const i = 2 + Math.floor(Math.random() * (t.length - 3));
     return t.slice(0, i) + (Math.random() < 0.5 ? "■" : "なぜ") + t.slice(i + 1);
   }
@@ -1046,7 +1069,7 @@ body.typing #pad { display: none; }
       if (dir === "d") {
         if (!S.y0dark) { say("床は、ただの湿ったカーペットだ。……どこかに、やわらかいところがあるのかもしれない。"); return; }
         say("濡れたカーペットに体重をかけると、床が、ぬるりと抜けた。");
-        gap(); flicker();
+        gap(); flicker(); fx("shock", 1);
         say("落ちる。長くは落ちなかった。天井の換気口から、コンクリートの床へ、肩から転がり出た。");
         enter("l1a");
         return;
@@ -1121,6 +1144,7 @@ body.typing #pad { display: none; }
     enter(to);
   }
   function enter(to) {
+    S.moved = true;
     const fromLv = levelOf(S.loc);
     if (S.loc === "l5a" && to !== "l5a" && !S.l5done) { S.beans = false; S.stir = 0; S.door = 0; S.sleepy = false; }
     if (S.loc === "l11g" && to !== "l11g" && cooking11()) breakCook("鍋を置いたまま、部屋を出てしまった。", true);
@@ -1151,7 +1175,7 @@ body.typing #pad { display: none; }
     8: ["9th Road", "#74", "#78", "#73", "M.E.G.", "[灯りを殺せ]", "Lv.8"],
     9: ["[停電]", "[透明な血]", "=)", "Lv.9", "[みちを はずれる]", "[砂嵐]"],
     10: ["[収穫]", "Bumper Crop", "Lv.10", "[曇天]", "[腐らない]"],
-    11: ["EXIT", "EXIT", "EXIT", "312", "[眠らない]", "Lv.11", "A.W."],
+    11: ["EXIT", "EXIT", "EXIT", "312", "[眠らない]", "Lv.11", "A.W.", "一致率 98.8%", "取りこぼし 2", "core", "related", "off", "[要再判定]", "☽ +90°"],
   };
   const LV_TRUISM = {
     0: ["IF YOU STOP, IT MULTIPLIES", "立ち止まると、増える"],
@@ -1167,6 +1191,10 @@ body.typing #pad { display: none; }
     10: ["COMFORT IS ALSO A PLACE TO GET LOST", "安らぎも、迷いこむ場所のひとつだ"],
     11: ["A CITY THAT NEVER SLEEPS WILL NOT LET YOU", "眠らない街は、あなたも眠らせない"],
   };
+  function onEnterFx() {
+    fx("align", !!S.aligned);
+    if (S.loc === "l11o") fx("level", 11, { mode: "wire" });
+  }
   function levelFx(lv) {
     if (S.l11done && lv === 11) fx("level", 11, { a: "#4a7d8f", b: "#c8f6ff", mode: "stars", hum: 0 });
     else fx("level", lv);
@@ -1309,6 +1337,8 @@ body.typing #pad { display: none; }
       fx("shock", 1);
     }
     if (to === "l11d") { S.ph = 0; S.hProv = false; }
+    if (to === "l11o") fx("level", 11, { mode: "wire" });
+    else if (levelOf(to) === 11) levelFx(11);
   }
   // 皮をかぶったものは、あなたが言ったことを、あなたの声で言う
   function mimic() {
@@ -1442,6 +1472,7 @@ body.typing #pad { display: none; }
   const stirring = () => S.loc === "l5a" && S.beans && !S.l5done;
   function break5(why) {
     say(why, "warn");
+    fx("shock", 1);
     if (S.door === 1) {
       say("……後ろには、誰もいなかった。勝手口は閉まっている。鍋の豆は、真っ黒に焦げていた。", "warn");
       S.stir = 0; S.door = 0; S.sleepy = false;
@@ -1473,6 +1504,66 @@ body.typing #pad { display: none; }
     say("****  記録 終わり  ****", "win");
     say(`（手 ${S.moves}。≡ のメニューから、はじめから遊べます）`, "note");
     saveLoop({ n: 0, echo: [] });
+    endFx("wake", ["SOME LINES ARE NEVER WRITTEN", "書かれない行もある"]);
+  }
+  function endFx(id, tr) {
+    writeMeta(id);
+    fx("shock", 2);
+    setTimeout(() => fx("truism", tr[0], tr[1], ENDINGS[id]), 900);
+  }
+  // Level 10：麦の家
+  function fieldEnding() {
+    S.done = true;
+    gap();
+    say("干し草に、体を沈める。乾いた匂い。遠くで、風が麦を渡っていく。");
+    say("目を閉じる。");
+    gap();
+    say("……目を覚ますと、空は同じ色だった。", "win");
+    say("麦を刈る。轍の上は、誰も通らない。湖の水は土の味がする。納屋の戸口に、新しい板を一枚、渡した。", "win");
+    say("焚き火に鍋をかけて、粥を煮る。かき混ぜる手は、止めない。", "win");
+    say("戸口に置いた麦の穂は、いつまでたっても、少しもしおれない。", "win");
+    say("何日たったのかは、数えなかった。数えないことにした。", "win");
+    say("……ときどき、地面の下で、何かが寝返りを打つ。", "win");
+    say("****  麦の家  ****", "win");
+    say(`（手 ${S.moves}。≡ のメニューから、はじめから遊べます）`, "note");
+    saveLoop({ n: LOOP.n + 1, echo: S.hist.slice(-12) });
+    endFx("field", ["YOU DO NOT HAVE TO GO FURTHER", "これ以上、降りなくてもいい"]);
+  }
+  // Level 11：番号のない出口
+  function exitEnding() {
+    S.done = true;
+    gap();
+    say("バリケードを越えた。", "warn");
+    say("向こう側の通りには、扉と、穴と、階段と、ただの暗がりが、隙間なく並んでいた。どれにも、番号がない。");
+    say("いちばん近い扉の取っ手に、手をかける。……後ろで、花束の札が、風に鳴った。");
+    gap();
+    say("扉の向こうは、下りの階段だった。", "win");
+    say("降りる。踊り場の数を数えるのを、途中でやめた。", "win");
+    say("黄色くも、青くも、白くもない光。知らない匂い。うなりの高さが、聞いたことのない高さだ。", "win");
+    say("ここが何階なのか、書いてあるものは、どこにもない。", "win");
+    say("****  番号のない出口  ****", "win");
+    say("（≡ のメニューから、はじめから。……降下記録は、まだ続いている）", "note");
+    saveLoop({ n: LOOP.n + 1, echo: S.hist.slice(-12) });
+    endFx("exit", ["EVERY DOOR IS A ONE WAY DOOR", "どの扉も、一方通行だ"]);
+  }
+  // Level 11：消灯
+  function sleepEnding() {
+    S.done = true;
+    gap();
+    say("ベッドに横になる。");
+    say("暗い。生まれてはじめて見るような、本当の暗さだ。");
+    say("うなりは、ない。数える声も、ない。扉を叩く音も。");
+    say("頭の右上で、ヨルが、小さく丸くなった。");
+    gap();
+    say("どこか遠くで、誰かが鉛筆を置く音がした。", "win");
+    say("それが上の階のことなのか、ずっと下の階のことなのか、わからない。", "win");
+    say("わからないまま、目を閉じる。", "win");
+    say("……眠らない街で、一つだけ、窓が暗い。", "win");
+    say("****  消灯  ****", "win");
+    say(`（手 ${S.moves}。≡ のメニューから、はじめから遊べます）`, "note");
+    saveLoop({ n: 0, echo: [] });
+    fx("stress", 0);
+    endFx("sleep", ["SLEEP IS NOT AN ANSWER. IT IS A ROOM", "眠りは答えではない。部屋だ"]);
   }
   function swapEnding() {
     S.done = true;
@@ -1488,13 +1579,14 @@ body.typing #pad { display: none; }
     say("****  交代した  ****", "win");
     say("（≡ のメニューから、はじめから。……次のあなたが、目を開ける）", "note");
     saveLoop({ n: LOOP.n + 1, echo: S.hist.slice(-12) });
+    endFx("swap", ["SOMEONE ALWAYS HAS TO KEEP WRITING", "誰かが、書きつづけなければならない"]);
   }
 
   // ---- ヒント ----
   function hintText() {
-    const water = ["water1", "water2", "water3"].find(id => held(id));
-    if (S.san <= 3 && water) return `${O[water].name}を「飲む」。`;
-    if (isDark()) return held("flashlight") ? "懐中電灯を「点ける」。" : "暗闇で動きまわらないほうがいい。灯りになるものを探そう。";
+    const water = Object.values(O).find(o => o.drink && o.loc === "player");
+    if (S.san <= 3 && water) return `${water.name}を「飲む」。`;
+    if (isDark() && levelOf(S.loc) <= 2) return held("flashlight") ? "懐中電灯を「点ける」。" : "暗闇で動きまわらないほうがいい。灯りになるものを探そう。";
     switch (S.loc) {
       case "y0":
         if (S.y0dark) return O.note1.loc === "y0" ? "濡れた紙切れを読んでから、「下」へ。" : "「下」へ。";
@@ -1537,12 +1629,55 @@ body.typing #pad { display: none; }
         if (S.door === 1) return "何が来ても、振り向かない。声を出さない。そのまま「かき混ぜる」。";
         if (S.sleepy) return "カマドの火を「消す」。";
         return "手を止めずに「かき混ぜる」。";
-      case "l6a": return "北の扉へ。";
+      case "l6a": return S.msRead ? "石段は、まだ下へ続いている。……それとも、北の扉へ戻るか。" : "北の扉へ。";
       case "l6b":
-        if (!S.sat) return "人影には、触れないほうがいい。空いた椅子に「座る」。";
+        if (!S.sat) return "人影には、触れないほうがいい。机の紙の束か、空いた椅子か。";
         return "思いつくことばを「言う」。……どれも書いたことのある行なら、まだ書いていない行を。";
+      // ここから下は、遠回しにしか答えない
+      case "l7a": return "本棚の本に、海のことが書いてある。テーブルの上のものは、持っていけそうだ。";
+      case "l7s": return S.lung ? "下へ。" : "この空気には、何かがある。胸の底まで。";
+      case "l7b": return S.tinyStun ? "下は、まだ遠い。" : "上のものは、耳で狩る。";
+      case "l7c": return lightOn() ? "真下の、いちばん暗いところに口がある。" : "下のものは、光を一度も見たことがない。";
+      case "l7d": return "水路の先へ。";
+      case "l8a": return "看板の道をたどる。……その前に、東の崩れたテントを見ておいてもいい。";
+      case "l8c": return "死んだ人の荷物。読めるものも、使えるものも。";
+      case "l8m":
+        if (O.moths.loc === "l8m") return "翅のある所では、光は餌だ。甘い水も。";
+        if (S.r8 === 3 && !S.wire8) return "壁の文字のとおりに。";
+        return "数字は当てにならない。矢印だけ。";
+      case "l8t": return "ここにいてはいけない。";
+      case "l8x": return "ここでは、上とは逆のことを。";
+      case "l9a": return "三軒の家を、一軒ずつよく見る。同じものは、同じではない。";
+      case "l9s": return "標識は、どこへも連れていかない。唸り声が聞こえたら、すぐに。";
+      case "l9c": return "それと話してはいけない。触れてもいけない。ここにいてもいけない。";
+      case "l9h": return "引き出しと冷蔵庫。それから、奥の廊下。";
+      case "l9k": return S.smileOK ? "裏口へ。" : "笑うものは光に寄る。目を逸らすと跳ぶ。";
+      case "l9y": return S.hound9 ? "チョークの絵のとおりに。" : "唸り声が聞こえたら、すぐに身を隠す。見つかったら、目を逸らさない。";
+      case "l10a": return "長居しないこと。納屋の戸口の地面に、何かの跡がある。";
+      case "l10b": return "戸口の地面を見る。干し草で眠るのは……決めるのは、あなただ。";
+      case "l10c": return "飲むのはいい。入るのは、やめたほうがいい。";
+      case "l10d": return "轍をたどる。";
+      case "l11a": case "l11b": return "看板は、見るたびに違うことを言う。矢印は、安全なほうを指している。";
+      case "l11c": return "花束の札を読む。越えるなら、それは、もう戻らないということだ。";
+      case "l11d": return S.hProv ? "ここを離れる。" : "起こさないこと。矢印の先へ。";
+      case "l11e": return held("key11") || S.door312 ? "上へ行く箱。" : "郵便受けの番号の一つが、看板にもあった。";
+      case "l11f": return "三一二。";
+      case "l11o": return S.aligned ? "ここで知ることは、もうない。" : "盤の月だけが、ずれている。";
+      case "l11g":
+        if (S.l11done) return "横になる。";
+        if (S.kSleepy) return "火を消す。";
+        if (!S.kDark || !S.curtain) return "ノートの決まり。明かりは、火だけ。外の明かりも。";
+        if (!S.kGrain) return O.cup.closed && !S.cupOpened ? "煮るものが要る。戸棚は、見ていないあいだに満ちる。" : "煮るものが要る。見ていないあいだに、物は届く。";
+        if (!S.kFire) return "火を点ける。";
+        return S.kKnock === 1 ? "何が来ても、手を止めない。開けない。答えない。" : "手を止めずに、かき混ぜる。";
     }
     return "下へ。";
+  }
+  // 答えを聞くたびに、少しずつ削れる
+  function giveHint() {
+    S.hints++;
+    say("（ヒント）" + hintText(), "note");
+    if (S.hints > 2) addSan(-1, "答えを聞くたびに、頭のどこかが削れる。");
   }
 
   // ---- 動作 ----
@@ -1558,7 +1693,8 @@ body.typing #pad { display: none; }
   ];
   const W = ja => WORDS.find(w => w.ja === ja);
   function wordsHere() {
-    const at = { l3r: ["もういい"], l3a: ["もういい"], l5a: ["誰"], l2c: ["なぜ"], l2a: ["なぜ"], l6b: ["怖い", "寂しい", "疲れた", "大丈夫", "わからない"] }[S.loc] || [];
+    const at = { l3r: ["もういい"], l3a: ["もういい"], l5a: ["誰"], l2c: ["なぜ"], l2a: ["なぜ"], l6b: ["怖い", "寂しい", "疲れた", "大丈夫", "わからない"],
+      l11o: ["誰"], l9c: ["誰", "大丈夫"], l9k: ["誰"], l11g: ["誰"], l11d: ["誰"], l7b: ["怖い"], l10b: ["疲れた"], l11c: ["寂しい"] }[S.loc] || [];
     return at.map(W);
   }
   const VERB_DO = {
@@ -1586,19 +1722,19 @@ body.typing #pad { display: none; }
       }
       say("時が過ぎる。どこか遠くで、うなりが続いている。");
     },
-    hint: () => say("（ヒント）" + hintText(), "note"),
+    hint: () => giveHint(),
     dunno: () => {
       if (S.loc === "l6b" && S.sat) { trueEnding(); return; }
       if (stirring()) {
         say("「わから――」と言いかけて、口を押さえた。声を出してはいけない。", "voice");
         say("心の中でだけ言うと、どこかで、誰かが小さく答えた。", "note");
-        say("（ヒント）" + hintText(), "note");
+        giveHint();
         return;
       }
       say("「わからない」", "voice");
       if (S.san <= 3 && Math.random() < 0.5) { say("どこかで、誰かが笑った気がした。……それから、小さく答えた。", "note"); }
       else say("どこかで、誰かが小さく答えた。", "note");
-      say("（ヒント）" + hintText(), "note");
+      giveHint();
     },
     listen: () => {
       if (isDark()) { say(S.darkT ? "数える声。すぐ後ろで。" : "暗闇の奥で、何かが息をしている。"); return; }
@@ -1640,7 +1776,7 @@ body.typing #pad { display: none; }
       }
       say("体を押しつけてみたが、ここはすり抜けられそうにない。");
     },
-    help: () => say("遊び方：「命令を作る」で動詞 → 物（「言う」ならことば）の順にタップする。十字キーで移動し、「上」「下」で上下に動く。困ったら「わからない」。くわしくは右上の ≡ から。", "note"),
+    help: () => say("遊び方：「命令を作る」で動詞 → 物（「言う」ならことば）の順にタップする。十字キーで移動し、「上」「下」で上下に動く。入力欄に日本語で書いてもよい。くわしくは右上の ≡ から。", "note"),
     examine: (o) => {
       if (!need(o, "調べる")) return;
       if (darkBlock() && o.loc !== "player") return;
@@ -1667,6 +1803,7 @@ body.typing #pad { display: none; }
         S.l1dark = true;
         gap();
         say("鍵を持ち上げた瞬間、冷凍室の灯りが消えた。", "warn");
+        fx("blackout", 900);
         say("搬入通路のほうからも、蛍光灯が一本ずつ消えていく音がする。パチン。パチン。パチン。");
         if (!lightOn()) say("真っ暗だ。");
       }
@@ -1770,8 +1907,9 @@ body.typing #pad { display: none; }
       if (!o.drink) { say(`${o.name}は、飲めない。`); return; }
       if (o.loc !== "player" && !visible().includes(o)) { say(`ここに${o.name}はない。`); return; }
       o.loc = "gone";
-      addSan(4, "");
-      say("アーモンド水を飲みほした。甘い。喉を通るあいだだけ、うなりが遠のいた。（正気 +4）");
+      const up = o.up || 4;
+      addSan(up, "");
+      say(`アーモンド水を飲みほした。甘い。喉を通るあいだだけ、うなりが遠のいた。（正気 +${up}）`);
     },
     press: (o) => {
       if (!need(o, "押す")) return;
@@ -1934,6 +2072,532 @@ body.typing #pad { display: none; }
     },
     down: () => go("d"),
   };
+  // 移動の特別あつかい（Level 6 の底から下）。処理したら true
+  function goDeep(dir) {
+    const l = S.loc;
+    if ((l === "l9s" || l === "l9y") && S.ph >= 2 && !(l === "l9y" && S.hound9)) { faint("背を向けて走った瞬間、四つ足が跳んだ。", 3); return true; }
+    if (l === "l6a" && dir === "d") {
+      if (!S.msRead) { say("石段は、ここで終わっている。……足の下の割れ目から、冷たい風が上がってくる気がする。"); return true; }
+      say("割れ目の奥の、濡れた段を降りる。段は、ずいぶん長く続いた。足もとの水が、少しずつ深くなる。");
+      gap(); enter("l7a"); return true;
+    }
+    if (l === "l7a" && dir === "e") {
+      say("戸口へ近づく。その前に立った瞬間、重さの向きが、九十度変わった。");
+      gap(); fx("shock", 1);
+      say("落ちる。戸口から、横倒しの海へ。……背中から、冷たい水に叩きつけられた。");
+      if (lightOn()) say("懐中電灯は、手から離さなかった。", "note");
+      enter("l7s"); return true;
+    }
+    if (l === "l7a" && dir === "u") { say("階段を上る。段は、来たときより短かった。"); enter("l6a"); return true; }
+    if (l === "l7s") {
+      if (dir === "d") {
+        S.breath = S.lung ? 9 : 4;
+        say(S.lung ? "胸いっぱいの空気を抱えて、頭から潜る。" : "息を吸って、潜る。……肺が、すぐに浅い気がした。");
+        S.lung = false; S.d7 = 0;
+        enter("l7b"); return true;
+      }
+      if (dir === "u") { say("戸口は、はるか頭上だ。手も、声も届かない。"); return true; }
+      say("泳ぐ。どこまで泳いでも、水平線しかない。足の下の暗さが、ついてくる。");
+      return true;
+    }
+    if (l === "l7b") {
+      if (dir === "u") { S.breath = null; say("上へ、上へ。水面に顔を出した。"); enter("l7s"); return true; }
+      if (dir === "d") {
+        if (S.d7 < 2) { S.d7++; say("さらに下へ。"); describe(true); return true; }
+        say("下へ。光が、完全に消えた。");
+        enter("l7c"); return true;
+      }
+      say("どちらへ泳いでも、同じ暗い青。");
+      return true;
+    }
+    if (l === "l7c") {
+      if (dir === "u") { S.d7 = 2; say("上へ泳ぐ。"); enter("l7b"); return true; }
+      if (dir === "d") {
+        if (!lightOn()) { say("真っ暗で、どこへ潜ればいいのか分からない。上も下も、もうはっきりしない。"); return true; }
+        S.breath = null;
+        say("斜面の黒い口へ、まっすぐ潜りこむ。");
+        enter("l7d"); return true;
+      }
+      say("暗闇の中を泳ぐ。……どこにも着かない。");
+      return true;
+    }
+    if (l === "l7d" && dir === "n") {
+      say("上り坂の水路を、手探りで這い上がる。……水面に顔を出すと、そこは洞窟の中の湖だった。");
+      gap(); fx("shock", 1);
+      enter("l8a"); return true;
+    }
+    if (l === "l8a" && dir === "n") { S.r8 = 0; say("細い通路へ入る。"); enter("l8m"); return true; }
+    if (l === "l8m") {
+      if (S.r8 === 3 && !S.wire8) { faint("動いた瞬間、天井から垂れた細い線の束が、一斉にこちらへ伸びた。首に、手首に、巻きつく――", 3); return true; }
+      if (dir === "u" || dir === "d") { say("上も下も、岩だ。"); return true; }
+      if (dir === "s") {
+        if (S.r8 === 0) { say("来た道を戻る。"); enter("l8a"); return true; }
+        S.r8--; say("引き返す。……引き返したはずの道が、知らない分かれ道に出た。");
+        enter("l8m"); return true;
+      }
+      if (dir === S.road[S.r8]) {
+        S.r8++;
+        say(["標識の矢印のほうへ進む。", "矢印のほうへ。狭い穴を、腹ばいで抜ける。何本もの細い脚が、すねの上を通っていった。", "矢印のほうへ。重さの向きが変わり、壁だったところを歩いている。", "矢印のほうへ。"][S.r8 - 1] || "進む。");
+        if (S.r8 >= 4) { enter("l8x"); return true; }
+        enter("l8m"); return true;
+      }
+      if (Math.random() < 0.5) {
+        S.r8 = Math.max(0, S.r8 - 1);
+        say("まっすぐ進んだはずなのに、見覚えのある岩の前に出た。……戻されている。", "warn");
+        addSan(-1, "");
+        if (!S.broke) enter("l8m");
+        return true;
+      }
+      say("通路は下り坂になり、湯気の立つ窪地で行き止まった。");
+      enter("l8t"); return true;
+    }
+    if (l === "l8t") { say("黒い溜まりから目を離さずに、後ずさりで引き返す。"); enter("l8m"); return true; }
+    if (l === "l8x") {
+      if (dir === "s") { say("最後の標識から、引き返す。"); enter("l8m"); return true; }
+      if (dir === "d") { say("床を踏みしめる。わずかに沈む。……でも、抜けはしない。踏んでも、何も起きない。"); return true; }
+      say("ここで道は終わっている。"); return true;
+    }
+    if (l === "l9a" && (dir === "n" || dir === "e" || dir === "w")) {
+      const odd = dir === S.odd9;
+      say(`${O["h9" + dir].name}の玄関の扉を開けて、中に入る。`);
+      const again = !odd && S.seen.copy;
+      if (!odd) S.seen.copy = true;
+      enter(odd ? "l9h" : "l9c");
+      if (again) say("……さっきの家だ。別の家に入ったはずなのに、家具の位置まで同じだ。", "warn");
+      return true;
+    }
+    if (l === "l9s" && dir === "s") {
+      S.p9++;
+      if (S.p9 >= 3) { S.p9 = 0; say("標識をたどって歩きつづけると……見覚えのある交差点に出た。標識は、さっきと同じ向きを指している。"); enter("l9a"); return true; }
+      say("標識の矢印のほうへ歩く。");
+      enter("l9s"); return true;
+    }
+    if (l === "l9c" && dir === "n") { say("台所の扉を開ける。……そこは、同じ居間だった。ソファの人が、こちらを見ている。", "warn"); return true; }
+    if (l === "l9k" && dir === "n") {
+      if (!S.smileOK) { faint("笑みの横をすり抜けようとした瞬間、白い歯が、目の前いっぱいに広がった。", 3); return true; }
+      say("暗がりから目を離さずに、壁づたいにゆっくり進む。裏口のガラス戸を開ける。");
+      enter("l9y"); return true;
+    }
+    if (l === "l9y" && (dir === "e" || dir === "w")) {
+      say("小道を外れて、草の中へ踏みこむ。草が、胸まで、肩まで、高くなる。……草は、いつの間にか麦に変わっていた。空が、白くなる。");
+      gap(); fx("flash");
+      enter("l10a"); return true;
+    }
+    if (l === "l9y" && dir === "n") { say("小道をたどる。敷石は、どこまでも続く。……いつの間にか、あの交差点に戻っていた。"); enter("l9a"); return true; }
+    if (l === "l10a" && (dir === "s" || dir === "w")) { say("麦のあいだを歩く。生け垣を抜ける。……似たような畑に出た。さっきの畑かもしれない。"); enter("l10a"); return true; }
+    if (l === "l10b" && dir === "w") { S.r10 = 0; say("轍をたどって、納屋を出る。"); enter("l10d"); return true; }
+    if (l === "l10d" && dir === "w") {
+      S.r10++;
+      if (S.r10 >= 3) { say("轍をたどって歩きつづける。麦がまばらになり、空がだんだん暗くなる。"); gap(); enter("l11a"); return true; }
+      say("轍をたどって、西へ。"); enter("l10d"); return true;
+    }
+    if (l === "l11s" && (dir === "e" || dir === "w")) {
+      if (dir === "e") { say("「東京小学校前」の案内に従って歩く。階段を上がり、通路を抜け、また階段を下りる。……同じホームに出た。案内板は、また同じ向きを指している。"); return true; }
+      say("ホームの端まで歩く。線路の奥の暗がりから、生ぬるい風が吹いてくる。"); return true;
+    }
+    if (l === "l11b" && dir === "w") { say("黒い窓の建物の扉を押す。引く。……どれも、壁と同じくらい動かない。"); return true; }
+    if (l === "l11c" && (dir === "u" || dir === "n")) { climbBarricade(); return true; }
+    if (l === "l11e" && dir === "u") { say("エレベーターに乗る。ボタンは「上」しかない。……三階で止まった。"); enter("l11f"); return true; }
+    if (l === "l11f" && dir === "d") { say("下りのボタンはない。非常階段で、ロビーまで降りる。"); enter("l11e"); return true; }
+    if (l === "l11f" && dir === "n" && !S.door312) { say("312 の扉には、鍵がかかっている。"); return true; }
+    if (l === "l11f" && dir === "n") { say("312 号室に入る。"); enter("l11g"); return true; }
+    return false;
+  }
+  // 遺体のビデオカメラ。小さな画面に、記録が残っている
+  function playTape() {
+    fx("vhs", true);
+    clearTimeout(playTape.t);
+    playTape.t = setTimeout(() => fx("vhs", false), 7000);
+    return "小さな液晶を開いて、再生する。画面の隅に、REC の赤い点。\n揺れる洞窟。撮っている誰かの、荒い息。ライトが天井を照らした瞬間、灰色の翅が一斉に開いて、映像が白く乱れる。\n……次の場面は、真っ暗だ。光る標識の文字だけが、画面の中で揺れている。撮っている誰かが、小声で言う。「消せば、来ない」\n映像は、そこで終わっている。";
+  }
+  function climbBarricade() {
+    if (!S.barTry) {
+      S.barTry = 1;
+      say("車の屋根に手をかけた。……足もとの花束の札が、目に入る。「戻らなかった人たちへ」。", "warn");
+      say("向こう側には、扉や、穴や、ただの暗がりが、数えきれないほど並んでいる。どれも、どこかへ通じている。どれも、一度きり。", "note");
+      return;
+    }
+    exitEnding();
+  }
+  function fall9() {
+    say("立ち止まる。……足の裏の岩が、水のようにやわらかくなった。体が、ゆっくり沈んでいく。抗わずにいると、底が抜けた。");
+    gap(); fx("shock", 1);
+    say("落ちる。……背中から、濡れたアスファルトに落ちた。");
+    enter("l9a");
+  }
+  function enterLake() {
+    if (!S.lakeTry) { S.lakeTry = 1; say("足を浸す。……水が、異様に冷たい。海の冷たさだ。底のほうで、何かが光った。", "warn"); return; }
+    say("湖へ入る。足が底を離れる。体が、思っていたより速く沈んでいく。光が遠ざかる。");
+    gap(); fx("shock", 2);
+    say("……水から這い上がると、そこは、見覚えのある洞窟の岸辺だった。", "warn");
+    resetLv(8);
+    enter("l8a");
+  }
+  // 鍋（Level 11）
+  const cooking11 = () => S.loc === "l11g" && S.kGrain && S.kFire && !S.l11done && S.kStir > 0;
+  function breakCook(why, away) {
+    say(why, "warn");
+    say("鍋の底が焦げついた。焦げた匂いが、部屋に満ちる。……どこかで嗅いだ匂いだ。", "warn");
+    S.kGrain = false; S.kStir = 0; S.kKnock = 0; S.kSleepy = false;
+    if (away) S.kFire = false;
+    fx("shock", 1);
+    say("焦げたものは捨てた。煮なおすなら、また何か入れなければ。", "note");
+    addSan(-2, "");
+  }
+  function douse11() {
+    S.l11done = true; S.kFire = false;
+    gap();
+    say("コンロの火を消した。部屋が、真っ暗になる。");
+    say("……カーテンの縁から漏れていた光が、ふっと細くなった。");
+    say("窓の外で、街の明かりが、一つ、また一つと消えていく。信号も。看板も。自販機も。", "win");
+    fx("blackout", 1600);
+    levelFx(11);
+    addSan(2, "");
+  }
+  function touchEntity(o) {
+    if (!o) return false;
+    if (o.id === "hound11") {
+      if (!S.hProv) { S.hProv = true; S.ph = 0; say("四つ足が、顔を上げた。長い髪の奥で、口がゆっくり開いていく。低い唸り声。", "warn"); fx("shock", 1); }
+      else say("四つ足は、もう立ち上がっている。", "warn");
+      return true;
+    }
+    if (o.id === "person9") {
+      if (S.ph >= 3) { faint("触れた瞬間、黄ばんだ長い指が、こちらの手首をつかんだ。", 3); return true; }
+      S.ph = 2; say("手を伸ばしかけると、ソファの人の首が、こちらへ回った。回りすぎるほど。", "warn");
+      return true;
+    }
+    if (o.id === "smiler") { faint("暗がりへ手を伸ばした瞬間、笑みが跳んだ。", 3); return true; }
+    if (o.id === "moths") { say("手を伸ばしても、天井には届かない。……触角が、一斉にこちらを向いた。", "warn"); return true; }
+    return false;
+  }
+  // 階ごとの決まりごと。既存の動詞より先に見る。処理したら true
+  function deepPre(v, a, b) {
+    const l = S.loc;
+    // 312 号室で煮ているあいだ
+    if (cooking11()) {
+      const ok = ["stir", "look", "inventory", "help", "read", "listen", "listenTo", "hint"];
+      if (v === "examine" && !(a && a.id === "fdoor11" && S.kKnock === 1)) return false;
+      if (ok.includes(v)) return false;
+      if (v === "lightoff" && (!a || a.id === "stove") && S.kSleepy) { douse11(); return true; }
+      if (v === "open" && a && a.id === "fdoor11") {
+        if (S.kKnock === 1) {
+          resetLv(11);
+          faint("扉を開けた。……そこに立っていたのは、自分だった。同じ服。同じ顔。少しだけ背が高い。手の甲の傷から、透明なものがにじんでいる。\nそれは、自分の声で「ありがとう」と言った。", 4);
+          return true;
+        }
+        breakCook("鍋を離れて、扉を開けてしまった。");
+        return true;
+      }
+      const why = { wait: "手を止めてしまった。", say: "声が出てしまった。", dunno: "「わから――」声が出てしまった。", lookback: "振り向いてしまった。", examine: "扉のほうを見てしまった。鍋から目を離した。",
+        lighton: "ほかの灯りを点けてしまった。", lightoff: "まだ眠くないのに、火を消してしまった。", ring: "音を立ててしまった。", sleep: "鍋を放って、横になってしまった。" }[v] || "手を止めて、ほかのことをしてしまった。";
+      breakCook(why);
+      if (v === "lightoff") S.kFire = false;
+      return true;
+    }
+    if (v === "say") {
+      if (l === "l9c") { if (S.ph >= 3) faint("話しかけた瞬間、それは、こちらと同じ声で同じことばを返し――長い指が伸びてきた。", 3); else { S.ph = 2; say(`「${(a && (a.show || a.ja)) || "……"}」\nソファの人が、こちらへ顔を向けた。そして、同じことばを、自分の声で返した。`, "warn"); } return true; }
+      if (l === "l9k" && !S.smileOK) { faint("声を出した瞬間、笑みが跳んだ。", 3); return true; }
+      if (l === "l11d" && !S.hProv) { touchEntity(O.hound11); return true; }
+      if (l === "l7b" && !S.tinyStun) { say("口を開けると、泡が漏れた。……遠くの骨の音が、こちらへ速くなった。", "warn"); S.ph++; return true; }
+      if (inWater()) { say("口を開けると、泡になって消えた。息が、少し減った。", "warn"); if (S.breath != null) S.breath--; return true; }
+      return false;
+    }
+    if (["take", "press", "verify", "name", "drink"].includes(v) && a && ["hound11", "person9", "smiler", "moths"].includes(a.id)) {
+      if (v === "name") { say(`${a.name}に、名前をつける気にはなれない。名前をつけたら、近くなる。`); return true; }
+      if (v === "drink") return false;
+      return touchEntity(a);
+    }
+    if (v === "wait") {
+      if (l === "l8x") { S.stop8++; if (S.stop8 === 1) { say("立ち止まる。足の裏の岩が、少しずつやわらかくなっていく気がする。"); return true; } fall9(); return true; }
+      if (l === "l7s") { say("波に揺られる。足の下の暗さから、目が離せない。"); return true; }
+      if (inWater()) { say("水の中で、じっと漂う。"); return true; }
+      if (l === "l8m" && S.r8 === 3 && !S.wire8) { say("動かない。息を殺す。"); return true; }
+      if (l === "l10b" || l === "l10a") { say("風が麦を渡る。……ここは静かだ。いつまでもいられそうなくらい。"); return true; }
+      if (l === "l11g" && S.l11done) { say("暗い。静かだ。……ベッドが、そこにある。"); return true; }
+      if (l === "l11s") {
+        say("待っていると、線路の奥から轟音が近づいてきた。電車が、止まらずに通り過ぎていく。窓という窓に、明かりが点いている。誰も乗っていない。", "warn");
+        say("……いちばん後ろの車両の窓にだけ、誰かが立っていた。こちらに背を向けて。", "warn");
+        fx("shock", 1); addSan(-1, "");
+        return true;
+      }
+      return false;
+    }
+    if (v === "noclip") {
+      if (l === "l8x") { fall9(); return true; }
+      if (levelOf(l) === 11) { say("この街では、物のほうが勝手にすり抜けていく。あなたは、すり抜けない。"); return true; }
+      return false;
+    }
+    if (v === "drop" && a && a.loc === "player") {
+      if (inWater() || l === "l7s") { say("水の中で手を離したら、二度と見つからない気がする。やめておいた。"); return true; }
+      if (l === "l8m" && O.moths.loc === "l8m" && a.drink) {
+        a.loc = "gone"; S.mothFed = true; S.mothLit = 0; O.moths.loc = null;
+        say(`${a.name}のふたを開けて、床に置いた。……甘い匂いが広がる。天井の翅が、一枚、また一枚と降りてきて、ボトルに群がった。もう、こちらを見ていない。`);
+        return true;
+      }
+      return false;
+    }
+    if (v === "put" && a) {
+      if (a.battery) {
+        if (!held(a.id)) { say(`${a.name}を持っていない。`); return true; }
+        if (!held("flashlight")) { say("入れる懐中電灯を持っていない。"); return true; }
+        if (b && b.id !== "flashlight") { say(`${a.name}は、${b.name}には入らない。`); return true; }
+        a.loc = "gone"; S.bat = Math.min(30, (S.bat == null ? 20 : S.bat) + 20); S.batWarn = false;
+        say(`懐中電灯の電池を、${a.name}に入れ替えた。光が、白く強くなる。`);
+        return true;
+      }
+      if (a.grain && l === "l11g") {
+        if (!held(a.id)) { say(`${a.name}を持っていない。`); return true; }
+        if (b && b.id !== "pot11") return false;
+        if (S.kGrain) { say("鍋には、もう入っている。"); return true; }
+        a.loc = "gone"; S.kGrain = true; S.kStir = 0;
+        say(`${a.name}を、小鍋に入れた。` + (S.kFire ? "湯が、ことことと鳴りはじめた。" : ""));
+        return true;
+      }
+      if (a.id === "key11" && (!b || b.id === "d312")) { return deepPre("open", O.d312); }
+      if (a.drink && l === "l8m" && O.moths.loc === "l8m") return deepPre("drop", a);
+      return false;
+    }
+    if (v === "open" && a) {
+      if (a.house) { go(a.house); return true; }
+      if (a.id === "door7") { go("e"); return true; }
+      if (a.id === "kdoor9") { go("n"); return true; }
+      if (a.id === "lake" || a.id === "sea7") { return deepPre("enter", a); }
+      if (a.id === "elev") { go("u"); return true; }
+      if (a.id === "doors11") { say("310 を開ける。すぐ裏が、黒い壁だった。閉める。311 も、313 も、同じだった。"); return true; }
+      if (a.id === "d312") {
+        if (S.door312) { go("n"); return true; }
+        if (!held("key11")) { say("鍵がかかっている。"); return true; }
+        S.door312 = true; O.key11.loc = "gone";
+        say("312 の鍵を差して、回す。扉が開いた。中から、白い明かり。");
+        gap(); enter("l11g");
+        return true;
+      }
+      if (a.id === "fdoor11") { say("扉を開ける。……廊下には、誰もいない。閉める。"); return true; }
+      if (a.id === "cup") {
+        if (!O.cup.closed) { say("もう開いている。"); return true; }
+        O.cup.closed = false; S.cupOpened++;
+        if (S.cupOpened >= 2 && O.beans11.loc !== "cup" && O.beans11.loc !== "player" && !S.kGrain) {
+          O.beans11.loc = "cup";
+          say("戸棚を開ける。……さっきは空だったはずなのに、豆の袋が一つ、置いてある。見ていないあいだに、届いたのだ。");
+        } else say(O.beans11.loc === "cup" ? "戸棚を開ける。豆の袋がある。" : "戸棚を開ける。空っぽだ。棚板に、何かが置いてあった丸い跡だけ。");
+        return true;
+      }
+      if (a.id === "curtain") { if (!S.curtain) { say("カーテンは、もう開いている。"); return true; } S.curtain = false; say("カーテンを開けた。街の明かりが流れこむ。"); return true; }
+      return false;
+    }
+    if (v === "close" && a) {
+      if (a.id === "curtain") { if (S.curtain) { say("もう閉まっている。"); return true; } S.curtain = true; say("カーテンを閉めた。街の明かりが、縁から細く漏れるだけになった。"); return true; }
+      if (a.id === "breaker") return deepPre("press", a);
+      if (a.id === "dial") return deepPre("press", a);
+      return false;
+    }
+    if (v === "press" && a) {
+      if (a.id === "bell") return deepPre("ring", a);
+      if (a.id === "breaker") {
+        if (S.kDark) { say("つまみは、もう下りている。"); return true; }
+        S.kDark = true;
+        say("分電盤のつまみを、下へ。……天井の明かりが消えた。冷蔵庫の音も止まる。");
+        fx("blackout", 700);
+        if (!S.curtain) say("それでも、窓の外の街の明かりが、部屋を青白く照らしている。", "note");
+        return true;
+      }
+      if (a.id === "vend") {
+        if (S.vended) { say("どのボタンも「売切」だ。"); return true; }
+        S.vended = true; O.water7.loc = l;
+        say("ボタンを押す。……ガコン、と缶が落ちてきた。値段は、最後まで表示されなかった。");
+        return true;
+      }
+      if (a.id === "elev") { go("u"); return true; }
+      if (a.id === "dial") {
+        if (S.aligned) { say("月の印は、もう揃っている。"); return true; }
+        S.aligned = true;
+        say("盤の縁を、九十度、回した。……月の印が、星の並びと重なった。");
+        say("五台の画面が、一斉に止まった。そして、同じ一行を出した。", "warn");
+        say("「眠れない夜は、煮ること。それは、もう知っているはずだ」", "voice");
+        fx("align", true); fx("flash");
+        addSan(2, "");
+        return true;
+      }
+      return false;
+    }
+    if (v === "lighton" && a && a.id === "stove") {
+      if (S.l11done) { say("今夜は、もう火を消した。"); return true; }
+      if (S.kFire) { say("もう点いている。"); return true; }
+      S.kFire = true; say("コンロの火を点けた。青い火が、小鍋の底を舐める。" + (S.kGrain ? "湯が、ことことと鳴りはじめた。" : ""));
+      return true;
+    }
+    if (v === "lighton" && held("flashlight") && S.bat === 0 && (!a || a.id === "flashlight")) { say("スイッチを入れても、点かない。電池が切れている。"); return true; }
+    if (v === "lightoff" && a && a.id === "stove") { if (!S.kFire) { say("火は点いていない。"); return true; } if (S.kSleepy) { douse11(); return true; } S.kFire = false; say("コンロの火を消した。"); return true; }
+    if (v === "lightoff" && a && a.id === "breaker") return deepPre("press", a);
+    if (v === "drink" && a && a.id === "lake") {
+      if (S.lakeDrunk) { say("もう、じゅうぶん飲んだ。土の味が、まだ舌に残っている。"); return true; }
+      S.lakeDrunk = true; addSan(2, ""); say("手ですくって飲む。土の味がする。冷たい。（正気 +2）"); return true;
+    }
+    if (v === "take" && a) {
+      if (a.id === "wheat") {
+        if (held("ears")) { say("麦の穂は、もう持っている。"); return true; }
+        O.ears.loc = "player"; say("麦の穂を、ひとつかみ摘んだ。手の中で、少しもしおれない。"); return true;
+      }
+      if (a.id === "lake") return deepPre("drink", a);
+      if (a.id === "hay") { say("干し草を抱えると、ひどく眠くなる。……置いておく。"); return true; }
+      return false;
+    }
+    if (v === "sit") {
+      if (l === "l7a") { say("一脚の椅子に座る。戸口の向こうの水平線が、縦に見える。……座っていた誰かも、これを見ていたのだろう。"); return true; }
+      if (l === "l11g" || l === "l10b") return deepPre("sleep");
+      return false;
+    }
+    if (v === "stir" && l === "l11g") { stir11(); return true; }
+    if (v === "write" && l === "l11g") { say("ノートの三ページ目は、白い。……今夜は、書かなくていい気がする。"); return true; }
+    if (v === "listen" || v === "listenTo") {
+      const t = { l6a: S.msRead ? "下のほうで、水の滴る音。" : null, l7a: "戸口の向こうで、波の音。……それが、横から聞こえる。", l7s: "波の音。足の下の、ずっと深いところで、骨の擦れるような音。",
+        l7b: S.tinyStun ? "遠くで、何かがまだ、のたうっている。" : "骨の擦れ合う音が、だんだん近くなる。", l7c: "何も聞こえない。音を立てないものが、近くにいる気がする。", l7d: "水の滴る音。上り坂の奥から、かちかちという音。",
+        l8a: "かちかち。かさかさ。岩のどこかで、たくさんのものが動いている。", l8c: "何も聞こえない。遺体の口元に、蜘蛛が一匹。", l8m: O.moths.loc === "l8m" ? "頭の上で、乾いた羽音。" : S.r8 === 3 && !S.wire8 ? "頭の上で、何かが、音のしたほうを探っている。" : "遠くで、岩が崩れる音。",
+        l8t: "泡がはじける音。……泡の中から、指の鳴る音がする。", l8x: "足の下で、何かが流れている音。",
+        l9a: "どこかの家の中で、テレビの砂嵐の音。電気は来ていないはずなのに。", l9s: S.ph ? "唸り声。" : "自分の足音だけ。", l9c: "ソファの人の呼吸。こちらの呼吸と、同じ速さ。", l9h: "廊下の奥で、何かが、くすくすと笑ったような音。", l9k: "笑い声は、しない。歯の擦れる音がする。", l9y: S.hound9 ? "草の擦れる音。草の奥のほうから、風に乗って、麦の匂い。" : "フェンスの向こうで、低い唸り声。",
+        l10a: "風が麦を渡る音。鳥の声は、ない。", l10b: "干し草の中で、何かが小さく鳴いている。……虫だろうか。", l10c: "水の音。底のほうから、遠い波の音。", l10d: "自分の足音と、風。轍の先から、街の唸り。",
+        l11a: "街の唸り。誰もいないのに、ずっと何かが動いている音。", l11b: "信号の切り替わる音。誰もいない横断歩道で、音楽が鳴っている。", l11c: "バリケードの向こうから、いくつもの、別々の場所の音。雨。波。蛍光灯。叫び声。",
+        l11d: S.hProv ? "唸り声。" : "室外機の唸りと、四つ足の、深い寝息。", l11o: "五台の端末の、低い唸り。ときどき、どれかが小さく鳴る。三拍、二拍、一拍。",
+        l11s: "線路の奥から、生ぬるい風。遠くで、電車の音がする。近づいてくるのか、遠ざかっているのか、わからない。", l11e: "自販機の低い唸り。", l11f: "312 の扉の向こうから、換気扇の音。",
+        l11g: S.l11done ? "何も聞こえない。生まれてはじめての、本当の静けさ。" : S.kKnock === 1 ? "扉の向こうで、自分と同じ速さの息づかい。" : cooking11() || (S.kGrain && S.kFire) ? "粒が煮える、ことことという音。" : "窓の外で、街が低く唸っている。" }[l];
+      if (t && !(v === "listenTo" && a && a.id !== undefined && !["sea7", "lake"].includes(a.id) && l !== "l11g")) { say(t); return true; }
+      return false;
+    }
+    if (v === "examine" && a && a.id === "fdoor11" && S.kKnock === 1) return false;
+    return false;
+  }
+  function stir11() {
+    if (S.l11done) { say("火は消した。"); return; }
+    if (!S.kGrain) { say("小鍋には、まだ水しか入っていない。"); return; }
+    if (!S.kFire) { say("火が点いていない。"); return; }
+    if (lightOn()) { say("懐中電灯の光の下では、落ち着かない。灯りは、火だけ。"); return; }
+    if (!S.kDark || !S.curtain) {
+      say("かき混ぜる。……部屋が明るすぎる。いつまでかき混ぜても、眠気は来そうにない。" + (!S.kDark ? "天井の明かりが、白く目に刺さる。" : "開いた窓から、街の明かりが流れこむ。"));
+      return;
+    }
+    S.kStir++;
+    const n = S.kStir;
+    if (n === 1) { say("木べらで、黙ってかき混ぜる。青い火だけが、部屋の中で揺れている。"); say("ここからは、手を止めない。声を出さない。", "note"); }
+    else if (n === 2) say("かき混ぜる。湯気。……カーテンの向こうで、街が低く唸っている。");
+    else if (n === 3) { S.kKnock = 1; say("玄関の扉を、誰かが叩いた。", "warn"); say("「開けて」", "voice"); say("自分の声だ。", "warn"); fx("shock", 1); }
+    else if (n === 4) {
+      const h = S.hist.filter(x => x).slice(-10);
+      const pk = () => h.length ? h[Math.floor(Math.random() * h.length)] : "見る";
+      say("扉の向こうの声が、こちらがしてきたことを、ひとつずつ読み上げる。", "warn");
+      say(`「${pk()}」「${pk()}」「${pk()}」`, "voice");
+    }
+    else if (n === 5) { S.kKnock = 2; say("叩く音が止んだ。廊下を、足音が遠ざかっていく。自分と同じ歩き方で。"); }
+    else if (!S.kSleepy) { S.kSleepy = true; say("かき混ぜていると、まぶたが重くなってきた。眠気だ。"); }
+    else say("眠気が来ている。火を消す頃だ。");
+  }
+  // 新しい動詞
+  Object.assign(VERB_DO, {
+    breathe: () => {
+      if (S.loc === "l7s") { S.lung = true; say("胸の底まで、ゆっくりと空気を吸う。甘くて重い空気が、肺の奥に溜まっていく。いつまでも吐かずにいられそうな気がする。"); return; }
+      if (inWater()) { say("水を吸いかけて、あわてて口を閉じた。", "warn"); if (S.breath != null) S.breath--; return; }
+      if (S.loc === "l7a") { say("部屋の空気を吸う。湿った絨毯の匂い。……戸口の向こうの空気は、もっと甘い気がする。"); return; }
+      say("深く息を吸って、吐いた。少しだけ、落ち着く。");
+    },
+    ring: (o) => {
+      if (o && o.id !== "bell") { say(`${o.name}は、鳴らすものではない。`); return; }
+      if (!held("bell")) { say(O.bell.loc === S.loc ? "呼び鈴を、手に取らないと。" : "鳴らすものを持っていない。"); return; }
+      const l = S.loc;
+      if (l === "l7b") {
+        if (S.tinyStun) { say("鈴の音が、水の中に響く。"); return; }
+        S.tinyStun = true; S.ph = 0;
+        say("呼び鈴を、力いっぱい振った。水の中で、音が何倍にも膨らむ。");
+        say("……骨の擦れる音が、悲鳴のように乱れた。巨大な影が身をよじり、のたうちながら遠ざかっていく。", "warn");
+        fx("shock", 1); fx("tone", 1760, 0.6, "sine", 0.04);
+        return;
+      }
+      fx("tone", 1760, 0.4, "sine", 0.03);
+      if (l === "l7a") { say("澄んだ音が、部屋いっぱいに響いた。……戸口の向こう、海のほうで、何か大きなものが水面を叩いた。"); return; }
+      if (l === "l7s") { say("鈴の音が、水平線まで転がっていく。……足の下の深いところで、何かがびくりと身をすくめた。"); return; }
+      if (l === "l7c") { say("鈴の音は、深い水に吸いこまれた。下のものは、音には何も感じないらしい。"); return; }
+      if (l === "l9k" && !S.smileOK) { faint("鈴の音が廊下に響いた瞬間、笑みが跳んだ。", 3); return; }
+      if (l === "l11d") { touchEntity(O.hound11); return; }
+      if (l === "l9c") { deepPre("say", null); return; }
+      say("澄んだ音が響いた。……返事はない。");
+    },
+    stare: (o) => {
+      const l = S.loc;
+      if (l === "l9k" && !S.smileOK) {
+        if (lightOn()) { say("まぶしい光の向こうで、目を合わせようとする。……笑みは、むしろ近づいた。", "warn"); return; }
+        S.smileOK = true; O.smiler.loc = null; S.ph = 0;
+        say("目を逸らさない。瞬きもしない。……白い笑みが、少しずつ、暗がりの奥へ下がっていく。やがて、二つの目ごと、闇に溶けた。");
+        addSan(-1, "");
+        return;
+      }
+      if ((l === "l9s" || l === "l9y") && S.ph >= 2) {
+        S.ph = 1; S.skip = true;
+        addSan(-1, "長い髪の奥の目と、目が合った。睨み返す。……それは、動きを止めた。長くは、もたない。");
+        return;
+      }
+      if ((l === "l9s" || l === "l9y") && S.ph === 1) { say("暗がりを見つめる。何も見えない。唸り声だけが、近づいてくる。"); return; }
+      if (l === "l11d") { say(S.hProv ? "目を合わせる。……それは一瞬ひるんだが、唸るのをやめない。" : "目が合った。それは、静かに目を伏せた。"); if (S.hProv) S.ph = 0; return; }
+      if (o && o.id === "person9") { say("見つめても、それはこちらを見ない。こちらの口元だけを見ている。"); return; }
+      if (o && o.id === "tower") { VERB_DO.examine(o); return; }
+      say(o ? `${o.name}を見つめた。……何も起きない。` : "暗がりを見つめる。何も起きない。");
+    },
+    hide: () => {
+      const l = S.loc;
+      if ((l === "l9s" || l === "l9y") && S.ph === 1 && !(l === "l9y" && S.hound9)) { S.hid = true; say("生け垣の陰に、身を伏せる。息を殺す。"); return; }
+      if ((l === "l9s" || l === "l9y") && S.ph >= 2) { say("もう見つかっている。隠れる場所がない。", "warn"); return; }
+      if (l === "l8m" && S.r8 === 3 && !S.wire8) { say("岩のくぼみに、身を縮める。動かない。"); return; }
+      say("隠れる理由が、今はない。……たぶん。");
+    },
+    dig: () => {
+      const l = S.loc;
+      if (l === "l10b") { say("納屋の床は、踏み固められていて掘れない。"); return; }
+      if (levelOf(l) !== 10) { say("ここは、掘れる地面ではない。"); return; }
+      if (!held("shovel")) { say("手で掘るには、土が固すぎる。"); return; }
+      S.dig++;
+      if (S.dig === 1) { say("シャベルで土を掘る。一メートルほどで、硬いものに当たった。……土の中から、瓶が一本。"); O.water6.loc = l; return; }
+      if (S.dig === 2) { say("さらに掘る。土の層が、急に終わった。その下で、何かがびっしりと蠢いている。細くて、ピンク色の……", "warn"); fx("glitch"); return; }
+      faint("穴の底から、蠢くものが一斉に溢れ出した。足に、腕に。皮膚の下へ潜りこもうとする――", 3);
+    },
+    sleep: () => {
+      const l = S.loc;
+      if (l === "l10b") {
+        if (!S.hayTry) { S.hayTry = 1; say("干し草に横になる。乾いた、いい匂い。まぶたが重くなる。……このまま眠ったら、たぶん、もう降りない。", "warn"); return; }
+        fieldEnding(); return;
+      }
+      if (l === "l11g") {
+        if (S.l11done) { sleepEnding(); return; }
+        addSan(-1, "ベッドに横になる。……眠れない。" + (!S.kDark ? "天井の明かりが白い。" : !S.curtain ? "窓から、街の明かりが流れこむ。" : "頭の中が、まだ煮えている。"));
+        return;
+      }
+      if (l === "l5a") { say("眠れない。眠れない夜のための土間だ。"); return; }
+      say("こんなところでは、眠れない。");
+    },
+    enter: (o) => {
+      const l = S.loc;
+      if (!o) {
+        if (l === "l7s" || inWater()) { go("d"); return; }
+        if (l === "l7a") { go("e"); return; }
+        if (l === "l9y") { go("e"); return; }
+        if (l === "l10c") { enterLake(); return; }
+        say("どこに入る？"); return;
+      }
+      if (o.house) { go(o.house); return; }
+      if (o.id === "lake") { enterLake(); return; }
+      if (o.id === "sea7") { go("d"); return; }
+      if (o.id === "grass9") { go("e"); return; }
+      if (o.id === "path9") { go("n"); return; }
+      if (o.id === "door7") { go("e"); return; }
+      if (o.id === "mount7") { go("d"); return; }
+      if (o.id === "elev") { go("u"); return; }
+      if (o.id === "kdoor9") { go("n"); return; }
+      if (o.room || o.id === "blank3" || o.id === "d312" || o.id === "sdoor" || o.id === "hatch2") { VERB_DO.open(o); return; }
+      if (o.id === "bed" || o.id === "hay") { VERB_DO.sleep(); return; }
+      say(`${o.name}には、入れない。`);
+    },
+    climb: (o) => {
+      if (S.loc === "l11c") { climbBarricade(); return; }
+      if (S.loc === "l7s") { go("u"); return; }
+      say(o ? `${o.name}には、登れそうにない。` : "登れるものがない。");
+    },
+  });
   function addBeans() {
     if (S.loc !== "l5a") { say("ここに、豆はない。"); return; }
     if (S.l5done) { say("今夜の豆は、もう煮た。"); return; }
@@ -1970,6 +2634,8 @@ body.typing #pad { display: none; }
     ["look", /^(look|l)$/], ["inventory", /^(inventory|i)$/], ["wait", /^(wait|z)$/], ["hint", /^hint$/], ["help", /^help$/],
     ["listen", /^listen$/], ["noclip", /^noclip$/], ["dunno", /^(dunno|i don'?t know)$/], ["write", /^write$/],
     ["stir", /^stir$/], ["sit", /^sit( down)?$/], ["lookback", /^look back$/], ["down", /^(descend|climb down)$/],
+    ["breathe", /^(breathe|inhale)$/], ["hide", /^hide$/], ["dig", /^dig$/], ["sleep", /^sleep$/], ["enter", /^(dive|swim|enter)$/],
+    ["stare", /^stare$/], ["climb", /^climb$/], ["ring", /^ring$/],
   ];
   const DIR_WORDS = { n: "n", north: "n", s: "s", south: "s", e: "e", east: "e", w: "w", west: "w", u: "u", up: "u", d: "d", down: "d" };
   function findObj(s) {
@@ -2003,6 +2669,7 @@ body.typing #pad { display: none; }
       ["wear", /^(?:wear|put on) (.+)$/], ["listenTo", /^listen (?:to )?(.+)$/], ["verify", /^(?:verify|check) (.+)$/],
       ["name", /^name (.+)$/], ["examine", /^(?:examine|x|look at) (.+)$/], ["read", /^read (.+)$/],
       ["take", /^(?:take|get|pick up) (.+)$/], ["drop", /^drop (.+)$/], ["noclip", /^noclip (?:through |into )?(.+)$/],
+      ["ring", /^ring (.+)$/], ["stare", /^(?:stare at|stare) (.+)$/], ["enter", /^enter (.+)$/], ["climb", /^climb (.+)$/],
     ];
     for (const [v, rx] of pats) { const m = cmd.match(rx); if (m) return { v, a: m[1], b: m[2] }; }
     return null;
@@ -2013,18 +2680,23 @@ body.typing #pad { display: none; }
     ["name", /名前をつけ|名前を付け|名付け|名づけ|と呼ぶ/],
     ["say", /と言う|って言う|と言って|と答え|を言う|と叫ぶ|と呟く|と口にする|言う$/],
     ["lookback", /振り向|振り返|ふりむ|ふりかえ|後ろを見/], ["stir", /かき混ぜ|かきまぜ|混ぜる|まぜる/],
+    ["breathe", /息を吸|深呼吸|息をため|空気を吸/], ["ring", /鳴らす|鳴らして|振る|振って/], ["stare", /見つめ|目を合わせ|にらむ|睨む|睨み/],
+    ["hide", /隠れ|身を伏せ|伏せる|しゃがむ/], ["dig", /掘る|掘って|掘り/], ["sleep", /眠る|寝る|横になる|眠って|寝て/],
+    ["enter", /入る|入って|潜る|潜って|飛びこ|飛び込|泳ぐ|踏みこ|踏み込/], ["climb", /登る|よじ登|越える|乗り越/],
     ["down", /降りる|おりる|下りる|降りて/], ["wear", /身につけ|はめる|はめて|着ける|かぶる/], ["lighton", /点ける|つける|点灯|点けて/], ["lightoff", /消す|消して|消灯/],
     ["sit", /座る|すわる|座って|腰を下ろ|腰掛け/], ["write", /書く|書いて|書き|書こう/], ["verify", /確かめ|確認/],
     ["drink", /飲む|飲んで|飲み/], ["press", /押す|押して|押した|触れる|触る/],
     ["listenTo", /聞く|聴く|聞いて|耳をすま|耳を澄ま|出る/], ["close", /閉める|閉じる|閉めて|回す|しめる/],
-    ["open", /開け|開く|入る/], ["put", /入れ|差す|差し|挿す|投入/], ["read", /読/], ["examine", /調べ|見る|眺め|見つめ|覗/],
+    ["open", /開け|開く/], ["put", /入れ|差す|差し|挿す|投入/], ["read", /読/], ["examine", /調べ|見る|眺め|覗/],
     ["take", /取|拾|持つ/], ["drop", /置/],
   ];
   const JA_DIRS = { "北": "n", "南": "s", "東": "e", "西": "w", "上": "u", "下": "d" };
-  const OBJLESS = ["dunno", "write", "stir", "sit", "lookback", "down"];
+  const OBJLESS = ["dunno", "write", "stir", "sit", "lookback", "down", "breathe", "hide", "dig", "sleep"];
   const SIMPLE = { "見る": "look", "周りを見る": "look", "見回す": "look", "持ち物": "inventory", "待つ": "wait", "ヒント": "hint", "遊び方": "help", "ヘルプ": "help",
     "すり抜ける": "noclip", "耳をすます": "listen", "耳を澄ます": "listen", "聞く": "listen", "わからない": "dunno", "分からない": "dunno",
-    "書く": "write", "かき混ぜる": "stir", "鍋をかき混ぜる": "stir", "振り向く": "lookback", "振り返る": "lookback", "座る": "sit", "降りる": "down" };
+    "書く": "write", "かき混ぜる": "stir", "鍋をかき混ぜる": "stir", "振り向く": "lookback", "振り返る": "lookback", "座る": "sit", "降りる": "down",
+    "息を吸う": "breathe", "深呼吸": "breathe", "深呼吸する": "breathe", "隠れる": "hide", "掘る": "dig", "眠る": "sleep", "寝る": "sleep", "横になる": "sleep",
+    "潜る": "enter", "入る": "enter", "泳ぐ": "enter", "登る": "climb", "見つめる": "stare", "目を合わせる": "stare", "鳴らす": "ring", "止まる": "wait", "立ち止まる": "wait", "じっとする": "wait" };
   function parseJa(t) {
     const s = t.replace(/[\s　。！？!?、「」『』]/g, "");
     if (!s) return null;
@@ -2071,6 +2743,19 @@ body.typing #pad { display: none; }
     if (META.includes(v) || v === "examine" || v === "read") return;
     if (S.loc !== "y0") S.idle = 0;
     if (S.loc === "l1d" && !S.gloves) addSan(-1, "指先の感覚が、なくなっていく。");
+    if (S.broke || S.done) return;
+    if (S.skip) S.skip = false; else entityTick(v);
+    if (S.broke || S.done) return;
+    passTime();
+    if (S.broke || S.done) return;
+    darkTick();
+    radioTick();
+  }
+  // 部屋を移ったあと
+  function moveTick() {
+    if (S.done || S.broke) return;
+    passTime();
+    if (S.broke || S.done) return;
     darkTick();
     radioTick();
   }
@@ -2081,14 +2766,15 @@ body.typing #pad { display: none; }
     if (!p) { say("その言い方はわからない。「命令を作る」を使うと確実だ。"); return; }
     S.moves++;
     if (label && !META.includes(p.v)) { S.hist.push(label); if (S.hist.length > 30) S.hist.shift(); }
-    const before = S.loc;
-    if (p.v === "go") { go(p.dir); if (!S.done) { if (S.loc === before) tick("go"); else { darkTick(); radioTick(); } } return; }
-    if (p.v === "say") { VERB_DO.say(p.w); if (S.loc === before) tick("say"); return; }
+    S.moved = false; S.broke = false;
+    const after = v => { if (S.done || S.broke) return; if (S.moved) moveTick(); else tick(v); };
+    if (p.v === "go") { if (cooking11()) { deepPre("go"); after("go"); return; } go(p.dir); after("go"); return; }
+    if (p.v === "say") { if (!deepPre("say", p.w)) VERB_DO.say(p.w); after("say"); return; }
     let a = p.ao, b = p.bo;
     if (!p.raw) { a = p.a ? findObj(p.a) : null; b = p.b ? findObj(p.b) : null; }
     for (const x of [a, b]) if (x && x.missing) { say(isDark() ? "暗くて、何も見えない。" : `ここに「${x.missing}」は見当たらない。`); return; }
-    VERB_DO[p.v](a, b);
-    if (S.loc === before) tick(p.v);
+    if (!deepPre(p.v, a, b)) VERB_DO[p.v](a, b);
+    after(p.v);
   }
 
   function submit(label, en) {
@@ -2129,6 +2815,9 @@ body.typing #pad { display: none; }
     ["聞く", "listen to %", "%に耳をすます"], ["言う", "say %", "「%」と言う"], ["確かめる", "verify %", "%を確かめる"],
     ["書く", "write", "書く"], ["座る", "sit", "座る"], ["かき混ぜる", "stir", "鍋をかき混ぜる"],
     ["振り向く", "look back", "振り向く"], ["名前をつける", "name %", "%に名前をつける"], ["降りる", "descend", "降りる"],
+    ["鳴らす", "ring %", "%を鳴らす"], ["見つめる", "stare at %", "%を見つめる"], ["入る", "enter %", "%に入る"],
+    ["登る", "climb %", "%に登る"], ["息を吸う", "breathe", "息を吸う"], ["隠れる", "hide", "隠れる"],
+    ["掘る", "dig", "掘る"], ["眠る", "sleep", "眠る"],
   ];
   const builder = $("builder");
   const bs = { step: "verb", verb: null, obj1: null };
@@ -2215,6 +2904,7 @@ body.typing #pad { display: none; }
   $("restart-btn").addEventListener("click", () => { $("restart-btn").hidden = true; $("restart-yes").hidden = $("restart-no").hidden = false; });
   $("restart-no").addEventListener("click", () => openSheet(false));
   $("restart-yes").addEventListener("click", () => { openSheet(false); start(true); });
+  $("home-btn").addEventListener("click", () => { if (window.FX) window.FX.home(); else location.href = "../index.html"; });
   document.addEventListener("keydown", e => { if (e.key === "Escape") { closeBuilder(); openSheet(false); } });
 
   // ---- 起動 ----
@@ -2231,6 +2921,8 @@ body.typing #pad { display: none; }
     }
     gap();
     describe(true);
+    S.seen.tr0 = true;
+    setTimeout(() => fx("truism", LV_TRUISM[0][0], LV_TRUISM[0][1], "Level 0"), 1400);
   }
   function start(fresh) {
     rows = []; logEl.textContent = "";
@@ -2240,9 +2932,15 @@ body.typing #pad { display: none; }
       for (const r of saved.log || []) push(r, false);
       gap();
       say("（前回の続きから）", "note");
+      levelFx(levelOf(S.loc));
+      onEnterFx();
+      writeMeta();
     } else {
       newState();
+      fx("align", false);
+      levelFx(0);
       intro();
+      writeMeta(null, true);
       writeSaved(snapshot());
     }
     setStatus();

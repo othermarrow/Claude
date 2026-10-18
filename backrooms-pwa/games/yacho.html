@@ -48,6 +48,7 @@ body {
   margin: 0; background: var(--screen); color: var(--wall);
   font-family: var(--dot); font-size: var(--size); line-height: var(--line);
   transition: background-color 0.8s, color 0.8s;
+  --na: var(--fx-a, var(--bright)); --nb: var(--fx-b, var(--warn));
 }
 #app { height: 100%; display: flex; flex-direction: column; }
 #bar { display: flex; align-items: baseline; gap: 0.8em; background: var(--bar-bg); color: var(--bar-fg); padding: 0.15em 16px; white-space: nowrap; }
@@ -84,12 +85,12 @@ body.blackout #screen, body.blackout #bar { filter: brightness(0.42); }
 #screen { flex: 1; min-height: 0; overflow-y: auto; padding-inline: 16px; padding-block: 1.1em 0.6em; overscroll-behavior: contain; }
 #log { max-width: 46em; display: flex; flex-direction: column; }
 .row { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; font-family: var(--mincho); font-weight: 500; letter-spacing: 0.02em; }
-.row.title { color: var(--bright); font-family: var(--dot); font-weight: normal; text-shadow: 0 0 10px var(--glow), 0 0 2px var(--glow); }
+.row.title { color: var(--bright); font-family: var(--dot); font-weight: normal; text-shadow: 0 0 10px var(--na), 0 0 2px var(--glow); letter-spacing: 0.08em; }
 .row.indent { padding-left: 1.5em; }
 .row.note { color: var(--dim); font-size: 0.86em; font-family: var(--dot); font-weight: normal; }
 .row.warn { color: var(--warn); text-shadow: 0 0 6px color-mix(in srgb, var(--warn) 60%, transparent), 0 0 16px color-mix(in srgb, var(--fx-b, var(--warn)) 35%, transparent); }
-.row.win { color: var(--bright); text-shadow: 0 0 8px var(--glow); }
-.row.voice { color: var(--bright); padding-left: 1em; }
+.row.win { color: var(--bright); text-shadow: 0 0 8px var(--na), 0 0 18px color-mix(in srgb, var(--nb) 50%, transparent); }
+.row.voice { color: var(--bright); padding-left: 0.8em; margin-left: 0.2em; border-left: 2px solid var(--nb); text-shadow: 0 0 8px color-mix(in srgb, var(--nb) 45%, transparent); }
 .row.doc { color: var(--bright); padding-left: 0.8em; border-left: 2px solid var(--faint); }
 .gap { height: calc(var(--size) * 0.7); }
 .cmd { color: var(--bright); margin-top: 0.4em; font-family: var(--dot); font-weight: normal; }
@@ -106,7 +107,8 @@ body.blackout #screen, body.blackout #bar { filter: brightness(0.42); }
 #common { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-content: start; }
 .pk { font: inherit; font-size: 0.9em; line-height: 1.2; min-height: 2.4em; background: transparent; color: var(--wall); border: 1px solid var(--faint); padding: 0.3em 0.1em; cursor: pointer; white-space: nowrap; }
 .pk.dir { background: var(--key); color: var(--dim); }
-.pk.dir.open { color: var(--bright); border-color: var(--dim); }
+.pk.dir.open { color: var(--bright); border-color: var(--na); box-shadow: inset 0 0 10px color-mix(in srgb, var(--na) 45%, transparent), 0 0 6px color-mix(in srgb, var(--na) 30%, transparent); text-shadow: 0 0 6px var(--na); }
+.pk, .key, .bk, #bar, .panel, #dock { transition: background-color 0.8s, color 0.8s, border-color 0.8s, box-shadow 0.8s; }
 .pk.look { border-color: var(--wall); color: var(--bright); }
 .pk.blank { visibility: hidden; }
 .pk:active { background: var(--wall); color: var(--screen); }
@@ -117,7 +119,10 @@ body.typing #pad { display: none; }
 .key:active { background: var(--wall); color: var(--screen); }
 .key:focus-visible { outline: 1px solid var(--bright); }
 #builder, #sheet { position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, 0.6); display: flex; flex-direction: column; justify-content: flex-end; }
-#bar { position: relative; z-index: 3; box-shadow: 0 0 14px var(--glow); }
+#bar { position: relative; z-index: 3; box-shadow: 0 0 14px var(--glow), 0 2px 18px color-mix(in srgb, var(--na) 35%, transparent); }
+#score .low { text-shadow: 0 0 6px currentColor; }
+.row.glitchy { color: var(--warn); }
+@media (prefers-reduced-motion: no-preference) { .row.glitchy { animation: rowjit 0.25s steps(2, end) 3; } @keyframes rowjit { 50% { transform: translateX(1px); opacity: 0.7; } } }
 #neon { z-index: 12; }
 body[data-lv] #bar #room .lv { text-shadow: 0 0 6px var(--glow); }
 body[data-lv="8"] #screen, body[data-lv="9"] #screen { text-shadow: 0 0 1px rgba(0, 0, 0, 0.9); }
@@ -131,7 +136,8 @@ body[data-lv="11"] .row.title { color: var(--fx-a, var(--bright)); }
 #b-list.verbs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
 .bk { font: inherit; text-align: left; background: transparent; color: var(--wall); border: 1px solid var(--faint); padding: 0.45em 0.6em; cursor: pointer; min-width: 0; }
 #b-list.verbs .bk { padding: 0.4em 0.45em; }
-.bk.held { border-color: var(--dim); }
+.bk.held { border-color: var(--na); box-shadow: 0 0 8px color-mix(in srgb, var(--na) 40%, transparent), inset 0 0 6px color-mix(in srgb, var(--na) 25%, transparent); color: var(--bright); }
+.panel { box-shadow: 0 -4px 22px color-mix(in srgb, var(--na) 25%, transparent); }
 .bk:active { background: var(--wall); color: var(--screen); }
 .bk:focus-visible { outline: 1px solid var(--bright); }
 #b-list .empty { color: var(--dim); }
@@ -221,6 +227,7 @@ body[data-lv="11"] .row.title { color: var(--fx-a, var(--bright)); }
   </div>
 </div>
 
+<script src="../fx.js"></script>
 <script>
 "use strict";
 // ==== ENGINE BEGIN ====
@@ -271,7 +278,7 @@ function createGame(io) {
     board2: "掲示の別紙", partner: "基地アルファで待っている人", e: "基地オメガの実体の棚", lv: "基地オメガのレベルの棚",
     keeper: "ハウスキーピングの隊員", guard: "基地ガンマの隊員", wand: "レベル4のワンダラー",
     sign8: "九番道の看板", board8: "前哨地の掲示", keeper8: "蛾番の隊員", h9: "郊外の家のメモ",
-    meg10: "M.E.G. の立て札", diary10: "納屋の日記", bench11: "ベンチのメモ", board11: "基地ベータの掲示",
+    meg10: "M.E.G. の立て札", diary10: "納屋の日記", bench11: "ベンチのメモ", board11: "基地ベータの掲示", tape9: "家のビデオカメラの記録",
   };
   const REC = {
     carpet: { t: "カーペット", lv: "0", kind: "fact",
@@ -396,7 +403,7 @@ function createGame(io) {
         "リボンは、枯れ葉に巻きついたまま、締めあげている。そのあいだ、風船はほかの何にも見向きもしなかった。"],
       hyp: "動くものなら、何でも打つ。何かを投げれば、しばらくそちらにかかりきりになる", done: "物を投げ、リボンがそれに巻きついているあいだに、横を抜けた" },
     fog: { t: "霧", lv: "9", kind: "abc",
-      reads: { h9: "霧が出たら、家に入れ。霧の中から、ねじれたものが出てくる" },
+      reads: { h9: "霧が出たら、家に入れ。霧の中から、ねじれたものが出てくる", tape9: "霧の中で、腕のねじれたものが立ち上がった。「屋根の下なら、来ない」" },
       lines: ["通りに立っていると、霧が出てきた", "霧の濃いところで、何かが人の形をとりかけた", "家の中で待つと、窓の外の霧が引いた"],
       obs: ["", "", ""],
       hyp: "霧の中で、何かが形になる。屋根の下で待てば、霧は引く", done: "霧が引いてから通りへ出た。何も出てこなかった" },
@@ -866,6 +873,9 @@ function createGame(io) {
       on: { watch: () => { watchFog(); return true; } } });
     thing("sofa9", { name: "ソファ", aliases: ["ソファ", "sofa"], loc: "y9h", scenery: true, desc: "新しいソファ。座った跡もない。" });
     thing("remote9", { name: "リモコン", aliases: ["リモコン", "remote"], loc: "y9h", take: true, desc: "テレビのリモコン。電池は入っているが、テレビは点かない。" });
+    thing("camera9", { name: "ビデオカメラ", aliases: ["ビデオカメラ", "カメラ", "camcorder"], loc: "y9h", scenery: true,
+      desc: "ソファの上に、古いビデオカメラ。電池の目盛りが、一つだけ残っている。テープが入ったままだ。",
+      on: { press: () => { playTape(); return true; }, watch: () => { playTape(); return true; }, open: () => { playTape(); return true; } } });
     thing("tv9", { name: "テレビ", aliases: ["テレビ", "tv"], loc: "y9h", scenery: true, desc: "暗い画面に、自分の影が映っている。電気は来ていない。" });
     thing("note9", { name: "冷蔵庫のメモ", aliases: ["冷蔵庫のメモ", "メモ", "冷蔵庫", "note"], loc: "y9h", scenery: true,
       desc: "台所の冷蔵庫の扉に、メモが磁石で留めてある。冷蔵庫そのものは、電気が来ていない。",
@@ -954,6 +964,9 @@ function createGame(io) {
       desc: "鷲の印の掲示板。キャンプ・アンバーの講習の案内も貼ってある。",
       read: () => { readRec("pg", "board11"); readRec("balloon", "board11");
         return "M.E.G. 基地ベータ　掲示\n・=) の印のある貼り紙、標識、記事は、パーティーゴアーが書き換えたもの。信じるな。\n・パーティーゴアーは目が悪く、足が遅い。互いを目で見ていないと、話せない。一匹だけでいるところは、まず見られない。\n・肉食の風船は、パーティーゴアーとは関係がない。二メートル離れること。割るな。\n・この街では、たいていの実体がおとなしい。ただし、こちらから手を出せば別。\n・人の作ったバリケードの向こうへは行くな。出口は、たいてい片道だ。"; } });
+    thing("readers11", { name: "五台の読み取り機", aliases: ["五台の読み取り機", "読み取り機", "端末", "readers"], loc: "y11b", scenery: true,
+      desc: "壁ぎわに、古い端末が五台並んでいる。札に「帳面読み取り機　五台並列」。帳面を差しこむ口が、一台ずつある。",
+      read: () => readersText(), on: { press: () => { say(readersText(), "doc"); return true; }, watch: () => { say(readersText(), "doc"); return true; } } });
     thing("tap11", { name: "給水所", aliases: ["給水所", "アーモンド水", "tap"], loc: "y11b", scenery: true, drink: "tap", desc: "鷲の印の給水所。アーモンド水が、蛇口から出る。" });
     thing("cot11", { name: "寝台", aliases: ["寝台", "ベッド", "cot"], loc: "y11b", scenery: true, desc: "隊員の寝台。一つ空いている。" });
   }
@@ -974,6 +987,8 @@ function createGame(io) {
     "天井のパネルが一枚、外れている。奥は暗い。",
     "階段が三段だけあって、どこにも続いていない。",
     "柱の陰を、黒い人影が横切った気がした。見直すと、誰もいない。",
+    "壁紙の隅に、鉛筆の小さな書きこみ。「2019年、掲示板で、この黄色い部屋の写真を見た。どこかの店の、改装前の売り場だと誰かが書いていた。……写真の中に入れるとは、思わなかった」",
+    "がらんとした部屋。……ずっと歩いているのに、誰ともすれちがわない。ここでは誰にも会えない、と、どこかで読んだ。",
   ];
   function phaseText() {
     return ["（いま、点いたところ）", "（点いている）", "（いまは消えている。壁紙の模様がない）"][S.l0.fw];
@@ -1392,7 +1407,7 @@ function createGame(io) {
     if (S.loc === "y8m") { move8m(dir); return; }
     if (S.loc === "y9a") { move9a(dir); return; }
     if (S.loc === "y9h" && dir === "e") { passBalloon(); return; }
-    if (S.loc === "y9h" && dir === "w") { if (full("fog") && S.l9.fog < 4) verify("fog"); say("玄関から、通りへ出る。"); gap(); enter("y9a"); return; }
+    if (S.loc === "y9h" && dir === "w") { if (full("fog") && S.l9.fog === 0) verify("fog"); say("玄関から、通りへ出る。"); gap(); enter("y9a"); return; }
     if (S.loc === "y9y") { move9y(dir); return; }
     if (S.loc === "y10r") { move10r(dir); return; }
     if (S.loc === "y11a") { move11a(dir); return; }
@@ -2051,7 +2066,7 @@ function createGame(io) {
     if (dir !== "n" && dir !== "s") { say(dir === "w" ? "麦の中へ分け入っても、同じ麦が続くだけだ。" : "そちらへは行けない。"); return; }
     l.road++;
     S.th += 5;
-    say(`わだちに沿って、${DIR_JA[dir]}へ歩く。麦。木立。麦。曇り空は、少しも変わらない。時間が、分からない。`);
+    say(`わだちに沿って、${DIR_JA[dir]}へ歩く。` + ["麦。木立。麦。曇り空は、少しも変わらない。", "風が、麦を一斉に倒していく。わだちだけが、まっすぐ続く。", "同じ高さの木立を、いくつ過ぎたか分からない。時間も、分からない。", "わだちの泥に、ついさっきの跡。前にも後ろにも、何も見えない。"][(l.road - 1) % 4]);
     if (l.road === 2 && !l.canolaGone) { O.canola10.loc = "y10r"; say("道ばたに、黄色い菜の花の一角。麦の中で、そこだけ色が違う。", "note"); }
     if (l.road === 3 && O.canola10.loc) { O.canola10.loc = null; l.canolaGone = true; say("菜の花の一角は、後ろに遠ざかった。", "note"); }
     if (l.road >= 4) {
@@ -2148,6 +2163,28 @@ function createGame(io) {
     if (!S.l11.cakeWarn) { S.l11.cakeWarn = true; say("ケーキを指ですくいかけて、止まる。甘い匂いの奥に、鉄の匂い。……食べてはいけない、と体のどこかが言っている。", "warn"); return; }
     endParty();
   }
+  function playTape() {
+    emit("vhs");
+    readRec("fog", "tape9");
+    say("再生のボタンを押す。小さな画面に、記録が映る。日付は、読めない。", "note");
+    say("真夜中の通り。撮っている人の、荒い息。\n足もとに、霧。……霧の濃いところで、何かが立ち上がる。腕が、ねじれている。\n画面が大きく揺れる。走る足音。玄関の扉。\nしばらく、暗い居間だけが映っている。窓の外の霧が、少しずつ引いていく。\n撮っている人の声。「……屋根の下なら、来ない」\n記録は、そこで終わっている。", "doc");
+  }
+  // 基地ベータの読み取り機：同じ帳面を、五台が別々に読む
+  function readersText() {
+    const c = counts();
+    if (!held("notebook")) return "「帳面読み取り機　五台並列。同じ帳面を、五台が別々に読む」\n……読ませる帳面を、持っていない。";
+    const miss = Math.max(0, c.seen - c.ok);
+    const pct = c.seen ? Math.round(100 * c.ok / c.seen) : 0;
+    const told = (S.rec.wretch && S.rec.wretch.ok) || (S.rec.dark && S.rec.dark.ok);
+    return ["野帳を、五台に順に差しこんでみる。紙の帯が、一台ずつ出てくる。",
+      "一号機「読んだことと、見たことを、分けて書く人」［core］",
+      "二号機「目的は動かさず、手段を替える人」［related］",
+      `三号機「叫びも、逃げることも、何かを伝えようとしている、と見る人」［${told ? "core" : "related"}］`,
+      "四号機「星で方角を決める人。……月が、九十度ずれている」［off］",
+      `五号機「判定できない。取りこぼし ${miss}」`,
+      `五台の一致率：${pct}%`,
+      "（注記）要約が、記憶を上書きすることがある。原本の帳面を、かならず残すこと。"].join("\n");
+  }
   function talkCarto() {
     S.l11.carto = (S.l11.carto || 0) + 1;
     if (S.l11.carto === 1) {
@@ -2155,7 +2192,8 @@ function createGame(io) {
       say("「どこから来た？　……ずいぶん、下から来たんだね。帳面を持ってる人は、珍しい」", "voice");
       return;
     }
-    say(pick(["「黄色いピンの一つは、外に出られた扉だって言う人がいる。誰も、確かめてはいない」", "「工事の柵に気づける人は、長生きする」", "「=) の貼り紙を信じて、戻らなかった人もいる」"]), "voice");
+    say(pick(["「黄色いピンの一つは、外に出られた扉だって言う人がいる。誰も、確かめてはいない」", "「工事の柵に気づける人は、長生きする」", "「=) の貼り紙を信じて、戻らなかった人もいる」",
+      "「読み取り機は五台とも、同じ帳面を読んで、違うことを言う。だから五台並べてる。一台だけなら、それが本当に見えてしまうから」"]), "voice");
   }
 
   // ---- 人と話す ----
@@ -2221,7 +2259,8 @@ function createGame(io) {
     LOOP = { n: LOOP.n + 1, last: id, book, ends, deep: LOOP.deep || 0 };
     saveLoop(LOOP);
   }
-  const tsu = k => (k < 10 ? ["", "一つ", "二つ", "三つ", "四つ", "五つ", "六つ", "七つ", "八つ", "九つ"][k] : k === 10 ? "十" : `${k}`);
+  const KAN = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+  const tsu = k => (k < 10 ? ["", "一つ", "二つ", "三つ", "四つ", "五つ", "六つ", "七つ", "八つ", "九つ"][k] : k < 100 ? `${k >= 20 ? KAN[Math.floor(k / 10)] : ""}十${KAN[k % 10]}` : `${k}`);
   function endArchive() {
     const c = counts();
     const L = ["保管係に、野帳を渡した。", "保管係は、一ページずつ、ゆっくりめくった。"];
@@ -2488,7 +2527,7 @@ function createGame(io) {
       if (S.loc === "y2b") { say("息をひそめて、待つ。"); return; }
       if (S.loc === "y6q") { if (S.rec.voice && S.rec.voice.s[1] && !S.rec.voice.s[2]) { watchNext("voice"); return; } say("黙って待つ。声も、黙っている。"); return; }
       if (LV() === "10") { say("待つ。……曇り空は、少しも変わらない。どれだけ待ったのか、分からない。"); return; }
-      if (S.loc === "y11p") { say("動かずにいる。……二つの黄色いものは、互いの顔を見たまま、近づいてくる。"); return; }
+      if (S.loc === "y11p" && S.l11.pg) { say(S.l11.pgStop > 0 ? "動かずにいる。……二つの黄色いものも、衝立をはさんで止まっている。" : "動かずにいる。……二つの黄色いものは、互いの顔を見たまま、近づいてくる。"); return; }
       say("時が過ぎる。");
     },
     hint: () => VERB_DO.dunno(),
@@ -2903,7 +2942,7 @@ function createGame(io) {
       const l = S.l9;
       if (l.fog > 0) {
         const was = l.fog;
-        l.fog = Math.max(0, l.fog - 2);
+        l.fog = Math.max(0, l.fog - 3);
         if (was >= 4 && l.fog < 4) { O.fog9.loc = null; say("窓の外で、霧が引いていく。", "note"); if (S.rec.fog && S.rec.fog.s[1]) see("fog", 2); }
       }
       if (l.bal === 1) { l.balT--; if (l.balT <= 0) { l.bal = 0; say("リボンが、締めあげていた物を放した。……先が、またこちらを向く。", "warn"); } }
@@ -3202,6 +3241,8 @@ function createGame(io) {
       newState();
       turnStart = 0;
       intro();
+      S.cp = makeCp();
+      emit("level", "0");
       writeSaved(snapshot());
     }
   }
@@ -3248,7 +3289,10 @@ function createGame(io) {
   })();
   const TK_FILE = "/storage/emulated/0/Tasker/yacho/yacho-data.json";
   const TK_VAR = "YACHO";
-  const KEY = "yacho.state";
+  const KEY = "bpwa.yacho.state";
+  const META_KEY = "bpwa.yacho.meta";
+  const FXok = () => typeof window.FX === "object" && window.FX;
+  if (!FXok()) document.body.classList.add("nofx");
   // Tasker はないファイルを読むと止まるので、一度書いたことを変数 %YACHO に残し、書いたあとでだけ読む
   const io = {
     loadState() {
@@ -3277,18 +3321,31 @@ function createGame(io) {
     saveLoop(v) { localStorage.setItem(KEY + ".loop", JSON.stringify(v)); },
   };
   const G = createGame(io);
+  // 起動画面に渡す要約（場所が変わったときと、結末のとき）
+  let metaSig = "";
+  function writeMeta(s) {
+    const m = G.meta();
+    const sig = JSON.stringify(m) + "|" + s.lv + "|" + s.done;
+    if (sig === metaSig) return;
+    metaSig = sig;
+    try { localStorage.setItem(META_KEY, JSON.stringify(Object.assign(m, { updated: Date.now() }))); } catch (e) { /* 残せなくても遊べる */ }
+  }
 
   // ---- 音（ブラウザの中で作る。音声ファイルは使わない） ----
   // その場の音（うなり・機械・波など）は status().amb で決まり、出来事の音は fx() で鳴らす
   const SND = (() => {
     let ctx = null, master = null, on = true, kind = "", spike = false, arm = 0;
     const G2 = {};
-    try { on = localStorage.getItem(KEY + ".sound") !== "0"; } catch (e) { /* 既定は入 */ }
+    try { on = FXok() ? FX.settings.sound !== false : localStorage.getItem(KEY + ".sound") !== "0"; } catch (e) { /* 既定は入 */ }
     const BED = {
       hum: { hum: 0.18, hiss: 0.03 }, manila: {}, pipes: { hum: 0.05, rumble: 0.04 }, corridor: { hum: 0.035 },
       base: { hum: 0.03, rumble: 0.07 }, blackout: {}, machine: { mach: 0.12, rumble: 0.04, hum: 0.03 }, brownout: { mach: 0.04 },
       electric: { hum: 0.12, hiss: 0.05, mach: 0.05 }, sanctum: { mach: 0.025 }, office: { hum: 0.05, rumble: 0.07 }, archive: { rumble: 0.04 },
       hotel: { hum: 0.025 }, boiler: { rumble: 0.3, hiss: 0.07, mach: 0.08 }, silence: {}, sea: { sea: 0.3 },
+      // レベル7の深み〜レベル11
+      deep: { rumble: 0.22, sea: 0.08 }, cave: { rumble: 0.09, hiss: 0.012 }, camp: { rumble: 0.06, hiss: 0.02 },
+      suburb: { hiss: 0.008, rumble: 0.02 }, fog: { rumble: 0.05, sea: 0.05, hiss: 0.01 }, house: {}, field: { sea: 0.16, hiss: 0.02 },
+      city: { hum: 0.04, mach: 0.04, rumble: 0.05 }, party: { hum: 0.02 },
     };
     const SCALE = [261.6, 293.7, 329.6, 392.0, 440.0, 523.3, 587.3];
     function noise(sec) {
@@ -3379,9 +3436,20 @@ function createGame(io) {
       if (kind === "hotel" && r < 0.07) piano(true);
       if (kind === "silence" && r < 0.004) burst(1800, 2, 0.025, 0.25);
       if (kind === "blackout" && arm > 0 && r < 0.15) burst(700, 1.5, 0.07, 0.45);
+      // 洞窟のしずく、焚き火のはぜる音、家の時計、パーティーの音楽、街の信号
+      if ((kind === "cave" || kind === "deep") && r < 0.06) tone(1400 + Math.random() * 900, "sine", 0.035, 0.18, { drop: 0.5 });
+      if (kind === "cave" && r > 0.985) { burst(5200, 6, 0.03, 0.03); burst(4800, 6, 0.03, 0.03, 0.06); }
+      if (kind === "camp" && r < 0.2) burst(2400 + Math.random() * 2000, 2, 0.05, 0.03);
+      if (kind === "house" && r < 0.25) { const t = Math.floor(ctx.currentTime * 4) % 8; if (t % 4 === 0) burst(3000, 8, 0.02, 0.015); }
+      if (kind === "party" && r < 0.35) { const f = [523.3, 659.3, 784, 1046.5, 784, 659.3][Math.floor(Math.random() * 6)]; tone(f, "square", 0.018, 0.22, { lp: 1600 }); }
+      if (kind === "city" && r < 0.01) { tone(880, "sine", 0.02, 0.12); tone(660, "sine", 0.02, 0.12, { delay: 0.18 }); }
+      if (kind === "fog" && r < 0.02) burst(260, 1, 0.05, 0.9);
     }
     function vibe(p) {
-      try { if (TK && typeof TK.vibrate === "function") TK.vibrate(Array.isArray(p) ? p[0] : p); else if (navigator.vibrate) navigator.vibrate(p); } catch (e) { /* 振動できなくてもよい */ }
+      try {
+        if (FXok()) { FX.vibrate(p); return; }
+        if (TK && typeof TK.vibrate === "function") TK.vibrate(Array.isArray(p) ? p[0] : p); else if (navigator.vibrate) navigator.vibrate(p);
+      } catch (e) { /* 振動できなくてもよい */ }
     }
     return {
       get on() { return on; },
@@ -3396,7 +3464,7 @@ function createGame(io) {
       },
       fx(list) {
         for (const e of list) {
-          if (on && (e.type === "hurt" || e.type === "collapse")) vibe(e.type === "hurt" ? 70 : [60, 40, 120]);
+          if (on && !FXok() && (e.type === "hurt" || e.type === "collapse")) vibe(e.type === "hurt" ? 70 : [60, 40, 120]);
           if (!ctx || !on || ctx.state !== "running") continue;
           if (e.type === "flicker" || e.type === "lightsback") { stutter(); click(); }
           if (e.type === "tick") { if (e.k === 2) stutter(); else click(); }
@@ -3404,12 +3472,14 @@ function createGame(io) {
           if (e.type === "collapse") glitch(true);
           if (e.type === "verify") chime();
           if (e.type === "write") scratch();
-          if (e.type === "end") { if (["archive", "chair", "dive"].includes(e.k)) chime(); else glitch(true); }
+          if (e.type === "end") { if (GOOD_END.includes(e.k)) chime(); else glitch(true); }
+          if (e.type === "noclip") { tone(220, "sawtooth", 0.05, 1.2, { drop: 0.25, lp: 1200 }); }
         }
       },
       toggle() {
         on = !on;
         try { localStorage.setItem(KEY + ".sound", on ? "1" : "0"); } catch (e) { /* 残せなくてもよい */ }
+        if (FXok()) { FX.set("sound", on); FX.set("vibe", on); }
         if (ctx) master.gain.setTargetAtTime(on ? 0.6 : 0, ctx.currentTime, 0.1);
         if (on) this.unlock();
         return on;
@@ -3420,6 +3490,7 @@ function createGame(io) {
   })();
 
   // ---- 確かめたときの、ネオンの二行（ここで書き下ろしたもの） ----
+  const GOOD_END = ["archive", "chair", "dive", "beta"];
   const TRUISM = {
     wall: ["LOOK. COUNT. THEN JUMP.", "見る。数える。それから、跳ぶ。"],
     crate: ["WHAT ARRIVES UNSEEN LEAVES UNSEEN.", "見ていないあいだに来たものは、見ていないあいだに去る。"],
@@ -3435,11 +3506,42 @@ function createGame(io) {
     archive: ["WRITE WHAT YOU SAW.", "見たことを、書く。"],
     chair: ["LEAVE SOMETHING FOR THE NEXT ONE.", "次に来る人のために、置いていく。"],
     dive: ["BEYOND HERE, NO ONE HAS LOOKED.", "ここから先は、まだ誰も見ていない。"],
+    marker: ["TRUST THE NEXT NUMBER, NOT THE BIGGEST.", "大きい番号ではなく、次の番号を信じる。"],
+    moth: ["FOLLOW WHAT IS NOT HUNTING YOU.", "狩りをしていないものの後をつける。"],
+    balloon: ["GIVE THE HUNGER SOMETHING ELSE TO HOLD.", "飢えには、別のものを握らせる。"],
+    fog: ["WAIT UNDER A ROOF FOR THE SHAPE TO FADE.", "形が消えるまで、屋根の下で待つ。"],
+    rw: ["NOT EVERY WALL WAS BUILT BY SOMEONE.", "すべての柵を、誰かが建てたわけではない。"],
+    pg: ["WHAT CANNOT SEE ITS OWN CANNOT MOVE.", "仲間を見られないものは、動けない。"],
+    wretch_end: ["THIRST SPEAKS IN ONE WORD.", "渇きは、ひとことしか話さない。"],
+    red: ["IF IT LOOKS RED, TURN BACK.", "赤く見えたら、引き返す。"],
+    window: ["WHAT YOU WANT TO SEE IS NOT OUTSIDE.", "見たいものは、外にはない。"],
+    thirteen: ["SOME FLOORS ARE NOT FOR STOPPING.", "止まってはいけない階もある。"],
+    switch: ["SOME REQUESTS ARE ECHOES.", "頼みが、こだまのこともある。"],
+    sleep8: ["DO NOT CLOSE YOUR EYES WHEN YOU ARE COLD.", "凍えたときは、目を閉じない。"],
+    hive: ["THE DOOR OF FLESH IS NOT A DOOR.", "肉の戸口は、戸口ではない。"],
+    walkway: ["THE PATH IS NOT THE WAY.", "小道は、道ではない。"],
+    porridge: ["FOOD THAT DOES NOT ROT IS NOT FOOD.", "腐らない食べ物は、食べ物ではない。"],
+    canola: ["A DIFFERENT COLOR IS A DIFFERENT PLACE.", "色が違えば、場所が違う。"],
+    exit11: ["EVERY DOOR HERE OPENS ONE WAY.", "ここの扉は、どれも片道だ。"],
+    party: ["DO NOT ANSWER THE VOICE YOU MISS.", "会いたい人の声に、返事をしない。"],
+    beta: ["A MAP IS A LIST OF THE MISSING.", "地図は、いなくなった人の一覧だ。"],
   };
+  const FX_OPT = { y0m: { a: "#d8c49a", b: "#8a6a40", mode: "tags" }, y7d: { mode: "dark" }, y8c: { mode: "spark" }, y9h: { mode: "dark" },
+    y11p: { a: "#ffe600", b: "#ff4fd8", mode: "confetti" }, y11b: { mode: "wire" } };
+  let fxKey = null;
+  function fxLevel(s) {
+    const fx = FXok();
+    if (!fx) return;
+    const key = s.loc in FX_OPT ? s.loc : "lv" + s.lv;
+    if (key === fxKey) return;
+    fxKey = key;
+    try { fx.level(+s.lv, Object.assign({ hum: 0 }, FX_OPT[s.loc] || {})); } catch (e) { /* 演出なしでよい */ }
+  }
   let neonTimer = null;
-  function neon(k) {
-    const pair = TRUISM[k];
+  function neon(k, isEnd) {
+    const pair = TRUISM[isEnd && k === "wretch" ? "wretch_end" : k];
     if (!pair) return;
+    if (FXok()) { try { FX.truism(pair[0], pair[1], isEnd ? "結末" : "野帳"); } catch (e) { /* 出なくてもよい */ } return; }
     $("neon-en").textContent = pair[0];
     $("neon-ja").textContent = pair[1];
     const el = $("neon");
@@ -3475,12 +3577,21 @@ function createGame(io) {
     const s = setStatus();
     if (G.flashed()) flicker();
     const fx = G.fx();
+    const F = FXok();
+    fxLevel(s);
     for (const e of fx) {
-      if (e.type === "flicker" || e.type === "lightsback" || (e.type === "tick" && e.k === 2)) shake("dip");
-      if (e.type === "hurt" || e.type === "collapse") shake("glitch");
+      if (e.type === "flicker" || e.type === "lightsback" || (e.type === "tick" && e.k === 2)) { shake("dip"); if (F) F.glitch(); }
+      if (e.type === "hurt" || e.type === "collapse") { shake("glitch"); if (F) F.shock(e.type === "collapse" ? 2 : 1); }
+      if (e.type === "blackout" && F) F.blackout(900);
+      if (e.type === "spike" && F) F.glitch();
+      if (e.type === "noclip" && F) { F.flash(); F.shock(1); }
+      if (e.type === "shock" && F) F.shock(1);
       if (e.type === "verify") neon(e.k);
-      if (e.type === "end") neon(e.k);
+      if (e.type === "end") { neon(e.k, true); if (F) { if (GOOD_END.includes(e.k)) F.flash(); else F.shock(2); } }
     }
+    if (F) { try { F.stress(s.done ? 0 : s.stress); } catch (e) { /* 演出なしでよい */ } }
+    $("retry-btn").hidden = !G.canRetry();
+    writeMeta(s);
     SND.set(s);
     SND.fx(fx);
     requestAnimationFrame(() => { screenEl.scrollTop = screenEl.scrollHeight; });
@@ -3497,13 +3608,18 @@ function createGame(io) {
     lv.className = "lv";
     lv.textContent = `${s.level}　${s.cls}`;
     roomEl.append(lv);
+    // 進み具合（記録の数）は出さない。体の具合だけ
     const sc = $("score");
-    sc.textContent = `記録 ${s.rec}`;
-    if (s.th) { const t = document.createElement("span"); t.textContent = "　" + s.th; if (s.hot) t.className = "low"; sc.append(t); }
-    if (s.inj) { const t = document.createElement("span"); t.textContent = `　けが${s.inj}`; t.className = "low"; sc.append(t); }
+    sc.textContent = "";
+    const marks = [];
+    if (s.th) marks.push([s.th, s.hot]);
+    if (s.cold) marks.push([s.cold, s.cold !== "冷え"]);
+    if (s.inj) marks.push([`けが${s.inj}`, true]);
+    marks.forEach(([t, hot], i) => { const el = document.createElement("span"); el.textContent = (i ? "　" : "") + t; if (hot) el.className = "low"; sc.append(el); });
     for (const b of document.querySelectorAll("[data-go]")) b.classList.toggle("open", s.exits.includes(b.dataset.go));
-    document.body.className = document.body.className.replace(/\bt(\d+|m)\b/g, "").trim();
+    document.body.className = document.body.className.replace(/\bt(\d+|m|p)\b/g, "").trim();
     document.body.classList.add(s.theme);
+    document.body.dataset.lv = s.lv;
     document.body.classList.toggle("blackout", s.blackout);
     document.body.classList.toggle("spike", s.spike);
     return s;
@@ -3614,7 +3730,10 @@ function createGame(io) {
   sheet.addEventListener("click", e => { if (e.target === sheet) openSheet(false); });
   $("restart-btn").addEventListener("click", () => { $("restart-btn").hidden = true; $("restart-yes").hidden = $("restart-no").hidden = false; });
   $("restart-no").addEventListener("click", () => openSheet(false));
-  $("restart-yes").addEventListener("click", () => { openSheet(false); G.start(true); render(); });
+  $("restart-yes").addEventListener("click", () => { openSheet(false); G.start(true); fxKey = null; render(); });
+  $("retry-btn").addEventListener("click", () => { openSheet(false); submit("やり直す", "retry"); });
+  $("home-btn").addEventListener("click", () => { if (FXok()) FX.home(); else location.href = "../index.html"; });
+  if (FXok()) { try { FX.tags(["[読んだ]", "[見た]", "[確かめた]", "[分からない]", "A／B／C", "M.E.G.", "[見立て]", "[手 ?]", "Lv.?", "[出どころ不明]", "#41", "=)"]); } catch (e) { /* 既定のまま */ } }
   const soundLabel = () => { $("sound-btn").textContent = "音と振動：" + (SND.on ? "入" : "切"); };
   $("sound-btn").addEventListener("click", () => { SND.toggle(); soundLabel(); SND.set(G.status()); });
   soundLabel();

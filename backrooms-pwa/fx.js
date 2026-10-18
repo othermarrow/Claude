@@ -29,7 +29,9 @@
     run: { a: "#ff2a2a", b: "#ffffff", bg: "rain", hum: 90 },
     white: { a: "#c8f6ff", b: "#ff6bb0", bg: "tags", hum: 0 },
   };
-  const TAGS = ["[クラス ?]", "[未判定]", "M.E.G.", "[記録欠損]", "Lv.?", "[no-clip]", "0x00", "[検証中]", "[到達者 0]", "[座標不明]", "A.W. 500ml", "[通信途絶]"];
+  // 流れる文字。標本の仕分け（core/related/off）、照合の一致率、bytebeat の式、ドラムの名前もまぜる
+  const TAGS = ["[クラス ?]", "[未判定]", "M.E.G.", "[記録欠損]", "Lv.?", "[no-clip]", "[core]", "[related]", "[off]", "[年不明]",
+    "一致率 98.8%", "取りこぼし 2", "t&(t>>4|t>>9)", "bd sd hh", "chr(10)", "[要再判定]", "[到達者 0]", "[座標不明]", "A.W. 500ml", "[通信途絶]", "☽ +90°", "13 星座"];
   const TRUISMS = [
     ["IF YOU ARE NOT CAREFUL YOU WILL NOCLIP", "気をつけなければ、すり抜ける"],
     ["A ROOM WITH NO PURPOSE STILL HAS A DOOR", "目的のない部屋にも、扉はある"],
@@ -39,6 +41,12 @@
     ["NO ONE HAS WRITTEN WHY YOU ARE HERE", "あなたがここにいる理由は、誰も書いていない"],
     ["WATER THAT TASTES OF ALMONDS IS STILL WATER", "アーモンドの味がしても、水は水だ"],
     ["THE MAP IS NEVER THE SAME TWICE", "地図は、二度と同じにならない"],
+    ["CHECK BEFORE YOU BELIEVE", "信じる前に、確かめよ"],
+    ["WHAT IS NOT WRITTEN SHOULD NOT BE FILLED IN", "書かれていないことを、埋めてはならない"],
+    ["KEEP THE PURPOSE, CHANGE THE MEANS", "目的は動かさず、手段を替えよ"],
+    ["EVERY BEHAVIOR IS TRYING TO SAY SOMETHING", "どの行動も、何かを伝えようとしている"],
+    ["ONE JUDGMENT IS NEVER ENOUGH", "ひとつの判定では、足りない"],
+    ["A SUMMARY CAN OVERWRITE A MEMORY", "要約は、記憶を上書きすることがある"],
   ];
 
   const css = `
@@ -83,6 +91,9 @@ body.fx-vhs-on #fx-vhs{display:block}
 body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter #app{animation:none}`;
 
   let bg, ctx, crt, tru, flash, vhs, vhsTimer = 0, W = 360, H = 640, tick = 0, last = 0;
+  // 黄道の12とへびつかい座。色つきの絵文字にならないよう、異体字セレクタ（U+FE0E）で線画にする
+  const ZODIAC = ["♈", "♉", "♊", "♋", "♌", "♍", "♎", "♏", "⛎", "♐", "♑", "♒", "♓"].map(c => c + "\uFE0E");
+  let aligned = false;
   let cur = { key: 0, a: "#ffe66d", b: "#ff2a85", mode: "tags", hum: 60 }, stress = 0, tags = TAGS.slice(), truisms = TRUISMS.slice();
   let ready = false;
 
@@ -109,6 +120,11 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
     requestAnimationFrame(draw);
     // 音は、最初に触ったときにしか鳴らせない
     const unlock = () => { A.init(); A.hum(cur.hum); };
+    // ボタンやキーを押したら、乾いた小さな音
+    document.addEventListener("pointerdown", e => {
+      const b = e.target.closest && e.target.closest("button, .key, .pk, .bk, [role=button]");
+      if (b) A.tone(700 + Math.random() * 500, 0.022, "triangle", 0.025);
+    }, true);
     window.addEventListener("pointerdown", unlock, { once: true, capture: true });
     window.addEventListener("keydown", unlock, { once: true, capture: true });
     document.addEventListener("visibilitychange", () => { if (A.ctx) { if (document.hidden) A.ctx.suspend(); else if (settings.sound) A.ctx.resume(); } });
@@ -163,8 +179,13 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
       ctx.beginPath();
       pts.forEach((p, i) => { const q = pts[(i + 4) % 13]; ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); });
       ctx.stroke();
-      ctx.font = "10px monospace";
-      pts.forEach((p, i) => ctx.fillText(String(i).padStart(2, "0"), p[0] - 6, p[1] + 3));
+      ctx.font = "15px monospace";
+      pts.forEach((p, i) => ctx.fillText(ZODIAC[i], p[0] - 7, p[1] + 5));
+      // 月。そろうまでは 90 度右にずれて見える
+      const ma = rot + (aligned ? 0 : Math.PI / 2);
+      ctx.font = "11px monospace";
+      ctx.fillStyle = aligned ? hexA(cur.a, 0.9) : "rgba(255,56,100,.85)";
+      ctx.fillText(aligned ? "☽ [ALIGNED 13]" : "☽ [+90° ERR]", cx + Math.cos(ma) * r * 0.45 - 34, cy + Math.sin(ma) * r * 0.45);
     },
     dark() {
       // ほとんど何も見えない。ときどき、二つの白い点
@@ -353,6 +374,8 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
       if (document.body) document.body.classList.toggle("fx-thermal", stress >= 0.6);
       A.hum(cur.hum);
     },
+    // 月と星座がそろう（true）か、ずれる（false）
+    align(v) { aligned = !!v; },
     tags(list) { if (Array.isArray(list) && list.length) tags = list.slice(); },
     truisms(list) { if (Array.isArray(list) && list.length) truisms = list.slice(); },
     truism(en, ja, src) {
