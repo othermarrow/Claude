@@ -1,0 +1,277 @@
+<title>ZORK I 日本語版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+/* 元祖 ZORK の画面（黒地・灰色の文字・反転した状態行）を、鮮明なドット書体で描き直す。
+   ひとつの見た目に決めているので、明暗テーマは切り替えない。 */
+:root {
+  --screen: #050505;
+  --phosphor: #c9c9c4;
+  --bright: #f2f2ec;
+  --dim: #7d7d78;
+  --faint: #3a3a37;
+  --key: #161615;
+  --bar-bg: #c9c9c4;
+  --bar-fg: #050505;
+  --dot: "DotGothic16", "Noto Sans Mono CJK JP", "Osaka-Mono", ui-monospace, monospace;
+  --size: 17px;
+  --line: 1.6;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body {
+  background: var(--screen);
+  color: var(--phosphor);
+  font-family: var(--dot);
+  font-size: var(--size);
+  line-height: var(--line);
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+#app { height: 100%; display: flex; flex-direction: column; }
+
+/* 状態行 */
+#bar {
+  display: flex; align-items: baseline; gap: 1em;
+  background: var(--bar-bg); color: var(--bar-fg);
+  padding: 0.15em 16px; white-space: nowrap;
+}
+#room { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#room .en { font-size: 0.8em; margin-left: 0.6em; color: #3d3d3a; }
+#score { font-variant-numeric: tabular-nums; }
+#menu-btn {
+  font: inherit; background: none; border: 0; color: var(--bar-fg);
+  padding: 0 0.2em; cursor: pointer;
+}
+#menu-btn:focus-visible { outline: 2px solid var(--bar-fg); }
+
+/* 本文 */
+#screen {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding-inline: 16px; padding-block: 1.2em 0.6em;
+  overscroll-behavior: contain;
+}
+#log { max-width: 46em; display: flex; flex-direction: column; }
+.row { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.row .en { display: block; color: var(--dim); font-size: 0.86em; line-height: 1.45; }
+.row.indent { padding-left: 1.5em; }
+.row.room .ja { color: var(--bright); }
+.gap { height: calc(var(--size) * 0.7); }
+.cmd { color: var(--bright); margin-top: 0.4em; }
+.cmd .sent { color: var(--dim); font-size: 0.86em; margin-left: 0.8em; }
+.note { color: var(--dim); font-size: 0.86em; }
+.pending .tag { color: var(--dim); font-size: 0.8em; margin-left: 0.6em; }
+body.mode-ja .row .en, body.mode-ja .cmd .sent { display: none; }
+body.mode-en .row .ja { display: none; }
+body.mode-en .row .ja.en-too { display: inline; }
+body.mode-en .row .en { color: var(--phosphor); font-size: 1em; line-height: var(--line); }
+
+/* 入力 */
+#dock { border-top: 1px solid var(--faint); padding-block: 0.5em calc(0.6em + env(safe-area-inset-bottom, 0px)); }
+.key {
+  flex: none; font: inherit; font-size: 0.9em; line-height: 1.2;
+  background: transparent; color: var(--phosphor);
+  border: 1px solid var(--faint); padding: 0.35em 0.7em; cursor: pointer;
+}
+.key:active { background: var(--phosphor); color: var(--screen); }
+.key:focus-visible { outline: 1px solid var(--bright); }
+#suggest {
+  display: flex; gap: 0.4em; overflow-x: auto; padding-inline: 16px; padding-block: 0 0.5em;
+  scrollbar-width: none;
+}
+#suggest::-webkit-scrollbar { display: none; }
+#suggest .key.ask { border-color: var(--phosphor); color: var(--bright); }
+#prompt { display: flex; align-items: center; gap: 0.5em; padding-inline: 16px; }
+#prompt .gt { color: var(--bright); }
+#build-btn {
+  flex: none; font: inherit; font-size: 0.9em; background: var(--phosphor); color: var(--screen);
+  border: 0; padding: 0.35em 0.6em; cursor: pointer;
+}
+#build-btn:focus-visible { outline: 2px solid var(--bright); outline-offset: 2px; }
+
+/* 方角の十字キーと、よく使う命令 */
+#pad {
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 0.7em;
+  padding-inline: 16px; padding-top: 0.6em;
+}
+#compass { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+#compass .ud { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+#common { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-content: start; }
+.pk {
+  font: inherit; font-size: 0.9em; line-height: 1.2; min-height: 2.4em;
+  background: transparent; color: var(--phosphor); border: 1px solid var(--faint);
+  padding: 0.3em 0.1em; cursor: pointer; white-space: nowrap;
+}
+.pk.dir { background: var(--key); }
+.pk.look { border-color: var(--phosphor); color: var(--bright); }
+.pk:active { background: var(--phosphor); color: var(--screen); }
+.pk:focus-visible { outline: 1px solid var(--bright); }
+/* 入力欄を使っている間は、キーボードと文章の場所を空けるため十字キーを隠す */
+body.typing #pad { display: none; }
+
+/* 命令を作る（下から出る一覧） */
+#builder {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6);
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+#builder .panel {
+  background: var(--screen); border-top: 1px solid var(--phosphor);
+  max-height: 82%; display: flex; flex-direction: column;
+  padding: 0.8em 16px calc(0.8em + env(safe-area-inset-bottom, 0px));
+}
+.bhead { display: flex; flex-direction: column; gap: 0.15em; padding-bottom: 0.6em; }
+#b-title { color: var(--bright); }
+#b-preview { color: var(--dim); font-size: 0.86em; overflow-wrap: anywhere; }
+#b-list {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; align-content: start;
+}
+#b-list.one { grid-template-columns: minmax(0, 1fr); }
+#b-list.verbs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+#b-list.verbs .bk { padding: 0.3em 0.45em; }
+.bk {
+  font: inherit; text-align: left; background: transparent; color: var(--phosphor);
+  border: 1px solid var(--faint); padding: 0.45em 0.6em; cursor: pointer;
+  display: flex; flex-direction: column; gap: 0.1em; min-width: 0;
+}
+.bk .sub { color: var(--dim); font-size: 0.78em; overflow-wrap: anywhere; }
+.bk.held { border-color: var(--dim); }
+.bk:active { background: var(--phosphor); color: var(--screen); }
+.bk:active .sub { color: var(--screen); }
+.bk:focus-visible { outline: 1px solid var(--bright); }
+#b-list .empty { grid-column: 1 / -1; color: var(--dim); }
+.bfoot { display: flex; gap: 0.4em; flex-wrap: wrap; padding-top: 0.7em; }
+#cmd {
+  flex: 1; min-width: 0; font: inherit; font-size: max(16px, 1em);
+  background: transparent; color: var(--bright); border: 0; outline: 0;
+  caret-color: var(--bright); padding: 0.2em 0;
+}
+#cmd::placeholder { color: var(--faint); }
+#send {
+  font: inherit; background: var(--phosphor); color: var(--screen);
+  border: 0; padding: 0.2em 0.8em; cursor: pointer;
+}
+#send:focus-visible { outline: 2px solid var(--bright); outline-offset: 2px; }
+
+/* メニュー */
+#sheet {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.72);
+  display: flex; align-items: flex-start; justify-content: flex-end;
+  padding: calc(2.4em + env(safe-area-inset-top, 0px)) 16px 16px;
+}
+#sheet .panel {
+  background: var(--screen); border: 1px solid var(--phosphor);
+  width: min(22em, 100%); padding: 1em; display: flex; flex-direction: column; gap: 0.9em;
+}
+#sheet h2 { font: inherit; color: var(--bright); margin: 0; }
+.opt { display: flex; flex-wrap: wrap; gap: 0.4em; align-items: center; }
+.opt > span { width: 100%; color: var(--dim); font-size: 0.86em; }
+.opt .key[aria-pressed="true"] { background: var(--phosphor); color: var(--screen); }
+#sheet p { margin: 0; color: var(--dim); font-size: 0.86em; line-height: 1.5; }
+#confirm-row { display: flex; gap: 0.4em; align-items: center; flex-wrap: wrap; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .row.fresh { animation: type-in 0.18s steps(3, end); }
+  @keyframes type-in { from { opacity: 0.2; } to { opacity: 1; } }
+}
+</style>
+
+<div id="app">
+  <header id="bar">
+    <span id="room">ZORK I</span>
+    <span id="score">得点 0　手数 0</span>
+    <button id="menu-btn" type="button" aria-label="メニュー" aria-expanded="false">≡</button>
+  </header>
+
+  <main id="screen" aria-live="polite">
+    <div id="log"></div>
+  </main>
+
+  <footer id="dock">
+    <div id="suggest" aria-label="候補" hidden></div>
+    <form id="prompt" autocomplete="off">
+      <button id="build-btn" type="button" aria-haspopup="dialog">命令を作る</button>
+      <label for="cmd" class="gt">&gt;</label>
+      <input id="cmd" type="text" enterkeyhint="send" placeholder="日本語でも英語でも" autocapitalize="off" spellcheck="false">
+      <button id="send" type="submit">決定</button>
+    </form>
+    <div id="pad">
+      <div id="compass" aria-label="移動">
+        <button class="pk dir" type="button" data-en="northwest">北西</button>
+        <button class="pk dir" type="button" data-en="north">北</button>
+        <button class="pk dir" type="button" data-en="northeast">北東</button>
+        <button class="pk dir" type="button" data-en="west">西</button>
+        <button class="pk look" type="button" data-en="look">見る</button>
+        <button class="pk dir" type="button" data-en="east">東</button>
+        <button class="pk dir" type="button" data-en="southwest">南西</button>
+        <button class="pk dir" type="button" data-en="south">南</button>
+        <button class="pk dir" type="button" data-en="southeast">南東</button>
+        <div class="ud">
+          <button class="pk dir" type="button" data-en="up">上</button>
+          <button class="pk dir" type="button" data-en="down">下</button>
+          <button class="pk dir" type="button" data-en="in">中</button>
+          <button class="pk dir" type="button" data-en="out">外</button>
+        </div>
+      </div>
+      <div id="common" aria-label="よく使う命令">
+        <button class="pk" type="button" data-en="inventory">持ち物</button>
+        <button class="pk" type="button" data-en="take all">全部取る</button>
+        <button class="pk" type="button" data-en="wait">待つ</button>
+        <button class="pk" type="button" data-en="again">もう一度</button>
+        <button class="pk" type="button" data-en="score">得点</button>
+        <button class="pk" type="button" data-en="diagnose">体調</button>
+        <button class="pk" type="button" data-en="save">セーブ</button>
+        <button class="pk" type="button" data-en="restore">ロード</button>
+      </div>
+    </div>
+  </footer>
+
+  <div id="builder" hidden>
+    <div class="panel" role="dialog" aria-labelledby="b-title">
+      <div class="bhead">
+        <span id="b-title">何をする？</span>
+        <span id="b-preview"></span>
+      </div>
+      <div id="b-list"></div>
+      <div class="bfoot">
+        <button class="key" type="button" id="b-keys">キーボードで書く</button>
+        <button class="key" type="button" id="b-back">戻る</button>
+        <button class="key" type="button" id="b-close">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="sheet" hidden>
+    <div class="panel" role="dialog" aria-label="設定">
+      <h2>設定</h2>
+      <div class="opt" id="opt-mode">
+        <span>表示</span>
+        <button class="key" type="button" data-mode="both">日本語＋英語</button>
+        <button class="key" type="button" data-mode="ja">日本語だけ</button>
+        <button class="key" type="button" data-mode="en">英語だけ</button>
+      </div>
+      <div class="opt" id="opt-ai">
+        <span>辞書にない文の翻訳（claude.ai の中だけ。Claude を使う）</span>
+        <button class="key" type="button" data-ai="on">使う</button>
+        <button class="key" type="button" data-ai="off">使わない</button>
+      </div>
+      <div class="opt">
+        <span>ゲーム</span>
+        <div id="confirm-row">
+          <button class="key" type="button" id="restart-btn">はじめから遊ぶ</button>
+          <button class="key" type="button" id="restart-yes" hidden>本当にはじめから</button>
+          <button class="key" type="button" id="restart-no" hidden>やめる</button>
+        </div>
+      </div>
+      <p>「命令を作る」を押すと、動詞 → 物 → （必要なら）2つ目の物 の順にタップするだけで命令ができます。入力欄には日本語でも英語でも書けます（例：郵便受けを開ける／剣でトロールを攻撃）。英語を打つと、上に単語の候補が出ます。セーブは1か所に保存され、ロードで戻れます（claude.ai では claude.ai に、Tasker では Tasker/zork-ja/zork-ja-data.json に保存）。途中の画面は自動で残り、次に開いたときに続きから遊べます。</p>
+      <p>ZORK I © Infocom（MIT ライセンスで公開されたゲームファイルを使用）</p>
+      <button class="key" type="button" id="close-sheet">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/*@SCRIPTS@*/
+</script>

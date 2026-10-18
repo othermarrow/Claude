@@ -26,10 +26,14 @@ for (const [rx, ja] of readTsv('patterns.tsv')) {
   patterns.push([rx, ja])
 }
 
+const verbs = {}
+for (const [en, ja] of readTsv('verbs_en.tsv')) verbs[norm(en).toLowerCase()] = ja
+
 const body =
   '// 自動生成（tools/build-dict.js）。直すときは zork-ja/data/*.tsv を直して作り直す。\n' +
   'export const NAMES = ' + JSON.stringify(names) + '\n' +
   'export const MSGS = ' + JSON.stringify(msgs) + '\n' +
-  'export const PATTERNS = ' + JSON.stringify(patterns) + '\n'
+  'export const PATTERNS = ' + JSON.stringify(patterns) + '\n' +
+  'export const VERBS_EN = ' + JSON.stringify(verbs) + '\n'
 fs.writeFileSync(OUT, body)
-console.log(`${OUT}: 名前 ${Object.keys(names).length} / 文 ${Object.keys(msgs).length} / パターン ${patterns.length}`)
+console.log(`${OUT}: 名前 ${Object.keys(names).length} / 文 ${Object.keys(msgs).length} / パターン ${patterns.length} / 動詞 ${Object.keys(verbs).length}`)
