@@ -3,6 +3,7 @@
 Backrooms 風の探索ホラー。終わりのない黄色い部屋をさまよい、出口を探して下の層へ進む。
 ゲームは HTML 1枚（`backrooms.html`、約180KB）だけでできていて、ネットにはつながない。
 Tasker のシーンに WebView を1つ置いて遊ぶ（Chrome でも動く）。
+Chrome で「アプリとして入れる」版（`pwa/`）もある。ホーム画面のアイコンから全画面で開き、Termux を止めていても遊べる（[アプリとして入れる](#アプリとして入れるchrome)）。
 
 - 一人称でなめらかに歩く3D（昔の3Dシューティングと同じ「レイキャスト」という描き方）
 - 壁紙・カーペット・天井・蛍光灯はすべてプログラムで描いたもの。画像ファイルは使っていない
@@ -243,6 +244,7 @@ Wiki の文章は CC BY-SA 3.0（各ページの下に「Unless otherwise stated
 zip で受け取った場合は、Download フォルダ（`/storage/emulated/0/Download`）に保存してから、Termux で次を実行する。
 Download の中で、ゲームの入ったいちばん新しい `backrooms〜.zip`（`backrooms (1).zip` のように名前が変わっていてもよい）を展開して、
 Tasker 用のフォルダ `/storage/emulated/0/Tasker/backrooms/` に `backrooms.html` を置く。
+アプリとして入れる版（`pwa/`）は、Termux のホームの `~/backrooms_pwa/` に置く。
 
 ```bash
 cat > ~/update_backrooms.sh <<'EOF'
@@ -250,6 +252,7 @@ cat > ~/update_backrooms.sh <<'EOF'
 set -e
 DL=/storage/emulated/0/Download
 DST=/storage/emulated/0/Tasker/backrooms
+PWA=$HOME/backrooms_pwa
 command -v unzip >/dev/null || pkg install -y unzip
 # 新しい順に見て、中に backrooms/backrooms.html が入っている zip だけを使う
 # （Wiki のページを保存した backrooms_wiki.zip などは選ばない）
@@ -267,8 +270,13 @@ rm -rf "$TMP"
 mkdir -p "$TMP" "$DST"
 unzip -o -q "$ZIP" -d "$TMP"
 cp "$TMP/backrooms/backrooms.html" "$DST/backrooms.html"
-rm -rf "$TMP"
 echo "更新しました: $DST/backrooms.html"
+if [ -d "$TMP/backrooms/pwa" ]; then
+  rm -rf "$PWA"
+  cp -r "$TMP/backrooms/pwa" "$PWA"
+  echo "アプリとして入れる版も更新しました: $PWA"
+fi
+rm -rf "$TMP"
 EOF
 bash ~/update_backrooms.sh
 ```
@@ -309,6 +317,51 @@ Tasker のシーンは、縦向きと横向きで、大きさと位置を別々�
 表示されないときは、まずファイルマネージャーで `backrooms.html` を Chrome で開いてみる。Chrome で動けば、Tasker の WebView の設定の問題。
 音が出ないときは、WebView が音を止めている可能性がある（ゲームは「はじめから」を押したときに音を鳴らし始める）。
 
+## アプリとして入れる（Chrome）
+
+`pwa/` は、Chrome でホーム画面にアプリとして入れられる版。中身のゲームは `backrooms.html` と同じ。
+Chrome の決まりで、アプリとして入れるには、ファイルを直接開くのではなく、サーバーから開く必要がある。
+そこで、Termux の中だけで動くサーバー（このスマホの外からはつながらない）を、入れるときと更新するときだけ動かす。
+
+1. 上の `update_backrooms.sh` を実行する（`~/backrooms_pwa/` に置かれる）。
+2. Termux で次を実行する。Chrome で `http://127.0.0.1:8765/` が開く。
+
+```bash
+cat > ~/backrooms_app.sh <<'EOF'
+#!/data/data/com.termux/files/usr/bin/bash
+# 迷い部屋を Chrome でアプリとして入れる・新しい版に入れかえるときだけ使う、このスマホの中だけのサーバー
+set -e
+DIR=$HOME/backrooms_pwa
+URL=http://127.0.0.1:8765/
+command -v python >/dev/null || pkg install -y python
+if [ ! -f "$DIR/index.html" ]; then
+  echo "$DIR がありません。先に bash ~/update_backrooms.sh を実行してください"
+  exit 1
+fi
+echo "Chrome で $URL を開きます（開かないときは、Chrome のアドレス欄にこの URL を入れる）"
+echo "終わったら Termux に戻り、画面下の CTRL を押してから c を押して止める"
+(sleep 1; termux-open-url "$URL") &
+python -m http.server 8765 --bind 127.0.0.1 --directory "$DIR"
+EOF
+bash ~/backrooms_app.sh
+```
+
+3. タイトルに「アプリとして入れる」が出ていれば押す。出ていなければ、Chrome のメニュー（右上の︙）から「アプリをインストール」か「ホーム画面に追加」を選ぶ。
+4. ホーム画面に「迷い部屋」のアイコン（黄色い廊下の奥に暗い戸口）ができる。Termux に戻ってサーバーを止める。
+5. これからは、アイコンから開く。1度開いた中身はスマホに覚えているので、Termux を動かしていなくても遊べる。
+
+新しい zip を受け取ったら、`bash ~/update_backrooms.sh` のあと `bash ~/backrooms_app.sh` を実行し、
+サーバーが動いている間にアイコン（または Chrome）からゲームを1度開くと、新しい版に入れかわる。止めたあとも新しい版のまま。
+
+アプリとして開いたときだけの動き：
+- 画面全体を使って開く（上の時計や下のボタンの帯を出さない）。
+- 遊んでいる間は、画面が暗くならない。一時停止やタイトルでは、ふつうどおり暗くなる。
+- 遊んでいる途中に「戻る」（ボタンや、画面のふちからのスワイプ）をすると、アプリを閉じずに一時停止にする。
+
+記録は Chrome の中（`http://127.0.0.1:8765` の保存領域）に残る。Tasker の版とは別々で、引きつがない。
+番号 `8765` を変えると別のアプリあつかいになり、記録も別になるので、変えないこと。
+Chrome の設定で、このサイトのデータを消すと記録も消える。
+
 ## 記録
 
 - 4秒ごとと、物を拾ったときなどに、自動で保存する（WebView の保存領域 `localStorage`）。
@@ -333,20 +386,24 @@ Tasker のシーンは、縦向きと横向きで、大きさと位置を別々�
 
 ## 作り直し・テスト
 
-ゲームの元は `src/` にあり、`build.js` で1枚の `backrooms.html` にまとめる。遊ぶだけならビルドはいらない。
+ゲームの元は `src/` にあり、`build.js` で1枚の `backrooms.html` にまとめる。あわせて、アプリとして入れる版を `pwa/` に作る。遊ぶだけならビルドはいらない。
 
 ```bash
 cd backrooms
-node build.js               # src/ → backrooms.html
+node build.js               # src/ → backrooms.html と pwa/
 node test/world_test.js     # 10の層を30通りずつ、救いのない版は第20層まで作って、出口に歩いて行けるか
 ```
 
-`test/ui_test.js`・`ai_test.js`・`run_test.js`・`mode_test.js`・`wire_test.js`・`land_test.js`・`store_test.js` は Playwright でブラウザを動かすテスト（Claude の作業環境で実行した）。
+`test/ui_test.js`・`ai_test.js`・`run_test.js`・`mode_test.js`・`wire_test.js`・`land_test.js`・`store_test.js`・`pwa_test.js` は Playwright でブラウザを動かすテスト（Claude の作業環境で実行した）。
 スマホの画面の大きさ（411×890）で、全部の画面、怪物の動き、正気・渇き・電池の減り方を確かめた。
 Wiki設定版・五つの報告書・山羊文学版は、始まり・拾う物の絵・メモと出典・怪物の絵・捕まったときの文・すべての層を抜けたエンディングの文を確かめた。
 Wiki設定版は、はじめと終わりの CC BY-SA 3.0 の表示、札の生存難易度、アーモンドウォーター、フェイスリングが何もしてこないこと、Level 1 のフリッカリング、スマイラーが明かりに寄ってくること、Level 6 で明かりがつかないこと、ハウンドがにらみ返すと止まること、Level 8 で電池が早く減ること、Level 26 の風船が動かず近づくとつかまえることも確かめた。
 「拾う物の絵」の設定で、はじめからと救いのない版の絵が切りかわり、保存されることも確かめた。
 `land_test.js` で、横向き（960×411）の全部の画面が収まりボタンが押せること、遊んでいる途中に縦横を回せることを確かめた。
+`pwa_test.js` で、`pwa/` を手元のサーバーから開き、Chrome が「アプリとして入れられる」と判断すること（エラーなし）、
+「アプリとして入れる」のボタン、全画面のときに戻る操作で一時停止になること、遊んでいる間だけ画面を消さないように頼むこと、
+サーバーを止めても開けてつづきから遊べること、サーバーが新しい版を出すと入れかわり、止めたあともそのままなことを確かめた。
+Termux と同じ Python のサーバー（`python -m http.server`）で出したときも、アプリとして入れられる判断とサーバーを止めたあとの起動を確かめた。
 `store_test.js` で、`localStorage` が使えないときに Tasker の変数（テスト用のかわり）へ保存し、読み込み直しても続けられることを確かめた。
 `wire_test.js` で、「線だけ」の見た目を5つの層・出口・怪物・拾う物で撮って確かめた（描画は1フレーム約4.4ms、作業環境のパソコンで）。
 自動操縦で最初の層からエンディングまで、道を知っている場合は種3通りすべてで通った（ふつうの版の10の層・Wiki設定版の14の Level。`MODE=wiki node test/run_test.js`）。
@@ -358,6 +415,9 @@ Wiki設定版は、はじめと終わりの CC BY-SA 3.0 の表示、札の生�
 | ファイル | 役割 |
 |---|---|
 | `backrooms.html` | 遊ぶためのファイル（`build.js` が作る） |
+| `pwa/` | アプリとして入れる版（`build.js` が作る）。`index.html`（ゲーム）・`manifest.json`（アプリの名前・アイコン・全画面）・`sw.js`（中身を覚えて、サーバーなしで開く）・アイコン |
+| `icon.js` | アプリのアイコンを描いて PNG にする |
+| `src/pwa.js` | アプリとして開いたときだけの動き（`pwa/` の版だけに入る） |
 | `src/levels.js` | 層の設定、メモの文章、怪物の速さ、Wiki設定版・五つの報告書・山羊文学版の文章（`THEMES`） |
 | `src/world.js` | 終わりのない部屋の生成、出口の場所、見通し・道さがし |
 | `src/tex.js` | 壁・床・天井・出口・物・怪物の絵を描く |
@@ -368,6 +428,9 @@ Wiki設定版は、はじめと終わりの CC BY-SA 3.0 の表示、札の生�
 | `test/` | テスト（`mode_test.js` は救いのない版・原作版・Wiki設定版・五つの報告書・山羊文学版） |
 
 ## まだ確かめていないこと
+
+- Xperia 1 IV の Chrome で `http://127.0.0.1:8765/` を「アプリとして入れる」ことができるか（「ホーム画面に追加」のショートカットになることもある）。全画面で開くか
+- アプリとして開いたとき、Termux を止めても開けるか。戻る操作で一時停止になるか。画面が暗くならないか
 
 - Tasker で「Allow Phone Access」をオンにしたとき、`localStorage` か Tasker の変数で保存が残るか
 - Tasker で横向きの配置を直したあと、横向きで遊べるか。音が鳴るか
