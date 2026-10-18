@@ -205,7 +205,7 @@ body[data-lv="4"] .row.title, body[data-lv="10"] .row.title, body[data-lv="37"] 
         <button class="key" type="button" id="restart-no" hidden>やめる</button>
       </div>
       <button class="key" type="button" id="close-sheet">閉じる</button>
-      <p class="credit">もとにした記事：Backrooms Wiki（CC BY-SA 3.0）の Level 0〜11、Level 37、Level Fun、Level Run For Your Life!、Entity 4 "Deathmoths"、Entity 10 "Skin-Stealer"、Entity 67 "Partygoers"、Entity 110 "Carnivorous Balloons"、Smilers、Hounds、Facelings、Almond Water、The M.E.G.。設定を借りて、文章は日本語で書き下ろした。この作品も CC BY-SA 3.0。</p>
+      <p class="credit">もとにした記事：Backrooms Wiki（CC BY-SA 3.0）の Level 0〜11、Level 37、Level Fun、Level Run For Your Life!、Entity 4 "Deathmoths"、Entity 10 "Skin-Stealer"、Entity 67 "Partygoers"、Entity 110 "Carnivorous Balloons"、Smilers、Hounds、Facelings、Almond Water、The M.E.G.。設定を借りて、文章は日本語で書き下ろした。この作品も CC BY-SA 3.0。カプセルホテルは The Backrooms JP Wiki の Level 433 N の設定を借りた（文章は使っていない）。</p>
     </div>
   </div>
 </div>
@@ -1471,6 +1471,7 @@ function createGame(io) {
         return "……長居、するな……いちばん浅い、ところの……";
       case "Fun": return "……はいと、言うな……食べるな……「!」……";
       case "!": return S.run >= 5 ? "……北……" : `……${DIR_JA[S.runDirs[S.run]]}……止まるな……`;
+      case "433 N": return "……眠れ……どれかの、寝床で……";
     }
     return "……（ノイズ）……";
   }
@@ -1628,7 +1629,7 @@ function createGame(io) {
       }
       say("何も聞こえない。");
     },
-    help: () => say("遊び方：「命令を作る」で、動詞 → 物（「言う」ならことば）の順にタップする。十字キーで移動し、「上」「下」で上下に動く。困ったら「わからない」。", "note"),
+    help: () => say("遊び方：「命令を作る」で、動詞 → 物（「言う」ならことば）の順にタップする。十字キーで移動し、「上」「下」で上下に動く。入力欄に日本語で書いてもいい。（もとにした記事と著作権の表示は、≡ のメニューに）", "note"),
     noclip: () => {
       if (S.loc === "l0") {
         if (!S.l0.seam) { say("壁に肩を押しつけてみた。ただの壁だ。……どこかに、継ぎ目のずれた壁があるはずだ。"); return; }

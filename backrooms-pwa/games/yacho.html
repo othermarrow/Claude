@@ -3603,6 +3603,7 @@ function createGame(io) {
     SND.set(s);
     SND.fx(fx);
     requestAnimationFrame(() => { screenEl.scrollTop = screenEl.scrollHeight; });
+    setTimeout(() => { screenEl.scrollTop = screenEl.scrollHeight; }, 80);
   }
   // 危ういとき、新しい行の字がところどころ化ける（少したつと戻る）
   let vhsT = 0;
