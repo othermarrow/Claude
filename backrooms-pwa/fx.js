@@ -120,11 +120,6 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
     requestAnimationFrame(draw);
     // 音は、最初に触ったときにしか鳴らせない
     const unlock = () => { A.init(); A.hum(cur.hum); };
-    // ボタンやキーを押したら、乾いた小さな音
-    document.addEventListener("pointerdown", e => {
-      const b = e.target.closest && e.target.closest("button, .key, .pk, .bk, [role=button]");
-      if (b) A.tone(700 + Math.random() * 500, 0.022, "triangle", 0.025);
-    }, true);
     window.addEventListener("pointerdown", unlock, { once: true, capture: true });
     window.addEventListener("keydown", unlock, { once: true, capture: true });
     document.addEventListener("visibilitychange", () => { if (A.ctx) { if (document.hidden) A.ctx.suspend(); else if (settings.sound) A.ctx.resume(); } });

@@ -276,7 +276,7 @@ body #fx-truism { top: auto; bottom: calc(1em + env(safe-area-inset-bottom, 0px)
       b.addEventListener("click", () => {
         const v = b.getAttribute("aria-pressed") !== "true";
         b.setAttribute("aria-pressed", v ? "true" : "false");
-        if (window.FX) { FX.set(k, v); if (v) { FX.click(); if (k === "vibe") FX.vibrate(40); } }
+        if (window.FX) { FX.set(k, v); if (v && k === "vibe") FX.vibrate(40); }
       });
     });
   }

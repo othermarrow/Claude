@@ -288,7 +288,7 @@ body.typing #pad { display: none; }
   const $ = id => document.getElementById(id);
   const logEl = $("log"), screenEl = $("screen"), cmdEl = $("cmd");
 
-  // ---- 保存（ブラウザの記憶。Tasker のシーンでは Tasker/tane-wo-niru/ のファイルにも残す） ----
+  // ---- 保存（ブラウザの記憶。Tasker のシーンでは Tasker/koka/ のファイルにも残す。もとの版の保存とは分ける） ----
   const TK = (() => {
     try {
       if (typeof tk !== "undefined" && tk && typeof tk.readFile === "function" && typeof tk.writeFile === "function") return tk;
@@ -300,8 +300,8 @@ body.typing #pad { display: none; }
     } catch (e) { /* Tasker の外 */ }
     return null;
   })();
-  const TK_FILE = "/storage/emulated/0/Tasker/tane-wo-niru/tane-wo-niru-data.json";
-  const TK_VAR = "TANEWONIRU";
+  const TK_FILE = "/storage/emulated/0/Tasker/koka/koka-data.json";
+  const TK_VAR = "KOKA";
   const KEY = "bpwa.koka.state";
   const META_KEY = "bpwa.koka.meta";
   const VERSION = 3;
@@ -318,7 +318,7 @@ body.typing #pad { display: none; }
     const runs = (typeof m.runs === "number" ? m.runs : 0) + (newRun ? 1 : 0);
     try { localStorage.setItem(META_KEY, JSON.stringify({ endings, total: Object.keys(ENDINGS).length, deepest: "Level " + deep, runs: Math.max(1, runs), updated: Date.now() })); } catch (e) { /* 残らなくても遊べる */ }
   }
-  // Tasker はないファイルを読むと止まるので、一度書いたことを変数 %TANEWONIRU に残し、書いたあとでだけ読む
+  // Tasker はないファイルを読むと止まるので、一度書いたことを変数 %KOKA に残し、書いたあとでだけ読む
   function loadSaved() {
     if (TK) {
       let written = false;

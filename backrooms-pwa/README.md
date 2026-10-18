@@ -51,12 +51,14 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 | ファイル | 役目 |
 |---|---|
 | `index.html` | 起動画面。札を押すとゲームへ。各ゲームの結末の数・いちばん深い階層・周回数を札に出す |
-| `fx.js` | 共通の演出。背景の線画（13星座・波形・海・洞窟の雫・住宅地・麦畑・街など）、走査線、ネオンの格言、揺れ、閃光、停電、記録映像ふうの表示、bytebeat の音、ボタンの音、振動 |
+| `fx.js` | 共通の演出。背景の線画（13星座・波形・海・洞窟の雫・住宅地・麦畑・街など）、走査線、ネオンの格言、揺れ、閃光、停電、記録映像ふうの表示、bytebeat の音、振動（タップしたときの音は出さない） |
 | `games/*.html` | 4本のゲーム。どれも HTML 一枚で、`../fx.js` を読む（読めなくても遊べる） |
 | `manifest.webmanifest` | アプリの名前・アイコン・色 |
 | `sw.js` | オフラインでも開けるようにする仕組み（Service Worker）。ファイルを足したら `FILES` に足し、`VERSION` を上げる |
 | `icons/` | アイコン（192px、512px、マスク用 512px） |
 | `serve.sh` | Termux で動かすサーバー（`python3 -m http.server 8080 --bind 127.0.0.1`） |
+| `build_standalone.py` | ゲームに fx.js を埋めこんで、HTML 一枚で開ける版を `standalone/` に作る |
+| `standalone/tane-wo-niru-standalone.html` | 降下記録の HTML 一枚版（下の「降下記録だけを遊ぶ」） |
 
 ### ゲームと起動画面の約束
 
@@ -75,6 +77,13 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 - 「わからない」は 3回目から正気が減り、深い階では答えが遠回しになる。遊び方の説明は操作だけ。
 - 結末は5つ。どれが正解かは、どこにも書いていない。
 - 深い階の管理室に「五台の分析機」が「あなた」を標本にしている記録がある。利用者が渡した五つの分析レポートの要点を、名前などを出さずに書き下ろした。
+
+### 降下記録だけを遊ぶ（HTML 一枚版）
+
+`standalone/tane-wo-niru-standalone.html` は、演出（fx.js）を中に埋めこんだ一枚のファイル。サーバーなしで、ブラウザや Tasker のシーンで直接開ける（インストールはできない）。起動画面がないので「起動画面へ」ボタンは出ない。
+
+- Tasker のシーンで開くときの保存先は `/storage/emulated/0/Tasker/koka/koka-data.json`（変数 `%KOKA`）。もとの「降下記録」の保存（`Tasker/tane-wo-niru/`）とは分けてある。
+- ゲームを直したら、`python3 build_standalone.py tane-wo-niru` で作り直す。
 
 <details>
 <summary>降下記録の攻略（ネタばれ）</summary>
