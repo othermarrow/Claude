@@ -819,7 +819,7 @@ body.typing #pad { display: none; }
     l7s: { name: "海面", exits: { d: "l7b" },
       desc: () => "冷たい海に浮かんでいる。はるか頭上のコンクリートの天井に、あの戸口が小さな四角になって光っている。手は届かない。\nどちらを向いても、水平線。島も、岸もない。" + (S.lung ? "\n肺は、冷たい空気でいっぱいだ。" : "\n空気が、妙に甘くて重い。") },
     l7b: { name: "薄明の層", exits: { u: "l7s", d: "l7b" },
-      desc: () => ["暗い青の中を沈んでいく。冷たい。錆びた鉄くずと、骨が漂っている。", "さらに暗く、さらに冷たい。水が、耳の奥を押してくる。下は、まだ見えない。"][S.d7 || 0] + (S.tinyStun ? "\n遠くで、何か大きなものが、まだのたうっている。" : "") },
+      desc: () => ["暗い青の中を沈んでいく。冷たい。錆びた鉄くずと、骨が漂っている。", "さらに暗く、さらに冷たい。水が、耳の奥を押してくる。下は、まだ見えない。", "青が、ほとんど黒になった。人の形に似た骨が、底のほうへ向かって増えていく。"][S.d7 || 0] + (S.tinyStun ? "\n遠くで、何か大きなものが、まだのたうっている。" : "") },
     l7c: { name: "真夜中の層", exits: () => lightOn() ? { u: "l7b", d: "l7d" } : { u: "l7b" },
       desc: "光の輪の中だけが、世界だ。輪の外は、塗りつぶしたように黒い。\n真下に、海の底から伸びる山の斜面。いちばん暗いところに、洞窟の口が開いている。" },
     l7d: { name: "山腹の洞窟", exits: { n: "l8a" },
@@ -1010,7 +1010,7 @@ body.typing #pad { display: none; }
     const lv = levelOf(loc);
     if (lv === 2) return true;
     if (lv === 1 && S.l1dark) return true;
-    if (loc === "l7c" || lv === 8) return true;
+    if (loc === "l7c" || (lv === 8 && loc !== "l8x")) return true;
     if (loc === "l9c" || loc === "l9h" || loc === "l9k") return true;
     return false;
   }
@@ -1148,8 +1148,10 @@ body.typing #pad { display: none; }
     const fromLv = levelOf(S.loc);
     if (S.loc === "l5a" && to !== "l5a" && !S.l5done) { S.beans = false; S.stir = 0; S.door = 0; S.sleepy = false; }
     if (S.loc === "l11g" && to !== "l11g" && cooking11()) breakCook("鍋を置いたまま、部屋を出てしまった。", true);
+    const keepDark = fromLv === 8 && levelOf(to) === 8;
     S.loc = to;
-    S.darkT = 0;
+    if (to === "l8m") O.moths.loc = S.r8 === S.moth8 && !S.mothFed ? "l8m" : null;
+    if (!keepDark) S.darkT = 0;
     if (levelOf(to) !== fromLv) preArrive(levelOf(to), fromLv);
     describe(false);
     if (levelOf(to) !== fromLv) arrive(levelOf(to));
@@ -1236,7 +1238,7 @@ body.typing #pad { display: none; }
     S.ph = 0; S.lvT = 0;
   }
   function batteryRest() {
-    if (S.bat != null && S.bat < 6 && held("flashlight")) { S.bat = 6; say("懐中電灯の電池は、休ませたせいか、少しだけ戻っていた。", "note"); }
+    if (S.bat != null && S.bat < 12 && held("flashlight")) { S.bat = 12; say("懐中電灯の電池は、休ませたせいか、少しだけ戻っていた。", "note"); }
   }
   // 正気が 0 になると、その階の入口で目を覚ます。ただし最下層では、交代が起きる
   function collapse() {
@@ -1277,7 +1279,7 @@ body.typing #pad { display: none; }
   }
   // 暗闇で動きつづけると、数える声に触れられる
   function darkTick() {
-    if (!isDark()) { S.darkT = 0; return; }
+    if (!isDark() || WATER.includes(S.loc)) { S.darkT = 0; return; }
     S.darkT++;
     if (S.darkT <= 2) { say(DARK_COUNT[S.darkT - 1], "warn"); fx("glitch"); return; }
     say("冷たい指が、首の後ろを、ひとつ、ふたつと数えた。", "warn");
@@ -1779,13 +1781,13 @@ body.typing #pad { display: none; }
     help: () => say("遊び方：「命令を作る」で動詞 → 物（「言う」ならことば）の順にタップする。十字キーで移動し、「上」「下」で上下に動く。入力欄に日本語で書いてもよい。くわしくは右上の ≡ から。", "note"),
     examine: (o) => {
       if (!need(o, "調べる")) return;
-      if (darkBlock() && o.loc !== "player") return;
+      if (isDark() && o.loc !== "player" && !o.glow) { say("暗くて、何も見えない。"); return; }
       if (o.id === "bdoor" && (S.door === 1 || stirring())) { break5("勝手口のほうを見てしまった。鍋から目を離してはいけない。"); return; }
       say(text(o.desc) || `${o.name}に、特に変わったところはない。`);
     },
     read: (o) => {
       if (!need(o, "読む")) return;
-      if (isDark()) { say("暗くて、字が読めない。"); return; }
+      if (isDark() && o.loc !== "player" && !o.glow) { say("暗くて、字が読めない。"); return; }
       if (!o.read) { VERB_DO.examine(o); return; }
       say(text(o.read));
     },
@@ -1860,6 +1862,10 @@ body.typing #pad { display: none; }
         if (o.id === "locker") say("ロッカーを開ける。中には、懐中電灯と防寒手袋。扉の内側に、爪で引っかいた線が五本ずつ束ねてある。");
         else if (o.id === "wbox") say("テープを剥がして開けた。入っていたのは、小さなカセットレコーダーと、鍵が一本。レコーダーから、心臓の音のような録音が流れている。");
         else if (o.id === "tin") say("錆びた蓋をこじ開ける。中に、古い手紙が一通。");
+        else if (o.id === "pack8") { const f = !S.packOpen; S.packOpen = true; say("錆びた留め金を外す。" + (f ? "……持ち主の指が、まだ温かい気がした。" : "")); if (f) addSan(-1, ""); }
+        else if (o.id === "drawer9") say("引き出しを開ける。輪ゴム、古い鍵、ガムの包み紙。");
+        else if (o.id === "fridge9") say("冷蔵庫を開ける。電気は来ていないのに、冷気が流れ出してきた。");
+        else if (o.id === "mail") say("312 の郵便受けを開ける。ほかの口は、どれも錆びついて開かない。");
         else say(`${o.name}を開けた。`);
         return;
       }
@@ -2273,6 +2279,7 @@ body.typing #pad { display: none; }
   // 階ごとの決まりごと。既存の動詞より先に見る。処理したら true
   function deepPre(v, a, b) {
     const l = S.loc;
+    if (v === "stir" && l === "l11g") { stir11(); return true; }
     // 312 号室で煮ているあいだ
     if (cooking11()) {
       const ok = ["stir", "look", "inventory", "help", "read", "listen", "listenTo", "hint"];
@@ -2342,7 +2349,7 @@ body.typing #pad { display: none; }
         if (!held("flashlight")) { say("入れる懐中電灯を持っていない。"); return true; }
         if (b && b.id !== "flashlight") { say(`${a.name}は、${b.name}には入らない。`); return true; }
         a.loc = "gone"; S.bat = Math.min(30, (S.bat == null ? 20 : S.bat) + 20); S.batWarn = false;
-        say(`懐中電灯の電池を、${a.name}に入れ替えた。光が、白く強くなる。`);
+        say(`懐中電灯に、新しい${a.name}を入れた。光が、白く強くなる。`);
         return true;
       }
       if (a.grain && l === "l11g") {
@@ -2429,6 +2436,7 @@ body.typing #pad { display: none; }
     if (v === "lighton" && held("flashlight") && S.bat === 0 && (!a || a.id === "flashlight")) { say("スイッチを入れても、点かない。電池が切れている。"); return true; }
     if (v === "lightoff" && a && a.id === "stove") { if (!S.kFire) { say("火は点いていない。"); return true; } if (S.kSleepy) { douse11(); return true; } S.kFire = false; say("コンロの火を消した。"); return true; }
     if (v === "lightoff" && a && a.id === "breaker") return deepPre("press", a);
+    if (v === "lightoff" && !a && l === "l11g" && S.kFire && !lightOn()) return deepPre("lightoff", O.stove);
     if (v === "drink" && a && a.id === "lake") {
       if (S.lakeDrunk) { say("もう、じゅうぶん飲んだ。土の味が、まだ舌に残っている。"); return true; }
       S.lakeDrunk = true; addSan(2, ""); say("手ですくって飲む。土の味がする。冷たい。（正気 +2）"); return true;
@@ -2685,7 +2693,7 @@ body.typing #pad { display: none; }
     ["enter", /入る|入って|潜る|潜って|飛びこ|飛び込|泳ぐ|踏みこ|踏み込/], ["climb", /登る|よじ登|越える|乗り越/],
     ["down", /降りる|おりる|下りる|降りて/], ["wear", /身につけ|はめる|はめて|着ける|かぶる/], ["lighton", /点ける|つける|点灯|点けて/], ["lightoff", /消す|消して|消灯/],
     ["sit", /座る|すわる|座って|腰を下ろ|腰掛け/], ["write", /書く|書いて|書き|書こう/], ["verify", /確かめ|確認/],
-    ["drink", /飲む|飲んで|飲み/], ["press", /押す|押して|押した|触れる|触る/],
+    ["drink", /飲む|飲んで|飲み/], ["press", /押す|押して|押した|触れる|触る|落とす|落として|切る|下げる/],
     ["listenTo", /聞く|聴く|聞いて|耳をすま|耳を澄ま|出る/], ["close", /閉める|閉じる|閉めて|回す|しめる/],
     ["open", /開け|開く/], ["put", /入れ|差す|差し|挿す|投入/], ["read", /読/], ["examine", /調べ|見る|眺め|覗/],
     ["take", /取|拾|持つ/], ["drop", /置/],

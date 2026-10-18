@@ -115,6 +115,20 @@ body.typing #pad { display: none; }
 #sheet p { margin: 0; color: var(--dim); font-size: 0.86em; line-height: 1.6; }
 #confirm-row, #opt-row { display: flex; gap: 0.4em; flex-wrap: wrap; }
 #sheet .credit { font-size: 0.74em; opacity: 0.85; }
+/* 派手め：光彩・発光・なめらかな色の切り替え */
+#bar { box-shadow: 0 0 16px color-mix(in srgb, var(--fx-a, var(--bar-bg)) 45%, transparent), 0 1px 0 var(--fx-b, transparent); transition: background-color 0.6s, color 0.6s, box-shadow 0.6s; }
+#room .lv { font-family: var(--dot); letter-spacing: 0.06em; }
+.pk, .key, #send, #build-btn, .bk { transition: background-color 0.5s, color 0.5s, border-color 0.5s, box-shadow 0.3s; }
+.pk.dir.open { border-color: var(--fx-a, var(--dim)); box-shadow: inset 0 0 10px color-mix(in srgb, var(--fx-a, #fff) 45%, transparent), 0 0 6px color-mix(in srgb, var(--fx-a, #fff) 30%, transparent); text-shadow: 0 0 6px var(--fx-a, transparent); }
+.pk.look { box-shadow: inset 0 0 8px color-mix(in srgb, var(--fx-b, #fff) 30%, transparent); }
+#build-btn { box-shadow: 0 0 10px color-mix(in srgb, var(--fx-b, var(--wall)) 45%, transparent); }
+.bk.held { border-color: var(--fx-a, var(--dim)); box-shadow: 0 0 8px color-mix(in srgb, var(--fx-a, #fff) 40%, transparent), inset 0 0 6px color-mix(in srgb, var(--fx-a, #fff) 25%, transparent); color: var(--bright); }
+.row.voice { border-left: 2px solid var(--fx-b, var(--dim)); padding-left: 0.7em; margin-left: 0.3em; text-shadow: 0 0 8px color-mix(in srgb, var(--fx-b, transparent) 60%, transparent); }
+.row.doc { border-left-color: var(--fx-a, var(--faint)); font-family: var(--dot); font-size: 0.92em; }
+.cmd { font-family: var(--dot); text-shadow: 0 0 6px color-mix(in srgb, var(--fx-a, transparent) 50%, transparent); }
+#score { font-family: var(--dot); }
+#score .low { text-shadow: 0 0 8px var(--hot); }
+body[data-lv="4"] .row.title, body[data-lv="10"] .row.title, body[data-lv="37"] .row.title, body[data-lv="Fun"] .row.title { text-shadow: 0 0 6px color-mix(in srgb, var(--fx-b, transparent) 45%, transparent); }
 .panel { box-shadow: 0 -6px 24px color-mix(in srgb, var(--fx-b, #000) 25%, transparent); }
 </style>
 </head>
@@ -274,7 +288,7 @@ function createGame(io) {
     water: "物品「アーモンド水」\nほんのり甘い水。飲むと頭がはっきりする。ここで、いちばん大切な飲みもの。",
     wretch: "「ウレッチ」\nアーモンド水を飲まずに、長いあいだ正気を失いつづけた人のなれの果て。\n正気を尽きさせないこと。",
     smiler: "実体「スマイラー」\n暗闇に浮かぶ、白い歯の列。\n灯りを向けないこと。動かないこと。しばらくすると、興味を失う。",
-    hound: "実体「ハウンド」\n四つ足で這う、人に似たもの。恐れに反応する。\n走らないこと。目を逸らさずに見つめ返し、それからゆっくり離れること。",
+    hound: "実体「ハウンド」\n四つ足で這う、人に似たもの。恐れに反応する。\n走らないこと。目を逸らさずに見つめ返し、それからゆっくり離れること。\n（書きこみ）唸りは、何かを伝えようとしている。「いつも襲う」とは書くな。まず見ること。",
     skin: "実体「スキンスティーラー」\n人の皮をかぶり、人の声で話す。ことばの意味は分からず、聞いたことばを、そのまま返すだけ。\n扉の向こうから知り合いの声がしても、開けないこと。返事もしないこと。\n血が赤なら、生きている。血が透明なら、近づくな。",
     faceling: "実体「フェイスリング」\n顔のない人。たいてい無害。人のふりをして、人の暮らしを続けている。",
     party: "実体「パーティーゴアー」\n黄色い体に、描いたような笑顔。会えば、必ずパーティーに誘ってくる。=)\n風船と飾りつけは、たいてい罠の目印。",
@@ -378,7 +392,7 @@ function createGame(io) {
       desc: () => S.cooler > 0 ? `オフィスの給水器。タンクの中身は、ほんのり白く濁っている。アーモンド水だ。残りは、${S.cooler === 1 ? "底のほうに、ほんの少し" : "紙コップ二杯ぶんくらい"}。` : "オフィスの給水器。タンクは空だ。" });
     thing("terminal", { name: "端末", aliases: ["端末", "パソコン", "画面", "terminal"], loc: "l4a", scenery: true,
       desc: "まだ点いている端末。M.E.G. の掲示板が開いたままだ。",
-      read: () => { S.bulletin = true; return "M.E.G. 掲示（受信日時不明）\n・レベル37で、車の走る音を聞いたという報告。「いちばん浅いプールの、いちばん深いところ」（未確認・報告者とは連絡がつかない）\n・経路の報告：ボイラー室 → 暗闇 → 海 → ブイ → 洞窟 → ……（ここから先は、文字化けしている）\n・風船の扉の先は、近道に見える。近道ではない。\n・給水器のタンクは、補充されていない。"; } });
+      read: () => { S.bulletin = true; emit("align"); return "M.E.G. 掲示（受信日時不明）\n・レベル37で、車の走る音を聞いたという報告。「いちばん浅いプールの、いちばん深いところ」（未確認・報告者とは連絡がつかない）\n・経路の報告：ボイラー室 → 暗闇 → 海 → ブイ → 洞窟 → ……（ここから先は、文字化けしている）\n・風船の扉の先は、近道に見える。近道ではない。\n・給水器のタンクは、補充されていない。"; } });
     thing("drawer", { name: "引き出し", aliases: ["引き出し", "机", "drawer"], loc: "l4a", scenery: true, container: true, closed: true,
       desc: () => O.drawer.closed ? "事務机の引き出し。" : "開いた引き出し。" });
     thing("ration2", { name: "ロイヤルレーション（二つ目）", aliases: ["ロイヤルレーション（二つ目）", "二つ目", "ロイヤルレーション", "レーション", "second ration"], loc: "drawer", take: true, food: true,
@@ -525,8 +539,21 @@ function createGame(io) {
       desc: "壁いっぱいの、手描きの街の地図。",
       read: () => {
         S.l11.map = true;
+        emit("align");
         const ja = { white: "白", red: "赤" }, other = S.l11.pool === "white" ? "red" : "white";
         return `M.E.G. 基地ベータ周辺図（手描き）\n「青い矢印：基地ベータ」\n「${ja[S.l11.pool]}い矢印：屋内プール」その横に「37」と書いて、線で消してある。さらに横に、別の字で「帰れる？」\n「${ja[other]}い矢印：バリケード。出口多数。立入禁止。花を供えること」`;
+      } });
+    thing("judges", { name: "判定機", aliases: ["五台の判定機", "判定機", "端末", "judges"], loc: "l11c", scenery: true,
+      desc: "部屋の隅に、古い端末が五台。それぞれに、A〜E の札。画面に、緑の文字が流れている。",
+      read: () => {
+        const a = audit();
+        S.l11.judged = (S.l11.judged || 0) + 1;
+        const tags = ["core", "related", "off"];
+        const j = ["A", "B", "C", "D", "E"].map((x, i) => `${x}：${i === 4 && S.l11.judged === 1 ? "再判定待ち" : tags[(i + S.moves + S.l11.judged) % 3]}`).join("／");
+        const score = Math.max(3, Math.min(97, 100 - S.falls * 21 - Object.keys(S.hints).length * 4 - (S.moves >> 4)));
+        return `標本記録：ワンダラー（名前の欄は空白）\n判定 ${j}\n関連度 ${score}／100　一致率 ${a.rate}%　取りこぼし ${a.missed}件\n注記：要約が記憶を上書きした形跡あり。原文で確かめられない項目がある。\n注記：一つの判定を信じるな。別の機で確かめ直すこと。` +
+          (S.l11.judged > 1 ? "\n（再判定）さっきと、仕分けが違う。どちらが正しいのかは、画面には書いていない。" : "") +
+          (LOOP.n ? `\n前回の標本と一致しない項目：${1 + (LOOP.n % 4)}件。` : "");
       } });
     thing("roster", { name: "名簿", aliases: ["名簿", "register"], loc: "l11c", scenery: true,
       desc: "机の上の名簿。",
@@ -676,7 +703,7 @@ function createGame(io) {
     l11b: { name: "路地", exits: { n: "l11a" },
       desc: "ビルのあいだの細い路地。非常階段に、色とりどりの風船が結ばれている。壁に黄色いポスター。奥に、「=)」のシールの扉。甘い匂い。\n北へ戻れば大通り。" },
     l11c: { name: "基地ベータ", exits: { s: "l11a" },
-      desc: "元はオフィスビルだった建物。入口に、鷲の印の旗。中は、机と無線機と、壁いっぱいの手描きの地図。机で、M.E.G. の隊員が地図に印をつけている。名簿。\n南の出入口から大通りへ。" },
+      desc: "元はオフィスビルだった建物。入口に、鷲の印の旗。中は、机と無線機と、壁いっぱいの手描きの地図。机で、M.E.G. の隊員が地図に印をつけている。名簿。隅に、五台の判定機。\n南の出入口から大通りへ。" },
     l11p: { name: "屋内プール", exits: { s: "l11a", d: "l11p" },
       desc: "白いタイル貼りの、閉まった市民プール。ガラス戸は開いている。塩素の匂い。照明が半分だけ点いている。プールには、水が張ってある。\n南の出入口から大通りへ。" },
     l11x: { name: "バリケードの前", exits: { s: "l11a", n: "l11x" },
@@ -717,7 +744,7 @@ function createGame(io) {
       run: 0, runDirs: shuffleDirs(5, ["n", "e", "w"]),
       // ここから下は、ゲームごとに変わる配置
       gear: pick([2, 5, 7]), swOk: pick([[1, 3], [2, 4], [1, 4], [2, 3], [3, 4]]), cooler: 2, darkStep: 0,
-      cold: 0, coat: false, lake: 0, h433: 0,
+      cold: 0, coat: false, lake: 0, h433: 0, ver: {}, visited: { "0": true },
       c8: null, l9: null, l10: null, l11: null };
     const others = shuffle([2, 5, 7].filter(k => k !== S.gear));
     S.hairLk = others[0]; S.emptyLk = others[1];
@@ -748,7 +775,9 @@ function createGame(io) {
     return { v: VERSION, S, objs, log: rows.slice(-300) };
   }
   function restore(data) {
-    if (!data || data.v !== VERSION || !data.S) return false;
+    if (!data || data.v !== VERSION || !data.S || typeof data.S !== "object") return false;
+    const d = data.S;
+    if (!ROOMS[d.loc] || !d.c8 || !d.l9 || !d.l10 || !d.l11 || !d.l0 || !Array.isArray(d.hist) || typeof d.san !== "number") return false;
     initWorld();
     S = data.S;
     for (const [id, st] of Object.entries(data.objs || {})) if (O[id]) Object.assign(O[id], st);
@@ -762,7 +791,8 @@ function createGame(io) {
   function push(r) { rows.push(r); }
   // 正気が削れてくると、字がところどころ欠ける
   function corrupt(t) {
-    if (!S || S.san > 3 || t.length < 6 || Math.random() > 0.25) return t;
+    const cold = S && LV() === "8" && !S.coat && S.cold >= 10;
+    if (!S || (S.san > 3 && !cold) || t.length < 6 || Math.random() > (S.san <= 2 ? 0.4 : 0.25)) return t;
     const i = 2 + rnd(t.length - 3);
     return t.slice(0, i) + pick(["■", "黄", "=)"]) + t.slice(i + 1);
   }
@@ -775,17 +805,35 @@ function createGame(io) {
     rows.forEach((r, i) => { if (r.t === "cmd" && i < rows.length - 8) idx.push(i); });
     if (!idx.length) return;
     rows[idx[rnd(idx.length)]] = { t: "cmd", ja: t, en: "", haunted: true };
+    if (!S.seen.overwrite) { S.seen.overwrite = true; say("（注記：要約が、記憶を上書きした形跡がある。打った覚えのない命令が、記録に残っている）", "note"); }
   }
   function note(k) {
+    if (!S.ver) S.ver = {};
     if (S.pages[k]) return;
     S.pages[k] = true;
     S.lastPage = k;
     if (held("book")) say("（生存手引きに、ページが一枚増えた）", "note");
   }
-  function bookText() {
+  // 自分の目で確かめたページ。うわさ（読んだだけ）と、確かめたことを分けておく
+  function verify(k) { if (S.pages[k]) S.ver[k] = true; }
+  // このレベルで、とくに読むべきページ
+  const CORE = { "1": ["water"], "2": ["hound"], "3": ["skin", "smiler"], "4": ["faceling", "party"], "6": ["smiler"], "8": ["moth", "balloon"],
+    "9": ["skin"], "10": [], "11": ["hound", "wire", "balloon", "party"], "Fun": ["party"], "37": [] };
+  function audit() {
     const have = PAGE_ORDER.filter(k => S.pages[k]);
+    const ok = have.filter(k => S.ver[k]).length;
+    const missed = Object.keys(S.visited).filter(l => PAGES[l] && !S.pages[l] && l !== LV()).length;
+    return { have, ok, rate: have.length ? (ok / have.length * 100).toFixed(1) : "0.0", missed };
+  }
+  function bookText() {
     const lv = LV();
-    let t = "M.E.G. 生存手引き\n綴じてあるページ：" + (have.length ? have.map(k => pageTitle(k).replace(/^(実体|物品)/, "")).join("、") : "まだない");
+    const a = audit(), have = a.have;
+    const short = k => pageTitle(k).replace(/^(実体|物品)/, "").replace(/「(.+)」.*/, "$1").replace(/^レベル/, "Lv");
+    const core = have.filter(k => k === lv || (CORE[lv] || []).includes(k));
+    const rel = have.filter(k => !core.includes(k) && S.ver[k]);
+    const off = have.filter(k => !core.includes(k) && !S.ver[k]);
+    let t = "M.E.G. 生存手引き\n" + (have.length ? `照合：綴じたページ ${have.length}枚／自分で確かめたもの ${a.ok}枚（一致率 ${a.rate}%）／取りこぼし ${a.missed}件` : "綴じてあるページ：まだない");
+    if (have.length) t += `\n［core］${core.map(short).join("、") || "なし"}\n［related］${rel.map(short).join("、") || "なし"}\n［off］${off.map(short).join("、") || "なし"}`;
     t += "\n\n" + (S.pages[lv] ? PAGES[lv] : "（このレベルのページは、まだない）");
     if (S.lastPage && S.lastPage !== lv && S.pages[S.lastPage]) t += "\n\n" + PAGES[S.lastPage];
     return t;
@@ -889,6 +937,8 @@ function createGame(io) {
     const info = LEVEL_INFO[lv];
     say(`―― Level ${lv}「${info[0]}」`, "note");
     if (DEPTH[lv] > LOOP.deep) { LOOP.deep = DEPTH[lv]; saveLoop(LOOP); }
+    S.visited[lv] = true;
+    if (from) verify(from);
     if (!S.seen["tru" + lv] && TRU[lv]) { S.seen["tru" + lv] = true; emit("truism", TRU[lv]); }
     if (lv === "8" && !S.seen.arr8) { S.seen.arr8 = true; S.cold = 0; }
     if (lv === "9") { S.l9.fog = 0; S.l9.st = 0; }
@@ -1053,7 +1103,7 @@ function createGame(io) {
       S.hound = 3;
       say("目を逸らさないまま、ゆっくりと後ずさる。……それは低く唸り、やがて興味を失ったように、管の陰へ戻っていった。");
       O.hound.loc = null;
-      note("hound");
+      note("hound"); verify("hound");
       if (dir === "s") { S.j = 0; enter("l2a"); return; }
     }
     if (dir === "s") { S.j = 0; say("来た道を戻る。"); enter("l2a"); return; }
@@ -1108,6 +1158,7 @@ function createGame(io) {
     if (dir === "u" || dir === "d") { say("天井は低く、足もとは濡れた岩だ。上にも下にも行けない。"); return; }
     if (dir === "s") { c.step = 0; c.mothOn = 0; c.guide = 0; say("来た道を戻る。標識の番号が、ひとつずつ減っていく。"); enter("l8a"); return; }
     if (dir === c.route[c.step]) {
+      if (c.step === c.balloon) { note("balloon"); verify("balloon"); }
       c.step++; c.guide = 0; c.mothOn = 0;
       say(`${DIR_JA[dir]}の穴を、這うようにして抜ける。`);
       if (c.step >= 4) { gap(); say("最後の標識の先で、洞窟は行き止まりになっていた。"); note("8"); enter("l8z"); return; }
@@ -1188,6 +1239,7 @@ function createGame(io) {
     }
     say(`${DIR_JA[dir]}の家の扉を開け、中に入る。` + (isMan ? "男は、入ってこなかった。戸口で、腕を押さえている。" : "背中で、男が何か言った。ふり返らずに、扉を閉める。"));
     S.l9.fog = 0;
+    if (S.l9.clear) { note("skin"); verify("skin"); }
     enter("l9h");
   }
   // ---- レベル10：麦畑・納屋・轍の道
@@ -1444,7 +1496,7 @@ function createGame(io) {
   }
   function drinkWater(o) {
     o.loc = "gone";
-    note("water");
+    note("water"); verify("water");
     addSan(4, "");
     say("アーモンド水を飲みほした。ほんのり甘い。喉を通るあいだだけ、うなりが遠のいた。（正気 +4）");
   }
@@ -1744,7 +1796,7 @@ function createGame(io) {
       if (o.id === "doorx") {
         say("「!」の扉に飛びつき、押し開ける。後ろで、黄色い人たちが、いっせいに笑うのをやめた。");
         gap();
-        note("Fun");
+        note("Fun"); note("party"); verify("party");
         enter("lrun");
         say("背後で扉が閉まる。……すぐに、何かがその扉を叩きはじめた。", "warn");
         return;
@@ -1827,7 +1879,7 @@ function createGame(io) {
       if (o.tap) {
         if (S.cooler <= 0) { say("給水器のレバーを押す。……ごぼ、と空気の音がしただけだ。タンクは空になっている。"); return; }
         S.cooler--;
-        note("water");
+        note("water"); verify("water");
         addSan(3, "");
         say("紙コップで、給水器のアーモンド水を飲む。ほんのり甘い。（正気 +3）" + (S.cooler ? "" : "……タンクが、空になった。"));
         return;
@@ -1894,7 +1946,7 @@ function createGame(io) {
         return;
       }
       if (o.id === "raincoat") { addSan(-1, "触れてしまった。……まだ、少し温かかった。"); return; }
-      if (o.id === "faceling") { say("肩に触れる。顔のない人は、ゆっくり振り向き、こちらを「見た」。……それから、ホワイトボードのほうを指さした。"); S.facePointed = true; note("faceling"); return; }
+      if (o.id === "faceling") { say("肩に触れる。顔のない人は、ゆっくり振り向き、こちらを「見た」。……それから、ホワイトボードのほうを指さした。"); S.facePointed = true; note("faceling"); verify("faceling"); return; }
       if (o.id === "hound") { hurt(3, "手を伸ばした瞬間、それが跳んだ。"); return; }
       if (o.id === "cake") { VERB_DO.eat(o); return; }
       if (o.id === "pools" || o.id === "deep" || o.id === "pool11") { say("水に手を入れる。体温と同じ温度。手を引き抜くのが、少し惜しい。"); return; }
@@ -2072,7 +2124,7 @@ function createGame(io) {
         S.ss = 2;
         if (S.loc === "l3a") { say("扉の向こうの声が、急に、こちらの声になった。「……じゃあね」", "warn"); say("足音が、扉の向こうの、もっと向こうへ遠ざかっていく。"); }
         else say("廊下のほうで、扉を叩く音が、ぴたりと止んだ。", "note");
-        note("skin");
+        note("skin"); verify("skin");
       } else if (S.loc === "l3a" && v !== "listen") say(ssLine(), "voice");
     }
     // スマイラー
@@ -2085,7 +2137,7 @@ function createGame(io) {
       else if (v !== "lightoff") {
         S.smile.t++;
         if (S.smile.t >= 2) {
-          S.smile = null;
+          S.smile = null; verify("smiler");
           say("歯の列が、ゆっくり、暗闇に溶けていった。……非常灯が、赤く点いた。", "note");
         } else say("息を止める。歯の列は、まだ、そこに浮かんでいる。");
       }
@@ -2093,7 +2145,7 @@ function createGame(io) {
     if (S.smile6 && S.loc === "l6" && S.smile6.t < 0) S.smile6.t = 0;
     else if (S.smile6 && S.loc === "l6") {
       S.smile6.t++;
-      if (S.smile6.t >= 2) { S.smile6 = null; note("smiler"); say("歯の列が、暗闇に溶けていった。波の音が、また聞こえる。", "note"); }
+      if (S.smile6.t >= 2) { S.smile6 = null; note("smiler"); verify("smiler"); say("歯の列が、暗闇に溶けていった。波の音が、また聞こえる。", "note"); }
       else say("動かない。歯の列が、少しだけ近づいた気がする。");
     }
     // レベル5：曲と視線
@@ -2124,6 +2176,7 @@ function createGame(io) {
       else {
         S.c8.mothOn--;
         note("moth");
+        if (!S.c8.mothOn) verify("moth");
         say(S.c8.mothOn ? "羽音が、頭のすぐ上を通りすぎていく。銀色の粉が、髪に積もる。息を殺す。" : "羽音が、遠ざかっていった。銀色の粉だけが、床に残っている。", S.c8.mothOn ? "warn" : "note");
         syncCave();
       }
@@ -2154,7 +2207,7 @@ function createGame(io) {
       else {
         S.l11.wire--;
         if (S.l11.wire) say("灰色の人影が、目のない顔を左右に振っている。すぐ近くで。息を、止める。", "warn");
-        else { S.l11.wireDone = true; say("灰色の人影は、するすると電線の束に戻っていった。柱の引っかき傷だけが残っている。", "note"); }
+        else { S.l11.wireDone = true; verify("wire"); say("灰色の人影は、するすると電線の束に戻っていった。柱の引っかき傷だけが残っている。", "note"); }
       }
     }
     // レベル433 N：水も食べ物もない
@@ -2492,7 +2545,7 @@ function createGame(io) {
     if (FXO[lv]) FX.level(0, FXO[lv]); else FX.level(FXK[lv] || (lv === "37" ? "37" : +lv || 0));
   }
   function runFx(list, s) {
-    if (s.lv !== curLv) { curLv = s.lv; fxLevel(s.lv); }
+    if (s.lv !== curLv) { curLv = s.lv; fxLevel(s.lv); if (window.FX && FX.align) FX.align(false); }
     if (!window.FX) return;
     FX.stress(Math.max((7 - s.san) / 7, s.danger ? 0.62 : 0, s.cold * 0.7));
     for (const e of list) {
@@ -2506,6 +2559,7 @@ function createGame(io) {
       else if (e.type === "truism" && e.k) FX.truism(e.k[0], e.k[1], e.k[2]);
       else if (e.type === "end") { FX.flash(); FX.shock(e.k === "exit" || e.k === "sublime" ? 1 : 2); }
       else if (e.type === "vhs" && FX.vhs) { FX.vhs(true); setTimeout(() => FX.vhs(false), 4500); }
+      else if (e.type === "align" && FX.align) { FX.align(true); FX.burst(2, 0.4); }
     }
   }
   // 起動画面に見せる要約（場所が変わったとき・結末のとき）
@@ -2552,6 +2606,7 @@ function createGame(io) {
     G.submit(label, en);
     render();
     const s = G.status(), list = G.fx();
+    if (window.FX && /^(dunno|hint|わからない|分からない)$/.test(String(en || label))) FX.truism();
     runFx(list, s);
     writeMeta(s, list);
   }
@@ -2670,7 +2725,17 @@ function createGame(io) {
   $("menu-btn").addEventListener("click", optLabels);
   document.addEventListener("keydown", e => { if (e.key === "Escape") { closeBuilder(); openSheet(false); } });
 
-  if (window.FX) FX.tags(["M.E.G.", "[9番道路]", "A.W. 500ml", "[クラス ?]", "Lv.?", "[no-clip]", "=)", "[片道]", "[標識 #??]", "[記録欠損]", "[うごくな]", "[孤立効果]"]);
+  if (window.FX) FX.truisms([
+    ["CHECK IT TWICE BEFORE YOU BELIEVE IT", "信じる前に、二度確かめろ", "M.E.G."],
+    ["A GROWL IS A MESSAGE, NOT A RULE", "唸りは伝言であって、決まりではない", "生存手引き"],
+    ["DO NOT WRITE ALWAYS. LOOK FIRST", "「いつも」と書くな。まず見ろ", "生存手引き"],
+    ["A SUMMARY CAN OVERWRITE WHAT HAPPENED", "要約は、起きたことを上書きする", "判定機 E"],
+    ["CORE. RELATED. OFF. YOU ARE ALL THREE", "core、related、off。あなたはその三つ全部だ", "判定機 A"],
+    ["KEEP THE AIM. CHANGE THE MEANS", "狙いはそのまま、手段を替えろ", "M.E.G."],
+    ["THE MOON IS NINETY DEGREES WRONG", "月が、九十度ずれている", "観測記録"],
+    ["NO ONE HAS WRITTEN WHY YOU ARE HERE", "あなたがここにいる理由は、誰も書いていない", "M.E.G."],
+  ]);
+  if (window.FX) FX.tags(["M.E.G.", "[9番道路]", "A.W. 500ml", "[クラス ?]", "Lv.?", "[no-clip]", "=)", "[片道]", "[標識 #??]", "[記録欠損]", "[うごくな]", "[孤立効果]", "[core]", "[related]", "[off]", "[一致率 98.8%]", "[取りこぼし 2]", "[再判定]"]);
   G.start(false);
   render();
   { const s = G.status(); runFx([], s); writeMeta(s, []); }
