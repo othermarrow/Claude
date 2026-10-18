@@ -3589,12 +3589,36 @@ function createGame(io) {
       if (e.type === "verify") neon(e.k);
       if (e.type === "end") { neon(e.k, true); if (F) { if (GOOD_END.includes(e.k)) F.flash(); else F.shock(2); } }
     }
-    if (F) { try { F.stress(s.done ? 0 : s.stress); } catch (e) { /* 演出なしでよい */ } }
+    if (F) {
+      try {
+        F.stress(s.done ? 0 : s.stress);
+        F.align(s.ok >= 12 || fx.some(e => e.type === "end" && GOOD_END.includes(e.k)));
+        if (!s.done && s.stress > 0.6 && Math.random() < s.stress * 0.35) setTimeout(() => F.glitch(), 300 + Math.random() * 900);
+      } catch (e) { /* 演出なしでよい */ }
+    }
+    if (!s.done && s.stress > 0.55) corrupt(s.stress);
+    for (const e of fx) if (e.type === "vhs" && F) { F.vhs(true); clearTimeout(vhsT); vhsT = setTimeout(() => F.vhs(false), 7000); }
     $("retry-btn").hidden = !G.canRetry();
     writeMeta(s);
     SND.set(s);
     SND.fx(fx);
     requestAnimationFrame(() => { screenEl.scrollTop = screenEl.scrollHeight; });
+  }
+  // 危ういとき、新しい行の字がところどころ化ける（少したつと戻る）
+  let vhsT = 0;
+  const NOISE = "▒░█□・ｦﾇ？";
+  function corrupt(level) {
+    const fresh = [...logEl.querySelectorAll(".row.fresh")].filter(p => !p.classList.contains("cmd") && !p.classList.contains("doc"));
+    const rate = Math.min(0.12, (level - 0.5) * 0.25);
+    for (const p of fresh) {
+      const orig = p.textContent;
+      let changed = false;
+      const out = [...orig].map(ch => { if (ch.trim() && Math.random() < rate) { changed = true; return NOISE[Math.random() * NOISE.length | 0]; } return ch; }).join("");
+      if (!changed) continue;
+      p.textContent = out;
+      p.classList.add("glitchy");
+      setTimeout(() => { if (p.isConnected) { p.textContent = orig; p.classList.remove("glitchy"); } }, 1400 + Math.random() * 900);
+    }
   }
   function flicker() {
     const bar = $("bar");
