@@ -1999,7 +1999,7 @@ function createGame(io) {
     const lv = LV();
     // 懐中電灯の電池
     if (S.light && held("flashlight") && lv !== "6" && S.bat > 0) {
-      S.bat = Math.max(0, S.bat - 3);
+      S.bat = Math.max(0, S.bat - (lv === "8" ? 6 : 3));
       if (S.bat === 0) { S.light = false; say("懐中電灯が、ふっと消えた。電池が切れた。", "warn"); }
     }
     // レベル1：灯りが消える
@@ -2013,6 +2013,7 @@ function createGame(io) {
         S.blk = 2;
         gap();
         flicker();
+        emit("blackout");
         say("照明が、いっせいに消えた。", "warn");
         say("遠くで、何か大きなものが、水たまりを踏む音。近づいてくる。");
       }
@@ -2067,6 +2068,55 @@ function createGame(io) {
       if (v === "wait" || v === "sleep" || v === "sit") S.calm++;
       if (S.calm >= 5) { endSublime(); return; }
       if (S.calm >= 3 && !S.seen.calm3) { S.seen.calm3 = true; say("帰りたい理由を、ひとつ、思い出せなくなった。", "warn"); }
+    }
+    // レベル8：寒さと蛾
+    if (lv === "8" && !S.coat) {
+      S.cold++;
+      if (S.cold % 5 === 0) { addSan(-1, S.cold >= 10 ? "歯の根が合わない。指先の感覚が、もうない。" : "寒い。濡れた服が、体温を奪っていく。"); if (S.broken || S.done) return; }
+    }
+    if (S.loc === "l8r" && S.c8.mothOn > 0) {
+      if (S.c8.mothFresh) S.c8.mothFresh = false;
+      else if (lightOn()) { note("moth"); S.light = false; hurt(3, "灯りに、羽音が殺到した。翅が顔を叩き、銀色の粉で息ができない。懐中電灯が、手から落ちる。"); return; }
+      else {
+        S.c8.mothOn--;
+        note("moth");
+        say(S.c8.mothOn ? "羽音が、頭のすぐ上を通りすぎていく。銀色の粉が、髪に積もる。息を殺す。" : "羽音が、遠ざかっていった。銀色の粉だけが、床に残っている。", S.c8.mothOn ? "warn" : "note");
+        syncCave();
+      }
+    }
+    // レベル9：街灯と霧
+    if (lv === "9") {
+      S.l9.tick++;
+      if (S.loc === "l9a" && lamp9()) say("街灯が、じじ、と鳴って、一瞬だけ点いた。", "note");
+    }
+    if (S.loc === "l9a") {
+      if (S.l9.fog === 2) { S.l9.fog = 0; hurt(3, "霧が、腰まで来た。霧の中から、関節の多すぎる腕が、何本も伸びてくる。ねじれた指が、口の中に入ってくる。"); return; }
+      if (S.l9.fog === 1) { S.l9.fog = 2; emit("omen"); say("霧が、足首まで来た。霧の中で、何かがもつれ合いながら、こちらへ這ってくる。……通りにいてはいけない。", "warn"); }
+      else if (S.l9.st >= 2 && Math.random() < 0.25) { S.l9.fog = 1; emit("omen"); say("道の端から、白い霧が這い寄ってくる。霧の中で、何かがもつれ合うように動いている。", "warn"); }
+      S.l9.st++;
+    } else if (lv === "9") { S.l9.fog = 0; S.l9.st = 0; }
+    // レベル10：時間の感覚がなくなる
+    if (lv === "10") {
+      S.l10.t++;
+      if (S.l10.t >= 10 && S.l10.t % 4 === 2) { addSan(-1, "空の明るさが、少しも変わらない。どれだけ時間がたったのか、分からなくなってきた。"); if (S.broken || S.done) return; }
+    }
+    // レベル11：基地ベータの隊員と、電線の灰色の人影
+    if (S.loc === "l11c" && !S.l11.met) {
+      S.l11.met = true;
+      say("隊員が、地図から顔を上げた。「新顔か。……残るなら、名簿に名前を。地図係が足りないんだ」", "voice");
+    }
+    if (S.loc === "l11a" && S.l11.wire > 0) {
+      if (S.l11.wireFresh) S.l11.wireFresh = false;
+      else {
+        S.l11.wire--;
+        if (S.l11.wire) say("灰色の人影が、目のない顔を左右に振っている。すぐ近くで。息を、止める。", "warn");
+        else { S.l11.wireDone = true; say("灰色の人影は、するすると電線の束に戻っていった。柱の引っかき傷だけが残っている。", "note"); }
+      }
+    }
+    // レベル433 N：水も食べ物もない
+    if (S.loc === "l433") {
+      S.h433++;
+      if (S.h433 % 3 === 0) { addSan(-1, "喉が渇く。ここには、水も、食べ物もない。"); if (S.broken || S.done) return; }
     }
     // レベル Fun：留まるほど、輪が狭まる
     if (S.loc === "lfun") {

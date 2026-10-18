@@ -1685,22 +1685,41 @@ body.typing #pad { display: none; }
         case "avroom": VERB_DO.listen(); return;
         case "cafe": if (O.mizuwari.loc === "cafe") { say("グラスの氷が、少しも溶けない。"); return; } break;
         case "bed": say(S.sunday ? "静かだ。廊下に、誰もいない。" : "白い天井の染みを数える。数えるたびに、数が合わない。"); return;
+        case "station":
+          if (S.scroll) {
+            S.scrollWait++;
+            if (S.scrollWait < 2) { say("Scroll Lock のランプを見ながら、じっとする。……壁の掲示物が、一枚ぶん、下から上へずれた気がした。", "note"); return; }
+            warp("l4a", ["カウンターも、ファイル立ても、鳥かごも、壁ごと、ゆっくり上へ流れていく。", "……流れが止まると、知らない事務所に立っていた。蛍光灯のうなりだけが、詰所と同じだ。"]);
+            return;
+          }
+          break;
+        case "l4b": smilerWarn("じっとしていると、歯の列が、少しだけ近づいた。"); return;
+        case "l4c":
+          if (S.wire) { S.wire = false; say("息を止めて、じっとする。……配線が、ゆっくり天井の中へ引っこんでいく。灰色の人の形も、一緒に。"); return; }
+          break;
+        case "c11a":
+          S.fwait++;
+          if (S.fwait === 1) { say("待つ。顔のない人たちの流れが、こちらを避けずに、こちらを含んで流れはじめる。"); return; }
+          if (S.fwait === 2) { say("歩幅が、皆と同じになっていく。顔の皮膚が、少しずつ軽い。……このまま待てば、もう戻れない気がする。", "warn"); fx("glitch"); return; }
+          endFace(); return;
+        case "p37a": case "p37b": case "p37c": say("さざ波が、腰のまわりで鳴る。音は、すぐ水に吸われる。"); return;
+        case "fun1": case "fun2": say("待っているあいだにも、甲板のどこかで、風船がふくらむ。"); return;
       }
       say("時間が過ぎる。" + (hot() ? "頭の右上で、鉄の球がゆっくり揺れている。" : ""));
     },
-    hint: () => say("（ヒント）" + hintText(), "note"),
+    hint: () => hint(),
     dunno: () => {
       if (SCHOOL.includes(S.loc) && !S.rules) {
         say("「わから――」と言いかけて、口を押さえた。窓の外の何かが、身じろぎする。", "voice");
-        say("心の中でだけ言うと、どこかで、誰かが小さく答えた。", "note");
-        say("（ヒント）" + hintText(), "note");
+        hint();
         return;
       }
+      if (S.loc === "l4b") { smilerWarn("「わから――」声を出しかけた。歯の列が、ぱっと大きくなった。……口を閉じる。"); return; }
+      if (S.loc === "l4c" && S.wire) { wirePass(); return; }
       say("「わからない」", "voice");
-      if (S.loc === "ura") say("向かいの誰かが、顔を伏せたまま、小さく答えた。", "note");
-      else if (S.loc === "sky") say("少女が、くすりと笑って答えた。", "note");
-      else say("どこかで、誰かが、質問ではない声で、小さく答えた。", "note");
-      say("（ヒント）" + hintText(), "note");
+      if (S.loc === "ura") say("向かいの誰かが、顔を伏せたまま、こちらを見た。", "note");
+      else if (S.loc === "sky") say("少女が、くすりと笑った。", "note");
+      hint();
     },
     listen: () => {
       switch (S.loc) {
@@ -1718,6 +1737,19 @@ body.typing #pad { display: none; }
         case "sroom": say("チョークの粉が、黒板の下に降り積もる音。……そんな音は、しないはずだ。"); return;
         case "toilet": say("蛇口から、一滴ずつ。ひびの入った鏡が、ときどき、ぴしりと鳴る。"); return;
         case "lab": say("扉の向こうで、誰かが小さく話している。同じことを、何度も。"); return;
+        case "p37a": case "p37b": say("水の音。……と思ったら、自分の血の音だった。外の音は、ここまで届かない。"); return;
+        case "p37c": say("階段の下のほうから、泡の上がってくる音。誰かが、ずっと下で息をしている。"); return;
+        case "l4a": say("蛍光灯のうなり。詰所のと、同じ高さの音。どこかで、端末のキーを叩く音。電源は、入っていないのに。"); return;
+        case "l4b": say("暗がりで、歯と歯が、こつ、と鳴った。"); return;
+        case "l4c": say(S.wire ? "天井の配線が、こちらの呼吸に合わせて揺れている。" : "階段の下から、インコの声がした気がした。"); return;
+        case "l9st": say("遠くで犬が鳴いた。……犬にしては、言葉に近い。霧の中で、誰かが『おかえり』を練習している。"); return;
+        case "l9w": case "l9e": say(isQuiet() ? "新聞をめくる音。鍋の煮える音。それだけ。" : "包丁の音。母親の、途切れないおしゃべり。ところどころ、自分の声が混じる。"); return;
+        case "l9rd": say("霧の中で、自分の足音が、一歩遅れてもう一つ鳴る。"); return;
+        case "c11a": say("信号の切り替わる音。たくさんの足音。話し声は、一つもない。"); return;
+        case "c11b": say("レジを打つ仕草の、音のしない音。"); return;
+        case "c11c": say("ガラスの向こうから、蛍光灯のうなり。詰所のと、同じ高さ。"); return;
+        case "fun1": say("下の階から、音楽と笑い声。笑い声のいくつかは、悲鳴と区別がつかない。"); return;
+        case "fun2": say("風に、ポスターの端がはためく。一枚だけ、音がしない。"); return;
         case "music": say("鳴らないはずの鍵盤が一つ、ことりと沈む音。"); return;
         case "avroom": say("「それは、本当に必要な質問ですか？」「必要かどうかを、誰が決めるのですか？」「決めるのは、誰であるべきだと思いますか？」……質問が、質問を呼んでいる。"); return;
         case "stairs": say("大勢の足音。誰も、息を切らしていない。"); return;

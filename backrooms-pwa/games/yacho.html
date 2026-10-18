@@ -1148,7 +1148,7 @@ function createGame(io) {
   let fxq = [];
   function emit(type, k) { fxq.push({ type, k }); }
 
-  function stage() { return S.th < 90 ? 0 : S.th < 130 ? 1 : 2; }
+  function stage() { return S.th < TH.s1 ? 0 : S.th < TH.s2 ? 1 : 2; }
   function status() {
     const lv = LV();
     const info = LEVEL_INFO[lv];
@@ -1681,6 +1681,7 @@ function createGame(io) {
   }
   function stareHound() {
     if (S.hd === 3) { say("もう、いない。"); return; }
+    if (!full("hound")) { hurt("ハウンドの目を見る。……唸り声に、思わず目をそらしてしまった。その瞬間、跳んできた。"); return; }
     S.hd = 1; S.hdT = 2;
     say("ハウンドの目を、まっすぐ見る。……ハウンドが、前脚を止めた。喉の奥で唸っている。長くはもたない。");
   }
@@ -1689,7 +1690,7 @@ function createGame(io) {
     if (S.ar === 1) {
       say("「ここは、書かれたものを置いておく場所。……読みに来たの？　それとも、書いたものを持ってきた？」", "voice");
       say("「同じ実体について、版が三つも四つもある。どれかが嘘というより、見た人が違う。どこで、いつ、何を見たかが書いてあれば、並べて残せる。書いていなければ、うわさと同じ棚に行く」", "voice");
-      say("「野帳を渡してくれれば、写して棚に入れる。……渡したら、それで終わりにしていい。まだ見たいものがあるなら、行ってきて」", "voice");
+      say("「野帳を置いていく人もいる。写して、棚に入れる。……置いていった人が、そのあとどこへ行ったのかは、知らない」", "voice");
       return;
     }
     if (!held("notebook")) { say("「書くものがないなら、まずそれから。自分が誰で、何をしようとしているか」", "voice"); return; }
@@ -2170,7 +2171,7 @@ function createGame(io) {
       return;
     }
     if (S.op === 2) {
-      say("「オメガ――レベル4の基地の保管庫は、版の食い違った記事だらけでね。見たものを見たとおりに書いてくる人が、いつも足りない。先へ行くなら、野帳を届けてほしい」", "voice");
+      say("「オメガ――レベル4の基地の保管庫は、版の食い違った記事だらけでね。見たものを見たとおりに書いた帳面を、あそこの保管係は、いつも欲しがってる」", "voice");
       say("「レベル2へは、柱の区画の南、配管の増えていくほうへ。2の『4』の扉から、レベル4へ出られる」", "voice");
       say("「掲示板も読んでいって。……ただ、あれも、誰かが書いたものだよ」", "voice");
       say("「それと、柱の区画の黄色い壁紙の柱には、体を押しつけないこと。レベル0に戻されるから」", "voice");
@@ -2824,13 +2825,107 @@ function createGame(io) {
     if (S.done || S.broken || META.includes(v)) return;
     const lv = LV();
     // 渇き
-    S.th += 1 + (S.loc === "y5c" ? 2 : 0);
-    const st = S.th >= 170 ? 3 : stage();
+    S.th += 1 + (S.loc === "y5c" ? 2 : 0) + (S.moves % 4 === 0 ? 1 : 0);
+    const st = S.th >= TH.end ? 3 : stage();
     if (st === 3) { endWretch(); return; }
-    if (S.th >= 50 && S.stageSaid < 1) { S.stageSaid = 1; say("のどが渇いてきた。", "note"); }
+    if (S.th >= TH.end - 12 && !S.seen.thLast) { S.seen.thLast = true; say("目の前が、水のことしか見えない。……このままでは、もたない。", "warn"); }
+    if (S.th < TH.end - 12) S.seen.thLast = false;
+    if (S.th >= TH.dry && S.stageSaid < 1) { S.stageSaid = 1; say("のどが渇いてきた。", "note"); }
     if (st >= 1 && S.stageSaid < 2) { S.stageSaid = 2; say("腕がかゆい。見ると、赤い発疹が出ている。気持ちが、ささくれ立つ。", "warn"); }
     if (st >= 2 && S.stageSaid < 3) { S.stageSaid = 3; say("ことばが、うまく出てこない。頭の中が、水のことでいっぱいだ。", "warn"); }
-    if (S.th < 50) S.stageSaid = 0; else if (S.th < 90) S.stageSaid = Math.min(S.stageSaid, 1); else if (S.th < 130) S.stageSaid = Math.min(S.stageSaid, 2);
+    if (S.th < TH.dry) S.stageSaid = 0; else if (S.th < TH.s1) S.stageSaid = Math.min(S.stageSaid, 1); else if (S.th < TH.s2) S.stageSaid = Math.min(S.stageSaid, 2);
+    // 発炎筒
+    if (S.flare > 0) { S.flare--; if (S.flare === 0) { say("発炎筒が、燃えつきた。", "note"); O.flare.loc = "gone"; } else if (S.flare === 3) say("発炎筒の炎が、小さくなってきた。", "note"); }
+    // 冷え（レベル8で濡れていると、どんどん冷える）
+    if (lv === "8") {
+      if (S.loc === "y8c") { if (S.cold > 0) { S.cold = Math.max(0, S.cold - 20); S.l8.wet = false; } }
+      else if (S.l8.suit) S.cold = Math.max(0, S.cold - 3);
+      else S.cold += S.l8.wet ? 4 : 2;
+      const cs = S.cold >= 80 ? 3 : S.cold >= 55 ? 2 : S.cold >= 25 ? 1 : 0;
+      if (cs > (S.coldSaid || 0)) say(["", "体の芯が冷えてきた。", "震えが止まらない。指が、うまく動かない。", "まぶたが重い。……眠ってはいけない。"][cs], cs >= 2 ? "warn" : "note");
+      S.coldSaid = cs;
+      if (S.cold >= 100) { say("体が、動かなくなった。", "warn"); collapse(); return; }
+    } else if (S.cold > 0) { S.cold = Math.max(0, S.cold - 5); S.coldSaid = 0; }
+    // レベル7の深み：深いほうのものは、光を嫌う
+    if (S.loc === "y7d") {
+      if (lightOn()) S.l7.seen = true;
+      S.l7.t++;
+      if (S.l7.t === 2) say("ずっと下で、何かが向きを変えた。水が、わずかに押し上げられる。", "warn");
+      else if (S.l7.t === 3) say("大きなものが、下から昇ってくる。水が、体を持ち上げる。", "warn");
+      else if (S.l7.t >= 4) {
+        S.l7.t = 0;
+        if (lightOn()) say("灯りを向ける。……巨大な何かが、光から顔をそむけるように、闇の底へ沈んでいった。", "note");
+        else { hurt("闇の底から、何か巨大なものがぶつかってきた。"); if (!S.broken) { say("……気がつくと、ロープにしがみついていた。"); S.loc = "y7w"; describe(true); } return; }
+      }
+    }
+    // レベル8：標識は、見ていないと崩れる
+    if (S.loc === "y8r" && S.l8.opts) {
+      if (S.l8.lookT < 0) S.l8.lookT = 0;
+      else if (!["look", "go"].includes(v)) { S.l8.lookT++; if (S.l8.lookT >= 3 && !S.l8.blur) { S.l8.blur = true; const keep = S.l8.blur; newMarkerOpts(); S.l8.blur = keep; say("ふと見ると、標識の字が、かすれている。", "note"); } }
+    }
+    // レベル8：蛾
+    if (S.loc === "y8m") {
+      const l = S.l8;
+      if (lightOn()) {
+        l.swarm++;
+        if (l.swarm === 1) say("羽音が、灯りのほうへ集まってくる。", "warn");
+        else if (l.swarm === 2) say("白い大きな蛾が、灯りのまわりで渦を巻く。腕に、何かがかすった。", "warn");
+        else { l.swarm = 0; hurt("蛾が群がり、灯りを持つ手に、鋭い顎が食いこんだ。"); return; }
+      } else if (l.swarm > 0) { l.swarm = 0; say("灯りが消えると、羽音は高いところへ散っていった。", "note"); }
+      if (l.mo === 0 && l.bottle && O[l.bottle].loc === "y8m" && !lightOn() && v !== "drop") {
+        l.mo = 1;
+        say("白い蛾が一匹、ゆっくり降りてきた。管のような口を、瓶に差しこむ。こちらには、見向きもしない。", "note");
+        see("moth", 0); see("moth", 1);
+      } else if (l.mo === 1) {
+        l.mo = 2; l.moT = 4; l.floor = pick(["e", "w"]);
+        O[l.bottle].loc = "gone"; l.bottle = null;
+        say(`飲み終えた蛾は、${DIR_JA[l.floor]}の壁ぎわへ飛び、床の一点の上を、低く、輪を描いて回りはじめた。`, "note");
+        see("moth", 2);
+      } else if (l.mo === 2) {
+        l.moT--;
+        if (l.moT <= 0) { l.mo = 0; l.floor = null; say("蛾は、高いところへ戻っていった。", "note"); }
+      }
+    }
+    // レベル9：霧と、街灯の蛾
+    if (S.loc === "y9a" || S.loc === "y9y") {
+      const l = S.l9;
+      if (S.loc === "y9a" || S.moves % 2 === 0) l.fog++;
+      if (l.fog >= 4) O.fog9.loc = S.loc;
+      if (l.fog === 4) { say("霧が、足もとを這いはじめた。", "warn"); see("fog", 0); }
+      else if (l.fog === 6) { say("霧が濃くなる。……街灯の下で、霧の一部が、人の形をとりかけている。", "warn"); see("fog", 1); }
+      else if (l.fog === 7) say("霧の中の形が、こちらを向いた。腕のようなものが、ねじれながら伸びてくる。", "warn");
+      else if (l.fog >= 8) { l.fog = 3; O.fog9.loc = null; hurt("霧の中から、ねじれた腕が、足首をつかんだ。"); return; }
+      if (S.loc === "y9a" && lightOn()) {
+        l.mothL++;
+        if (l.mothL >= 2) { l.mothL = 0; hurt("街灯の蛾が、灯りごと顔に群がった。"); return; }
+      } else l.mothL = 0;
+    } else if (S.loc === "y9h") {
+      const l = S.l9;
+      if (l.fog > 0) {
+        const was = l.fog;
+        l.fog = Math.max(0, l.fog - 2);
+        if (was >= 4 && l.fog < 4) { O.fog9.loc = null; say("窓の外で、霧が引いていく。", "note"); if (S.rec.fog && S.rec.fog.s[1]) see("fog", 2); }
+      }
+      if (l.bal === 1) { l.balT--; if (l.balT <= 0) { l.bal = 0; say("リボンが、締めあげていた物を放した。……先が、またこちらを向く。", "warn"); } }
+    }
+    // レベル10：置いた穂
+    if (LV() === "10" && S.l10.ear && S.l10.ear === S.loc && O.ear10.loc === S.loc) {
+      const t = S.moves - S.l10.earT, r = rec("wheat");
+      if (t >= 7 && r.s[1] && !r.s[2]) wormComes();
+    }
+    // レベル11：パーティーゴアー
+    if (S.loc === "y11p" && S.l11.pg === 1 && v !== "go") {
+      const l = S.l11;
+      if (l.pgStop > 0) {
+        l.pgStop--;
+        if (l.pgStop === 0) { l.screen = false; say("片方が、衝立をまわりこんだ。互いの姿が見えると、二つとも、また動き出した。", "warn"); see("pg", 2); }
+      } else {
+        l.pgT++;
+        if (l.pgT === 1) say("二つが、近づいてくる。腕の先の口が、ひらいた。", "warn");
+        else if (l.pgT === 2) say("知っている声が、すぐそばで。「こっちへおいで」", "voice");
+        else { pgCaught("黄色い腕が伸びた。腕の先の口が、肩に吸いついた。"); return; }
+      }
+    }
     // レベル0：ちらつく壁、うなり
     if (S.loc === "y0") {
       if (S.l0.ring > 0) S.l0.ring--;
@@ -2903,7 +2998,7 @@ function createGame(io) {
   const EN_SIMPLE = [
     ["look", /^(look|l)$/], ["inventory", /^(inventory|i)$/], ["wait", /^(wait|z)$/], ["hint", /^hint$/], ["help", /^help$/],
     ["listen", /^listen$/], ["dunno", /^(dunno|i don'?t know)$/], ["sleep", /^sleep$/], ["lookback", /^look back$/],
-    ["book", /^(book|notebook|read notebook)$/], ["down", /^(descend|climb down)$/], ["up", /^(ascend|climb up)$/],
+    ["book", /^(book|notebook|read notebook)$/], ["down", /^(descend|climb down)$/], ["up", /^(ascend|climb up)$/], ["retry", /^retry$/],
   ];
   const DIR_WORDS = { n: "n", north: "n", s: "s", south: "s", e: "e", east: "e", w: "w", west: "w", u: "u", up: "u", d: "d", down: "d" };
   function findObj(s) {
@@ -2967,7 +3062,8 @@ function createGame(io) {
   const OBJLESS = ["dunno", "lookback", "sleep", "up", "down"];
   const SIMPLE = { "見る": "look", "周りを見る": "look", "見回す": "look", "持ち物": "inventory", "待つ": "wait", "ヒント": "hint", "遊び方": "help", "ヘルプ": "help",
     "耳をすます": "listen", "耳を澄ます": "listen", "聞く": "listen", "わからない": "dunno", "分からない": "dunno",
-    "寝る": "sleep", "眠る": "sleep", "振り向く": "lookback", "振り返る": "lookback", "降りる": "down", "上る": "up", "野帳": "book", "野帳を見る": "book" };
+    "寝る": "sleep", "眠る": "sleep", "振り向く": "lookback", "振り返る": "lookback", "降りる": "down", "上る": "up", "野帳": "book", "野帳を見る": "book",
+    "やり直す": "retry", "やりなおす": "retry", "もう一度": "retry", "入口から": "retry" };
   function parseJa(t) {
     const s = t.replace(/[\s　。！？!?、「」『』]/g, "");
     if (!s) return null;
@@ -3018,9 +3114,14 @@ function createGame(io) {
   }
 
   function act(input, label) {
-    if (S.done) { say("ここで、終わっている。≡ のメニューから、はじめから。", "note"); return; }
     const ascii = /^[\x20-\x7e]*$/.test(input);
     let p = ascii ? parseEn(input) : parseJa(input);
+    if (p && p.v === "retry") {
+      if (!S.done) { say("（まだ、続いている。「やり直す」は、終わってしまったときに使える）", "note"); return; }
+      if (retry()) { gap(); say("……また、ここに立っている。", "note"); emit("level", LV()); describe(true); arrive(LV(), null); }
+      return;
+    }
+    if (S.done) { say("ここで、終わっている。≡ のメニューから、はじめから。「やり直す」と入れると、この階の入口から。", "note"); return; }
     if (!p) { say("その言い方はわからない。「命令を作る」を使うと確実だ。"); return; }
     S.moves++;
     S.broken = false;
@@ -3121,6 +3222,9 @@ function createGame(io) {
     // テスト用：今の状態を覗く
     peek: () => S,
     obj: id => O[id],
+    // 起動画面に渡す要約
+    meta: () => ({ endings: (LOOP.ends || []).slice(), total: ENDINGS.length, deepest: "Level " + (LOOP.deep || 0), runs: LOOP.n || 0 }),
+    canRetry: () => !!(S && S.done && S.cp),
   };
 }
 // ==== ENGINE END ====
