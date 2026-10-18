@@ -1123,13 +1123,60 @@ body.typing #pad { display: none; }
   function enter(to) {
     const fromLv = levelOf(S.loc);
     if (S.loc === "l5a" && to !== "l5a" && !S.l5done) { S.beans = false; S.stir = 0; S.door = 0; S.sleepy = false; }
+    if (S.loc === "l11g" && to !== "l11g" && cooking11()) breakCook("鍋を置いたまま、部屋を出てしまった。", true);
     S.loc = to;
     S.darkT = 0;
+    if (levelOf(to) !== fromLv) preArrive(levelOf(to), fromLv);
     describe(false);
     if (levelOf(to) !== fromLv) arrive(levelOf(to));
+    onEnter(to);
+  }
+  // 階が変わる直前（説明を出す前）にしておくこと
+  function preArrive(lv, fromLv) {
+    if (lv > (S.deep || 0)) S.deep = lv;
+    S.lvT = 0;
+    if (lv >= 7 && S.bat == null) S.bat = 20;
+    // 懐中電灯を上の階に置いてきても、下の階の入口で、また見つかる
+    if (lv >= 7 && !held("flashlight") && LEVEL_START[lv] === S.loc) {
+      const fl = levelOf(O.flashlight.loc);
+      if (fl === undefined || fl < lv) { O.flashlight.loc = S.loc; S.light = false; }
+    }
+    if (lv === 8 && fromLv > 8) resetLv(8);
+    levelFx(lv);
+    writeMeta();
+  }
+  const LV_TAGS = {
+    0: ["目を開ける。", "3:12", "[正気]", "Lv.0", "[とまるな]", "[記録]", "[孤立]"],
+    7: ["深度 ????m", "[息]", "Thalassophobia", "[ちび]", "[光を知らない]", "Lv.7"],
+    8: ["9th Road", "#74", "#78", "#73", "M.E.G.", "[灯りを殺せ]", "Lv.8"],
+    9: ["[停電]", "[透明な血]", "=)", "Lv.9", "[みちを はずれる]", "[砂嵐]"],
+    10: ["[収穫]", "Bumper Crop", "Lv.10", "[曇天]", "[腐らない]"],
+    11: ["EXIT", "EXIT", "EXIT", "312", "[眠らない]", "Lv.11", "A.W."],
+  };
+  const LV_TRUISM = {
+    0: ["IF YOU STOP, IT MULTIPLIES", "立ち止まると、増える"],
+    1: ["A LOG THAT SAYS NOTHING HAPPENED IS STILL A LOG", "何もなかったと書いた日誌も、記録だ"],
+    2: ["A NAME IS NOT A CAGE. IT IS A DISTANCE", "名前は檻ではない。距離だ"],
+    3: ["CHECKING TWICE DOES NOT MAKE IT TRUE", "二度確かめても、本当にはならない"],
+    4: ["A SCREAM BECOMES A WORD FROM FAR AWAY", "叫びは、遠くで聞くとことばになる"],
+    5: ["KEEP STIRRING. DO NOT TURN AROUND", "かき混ぜつづけろ。振り向くな"],
+    6: ["THE UNWRITTEN LINE IS THE ONLY DOOR", "まだ書いていない行だけが、扉だ"],
+    7: ["THE SEA DOES NOT KNOW YOU ARE HERE", "海は、あなたがいることを知らない"],
+    8: ["FOLLOW THE ARROW, NOT THE NUMBER", "数字ではなく、矢印をたどれ"],
+    9: ["A VOICE THAT REPEATS YOU IS NOT YOU", "あなたをくり返す声は、あなたではない"],
+    10: ["COMFORT IS ALSO A PLACE TO GET LOST", "安らぎも、迷いこむ場所のひとつだ"],
+    11: ["A CITY THAT NEVER SLEEPS WILL NOT LET YOU", "眠らない街は、あなたも眠らせない"],
+  };
+  function levelFx(lv) {
+    if (S.l11done && lv === 11) fx("level", 11, { a: "#4a7d8f", b: "#c8f6ff", mode: "stars", hum: 0 });
+    else fx("level", lv);
+    fx("tags", LV_TAGS[lv] || LV_TAGS[0]);
+    document.body.dataset.lv = String(lv);
+    document.body.classList.toggle("lights-out", !!(S.l11done && lv === 11));
   }
   // 階が変わったときの出来事
   function arrive(lv) {
+    if (!S.seen["tr" + lv] && LV_TRUISM[lv]) { S.seen["tr" + lv] = true; fx("truism", LV_TRUISM[lv][0], LV_TRUISM[lv][1], "Level " + lv); }
     if (lv === 1 && !S.seen.arr1) { S.seen.arr1 = true; say("見上げると、落ちてきたはずの換気口は、コンクリートで塞がれていた。", "note"); }
     if (lv === 3 && !S.seen.arr3) { S.seen.arr3 = true; haunt("振り向くな"); say("（記録のどこかが、書き換わった気がする）", "note"); }
     if (lv === 5 && !S.seen.arr5) {
@@ -1137,6 +1184,11 @@ body.typing #pad { display: none; }
       if (lightOn()) say("懐中電灯の灯りが、柱の紙の一行目を照らした。「カマドの火のほかに、灯りをつけてはならない」。", "warn");
     }
     if (lv === 6 && !S.seen.arr6) { S.seen.arr6 = true; haunt("ここにいる"); }
+    if (lv === 7 && !S.seen.arr7) { S.seen.arr7 = true; say("ここから下のことは、原稿のどこにも書いていなかった。", "note"); }
+    if (lv === 8 && !S.seen.arr8) { S.seen.arr8 = true; if (held("flashlight")) say("懐中電灯の光が、ここでは妙に弱く見える。", "note"); }
+    if (lv === 9 && !S.seen.arr9) { S.seen.arr9 = true; haunt("開けて"); say("頭の中が、テレビの砂嵐のようにざらついている。", "note"); }
+    if (lv === 10 && !S.seen.arr10) { S.seen.arr10 = true; say("……一瞬、外に出られたのだと思った。", "note"); addSan(2, ""); }
+    if (lv === 11 && !S.seen.arr11) { S.seen.arr11 = true; haunt("まだ起きている"); }
   }
   function addSan(n, why) {
     if (S.done) return;
@@ -1144,28 +1196,66 @@ body.typing #pad { display: none; }
     if (why) say(why, n < 0 ? "warn" : "note");
     if (S.san === 0) collapse();
   }
+  // その階で途中までやっていたことを、なかったことにする
+  function resetLv(lv) {
+    if (lv === 2) S.pos = 0;
+    if (lv === 5) { S.beans = false; S.stir = 0; S.door = 0; S.sleepy = false; }
+    if (lv === 7) { S.breath = null; S.lung = false; S.tinyStun = false; S.thingGone = false; S.d7 = 0; }
+    if (lv === 8) { S.r8 = 0; S.mothFed = false; S.mothLit = 0; S.stop8 = 0; S.wire8 = false; O.moths.loc = null; }
+    if (lv === 9) { S.p9 = 0; S.hid = false; S.smileOK = false; S.hound9 = false; O.smiler.loc = "l9k"; }
+    if (lv === 10) { S.r10 = 0; S.dig = 0; S.lakeTry = 0; S.hayTry = 0; }
+    if (lv === 11) { S.hProv = false; S.barTry = 0; S.kGrain = false; S.kFire = false; S.kStir = 0; S.kKnock = 0; S.kSleepy = false; }
+    S.ph = 0; S.lvT = 0;
+  }
+  function batteryRest() {
+    if (S.bat != null && S.bat < 6 && held("flashlight")) { S.bat = 6; say("懐中電灯の電池は、休ませたせいか、少しだけ戻っていた。", "note"); }
+  }
   // 正気が 0 になると、その階の入口で目を覚ます。ただし最下層では、交代が起きる
   function collapse() {
     if (S.loc === "l6b") { swapEnding(); return; }
+    S.broke = true;
     gap();
     say("頭の中が、数えたくないもので溢れた。蛍光灯のうなりしか聞こえない……", "warn");
+    fx("shock", 2);
     const lv = levelOf(S.loc);
-    if (lv === 5) { S.beans = false; S.stir = 0; S.door = 0; S.sleepy = false; }
-    if (lv === 2) S.pos = 0;
+    resetLv(lv);
     S.san = 5;
     S.loc = LEVEL_START[lv];
     S.darkT = 0;
     haunt(["振り向くな", "数えるな", "ここにいる", "まだ"][Math.floor(Math.random() * 4)]);
     say("気がつくと、" + ROOMS[S.loc].name + "の床に倒れていた。");
+    batteryRest();
     describe(true);
+    onEnter(S.loc);
+  }
+  // 何かに襲われる。その階の入口まで戻され、正気が削れる
+  function faint(why, cost) {
+    if (S.done) return;
+    S.broke = true;
+    gap();
+    say(why, "warn");
+    fx("shock", 2);
+    const lv = levelOf(S.loc);
+    S.san = Math.max(0, S.san - cost);
+    if (S.san === 0) { collapse(); return; }
+    resetLv(lv);
+    S.loc = LEVEL_START[lv];
+    S.darkT = 0;
+    gap();
+    say("……気がつくと、" + ROOMS[S.loc].name + "に倒れていた。" + (lv === 7 ? "濡れた絨毯が、頬に冷たい。" : ""));
+    batteryRest();
+    describe(true);
+    onEnter(S.loc);
   }
   // 暗闇で動きつづけると、数える声に触れられる
   function darkTick() {
     if (!isDark()) { S.darkT = 0; return; }
     S.darkT++;
-    if (S.darkT <= 2) { say(DARK_COUNT[S.darkT - 1], "warn"); return; }
+    if (S.darkT <= 2) { say(DARK_COUNT[S.darkT - 1], "warn"); fx("glitch"); return; }
     say("冷たい指が、首の後ろを、ひとつ、ふたつと数えた。", "warn");
+    fx("shock", 1);
     S.darkT = 0;
+    S.broke = true;
     const lv = levelOf(S.loc);
     S.san = Math.max(1, S.san - 4);
     if (lv === 1 && S.l1dark && !held("flashlight")) {
@@ -1178,11 +1268,154 @@ body.typing #pad { display: none; }
       describe(true);
       return;
     }
+    resetLv(lv);
     S.loc = LEVEL_START[lv];
-    if (lv === 2) S.pos = 0;
     gap();
     say("……気がつくと、" + ROOMS[S.loc].name + "にうずくまっていた。");
+    batteryRest();
     describe(true);
+    onEnter(S.loc);
+  }
+
+  // ==== 書かれていなかった階（Level 7〜11）のしくみ ====
+  const inWater = () => WATER.includes(S.loc);
+  // 部屋に入ったときの、そこにいるものの気配（前ぶれ）
+  function onEnter(to) {
+    S.ph = 0;
+    if (to === "l7b" && !S.tinyStun) { S.ph = 1; say("遠くで、骨の擦れ合う音。何か大きなものが、こちらへ向きを変えた。", "warn"); fx("glitch"); }
+    if (to === "l7c" && !S.thingGone) {
+      S.ph = 1;
+      say(lightOn() ? "光の輪のすぐ外を、何か、とてつもなく大きなものが、ぐるりと回っている。" : "下のほうで、何か、とてつもなく大きなものが、向きを変えた。水が、ゆっくり押しのけられてくる。", "warn");
+      fx("glitch");
+    }
+    if (to === "l8m") {
+      O.moths.loc = S.r8 === S.moth8 && !S.mothFed ? "l8m" : null;
+      if (O.moths.loc) {
+        if (lightOn()) { S.mothLit = 1; say("天井の翅が、一斉に、光のほうへ開いた。乾いた羽音が、雨のように降ってくる。", "warn"); fx("shock", 1); }
+        else { S.mothLit = 0; say("頭の上の暗闇で、乾いた羽音が、無数に重なっている。", "warn"); }
+      }
+      if (S.r8 === 3 && !S.wire8) {
+        S.ph = 1;
+        say("岩肌に、引っかいた文字がびっしりと並んでいる。「うごくな」「こえをだすな」「うごくな」。\n頭の上で、垂れ下がった細い線の束が、ゆっくりと揺れはじめた。", "warn");
+        fx("glitch");
+      }
+    }
+    if (to === "l8t") { S.ph = 1; say("黒い水面の泡が、指を広げた手の形にふくらんでいく。一つ、二つ、五つ。", "warn"); fx("glitch"); }
+    if ((to === "l9s" || to === "l9y") && !(to === "l9y" && S.hound9)) { S.ph = 1; S.hid = false; say(to === "l9s" ? "通りの先の暗がりで、低い唸り声がした。" : "フェンスの向こうで、低い唸り声がした。", "warn"); fx("vibrate", [40, 60, 40]); }
+    if (to === "l9c") { S.ph = 1; mimic(); }
+    if (to === "l9k" && !S.smileOK) {
+      S.ph = 1;
+      say(lightOn() ? "廊下の奥の暗がりに、白い歯が浮かんだ。笑っている。光のほうへ、にじり寄ってくる。" : "廊下の奥の暗がりに、白く光る目が二つと、細長い白い歯が浮かんでいる。笑っている。", "warn");
+      fx("shock", 1);
+    }
+    if (to === "l11d") { S.ph = 0; S.hProv = false; }
+  }
+  // 皮をかぶったものは、あなたが言ったことを、あなたの声で言う
+  function mimic() {
+    const h = S.hist.filter(x => x).slice(-12);
+    const t = h.length ? h[Math.floor(Math.random() * h.length)] : "見る";
+    say(`ソファの人が、こちらを見ずに言った。自分の声で。「${t}」`, "voice");
+  }
+  // 同じ部屋にとどまって何かをしたとき、そこにいるものが近づく
+  function entityTick(v) {
+    const l = S.loc;
+    if (l === "l7b" && !S.tinyStun) {
+      S.ph++;
+      if (S.ph === 2) { say("水が押しのけられてくる。巨大な顎の影が、まっすぐこちらへ。", "warn"); fx("shock", 1); }
+      else if (S.ph >= 3) faint("顎が、すぐそこで閉じた――水が赤く濁る。体ごと、上へ、上へと弾き飛ばされた。", 3);
+      return;
+    }
+    if (l === "l7c" && !S.thingGone) {
+      S.ph++;
+      if (lightOn() && S.ph >= 2) {
+        S.thingGone = true;
+        say("光の輪の中に、ありえない形の何かが一瞬だけ浮かんだ。目のない顔。山ほどもある顎。\n――それは身をよじり、光から逃げるように、闇の底へ沈んでいった。", "warn");
+        fx("flash"); fx("shock", 1);
+      } else if (S.ph === 2) { say("水圧とは違う重さが、全身を押してくる。すぐ目の前で、何かが、口を開けた。", "warn"); fx("shock", 1); }
+      else if (S.ph >= 3) faint("真っ暗な中で、何かに呑みこまれた。……", 4);
+      return;
+    }
+    if (l === "l8m") {
+      if (O.moths.loc === "l8m") {
+        if (lightOn()) {
+          S.mothLit++;
+          if (S.mothLit === 1) { say("天井の翅が、一斉に光のほうへ開いた。", "warn"); fx("shock", 1); }
+          else { faint("灰色の翅が、光めがけて降ってきた。顔に、手に、首に。細い口が刺さる。", 3); return; }
+        } else if (S.mothLit) { S.mothLit = 0; say("灯りが消えると、羽音は、少しずつ静まっていった。", "note"); }
+      }
+      if (S.r8 === 3 && !S.wire8) {
+        if (["say", "ring"].includes(v)) { faint("声を出した瞬間、細い線の束が、音のしたほうへ一斉に伸びてきた。", 3); return; }
+        S.wire8 = true;
+        say("じっとしていると、細い線の束は、こちらの頭のすぐ上を探るように撫でて……また天井の暗がりへ、するすると戻っていった。", "note");
+      }
+      return;
+    }
+    if (l === "l8t") { S.ph++; if (S.ph >= 2) faint("黒い水から伸びた手が、足首をつかんだ。熱い。引きずりこまれる――", 3); return; }
+    if ((l === "l9s" || (l === "l9y" && !S.hound9)) && S.ph > 0) {
+      if (S.hid && S.ph === 1) {
+        S.ph = 0; if (l === "l9y") S.hound9 = true;
+        say("生け垣の陰で息を殺す。……四つ足の影が、長い髪を引きずって、目の前を通り過ぎていった。", "note");
+        return;
+      }
+      S.ph++;
+      if (S.ph === 2) { say("長い黒髪の四つ足が、こちらを見つけた。痩せた手足で、地面を掻いている。", "warn"); fx("shock", 1); }
+      else if (S.ph >= 3) faint("四つ足が跳んだ。口が、裂けるほど開いて――", 3);
+      return;
+    }
+    if (l === "l9c") {
+      S.ph++;
+      if (S.ph < 3) mimic();
+      else if (S.ph === 3) { say("ソファの人が、ゆっくり立ち上がった。思っていたより、ずっと背が高い。", "warn"); fx("shock", 1); }
+      else faint("それは、自分と同じ声で笑った。黄ばんだ長い指が、肩に食いこむ――", 3);
+      return;
+    }
+    if (l === "l9k" && !S.smileOK) {
+      if (lightOn()) {
+        S.ph++;
+        if (S.ph === 2) { say("光に向かって、笑みが近づいてくる。歯の数が、増えている。", "warn"); fx("shock", 1); }
+        else if (S.ph >= 3) faint("笑みが、目の前いっぱいに広がった。", 3);
+      }
+      return;
+    }
+    if (l === "l11d" && S.hProv) {
+      S.ph++;
+      if (S.ph >= 2) faint("四つ足が、路地の壁を蹴って跳んだ。この街でも、怒らせれば同じだ。", 3);
+    }
+  }
+  // 時間が過ぎる（電池・息・階ごとの重さ）
+  function passTime() {
+    if (S.done) return;
+    const lv = levelOf(S.loc);
+    S.lvT++;
+    if (lightOn() && S.bat != null && lv >= 7) {
+      S.bat = Math.max(0, S.bat - (lv === 8 ? 2 : 1));
+      if (S.bat === 0) { S.light = false; say("懐中電灯が、ふっと消えた。スイッチを入れなおしても、点かない。", "warn"); fx("blackout", 500); }
+      else if (S.bat <= 5 && !S.batWarn) { S.batWarn = true; say("懐中電灯の光が、黄ばんで弱くなってきた。", "warn"); }
+      if (S.bat > 5) S.batWarn = false;
+    }
+    if (inWater() && S.breath != null) {
+      S.breath--;
+      if (S.breath === 3) say("胸が、苦しくなってきた。", "warn");
+      else if (S.breath === 2) { say("喉の奥が、勝手に開こうとする。", "warn"); fx("shock", 1); }
+      else if (S.breath === 1) { say("視界の端が、黒く縮んでいく。", "warn"); fx("blackout", 300); }
+      else if (S.breath <= 0) { faint("肺が、勝手に水を吸った。冷たいものが、胸いっぱいに広がる――", 3); return; }
+    }
+    if (lv === 9 && S.lvT % 4 === 0) addSan(-1, "頭の中で、砂嵐が鳴る。考えが、ざらざらに崩れる。");
+    if (lv === 11 && !(S.loc === "l11g" && S.kDark) && !S.l11done && S.lvT % 4 === 0) addSan(-1, "眠れない。街の明かりが、まぶたの裏まで届く。");
+    if (lv === 10) {
+      if (S.lvT === 12) say("空の色が、ずっと変わらない。今が何時なのか、わからない。", "note");
+      if (S.lvT === 18) say("ここにいてもいい気がしてきた。何のために降りていたのか、思い出せない。", "warn");
+      if (S.lvT >= 22) {
+        gap();
+        say("……気がつくと、納屋の干し草の上で目を覚ました。何日たったのか、わからない。", "warn");
+        fx("shock", 1);
+        S.broke = true;
+        S.lvT = 0; S.r10 = 0;
+        S.loc = "l10b";
+        addSan(-2, "");
+        describe(true);
+      }
+    }
   }
   function descendLift() {
     if (!S.keyIn) { say("「下」のボタンを押しても、何も起きない。鍵穴に、鍵が要るらしい。"); return; }

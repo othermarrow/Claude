@@ -693,6 +693,9 @@ body.typing #pad { display: none; }
       desc: "内側から黒く塗りつぶされた窓。塗り残しの細い隙間から、わずかに光。" });
     thing("smiler", { name: "笑う顔", aliases: ["笑う顔", "歯", "白い歯", "目", "smiler"], en: "smiler", loc: "l4b", scenery: true,
       desc: () => { S.smEye = true; return "目を合わせる。白く光る目。その下に、横一列の歯。……歯の列が、少しだけ細くなった。動かない。目を離さなければ、来ない気がする。"; } });
+    thing("wires", { name: "配線の人", aliases: ["配線の人", "配線", "灰色の人", "引っかき傷", "wires"], en: "wiring figure", loc: "l4c", scenery: true,
+      desc: () => S.wire ? "垂れ下がった配線の束に、灰色の細い人の形が絡まっている。目はない。耳を澄ますように、首をかしげている。音と動きを、待っている。" :
+        "配線は、天井の中に引っこんでいる。灰色の人の形は、もう見えない。" });
     thing("sheet4", { name: "貼り紙", aliases: ["貼り紙", "検温表", "posted sheet"], en: "posted sheet", loc: "l4c", scenery: true,
       desc: "踊り場の貼り紙。", read: "613の検温表。今日の欄に、もう書いてある。「37.0℃　特変なし」。……どこの、いつの今日なのか。" });
 
@@ -1055,6 +1058,7 @@ body.typing #pad { display: none; }
     if (S.loc === "p37c" && dir === "d") { deepStairs(); return; }
     if (S.loc === "fun1" && dir === "d") { overboard(); return; }
     if (S.loc === "l4c" && dir === "d") { leaveL4(); return; }
+    if (S.loc === "l4c" && dir === "w" && S.wire) { wirePass(); return; }
     if (S.loc === "c11c" && dir === "n") { enterHospital(); return; }
     if (S.loc === "smoke" && dir === "n" && !S.gOpen) { say("警備員室の扉には、鍵がかかっている。"); return; }
     const to = exitsOf(S.loc)[dir];
@@ -1119,6 +1123,11 @@ body.typing #pad { display: none; }
     }
     if (isLoud()) say("「おかえり！　遅かったね。ごはん、できてるよ」", "voice");
     if (to === "l9rd") say("一つ目の標識が、霧の中に立っている。", "note");
+    if (to === "l4c") {
+      S.wire = true; S.wireWarn = 0;
+      say("天井板が外れて、配線が何本も垂れ下がっている。配線の束の中に、灰色の、細い人の形がある。目のあるべきところに、何もない。", "warn");
+      say("壁に、爪で引っかいた字。「動くな」「じっとしていろ」", "note");
+    }
     if (to === "c11a" && !S.seen.faces) { S.seen.faces = true; setTimeout(() => fx("truism", "A FACE IS ONLY A HABIT", "顔は、ただの習慣だ", "Entity 9"), 4800); }
     if (to === "fun1" && S.pg === 0) say("甲板の向こうから、黄色い人影がこちらを見ている。顔に、刻んだような笑顔。=)", "warn");
   }
@@ -1184,6 +1193,112 @@ body.typing #pad { display: none; }
     say("……白い天井。");
     morning();
     describe(true);
+  }
+
+  // ==== 裏側のしくみ ====
+  // Level 4：笑う顔。目を合わせたまま、黙って、ゆっくり
+  function smilerPass(dir) {
+    if (S.smEye) {
+      say(dir === "e" ? "目を合わせたまま、横歩きで、ゆっくり部屋を抜ける。歯の列は、ついてこない。" : "目を合わせたまま、ゆっくり後ずさる。歯の列は、ついてこない。");
+      return true;
+    }
+    smilerWarn("背を向けかけたとたん、歯の列が、こちらへ滑ってきた。……あわてて足を止める。");
+    return false;
+  }
+  function smilerWarn(t) {
+    S.smWarn++;
+    if (S.smWarn >= 2) { smilerAttack(); return; }
+    say(t, "warn");
+    fx("glitch");
+  }
+  function smilerAttack() {
+    collapse(["歯の列が、目の前いっぱいに広がった。", "白い目が、二つ、すぐそこに。", "……笑い声は、しなかった。"],
+      ["DO NOT LOOK AWAY FROM WHAT SMILES", "笑っているものから、目をそらすな", "Entity 3"]);
+  }
+  // Level 4 の階段室：天井の配線の人。動かず、黙っていれば通りすぎる
+  function wirePass() {
+    S.wireWarn = (S.wireWarn || 0) + 1;
+    if (S.wireWarn >= 2) {
+      collapse(["踏み出した足音に、天井の配線が一斉に垂れ下がった。", "灰色の細い指が、首に巻きつく。冷たい銅の匂い。"]);
+      return false;
+    }
+    say("一歩踏み出したとたん、天井の配線が、ざわりとこちらを向いた。……止まる。息を止める。", "warn");
+    fx("glitch");
+    return false;
+  }
+  // Level 9：標識をたどる。違う方へ曲がると、霧が濃くなる
+  function road(dir) {
+    const want = S.roadDirs[S.road];
+    if (dir === want) {
+      S.road++;
+      if (S.road >= 3) {
+        warp("c11a", ["矢印のとおりに曲がる。次の標識。また次の標識。", "……何時間も、何日も歩いた気がする。霧が晴れると、住宅街は終わっていて、ビルの谷間に立っていた。"]);
+        return;
+      }
+      say("矢印のとおりに曲がる。霧の中に、次の標識が立っている。");
+      return;
+    }
+    S.road = 0;
+    say("矢印と違う方へ曲がった。霧が、急に濃くなる。", "warn");
+    const h = S.hist.slice(0, -1);
+    say(`霧の奥から、自分の声がした。「${h.length ? pick(h) : "おかえり"}」……今は、何も言っていない。`, "voice");
+    fx("glitch");
+    addT(0.2, "");
+    if (S.loc !== "l9rd") return;
+    gap();
+    say("声と反対の方へ走ると、さっきの住宅街だった。");
+    enter("l9st");
+  }
+  // Level 37：沈めば、どこかで浮かぶ
+  function dive() {
+    warp("bed", ["息を吸って、沈む。白が青になり、青が白になる。", "……白い天井。シーツが、ぐっしょり濡れている。窓の外は、さっきと同じ夜だ。"]);
+  }
+  function deepStairs() {
+    S.deep++;
+    if (S.deep < 2) {
+      say("階段を三段降りる。水が冷たく、暗くなる。胸が、空気を欲しがって暴れる。……これ以上降りたら、戻れない。", "warn");
+      fx("glitch");
+      return;
+    }
+    collapse(["さらに降りる。光が、上のほうで小さな四角になる。", "息が、続かなかった。"]);
+  }
+  function overboard() {
+    warp("p37a", ["手すりを越えて、黒い海へ落ちる。", "……沈んでいく。冷たいはずの水が、だんだん、ぬるくなる。", "顔を上げると、白いタイルの天井だった。"]);
+  }
+  function leaveL4() {
+    if (S.wire) { wirePass(); return; }
+    S.scroll = false;
+    warp("station", ["灰色の階段を、何階ぶんも降りる。", "……最後の扉を押すと、詰所のカウンターの裏に出た。キーボードの Scroll Lock のランプが、消えている。"]);
+  }
+  function enterHospital() {
+    warp("front", ["ガラス扉が、音もなく開いた。中に入る。", "……振り向くと、ガラスの向こうは、いつもの夜の国道と、川の土手だった。貼り紙は、こちら向きの字に戻っている。"]);
+  }
+  // Level Fun：長くいると、囲まれる
+  function partyTick() {
+    S.pg++;
+    if (S.pg === 2) { say("「613さん、検温の時間ですよ =)」", "voice"); say("天井のスピーカーの声に、そっくりだった。この船に、スピーカーはない。", "note"); }
+    else if (S.pg === 3) { say("黄色い人影が、増えている。互いを見失わないように、輪になって、少しずつ近づいてくる。", "warn"); fx("glitch"); }
+    else if (S.pg === 4) { say("すぐ後ろで、風船のふくらむ音。……もう、時間がない。", "warn"); fx("shock", 1); }
+    else if (S.pg >= 5) partyCaught();
+  }
+  function partyCaught() {
+    collapse(["長い腕が、肩に吸いついた。腕の先は、歯の並んだ口だった。", "「パーティーへようこそ =)」", "……目の前が、紙吹雪で埋まる。"],
+      ["EVERYONE HERE WAS INVITED =)", "ここにいる者は、全員招待されている =)", "Entity 67"]);
+  }
+  // Level 9 のよくしゃべる家：母親は、聞いたことばをくり返す
+  function skinTick() {
+    S.ss++;
+    const h = S.hist.slice(0, -1);
+    const w = h.length ? pick(h) : "おかえり";
+    if (S.ss >= 4) { skinAttack(); return; }
+    say(`母親が、楽しそうに言う。「${w}」`, "voice");
+    if (S.ss === 1) say("……さっき、自分が言ったことばだ。母親の声で。", "note");
+    if (S.ss === 2) { say("母親の声が、だんだん、自分の声に似てくる。", "warn"); fx("glitch"); }
+    if (S.ss === 3) { say("包丁の音が止まった。母親が、ゆっくり、こちらを向きはじめる。", "warn"); fx("shock", 1); }
+  }
+  function skinAttack() {
+    collapse(["母親の顔が、首のところから、ずるりとずれた。", "その下から、黄ばんだ白い目が、こちらを見た。", "長い腕が、食卓ごしに伸びてくる。"],
+      ["BLOOD RUNS CLEAR, DO NOT GO NEAR", "透明な血には、近づくな", "Entity 10"]);
   }
   function climb() {
     S.climb++;
@@ -1299,7 +1414,47 @@ body.typing #pad { display: none; }
     say("36.5℃。特に、変わりなし。", "win");
     say("****  受け取った  ****", "win");
     say(`（手 ${S.moves}。≡ のメニューから、はじめから）`, "note");
-    saveLoop({ n: LOOP.n + 1, echo: S.hist.slice(-12) });
+    loopSet({ n: LOOP.n + 1, echo: S.hist.slice(-12) });
+    finish("number", ["YOU ARE WHAT IS WRITTEN ABOUT YOU", "書かれたものが、あなたになる", "613"]);
+  }
+  function finish(id, tru) {
+    reach(id);
+    fx("flash");
+    fx("shock", 1);
+    if (tru) setTimeout(() => fx("truism", tru[0], tru[1], tru[2]), 700);
+  }
+  // 白いタイルの水に浮かんだまま
+  function endPool() {
+    S.done = true;
+    gap();
+    say("仰向けに、水に浮かぶ。目を閉じる。");
+    say("……白い天井。いや、白いタイル。染みを数える。数えても、数えても、数が合う。一つもずれない。");
+    say("体温と水の温度が、同じになる。どこまでが自分で、どこからが水なのか、分からなくなる。");
+    say("遠くで、検温の声がした気がした。返事をしなかった。");
+    gap();
+    say("入所記録の五つの欄は、埋まっている。", "win");
+    say("名前の欄は、水ににじんで、もう読めない。", "win");
+    say("37.0℃。特に、変わりなし。", "win");
+    say("****  浮かぶ  ****", "win");
+    say(`（手 ${S.moves}。≡ のメニューから、はじめから）`, "note");
+    loopSet({ n: LOOP.n + 1, echo: S.hist.slice(-12) });
+    finish("pool", ["NOTHING HERE NEEDS A NAME", "ここでは、何にも名前がいらない", "Level 37"]);
+  }
+  // 顔のない人たちの流れに、加わる
+  function endFace() {
+    S.done = true;
+    gap();
+    say("待つ。歩く。待つ。歩幅が、皆とまったく同じになった。");
+    say("黒い窓に映った自分の顔が、つるりとしている。目も、鼻も、口も、もう要らない気がした。");
+    say("売店の前を通るとき、店番がこちらに会釈をした。会釈を返した。どちらにも、顔はない。");
+    gap();
+    say("眠らない街を、用事の途中のまま、歩いていく。", "win");
+    say("名前を訊く人は、ここにはいない。答える口も、もうない。", "win");
+    say("それで困ることが、一つも思いつかない。", "win");
+    say("****  顔  ****", "win");
+    say(`（手 ${S.moves}。≡ のメニューから、はじめから）`, "note");
+    loopSet({ n: LOOP.n + 1, echo: S.hist.slice(-12) });
+    finish("face", ["A FACE IS ONLY A HABIT", "顔は、ただの習慣だ", "Entity 9"]);
   }
   function endBlank() {
     S.done = true;
@@ -1317,81 +1472,87 @@ body.typing #pad { display: none; }
     say("どちらへ歩いてもいい。", "win");
     say("****  空欄  ****", "win");
     say(`（手 ${S.moves}。≡ のメニューから、はじめから）`, "note");
-    saveLoop({ n: 0, echo: [] });
+    loopSet({ n: 0, echo: [] });
+    finish("blank", ["A BLANK IS NOT AN ABSENCE", "空欄は、不在ではない", "　"]);
   }
 
   // ---- ヒント ----
-  function nextGoal() {
-    if (S.sunday) return "正面玄関から、北へ。";
-    if (allFields() && S.space) return "ベッドで「寝る」。";
-    const g = [];
-    if (!S.rules) g.push("校舎の教室の黒板");
-    else if (!S.f.dream) g.push("教室の答案用紙");
-    if (S.rules && !S.f.food) g.push("校舎の視聴覚室");
-    if (!S.f.film) g.push(S.gOpen ? "警備員室" : "正面玄関の西の喫煙所");
-    if (!S.f.complaint) g.push("病棟の611の診察室");
-    if (!S.f.sound) g.push(S.stringGiven ? "校舎の音楽室" : "正面玄関の東の喫茶");
-    if (!S.space) g.push("第一理科室の鍵穴");
-    return "まだ、手をつけていないところ：" + g.join("、") + "。";
+  // 「わからない」と言うと、誰かが遠回しに答える。一日三回まで。そのたびに熱が上がる
+  function vague() {
+    if (S.sunday) return "ガラスの扉のセンサーは、日曜にだけ灯る。";
+    if (!S.f.film) return "壁を向く人たちの奥の部屋で、映画が一本、待っている。";
+    if (!S.f.complaint) return "611の窓が鏡でなくなったときに、耳をすますこと。";
+    if (!S.f.sound) return "幕の向こうの弦は、一本、余っている。";
+    if (!S.rules) return "校舎の三つの約束が、まだ消えたままだ。";
+    if (!S.f.dream) return "答案の問いは、起きているあいだには解けない。夢の中に似た場所でなら。";
+    if (!S.f.food) return S.ate ? "質問しかしない二人に、あの食卓の味を。" : "質問しかしない二人は、食べたことのある料理しか聞きたがらない。どこかの家の食卓で。";
+    if (!S.space) return "月曜の一時間目に、二人で、鍵穴を。";
+    if (!S.calFixed) return held("strip") ? "切り取られた列に、のりで。" : "日曜の列は、どこか眠らない街の、小さな店に吊るしてある。";
+    return "白い部屋で、眠ること。";
   }
   function hintText() {
-    if (S.t >= 37.6) return S.loc === "bed" ? "熱が高い。「寝る」。" : "熱が高い。白い部屋のベッドで「寝る」か、喫茶で座って、水割りを飲む。";
+    if (S.t >= 37.6) return isBack(S.loc) ? "熱いね。ここにいるだけで、熱は上がる。帰り道か、アーモンドの匂いの水を。" : "熱いね。白い寝台か、溶けない氷のグラス。";
     switch (S.loc) {
-      case "ura": return S.space ? "手の中の鏡の破片を「調べる」と、覗いたほうへ戻れる。" : "パンフレットを「折る」。";
-      case "sky": return "少女に「言う」。帰るときは「帰る」。";
-      case "river": return "「言う」で答える。並んでいることばの、どれでも答えになる。";
-      case "bed": if (!S.noteFound) return "ベッドを「調べる」。"; break;
-      case "station": if (!S.seen.form) { S.seen.form = true; return "613のファイルを「読む」。"; } break;
+      case "ura": return S.space ? "手の中のかけらは、来た道を覚えている。" : "のりで折れば、手は荒れない。";
+      case "sky": return "あの子に、きれいかどうかを。それから、帰ること。";
+      case "river": return "名前を訊かれている。答えは、一つではない。";
+      case "bed": if (!S.noteFound) return "枕の下。"; break;
+      case "station":
+        if (!S.seen.form) { S.seen.form = true; return "ファイルの、薄いほう。"; }
+        if (S.scroll) return "流れを止めるキーを押したまま、じっとしていると、流れるのは部屋のほうだ。";
+        if (held("strip") && !S.calFixed) return "切り取られた列に、のりで。";
+        break;
+      case "corr":
+        if (S.carrierIn) return "配達員のすぐあとなら、扉の向こうは隣の区だ。";
+        if (S.t >= 37.0 && S.t <= 37.4) return "水の匂いの扉の向こうは、今のあなたと同じくらい温かい。";
+        break;
       case "smoke":
-        if (!S.gOpen) {
-          if (held("keys")) return "警備員室の扉を「開ける」。";
-          return S.face === "wall" ? "今なら、鍵束を「取る」。" : "皆が壁を向いているときなら、誰にも見られない。「待つ」と、皆の向きが変わる。";
-        }
-        if (!S.f.film) return "北の警備員室へ。";
+        if (!S.gOpen) return held("keys") ? "警、と彫った一本。" : "皆が壁を向いているあいだは、誰も見ていない。";
         break;
-      case "guard":
-        if (!S.f.film) { if (!S.film) return "DVDプレーヤーを「押す」。"; if (O.fridge.closed) return "冷蔵庫を「開ける」。"; return "パソコンの一行の続きを「言う」。"; }
-        break;
+      case "guard": if (!S.f.film) return !S.film ? "ディスクは、一度だけ回る。" : O.fridge.closed ? "冷やしてあるものがある。" : "画面の一行の続きを、声に出して。"; break;
       case "cafe":
-        if (!S.stringGiven) return "カウンターの奥の、音楽のスイッチを「押す」。";
-        if (O.string.loc === "cafe") return "弦を「取る」。";
-        if (S.t >= 37.0 && S.served !== S.day) return "カウンター席に「座る」と、水割りが出る。";
+        if (!S.stringGiven) return "幕の裏の人たちも、休みたい。壁のスイッチ。";
+        if (O.string.loc === "cafe") return "余ったものは、もらっておく。";
+        if (S.t >= 37.0 && S.served !== S.day) return "座れば、出てくる。";
         break;
-      case "exam": if (!S.f.complaint) return S.dark.exam ? "「耳をすます」。" : "蛍光灯を「消す」。窓が、鏡でなくなる。"; break;
-      case "music":
-        if (!S.f.sound) {
-          if (!held("string") && !S.strung) return "バイオリンには弦がない。正面玄関の東の喫茶、スクリーンの裏で、弦楽器が鳴っている。";
-          if (O.vcase.closed && O.violin.loc === "vcase") return "ケースを「開ける」。";
-          if (!S.strung) return "弦を、バイオリンに「入れる」。";
-          return "バイオリンを「弾く」。";
-        }
-        break;
+      case "exam": if (!S.f.complaint) return S.dark.exam ? "耳を。" : "窓が鏡のあいだは、外の音が聞こえない。"; break;
+      case "music": if (!S.f.sound) return S.strung ? "弾くこと。" : "弦のない楽器に、弦を。"; break;
       case "sroom":
-        if (!S.rules) {
-          if (!held("chalk")) return "チョークを「取る」。";
-          if (RULES.some(r => S.learn[r.k] && !S.rw[r.k])) return "黒板に「書く」。";
-          return "黒板の三行は、校舎でしてはいけない三つのこと。校舎の中で何をすると何が来るかで、ことばが分かる。トイレの生徒手帳にも手がかりがある。";
-        }
-        if (!S.f.dream) return held("pencil") ? "答案用紙に「書く」。" : "答案には鉛筆が要る。昇降口から下りた図書室に。";
+        if (!S.rules) return held("chalk") ? "三つの約束は、三つの怪物が知っている。トイレの手帳にも、頭の字だけ。" : "白い棒が、黒板の下に。";
+        if (!S.f.dream) return "夢は、起きているあいだには書けない。";
         break;
       case "avroom":
-        if (!S.f.food) return !S.rules ? "ここで声を出すと、窓の目玉が来る。先に、教室の黒板を。" : S.qaAsk ? "訊かれたことに「言う」で答える。" : "質問を「言う」。ここでは、質問しか通じない。";
+        if (!S.f.food) return !S.rules ? "ここで声を出すと、窓の目玉が来る。" : S.qaAsk ? (S.ate ? "あの食卓の味を、答える。" : "思い出せる味が、まだ一つもない。") : "ここでは、質問しか通じない。";
         break;
-      case "lab":
-        if (!S.space) {
-          if (!isMonday()) return "貼り紙のとおりの曜日に。曜日は、白い部屋のベッドで「寝る」と変わる。";
-          if (!held("shard")) return "二人で覗くには、もう一人が要る。トイレの鏡の破片なら。";
-          return "鍵穴を「調べる」。";
-        }
-        break;
-      case "toilet": if (!held("shard") && !S.space) return "鏡の破片を「取る」。"; break;
-      case "stairs": return "皆と同じように上っても、着かない。「走る」。";
-      case "lib": if (!held("pencil") && !S.f.dream) return "鉛筆を「取る」。"; break;
-      case "lib2": if (!S.goat) return "山羊は紙を食べる。手書きの紙を、山羊に「あげる」。"; break;
-      case "roof": if (!S.polaris) return "天窓を「開ける」。"; break;
+      case "lab": if (!S.space) return !isMonday() ? "貼り紙の曜日に。眠ると、曜日が変わる。" : !held("shard") ? "二人で覗くには、もう一人。割れた鏡のかけらでも。" : "覗くこと。"; break;
+      case "stairs": return "皆と同じように上っては、着かない。";
+      case "lib": if (!held("pencil") && !S.f.dream) return "噛んだ跡のある、短いもの。"; break;
+      case "lib2": if (!S.goat) return "山羊は、手書きの紙が好きだ。"; break;
+      case "roof": if (!S.polaris) return "開けてはならない、と書いてある。"; break;
       case "front": if (S.sunday) return "北へ。"; break;
+      case "p37a": case "p37b": case "p37c":
+        if (!S.f.dream && held("paper2")) return "ここでなら、起きたまま夢が書ける。";
+        return S.loc === "p37c" ? "階段は、降りないほうがいい。" : "柱の紙を、読むこと。沈めば、どこかで浮かぶ。";
+      case "l4a": return O.coin.loc === "l4a" ? "返却口に、忘れもの。" : "暗い部屋の決まりは、壁に書いてある。";
+      case "l4b": return "笑うものから、目を離さないこと。";
+      case "l4c": return S.wire ? "動くな。音を立てるな。通りすぎるまで。" : "下へ。";
+      case "l9st": return "しゃべりすぎる家と、しゃべらない家。標識は、北へ。";
+      case "l9w": case "l9e": return isQuiet() ? "出された皿は、食べていい。上の扉は、知っている部屋へ。" : "透明な血。黙って、すぐに出ること。";
+      case "l9rd": return "標識を、近くでよく見ること。矢印のとおりに。";
+      case "c11a": return "店番は、お金なら何でも受け取る。ここで待ちすぎないこと。";
+      case "c11b": return "払ってから、取る。";
+      case "c11c": return "見覚えのある扉だ。";
+      case "fun1": case "fun2": return "笑った顔のないものだけが、安全だ。海に落ちても、沈む先はぬるい。";
     }
-    return nextGoal();
+    return vague();
+  }
+  function hint() {
+    if (S.dkDay !== S.day) { S.dkDay = S.day; S.dk = 0; }
+    if (S.dk >= 3) { say("……今日は、もう誰も答えない。", "note"); return; }
+    S.dk++;
+    say("どこかで、誰かが、質問ではない声で小さく答えた。", "note");
+    say("「" + hintText() + "」", "voice");
+    addT(isBack(S.loc) ? 0.3 : 0.2, "答えを聞いたぶん、頭が熱くなる。");
   }
 
   // ---- 動作 ----

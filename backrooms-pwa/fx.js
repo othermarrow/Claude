@@ -68,9 +68,21 @@ body.fx-black #app{opacity:.04;transition:opacity .08s}
  body.fx-jitter #app{animation:fxjit .18s steps(3,end) 1}
  @keyframes fxjit{0%{transform:none}50%{transform:translate(2px,-1px);filter:drop-shadow(-2px 0 #f05)}100%{transform:none}}
 }
+#fx-vhs{position:fixed;inset:0;pointer-events:none;z-index:7;display:none;font-family:"DotGothic16",monospace;color:#fff;text-shadow:0 0 4px #000,1px 0 #f05,-1px 0 #0fd}
+body.fx-vhs-on #fx-vhs{display:block}
+#fx-vhs .rec{position:absolute;top:calc(2.6em + env(safe-area-inset-top,0px));left:14px;font-size:.8em;letter-spacing:.1em}
+#fx-vhs .rec::before{content:"●";color:#ff2a2a;margin-right:.35em}
+#fx-vhs .tc{position:absolute;bottom:calc(.6em + env(safe-area-inset-bottom,0px));right:14px;font-size:.72em;letter-spacing:.08em;opacity:.85}
+#fx-vhs .band{position:absolute;left:0;right:0;height:14px;top:-20px;background:linear-gradient(transparent,rgba(255,255,255,.18),transparent);mix-blend-mode:screen}
+@media (prefers-reduced-motion:no-preference){
+ body:not(.fx-still) #fx-vhs .rec::before{animation:fxrec 1s steps(1) infinite}
+ @keyframes fxrec{50%{opacity:0}}
+ body:not(.fx-still) #fx-vhs .band{animation:fxband 7s linear infinite}
+ @keyframes fxband{0%,70%{top:-20px}100%{top:110%}}
+}
 body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter #app{animation:none}`;
 
-  let bg, ctx, crt, tru, flash, W = 360, H = 640, tick = 0, last = 0;
+  let bg, ctx, crt, tru, flash, vhs, vhsTimer = 0, W = 360, H = 640, tick = 0, last = 0;
   let cur = { key: 0, a: "#ffe66d", b: "#ff2a85", mode: "tags", hum: 60 }, stress = 0, tags = TAGS.slice(), truisms = TRUISMS.slice();
   let ready = false;
 
@@ -86,7 +98,9 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
     tru.innerHTML = '<span class="en"></span><span class="ja"></span><span class="src"></span>';
     flash = document.createElement("div"); flash.id = "fx-flash"; flash.setAttribute("aria-hidden", "true");
     document.body.prepend(bg);
-    document.body.append(crt, tru, flash);
+    vhs = document.createElement("div"); vhs.id = "fx-vhs"; vhs.setAttribute("aria-hidden", "true");
+    vhs.innerHTML = '<span class="rec">REC</span><span class="tc"></span><span class="band"></span>';
+    document.body.append(crt, tru, flash, vhs);
     ctx = bg.getContext("2d");
     resize();
     window.addEventListener("resize", resize);
@@ -367,6 +381,21 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
     vibrate(p) {
       if (!settings.vibe) return;
       try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) { /* 振動できない端末 */ }
+    },
+    // 記録映像の見た目（● REC・時刻・トラッキングの帯）。stamp を渡すと、その時刻から数える
+    vhs(on, stamp) {
+      mount();
+      clearInterval(vhsTimer);
+      document.body.classList.toggle("fx-vhs-on", !!on);
+      if (!on) return;
+      const t0 = Date.now(), base = stamp ? new Date(stamp).getTime() : t0;
+      const pad = n => String(n).padStart(2, "0");
+      const tick = () => {
+        const d = new Date(base + (Date.now() - t0));
+        vhs.querySelector(".tc").textContent = "PLAY  " + d.getFullYear() + "." + pad(d.getMonth() + 1) + "." + pad(d.getDate()) + "  " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+      };
+      tick();
+      vhsTimer = setInterval(tick, 1000);
     },
     home() { location.href = "../index.html"; },
     get audio() { return A.ctx; },

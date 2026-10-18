@@ -2214,8 +2214,11 @@ function createGame(io) {
     say(`****  ${title}  ****`, "win");
     const c = counts();
     say(`（手 ${S.moves}・読んだ ${c.read}・見た ${c.seen}・確かめた ${c.ok}。≡ のメニューから、はじめから）`, "note");
+    say("（「やり直す」と入れると、この階の入口から）", "note");
     const book = id === "chair" ? S.recOrder.filter(k => S.rec[k].ok || full(k)).map(k => `${titleOf(k)}：${S.rec[k].ok ? REC[k].done : REC[k].hyp}`) : LOOP.book || [];
-    saveLoop({ n: LOOP.n + 1, last: id, book });
+    const ends = (LOOP.ends || []).includes(id) ? LOOP.ends : (LOOP.ends || []).concat(id);
+    LOOP = { n: LOOP.n + 1, last: id, book, ends, deep: LOOP.deep || 0 };
+    saveLoop(LOOP);
   }
   const tsu = k => (k < 10 ? ["", "一つ", "二つ", "三つ", "四つ", "五つ", "六つ", "七つ", "八つ", "九つ"][k] : k === 10 ? "十" : `${k}`);
   function endArchive() {
@@ -2246,8 +2249,46 @@ function createGame(io) {
     const L = ["野帳の最後のページに、一行だけ書いた。", "「ここから先は、まだ誰も見ていない」"];
     if (O.companion.loc === S.loc) L.push("ロープの上で、暗闇で会った人が、野帳を受け取ってくれた。「上に持っていく。……ちゃんと、届ける」");
     else L.push("野帳を、扉の枠のロープの結び目に、はさんでおいた。");
-    L.push("ロープから手を放す。", "水は冷たいが、耐えられないほどではない。ここの空気は、息を長くもたせると読んだ。", "ずっと下、山のような岩の陰に、洞窟の口があるという。", "下へ。光の届かないほうへ。");
+    L.push("洞窟の口を、通りすぎる。", "水は冷たいが、耐えられないほどではない。ここの空気は、息を長くもたせると読んだ。", "山の頂が、足もとを過ぎていく。泡が、下から上がってくる。", "下へ。光の届かないほうへ。");
     finish("dive", L, "記録の外");
+  }
+  function endSleep8() {
+    finish("sleep8", ["岩に背中をあずける。", "震えが、少しずつ止まっていく。止まってはいけないのだと、どこかで分かっている。", "寒くない。むしろ、温かい。",
+      "まぶたの裏で、黄色い部屋の蛍光灯が、うなっている。", "標識を、誰かが直しに来る足音。", "……誰かが、ここに座らせてくれるだろうか。脚をそろえて、きちんと。"], "眠り");
+  }
+  function endHive() {
+    finish("hive", ["膜に、手をかけた。", "温かい。脈打っている。指が、沈む。", "中は、柱だらけの部屋だった。柱は、骨と、何かの樹脂でできている。",
+      "羽音が、一斉に始まった。", "白い羽が、視界を埋める。", "……腐らない樹脂の柱が、また一本、増える。"], "巣");
+  }
+  function endWalkway() {
+    finish("walkway", ["石の小道を、歩きつづける。", "芝生は、どこまでも同じ高さで刈りそろえてある。", "振り向くと、家はもう見えない。前を見ると、裏庭の門がある。",
+      "門の向こうに、石の小道。両側に、芝生。", "さっきと同じ芝生だ。", "……門を開ける。"], "小道");
+  }
+  function endPorridge() {
+    const L = ["鍋の前に座りこむ。", "腹は、ふくれている。のどは、渇いている。", "手が、もう、匙を持てない。", "干し草のくぼみに、横になる。三つ並んだ、くぼみの一つに。",
+      "納屋の戸口で、新しい段に、誰かが麦の穂を一本置いた。", "その穂は、いつまでも、腐らないだろう。"];
+    finish("porridge", L, "粥");
+  }
+  function endCanola() {
+    finish("canola", ["菜の花の中へ。", "麦の匂いが、ふっと切れた。", "黄色い花が、胸の高さまで。その上の空は、もう曇っていない。", "花のあいだを、どこまでも歩く。",
+      "どこへ出たのかは、野帳には書けなかった。字が、黄色くにじんでしまって。"], "菜の花");
+  }
+  function endExit11() {
+    finish("exit11", ["バリケードの隙間を、くぐった。", "誰もいない通り。信号が、青に変わる。", "三歩目で、足もとのアスファルトが、なかった。",
+      "落ちる。……落ちた先は、知らない色の床だった。", "見上げても、穴はない。", "この街の地図に、黒いピンが、一本増える。"], "出口");
+  }
+  function endParty() {
+    finish("party", ["声のほうへ、歩いていく。", "知っている声。ずっと会いたかった人の声。", "黄色い腕が、そっと手首をとった。歯の並んだ口が、吸いつく。",
+      "痛くない。", "自分の腕が、だんだん長く、柔らかくなっていく。", "誰かの名前を呼ぶ。自分の声ではない声で。", "……パーティーは、楽しい =)"], "=)");
+  }
+  function endBeta() {
+    const c = counts();
+    const L = ["地図係に、野帳を渡した。", "地図係は、ページをめくりながら、ときどき、壁の地図にピンを刺した。"];
+    L.push(c.ok ? `「確かめたものが、${tsu(c.ok)}。……見た場所と、見た手が書いてある。これなら、誰かが同じ道を戻れる」` : "「確かめたことは、まだない。でも、どこで何を読んだかが書いてある。それだけでも、ここでは役に立つ」");
+    if (S.rec.pg && S.rec.pg.ok) L.push("「=) の貼り紙のことも、書いておく。次の人のために」");
+    if (S.rec.wheat && full("wheat")) L.push("「麦のことは、分からない、と書いてある。……それで、いいんだと思う」");
+    L.push("地図の端に、黄色いピンが一本、刺さっている。", "「外に出られた扉だって、言う人がいる」と地図係は言った。「誰も、確かめていない」", "そのピンの横に、あなたの野帳の写しが、貼られた。");
+    finish("beta", L, "地図");
   }
   function endWretch() {
     const L = ["のどが、焼けるようだ。", "ことばを探す。「水」しか、出てこない。", "腕をかきむしる。皮膚が、自分のものではないように、はがれていく。",
@@ -2275,9 +2316,10 @@ function createGame(io) {
   // ---- 次に見ること（ヒント） ----
   function hintText() {
     const water = Object.values(O).find(o => o.loc === "player" && (o.drink === "grey" || o.drink === "blue"));
-    if (S.th >= 90) return water ? `${water.name}を「飲む」。それから、安全な場所で「寝る」。` : "アーモンド水を探す。レベル4の給水器、レベル5のボイラー室の管、基地ガンマの給水所。";
+    if (S.th >= TH.s1) return water ? `${water.name}を「飲む」。それから、安全な場所で「寝る」。` : "アーモンド水を探す。給水器、管、池、湖……どこかに水はある。";
+    if (S.cold >= 25) return S.loc === "y8c" ? "焚き火に「触る」。" : "体を温める。服か、火。……それまで、眠らない。";
     if (S.l1.flk > 0) return "停電。灯りは点けたままにしない。壁に「触る」、それから東の緑の灯りへ。背後でこすれる音がしたら、一度だけ灯りを点けて、すぐ消す。";
-    if (S.th >= 50 && water) return `のどが渇いている。${water.name}を「飲む」。`;
+    if (S.th >= TH.dry && water) return `のどが渇いている。${water.name}を「飲む」。`;
     switch (S.loc) {
       case "y0":
         if (S.l0.red) return "赤い戸口には近づかない。別の方角へ。";
@@ -2350,7 +2392,7 @@ function createGame(io) {
         return "ハウンドを「見つめる」。止まっているあいだに、北へ。";
       case "y4o":
         if (S.ar === 0) return "保管係に「話しかける」。棚も「読む」。";
-        return "野帳を保管係に「渡す」と、終わりにできる。まだ見るなら、階段室からレベル5へ、黒い扉からレベル6へ。";
+        return "保管係は、野帳を写したがっている。……階段室と、黒い扉の先は、まだ続いている。";
       case "y4s": return "下へ降りると、レベル5。";
       case "y5a": return S.keeper ? "東のビバリールームへ。" : "ハウスキーピングの隊員に「話しかける」。";
       case "y5b": return full("mahjong") ? "麻雀は放っておく。たくさんの扉を「開ける」と、ときどきボイラー室に出る。" : "打ちかけの麻雀を「観察する」。";
@@ -2363,6 +2405,21 @@ function createGame(io) {
       case "y6s": return "下へ。";
       case "y7": return "ロープで下へ。戻るなら上へ。";
       case "y7w": return full("deep") ? "上へ戻れば、帰り道。手を放せば、その先。" : "海を「観察する」。";
+      case "y7d": return lightOn() ? (S.l7.seen ? "洞窟の口のほうへ。" : "暗い水を「観察する」。灯りで、岩肌を照らす。") : "灯りが要る。……深いところのものは、光を嫌うと読んだ。";
+      case "y8a": return S.l8.suit ? "北のトンネルへ。標識をよく見る。" : "壁ぎわの人を「観察する」。濡れたままでは、凍える。";
+      case "y8r": return full("marker") ? "大きい番号ではなく、次の番号。鷲の印のあるものへ。" : "標識を「観察する」。見ていないあいだに、何が起きるか。";
+      case "y8c": return S.l8.aw ? "北の洞へ。灯りは消して。" : "蛾番の隊員に「話しかける」。掲示も「読む」。";
+      case "y8m": return S.l8.mo === 2 ? "蛾が回っている床のほうへ。" : lightOn() ? "灯りを「消す」。" : "灯りを消したまま、アーモンド水を床に「置く」。それから、待つ。";
+      case "y9a": return S.l9.fog >= 4 ? "霧が出ている。家に入る。" : "東の家に入るか、矢印をたどるか。";
+      case "y9h": return S.l9.bal >= 1 ? "今のうちに東へ。" : full("balloon") ? "何かを風船のほうへ「投げる」。それから東へ。" : "冷蔵庫のメモを「読む」。風船を「観察する」。";
+      case "y9y": return "小道は、道ではないかもしれない。";
+      case "y10a": return "北の納屋、東の池、西のわだち。";
+      case "y10b": return "日記を「読む」。……ここの麦は、食べないほうがいいのかもしれない。";
+      case "y10l": return "池の水は「飲む」ことができる。";
+      case "y10r": return "わだちに沿って、どちらかへ歩きつづける。水を持って。";
+      case "y11a": return full("rw") ? "北の柵の向こうへ。" : "工事の柵を「観察する」。目を離してから、もう一度。";
+      case "y11p": return S.l11.pgStop > 0 ? "今のうちに西の扉へ。" : "衝立を「押す」。声には、返事をしない。";
+      case "y11b": return "地図係に「話しかける」。掲示を「読む」。";
     }
     return "まず、見る。";
   }
@@ -2384,13 +2441,16 @@ function createGame(io) {
     if (S.loc === "y4h") return ["来るな！", "大丈夫"].map(W);
     if (S.loc === "y6" || S.loc === "y6q") return ["大丈夫", "誰？", "助けて"].map(W);
     if (S.loc === "y3g") return ["誰？", "ここはどこ"].map(W);
+    if (S.loc === "y11p") return ["誰？", "大丈夫", "助けて"].map(W);
     return ["ここはどこ", "助けて", "誰？"].map(W);
   }
   function drinkIt(o) {
     if (o.drink === "tap") {
       const before = stage();
-      S.th = before >= 2 ? Math.max(90, S.th - 80) : Math.max(0, S.th - 80);
-      say({ cooler: "紙コップで、給水器のアーモンド水を飲む。ほんのり甘い。", tapg: "棚から一本取り、その場で飲む。", pipes5: "漏れたアーモンド水を手に受けて飲む。熱い。でも、煮えた水は、かえって安全だと聞く。" }[o.id] || "アーモンド水を飲んだ。");
+      S.th = before >= 2 ? Math.max(TH.s1, S.th - 65) : Math.max(0, S.th - 65);
+      say({ cooler: "紙コップで、給水器のアーモンド水を飲む。ほんのり甘い。", tapg: "棚から一本取り、その場で飲む。", pipes5: "漏れたアーモンド水を手に受けて飲む。熱い。でも、煮えた水は、かえって安全だと聞く。",
+        lake8: "湖の水を手ですくって飲む。アーモンドの味。少し苦い。……指が、かじかむ。", pond10: "池の水を飲む。冷たい。土の味がする。", tap11: "蛇口からアーモンド水を飲む。" }[o.id] || "アーモンド水を飲んだ。");
+      if (o.id === "lake8") S.cold += 5;
       return;
     }
     if (o.loc !== "player" && o.loc !== S.loc && !visible().includes(o)) { say(`ここに${o.name}はない。`); return; }
@@ -2402,12 +2462,12 @@ function createGame(io) {
     }
     o.loc = "gone";
     if (o.drink === "blue") {
-      const itchy = S.th >= 90;
+      const itchy = S.th >= TH.s1;
       S.th = 0;
       say("青い瓶を飲む。ただの水のような味。……頭の奥が静かになる。少し眠い。" + (itchy ? "腕のかゆみが、引いていく。" : ""));
     } else {
       const before = stage();
-      S.th = before >= 2 ? Math.max(90, S.th - 80) : Math.max(0, S.th - 80);
+      S.th = before >= 2 ? Math.max(TH.s1, S.th - 65) : Math.max(0, S.th - 65);
       say("アーモンド水を飲む。ほのかに甘い。のどの渇きが、すっと引いていく。" + (before >= 2 ? "……発疹は、まだ残っている。休まないと。" : ""));
     }
     if (o.gift) { O.empty.loc = "player"; say("空き瓶が残った。", "note"); }
@@ -2426,12 +2486,22 @@ function createGame(io) {
       if (S.loc === "y3s" && S.fc === 2) { say("像のそばで、じっと待つ。"); return; }
       if (S.loc === "y2b") { say("息をひそめて、待つ。"); return; }
       if (S.loc === "y6q") { if (S.rec.voice && S.rec.voice.s[1] && !S.rec.voice.s[2]) { watchNext("voice"); return; } say("黙って待つ。声も、黙っている。"); return; }
+      if (LV() === "10") { say("待つ。……曇り空は、少しも変わらない。どれだけ待ったのか、分からない。"); return; }
+      if (S.loc === "y11p") { say("動かずにいる。……二つの黄色いものは、互いの顔を見たまま、近づいてくる。"); return; }
       say("時が過ぎる。");
     },
-    hint: () => say("次に見ること：" + hintText(), "note"),
-    dunno: () => { say("（分からないときは、まず見る）", "note"); say("次に見ること：" + hintText(), "note"); },
+    hint: () => VERB_DO.dunno(),
+    dunno: () => {
+      const lv = LV();
+      const n = S.hints[lv] || 0;
+      if (n >= 2) { say("（考えこんでも、もう何も浮かばない。……見るしかない）", "note"); return; }
+      S.hints[lv] = n + 1;
+      S.th += 8;
+      say("（しばらく、考えこんだ。時間がたって、のどが渇いた）", "note");
+      say("……" + hintText(), "note");
+    },
     book: () => say(bookText(false).join("\n"), "doc"),
-    help: () => say("遊び方：「命令を作る」で、動詞 → 物（「言う」ならことば）の順にタップする。十字キーで移動し、「上」「下」で上下に動く。「観察する」で、きっかけ（A）・行動（B）・その後（C）が野帳に書きこまれる。三つそろうと見立てが立ち、見立てどおりにやってうまくいくと「確かめた」になる。困ったら「野帳」の最後の行。", "note"),
+    help: () => say("遊び方：「命令を作る」で、動詞 → 物（「言う」ならことば）の順にタップする。十字キーで移動し、「上」「下」で上下に動く。「観察する」と、見たことが野帳に書きこまれる。「野帳」で読み返せる。「分からない」と入れると考えこむが、時間がたつ。", "note"),
     listen: () => {
       if (S.l0.ring > 0 && S.loc === "y0") { say("耳鳴りで、何も聞こえない。"); return; }
       switch (S.loc) {
@@ -2459,6 +2529,20 @@ function createGame(io) {
         case "y6q": say(`声の向こう、${DIR_JA[S.l6.dirs[2]]}のほうから、波の音。`); return;
         case "y6s": say("波の音。すぐ下で。"); return;
         case "y7": case "y7w": say("波の音。ずっと下のほうで、何かが鳴いている。"); return;
+        case "y7d": say("水の中の、低い音。ずっと下で、何かが鳴いている。……近い。"); return;
+        case "y8a": say("水のしたたる音。キチキチという音。遠くで、叫び声のようなもの。"); return;
+        case "y8r": say("自分の息が、岩に跳ね返って大きく聞こえる。頭上の割れ目で、小さな足音。"); return;
+        case "y8c": say("焚き火のはぜる音。人の低い話し声。誰かが、石でできたカズーを吹いている。"); return;
+        case "y8m": say(S.l8.mo === 2 ? `羽音。${DIR_JA[S.l8.floor]}の壁ぎわで、一匹だけ、低く回っている。` : "高いところで、羽音。北の膜の奥から、湿った、ぶうんという音。"); return;
+        case "y9a": say("風のない夜。遠くで、犬が吠えたような。……頭の中で、砂嵐の音がする。" + (S.l9.fog >= 4 ? "霧の奥で、何かが濡れた音を立てた。" : "")); return;
+        case "y9h": say("時計の音。……電気は来ていないのに。廊下の奥で、風船がかすかにきしむ。"); return;
+        case "y9y": say("芝生を渡る風。ブランコの鎖の音。"); return;
+        case "y10a": case "y10r": say("風が麦を渡る音。それだけ。鳥も、虫も鳴かない。"); return;
+        case "y10b": say("納屋の板がきしむ。干し草の中で、何かが動いた。……風かもしれない。"); return;
+        case "y10l": say("水の音。池の底から、小さな泡が上がってくる。"); return;
+        case "y11a": say("信号の切り替わる音。遠くで、工事の機械の音。……人の声は、一つもない。"); return;
+        case "y11p": say("どこかから、パーティーの音楽。知っている声が、名前を呼ぶ。……返事をしてはいけない。"); return;
+        case "y11b": say("人の声。地図にピンを刺す音。無線の雑音。"); return;
       }
       say("何も聞こえない。");
     },
@@ -2497,6 +2581,14 @@ function createGame(io) {
       if (S.loc === "y2c" && O.wretch.loc === "y2c" && S.wr < 2 && (o.drink === "grey" || o.drink === "blue")) { feedWretch(o, false); return; }
       if (o.id === "empty" && S.loc === "y1a") { o.loc = "gone"; S.bottleBack = true; S.kind++; say("空き瓶を、メモの横に戻した。"); return; }
       if (o.id === "notebook" && S.loc === "y0m") { VERB_DO.put(o, O.cupboard); return; }
+      if (S.loc === "y8m" && (o.drink === "grey" || o.drink === "blue") && S.l8.mo === 0) {
+        o.loc = "y8m"; S.l8.bottle = o.id;
+        say(`${o.name}の栓を開けて、床に置いた。少し下がる。`);
+        if (lightOn()) say("灯りのまわりに、蛾が集まってくる。瓶に降りてくるものは、いない。", "warn");
+        else { see("moth", 0); }
+        return;
+      }
+      if (o.id === "ear10" && LV() === "10") { o.loc = S.loc; S.l10.ear = S.loc; S.l10.earT = S.moves; say("麦の穂を、地面に置いた。"); see("wheat", 0); return; }
       if (o.id === "flashlight") S.light = false;
       o.loc = S.loc;
       say(`${o.name}を置いた。`);
@@ -2521,6 +2613,8 @@ function createGame(io) {
       if (o.loc !== "player") { say(`${o.name}は持っていない。`); return; }
       if (w.id === "wretch" && (o.drink === "grey" || o.drink === "blue") && S.wr < 2) { feedWretch(o, true); return; }
       if (w.id === "archivist" && o.id === "notebook") { endArchive(); return; }
+      if (w.id === "carto11" && o.id === "notebook") { endBeta(); return; }
+      if (w.id === "carto11") { say("「それは、帳面じゃないね」", "voice"); return; }
       if (w.id === "archivist") { say("「それは、野帳ではないね」", "voice"); return; }
       if (w.id === "waiter" && o.id === "bluegift") { say("「……自分で渡してほしい。会えたら」", "voice"); return; }
       if (w.person) { say(`${w.name}は、首を横に振った。`); return; }
@@ -2534,6 +2628,13 @@ function createGame(io) {
         if (!o.heavy) { say(`${o.name}を投げた。軽すぎて、効き目がない。`); return; }
         S.gr = 2; S.grT = 3;
         say(`頭の枝分かれを狙って、${o.name}を投げつけた。……当たった。ケーブルの束がふらつき、絡まりかける。`);
+        return;
+      }
+      if (S.loc === "y9h" && S.l9.bal === 0 && o.id !== "notebook") {
+        o.loc = "gone";
+        if (o.id === "flashlight") S.light = false;
+        S.l9.bal = 1; S.l9.balT = 3; S.l9.balWarn = false;
+        say(`${o.name}を、風船の下へ投げた。……リボンが鞭のようにしなって、${o.name}に巻きつき、締めあげはじめた。`);
         return;
       }
       if (S.loc === "y2b" && (o.id === "flashlight" && S.light || o.id === "glow" && S.glowLit)) {
@@ -2587,9 +2688,14 @@ function createGame(io) {
     },
     lighton: (o) => {
       if (o && !o.light && !(o.id === "vent1")) { say(`${o.name}は、点けるものではない。`); return; }
-      const src = o && o.light ? o : held("flashlight") ? O.flashlight : held("glow") ? O.glow : null;
+      const src = o && o.light ? o : held("flashlight") ? O.flashlight : held("glow") ? O.glow : held("flare") ? O.flare : null;
       if (!src || src.loc !== "player") { say("灯りになるものを持っていない。"); return; }
-      if (src.id === "glow") {
+      if (src.id === "flare") {
+        if (S.flare > 0) { say("もう燃えている。"); return; }
+        if (LV() === "6") { say("発炎筒の紐を引く。……火花は散るのに、光にならない。ここでは、光が光にならない。"); S.flare = 12; return; }
+        S.flare = 12;
+        say("発炎筒の紐を引く。赤い炎が、しゅうっと噴き出した。");
+      } else if (src.id === "glow") {
         if (S.glowLit && S.glowHidden) { S.glowHidden = false; say("服の中から、ケミカルライトを取り出した。緑の光。"); }
         else if (S.glowLit) { say("もう光っている。"); return; }
         else {
@@ -2609,11 +2715,15 @@ function createGame(io) {
         return;
       }
       if (S.loc === "y2b" && S.sm.bait === 0) { see("smiler", 0); }
-      if (S.loc === "y1a" || S.loc === "y2b") return;
+      if (S.loc === "y8m") say("灯りが点くと、高いところの羽音が、いっせいに向きを変えた。", "warn");
+      if (S.loc === "y9a") say("またたく街灯のまわりの蛾が、こちらの灯りへ向きを変えた。", "warn");
+      if (S.loc === "y7d") S.l7.seen = true;
+      if (S.loc === "y1a" || S.loc === "y2b" || S.loc === "y8m" || S.loc === "y9a") return;
       describe(true);
     },
     lightoff: (o) => {
       if (o && !o.light) { say(`${o.name}は、消すものではない。`); return; }
+      if ((o && o.id === "flare") || (!S.light && !S.glowLit && S.flare > 0 && held("flare"))) { say("発炎筒は、燃えつきるまで消えない。"); return; }
       if ((o && o.id === "glow") || (!S.light && S.glowLit && held("glow"))) {
         if (!S.glowLit) { say("ケミカルライトは、まだ折っていない。"); return; }
         say("ケミカルライトは、一度折ったら消せない。……服の中に押しこんで、光を隠した。");
@@ -2636,7 +2746,7 @@ function createGame(io) {
       if (!o.food) { say(`${o.name}は、食べられない。`); return; }
       if (o.loc !== "player" && !visible().includes(o)) { say(`ここに${o.name}はない。`); return; }
       o.loc = "gone";
-      S.th = Math.max(0, S.th - 25);
+      S.th = Math.max(0, S.th - 20);
       say("缶を開けて、食べる。冷たいが、ちゃんと食べ物の味がする。");
     },
     talk: (o) => {
@@ -2658,6 +2768,7 @@ function createGame(io) {
       if (S.loc === "y2c" && O.wretch.loc === "y2c") { talkWretch(); return; }
       if (S.loc === "y6" && (S.dk === 1 || S.dk === 2)) { talkDark(); return; }
       if (S.loc === "y6q") { watchNext("voice"); return; }
+      if (S.loc === "y11p" && S.l11.pg) { answerVoice(); return; }
       if (S.loc === "y3g" && O.stranger.loc === "y3g") { say("厚着の人が、こちらを見た。……サングラスの奥は見えない。"); return; }
       if (S.dk === 3 && O.companion.loc === S.loc) { talkCompanion(); return; }
       say("……返事はない。");
@@ -2684,15 +2795,24 @@ function createGame(io) {
       say("振り向く。誰もいない。");
     },
     sleep: () => {
-      const safe = ["y0m", "y1k", "y1x", "y3b", "y3s", "y4a", "y4o", "y5a"];
+      const safe = ["y0m", "y1k", "y1x", "y3b", "y3s", "y4a", "y4o", "y5a", "y8c", "y9h", "y10b", "y11b"];
+      const medic = ["y1k", "y1x", "y3b", "y4o", "y8c", "y11b"];
       if (S.l1.flk > 0) { say("こんなときに、眠れない。"); return; }
+      if (LV() === "8" && S.loc !== "y8c" && (S.cold >= 25 || S.l8.wet)) {
+        if (!S.l8.sleepWarn) { S.l8.sleepWarn = true; say("岩に背中をあずけて、目を閉じかける。……まぶたが重い。濡れた服が、体の熱を吸っていく。目を閉じたら、と、どこかで読んだ気がする。", "warn"); return; }
+        endSleep8(); return;
+      }
+      if (S.loc === "y11p" || (S.loc === "y9h" && S.l9.bal === 1)) { say("こんなときに、眠れない。"); return; }
       if (!safe.includes(S.loc)) { say("ここでは、眠れない。"); return; }
-      S.th = Math.max(0, S.th - 15);
-      S.inj = 0;
+      S.th = Math.max(0, S.th - 10);
+      S.inj = medic.includes(S.loc) ? 0 : Math.max(0, S.inj - 1);
+      if (S.loc === "y8c") { S.cold = 0; S.l8.wet = false; }
       say({ y0m: "椅子に座って、テーブルに突っ伏す。ピアノを聞きながら、少し眠った。", y1k: "医務室のベッドで眠る。夢は見なかった。", y1x: "簡易ベッドで眠る。人の話し声が、遠くで子守唄のように続いた。",
         y3b: "寝台で眠る。分厚い壁の外で、ときどき、何かがぶつかる音。", y3s: "像の足もとで、膝を抱えて眠る。", y4a: "壁ぎわで、ワンダラーたちにまじって眠る。",
-        y4o: "保管庫の隅の寝台で眠る。紙の匂い。", y5a: "空いている客室を借りて眠る。シーツは、ぱりっとしていた。" }[S.loc]);
-      say("（休んだ。けがは手当てされ、渇きも少しおさまった）", "note");
+        y4o: "保管庫の隅の寝台で眠る。紙の匂い。", y5a: "空いている客室を借りて眠る。シーツは、ぱりっとしていた。",
+        y8c: "焚き火のそばの寝袋で眠る。誰かが、火の番をしてくれている。", y9h: "ソファで、浅く眠る。窓の外で、何かが通りを歩いていく音。",
+        y10b: "干し草のくぼみの一つで眠る。……隣の二つのくぼみが、まだ少し温かい気がした。", y11b: "隊員の寝台で眠る。無線の雑音が、子守唄のように続いた。" }[S.loc]);
+      say(medic.includes(S.loc) ? "（休んだ。けがは手当てされ、渇きも少しおさまった）" : "（休んだ。けがが一つ、少しよくなった）", "note");
     },
     down: () => go("d"),
     up: () => go("u"),
