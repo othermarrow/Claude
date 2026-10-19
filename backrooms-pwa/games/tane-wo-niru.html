@@ -267,7 +267,7 @@ body.typing #pad { display: none; }
       <p>これは記録です。目的は、書かれていません。</p>
       <p>十字キーで移動します。左上の「上」と右下の「下」で、上下にも動けます。「命令を作る」を押すと、動詞 → 物 →（必要なら）2つ目の物 の順にタップするだけで命令ができます。「言う」を選ぶと、その場で口にできることばが並びます。入力欄には日本語も書けます（例：木箱を開ける）。</p>
       <p>途中の状態は自動で残り、次に開くと続きから遊べます。</p>
-      <p class="credit">一部の階と、そこにいるものは、Backrooms Wiki の記事「Level 7 - "Thalassophobia"」「Level 8 - "Cave Systems"」「Level 9 - "The Suburbs"」「Level 10 - "Bumper Crop"」「Level 11 - "The City That Never Sleeps"」「Entity 3 - "Smilers"」「Entity 4 - "Deathmoths"」「Entity 8 - "Hound"」「Entity 10 - "Skin-Stealer"」「Object 1 - "Almond Water"」をもとにしています（CC BY-SA 3.0）。</p>
+      <p class="credit">階と、そこにいるものは、Backrooms Wiki の記事「Level 0 - "Threshold"」「Level 1 - "Habitable Zone"」「Level 2 - "Abandoned Utility Halls"」「Level 3 - "Electrical Station"」「Level 4 - "Abandoned Office"」「Level 5 - "Terror Hotel"」「Level 6 - "Lights Out"」「Level 7 - "Thalassophobia"」「Level 8 - "Cave Systems"」「Level 9 - "The Suburbs"」「Level 10 - "Bumper Crop"」「Level 11 - "The City That Never Sleeps"」「Entity 3 - "Smilers"」「Entity 4 - "Deathmoths"」「Entity 8 - "Hound"」「Entity 10 - "Skin-Stealer"」「Object 1 - "Almond Water"」「The M.E.G.」をもとにしています（CC BY-SA 3.0）。</p>
       <div id="confirm-row">
         <button class="key" type="button" id="restart-btn">はじめから</button>
         <button class="key" type="button" id="restart-yes" hidden>本当にはじめから</button>
@@ -308,6 +308,7 @@ body.typing #pad { display: none; }
   const ENDINGS = { wake: "目を開ける", swap: "交代した", field: "麦の家", exit: "番号のない出口", sleep: "消灯" };
   // 演出（fx.js）。読めないときは何もしない
   function fx(m, ...a) { try { if (window.FX && typeof window.FX[m] === "function") return window.FX[m](...a); } catch (e) { /* 演出なしで続ける */ } }
+  const sfx = n => fx("sfx", n);
   function readMeta() { try { return JSON.parse(localStorage.getItem(META_KEY) || "{}") || {}; } catch (e) { return {}; } }
   function writeMeta(endId, newRun) {
     const m = readMeta();
@@ -356,11 +357,11 @@ body.typing #pad { display: none; }
   const held = id => O[id].loc === "player";
 
   const DIR_JA = { n: "北", s: "南", e: "東", w: "西", u: "上", d: "下" };
-  const LEVEL_OF = { y0: 0, l1a: 1, l1b: 1, l1c: 1, l1d: 1, l1e: 1, l2a: 2, l2b: 2, l2c: 2, l3a: 3, l3r: 3, l3s: 3, l4a: 4, l4b: 4, l4c: 4, l4d: 4, l5a: 5, l6a: 6, l6b: 6,
+  const LEVEL_OF = { y0: 0, l1a: 1, l1b: 1, l1c: 1, l1d: 1, l1e: 1, l2a: 2, l2b: 2, l2c: 2, l3a: 3, l3r: 3, l3s: 3, l4a: 4, l4b: 4, l4c: 4, l4d: 4, l5h: 5, l5b: 5, l5a: 5, l6a: 6, l6b: 6,
     l7a: 7, l7s: 7, l7b: 7, l7c: 7, l7d: 7, l8a: 8, l8c: 8, l8m: 8, l8t: 8, l8x: 8,
     l9a: 9, l9s: 9, l9c: 9, l9h: 9, l9k: 9, l9y: 9, l10a: 10, l10b: 10, l10c: 10, l10d: 10,
     l11a: 11, l11b: 11, l11c: 11, l11d: 11, l11e: 11, l11f: 11, l11g: 11, l11s: 11, l11o: 11 };
-  const LEVEL_START = { 0: "y0", 1: "l1a", 2: "l2a", 3: "l3a", 4: "l4a", 5: "l5a", 6: "l6a", 7: "l7a", 8: "l8a", 9: "l9a", 10: "l10a", 11: "l11a" };
+  const LEVEL_START = { 0: "y0", 1: "l1a", 2: "l2a", 3: "l3a", 4: "l4a", 5: "l5h", 6: "l6a", 7: "l7a", 8: "l8a", 9: "l9a", 10: "l10a", 11: "l11a" };
   const WATER = ["l7b", "l7c"];
 
   function initWorld() {
@@ -371,17 +372,19 @@ body.typing #pad { display: none; }
       desc: "ポケットに入っていた、丸まった紙。自分の字だ。いつ書いたのか、覚えていない。",
       read: () => LOOP.n ? `「目を開ける。」\nその下に、別の日の字で「${LOOP.n + 1}回目」。` : "「目を開ける。」\nそれだけ書いてある。" });
 
-    // ---- Level 0：黄色い部屋
+    // ---- Level 0：黄色い部屋（Backrooms Wiki「Level 0 - "Threshold"」より）
     thing("wallpaper", { name: "壁紙", aliases: ["壁紙", "壁", "wallpaper"], loc: "y0", scenery: true,
-      desc: "黄ばんだ壁紙。模様だと思っていたものは、小さな小さな文字の列だ。読もうとすると、模様に戻る。",
+      desc: "黄ばんだ壁紙。模様だと思っていたものは、小さな小さな文字の列だ。読もうとすると、模様に戻る。\n壁の向こうで、爪を研ぐような音が、ときどきする。",
       read: () => "読もうとすると、文字は模様に戻る。……一瞬だけ、読めた気がした。「" + (S.san <= 5 ? "とまるな" : "した") + "」。" });
+    thing("carpet", { name: "カーペット", aliases: ["カーペット", "絨毯", "床", "carpet"], en: "carpet", loc: "y0", scenery: true,
+      desc: "写真で見るほど黄色くない。茶色がかったベージュの、硬い毛足。踏むと、何かの液体がにじみ出る。水の匂いではない。" });
     thing("note1", { name: "濡れた紙切れ", aliases: ["濡れた紙切れ", "紙切れ", "濡れた紙"], en: "wet note", loc: null, take: true,
       desc: "水を吸った紙切れ。自分の字に似ている。",
-      read: "「下へ。\n立ち止まると、増える。\n数えるな。\n振り向くな。」\n最後の行だけ、何度もなぞった跡がある。" });
+      read: "「下へ。\n立ち止まると、増える。\n数えるな。\n振り向くな。」\n裏に、別の字で。「ここでは、誰にも会えない。書き置きも、誰にも届かない。これも、たぶん」\n最後の行だけ、何度もなぞった跡がある。" });
 
-    // ---- Level 1：搬入口
+    // ---- Level 1：コンクリートの区画（「Level 1 - "Habitable Zone"」「The M.E.G.」より）
     thing("crate", { name: "木箱", aliases: ["木箱", "箱", "crate"], loc: "l1a", scenery: true, container: true, closed: true,
-      desc: () => O.crate.closed ? "釘で封をされた木箱。手で引っぱっても、蓋はびくともしない。" : "蓋の外れた木箱。おがくずが詰まっている。" });
+      desc: () => O.crate.closed ? "釘で封をされた木箱。……さっき通ったときには、なかった気がする。手で引っぱっても、蓋はびくともしない。" : "蓋の外れた木箱。おがくずが詰まっている。" });
     thing("water1", { name: "アーモンド水", aliases: ["アーモンド水", "ボトル", "水"], en: "almond water", loc: "crate", take: true, drink: true,
       desc: "透明な液体の入ったボトル。手書きのラベルに「アーモンド水」。ふたを開けると、ほのかに甘い。" });
     thing("water2", { name: "アーモンド水（二本目）", aliases: ["アーモンド水（二本目）", "二本目", "アーモンド水", "ボトル"], en: "second almond water", loc: "crate", take: true, drink: true,
@@ -391,21 +394,24 @@ body.typing #pad { display: none; }
         if (!S.puddleSeen) {
           S.puddleSeen = true;
           addSan(-1, "");
+          sfx("stinger");
           return "水たまりに、天井の蛍光灯が映っている。それと、こちらに背を向けて立つ誰か。\n……振り返る。誰もいない。\nもう一度覗くと、映っているのは自分の顔だけだった。";
         }
         return "自分の顔が映っている。表情が、ほんの少し遅れてついてくる。";
       } });
+    thing("sign1", { name: "標示", aliases: ["標示", "矢印", "看板", "sign"], en: "arrow sign", loc: "l1a", scenery: true,
+      desc: "柱に貼られた、鷲の印のステッカー。「M.E.G.　基地アルファ →」。\n矢印の先は、コンクリートの壁で塗りこめられている。" });
     thing("radio", { name: "トランシーバー", aliases: ["トランシーバー", "無線機", "radio"], loc: "l1a", take: true,
-      desc: "古いトランシーバー。電源は入ったままだ。ときどき、ザッと鳴る。周波数のつまみは、取れてなくなっている。" });
+      desc: "古いトランシーバー。鷲の印のシールが半分はがれている。電源は入ったままだ。ときどき、ザッと鳴る。周波数のつまみは、取れてなくなっている。" });
     thing("desk1", { name: "スチール机", aliases: ["スチール机", "机", "desk"], loc: "l1b", scenery: true,
-      desc: () => "傷だらけのスチール机。日誌が開いたままになっている。" + (O.crowbar.loc === "l1b" ? "机の下に、バールが転がっている。" : "") });
-    thing("log1", { name: "日誌", aliases: ["日誌", "夜勤日誌", "log"], loc: "l1b", scenery: true,
-      desc: "夜勤日誌。同じ字で、毎晩一行ずつ書いてある。",
-      read: () => { const first = !S.logRead; S.logRead = true; if (first) addSan(-1, ""); return "「箱を運ぶ。会話なし。異常なし。」\n「箱を運ぶ。会話なし。異常なし。」\n「箱を運ぶ。会話なし。異常なし。」\n……何十行も、同じ一行。\n今夜の欄にも、もう書いてある。「異常なし」。\n明日の欄にも。明後日の欄にも。\nいちばん下の欄だけ、字が乱れている。「来る。」"; } });
+      desc: () => "傷だらけのスチール机。巡回日誌が開いたままになっている。" + (O.crowbar.loc === "l1b" ? "机の下に、バールが転がっている。" : "") });
+    thing("log1", { name: "巡回日誌", aliases: ["巡回日誌", "日誌", "log"], loc: "l1b", scenery: true,
+      desc: "M.E.G. の巡回日誌。鷲の印の判が押してある。同じ字で、毎晩一行ずつ。",
+      read: () => { const first = !S.logRead; S.logRead = true; if (first) addSan(-1, ""); return "「巡回。新しい漂着者なし。異常なし。」\n「巡回。新しい漂着者なし。異常なし。」\n「巡回。新しい漂着者なし。異常なし。」\n……何十行も、同じ一行。\n今夜の欄にも、もう書いてある。「異常なし」。\n明日の欄にも。明後日の欄にも。\nいちばん下の欄だけ、字が乱れている。「来る。灯りが切れたら、動くな」"; } });
     thing("clock1", { name: "壁の時計", aliases: ["壁の時計", "時計", "clock"], loc: "l1b", scenery: true,
       desc: "三時十二分で止まっている。秒針だけが、一目盛りぶん、行ったり来たりしている。" });
     thing("locker", { name: "ロッカー", aliases: ["ロッカー", "locker"], loc: "l1b", scenery: true, container: true, closed: true,
-      desc: () => O.locker.closed ? "細長いスチールのロッカー。名札の差しこみ口は空っぽだ。" : "開いたロッカー。内側に、爪で引っかいた線が五本ずつ束ねてある。" });
+      desc: () => O.locker.closed ? "細長いスチールのロッカー。名札の差しこみ口は空っぽだ。" : "開いたロッカー。蛍光イエローの作業着が一着、かかったまま。内側に、爪で引っかいた線が五本ずつ束ねてある。" });
     thing("flashlight", { name: "懐中電灯", aliases: ["懐中電灯", "ライト", "flashlight"], loc: "locker", take: true,
       desc: () => "黄色い懐中電灯。" + (S.light ? "点いている。" : "消えている。") });
     thing("gloves", { name: "防寒手袋", aliases: ["防寒手袋", "手袋", "gloves"], loc: "locker", take: true,
@@ -413,7 +419,7 @@ body.typing #pad { display: none; }
     thing("crowbar", { name: "バール", aliases: ["バール", "crowbar"], loc: "l1b", take: true,
       desc: "錆びたバール。先が少し曲がっている。" });
     thing("fdoor", { name: "断熱扉", aliases: ["断熱扉", "扉", "冷凍室の扉", "door"], en: "freezer door", loc: "l1c", scenery: true,
-      desc: () => (S.freezerOpen ? "分厚い断熱扉が開いている。白い冷気が床を這ってくる。" : "分厚い断熱扉。閉まっている。") + "\n貼り紙：「冷凍室　−25℃　単独で長居しないこと」" });
+      desc: () => (S.freezerOpen ? "分厚い断熱扉が開いている。白い冷気が床を這ってくる。" : "分厚い断熱扉。閉まっている。") + "\n貼り紙：「冷凍区画　−25℃　単独で長居しないこと」" });
     thing("shelves", { name: "棚の段ボール", aliases: ["棚の段ボール", "段ボール", "棚"], en: "boxes", loc: "l1d", scenery: true,
       desc: "どの段ボールにも、同じ日付が書いてある。今日の日付だ。どれも中身は軽い。振ると、何も入っていない音がする。" });
     thing("wbox", { name: "霜のない箱", aliases: ["霜のない箱", "温かい箱", "箱"], en: "warm box", loc: "l1d", scenery: true, container: true, closed: true,
@@ -427,116 +433,135 @@ body.typing #pad { display: none; }
     thing("keyhole", { name: "鍵穴", aliases: ["鍵穴", "keyhole"], loc: "l1e", scenery: true,
       desc: () => S.keyIn ? "鍵が差さったままだ。" : "操作盤の小さな鍵穴。" });
 
-    // ---- Level 2：配管
+    // ---- Level 2：配管の通路（「Level 2 - "Abandoned Utility Halls"」より）
     thing("why", { name: "壁の文字", aliases: ["壁の文字", "文字", "壁", "なぜ"], en: "writing", loc: "l2a", scenery: true,
-      desc: "壁という壁に、引っかいた文字。「なぜ」。",
+      desc: "機械と配管のすき間の壁という壁に、引っかいた文字。「なぜ」。",
       read: () => {
         if (S.whyRead) return "なぜ。なぜ。なぜ。……もう、読まなくても読める。";
         S.whyRead = true;
         addSan(-1, "");
+        sfx("scratch");
         return "なぜ。なぜ。なぜ。なぜ。\n引っかいた跡のいくつかは、新しい。\nふと、自分の爪の間に、白い粉が詰まっていることに気づく。";
       } });
+    thing("vdoor", { name: "窓のある扉", aliases: ["窓のある扉", "鉄の扉", "扉", "窓"], en: "window door", loc: "l2a", scenery: true,
+      desc: "配管のあいだに埋もれた鉄の扉。小さな窓がついている。窓の向こうは、果てのない黒だ。床も、壁もない。扉の明かりだけが、黒の中に四角く落ちている。" });
     thing("valve", { name: "バルブ", aliases: ["バルブ", "valve"], loc: "l2b", scenery: true,
       desc: () => S.valve ? "閉じたバルブ。触ると、まだ熱い。" : "太い鉄のバルブ。開いたままだ。管の奥で、蒸気が暴れている。" });
     thing("gauge", { name: "圧力計", aliases: ["圧力計", "針", "gauge"], loc: "l2b", scenery: true,
       desc: () => S.valve ? "針は、白い域まで下がっている。" : "針が、赤い域で震えている。ときどき、自分の脈と同じ速さで。" });
     thing("tin", { name: "錆びた缶", aliases: ["錆びた缶", "缶", "tin"], loc: "l2b", scenery: true, container: true, closed: true,
-      desc: () => O.tin.closed ? "棚の上の、錆びた菓子の缶。" : "空になった菓子の缶。" });
+      desc: () => O.tin.closed ? "工具台車の上の、錆びた菓子の缶。" : "空になった菓子の缶。" });
     thing("letter", { name: "手紙", aliases: ["手紙", "封筒", "letter"], loc: "tin", take: true,
       desc: "古い封筒。宛名のところが、にじんで読めない。",
       read: "「君は小さいころから、怖いものに名前をつけるのが上手だった。\n名前をつけても、それは消えない。\nでも、どこにいるかは分かるようになる。\n名前は檻ではない。距離だ。」\n差出人の名前も、にじんで読めない。" });
     thing("hatch2", { name: "点検口", aliases: ["点検口", "蓋", "hatch"], loc: null, scenery: true,
-      desc: () => S.named ? "床の丸い点検口。蓋の隙間から、時計の音が上がってくる。" : "床の丸い点検口。その真上に、針金の塊が降りてきている。" });
-    thing("wire", { name: "針金の塊", aliases: ["針金の塊", "針金", "塊", "ヨル", "トゲ"], en: "wire", loc: null, scenery: true,
+      desc: () => S.named ? "床の丸い点検口。蓋の隙間から、機械の唸りが上がってくる。" : "床の丸い点検口。その真上に、配線の塊が降りてきている。" });
+    thing("wire", { name: "配線の塊", aliases: ["配線の塊", "針金の塊", "配線", "針金", "塊", "ヨル", "トゲ"], en: "wire", loc: null, scenery: true, glow: true,
       desc: () => S.named ? "ヨル。頭の右上の、少し遠いところに浮かんでいる。トゲは消えない。でも、どこにいるかは分かる。" :
-        "針金を丸めたような、トゲだらけの塊。頭の右上に浮かんでいる。見ていると、答えのない問いが次々に湧いてくる。なぜ。なぜ。なぜ。" });
+        "むき出しの配線を丸めたような、トゲだらけの塊。ときどき、先端で火花がはぜる。頭の右上に浮かんでいる。見ていると、答えのない問いが次々に湧いてくる。なぜ。なぜ。なぜ。" });
 
-    // ---- Level 3：同じ部屋の廊下
-    for (const n of [301, 302, 303, 305, 306]) {
-      thing("d" + n, { name: `${n}の扉`, aliases: [`${n}の扉`, `${n}号室`, String(n)], en: `door ${n}`, loc: "l3a", scenery: true, room: n,
-        desc: n === 305 ? "305号室の扉。番号の5の下に、塗りつぶした4が透けて見える。" : `${n}号室の扉。鍵はかかっていない。` });
+    // ---- Level 3：電気設備（「Level 3 - "Electrical Station"」より）
+    for (const n of [1, 2, 3, 5, 6]) {
+      thing("d30" + n, { name: `第${n}変電室の扉`, aliases: [`第${n}変電室の扉`, `第${n}変電室`, `${n}の扉`], en: `door ${n}`, loc: "l3a", scenery: true, room: n,
+        desc: n === 5 ? "第5変電室の扉。札の「5」の下に、塗りつぶした「4」が透けて見える。" : `第${n}変電室の扉。鍵はかかっていない。` });
     }
-    thing("blank3", { name: "番号のない扉", aliases: ["番号のない扉", "扉"], en: "unnumbered door", loc: null, scenery: true,
-      desc: "303と305のあいだに現れた扉。番号の札がない。取っ手だけが、やけに温かい。" });
+    thing("bars", { name: "鉄格子", aliases: ["鉄格子", "格子", "bars"], en: "bars", loc: "l3a", scenery: true,
+      desc: () => { const f = !S.barsSeen; S.barsSeen = true; if (f) { addSan(-1, ""); sfx("whisper"); } return "通路の片側をふさぐ鉄格子。どんな道具でも曲がらないと、誰かが壁に書いている。\n格子の奥の暗がりに、人の形をした影が立っている。こちらを見ている。" + (f ? "……瞬きをすると、一歩、近くにいた。" : ""); } });
+    thing("bpipe", { name: "黒い管", aliases: ["黒い管", "管", "黒い液体", "pipe"], en: "black pipe", loc: "l3a", scenery: true,
+      desc: "天井を這う管の継ぎ目から、黒くて重い液体が滴っている。湯気。焦げたような匂い。床に落ちたところだけ、コンクリートが溶けている。" });
+    thing("blank3", { name: "札のない扉", aliases: ["札のない扉", "第4変電室", "4の扉", "扉"], en: "unnumbered door", loc: null, scenery: true,
+      desc: "第3と第5のあいだに現れた扉。札がない。取っ手だけが、やけに温かい。" });
     thing("sheet3", { name: "点検表", aliases: ["点検表", "表", "checklist"], loc: "l3r", scenery: true,
       desc: () => "机の上の点検表。自分の字だ。\n" + places().map(o => (S.chk[o.id] ? "✓ " : "□ ") + o.name).join("\n") +
         "\nいちばん下に、「もういい、と言えたら終わり」と書いてある。字が震えている。" });
     const PLACES = [
-      ["bed", "ベッドの下", ["ベッドの下", "ベッド"], "ベッドの下を覗く。何もない。……埃に、誰かがさっきまで寝そべっていた形の跡がある。"],
-      ["closet", "クローゼット", ["クローゼット"], "クローゼットを開ける。自分の服が並んでいる。一着多い気がする。数えると、合っている。"],
-      ["fridge", "冷蔵庫", ["冷蔵庫"], "冷蔵庫を開ける。空だ。冷気だけが、なぜか生ぬるい。"],
-      ["drawer", "机の引き出し", ["机の引き出し", "引き出し"], "引き出しを全部開ける。紙が一枚。「確かめた」と自分の字。日付は明日。"],
-      ["curtain", "カーテン", ["カーテン", "窓"], "カーテンをめくる。窓の外は、黄色い壁紙だった。"],
-      ["ceil", "天井の隅", ["天井の隅", "天井"], "天井の隅を見上げる。何もない。……さっきまで、何かに見下ろされていた気がする。"],
-      ["shoebox", "靴箱", ["靴箱", "靴"], "靴箱を開ける。靴が一足。まだ濡れている。"],
-      ["fan", "換気扇", ["換気扇"], "換気扇を止めて、羽の奥を覗く。暗い。奥のほうが、少しだけ黄色い。"],
-      ["outlet", "コンセント", ["コンセント"], "コンセントのカバーを外す。奥で、蛍光灯と同じうなりが鳴っている。"],
-      ["bath", "浴室", ["浴室", "風呂", "浴槽"], "浴室の扉を開ける。浴槽に水が張ってある。水面が、今止まったばかりのように揺れている。"],
-      ["attic", "天井裏", ["天井裏"], "天井裏の点検口を押し上げる。暗い。下ろしたあと、上で何かが動いた。"],
+      ["p_brk", "遮断器", ["遮断器", "ブレーカー", "レバー"], "遮断器のレバーを一本ずつ確かめる。全部、入っている。……一本だけ、人の手のように温かい。"],
+      ["p_gau", "電圧計", ["電圧計", "計器", "メーター"], "電圧計の針は、正常の範囲にある。見ているあいだだけ、正常の範囲にある。"],
+      ["p_cab", "配線", ["配線", "ケーブル"], "配線をたどる。被覆は無事だ。……壁の向こうで、同じように配線をたどっている指の音がする。"],
+      ["p_eml", "非常灯", ["非常灯"], "非常灯のスイッチを押す。点く。消す。……点くかどうか、もう一度確かめたくなる。"],
+      ["p_lok", "扉の錠", ["扉の錠", "錠", "鍵"], "錠を確かめる。かかっている。かかっていることを、もう一度確かめた。"],
+      ["p_drn", "排水口", ["排水口"], "床の排水口を覗く。黒い液体が、底のほうに少しだけ溜まっている。音は、しない。"],
+      ["p_fus", "ヒューズ箱", ["ヒューズ箱", "ヒューズ"], "ヒューズ箱を開ける。切れているものはない。全部、同じ向きに並んでいる。"],
+      ["p_ven", "換気口", ["換気口"], "換気口の羽根の奥を覗く。暗い。奥のほうが、少しだけ黄色い。"],
+      ["p_out", "コンセント", ["コンセント"], "コンセントのカバーを外す。奥で、蛍光灯と同じうなりが鳴っている。"],
+      ["p_tap", "流し", ["流し", "蛇口"], "流しの蛇口をひねる。黒い水が一滴だけ落ちて、止まった。"],
+      ["p_cel", "天井の配管", ["天井の配管", "天井"], "天井の配管を見上げる。何もない。……さっきまで、何かに見下ろされていた気がする。"],
     ];
     PLACES.forEach(([id, nm, als, chk], i) => thing(id, { name: nm, aliases: als, loc: i < 6 ? "l3r" : null, scenery: true, place: true, chk,
       desc: () => S.chk[id] ? `${nm}。確かめた。……はずだ。` : `${nm}。まだ確かめていない。` }));
     thing("water3", { name: "アーモンド水（三本目）", aliases: ["アーモンド水（三本目）", "三本目", "アーモンド水", "ボトル"], en: "third almond water", loc: "l3s", take: true, drink: true,
-      desc: "踊り場に置かれていたアーモンド水。ラベルの字は、自分の字だ。" });
+      desc: "エレベーターの前に置かれていたアーモンド水。ラベルの字は、自分の字だ。" });
 
-    // ---- Level 4：夜の生活棟
-    thing("rounds", { name: "巡回表", aliases: ["巡回表", "表"], en: "rounds sheet", loc: "l4a", scenery: true,
-      desc: "一時間ごとの巡回の欄。",
-      read: "一時間ごとの欄に、チェックが並んでいる。全部、同じ字。\n最後の欄だけ空いている。時刻は、三時十二分。" });
+    // ---- Level 4：がらんとした事務所（「Level 4 - "Abandoned Office"」より）
+    thing("rounds", { name: "入退室記録", aliases: ["入退室記録", "記録", "表"], en: "sign-in sheet", loc: "l4a", scenery: true,
+      desc: "受付台の上の、入退室の記録。",
+      read: "時刻と名前の欄。時刻は全部埋まっている。名前は全部、同じ字で、同じ二文字を、何度も消した跡。\n最後の欄だけ空いている。時刻は、三時十二分。" });
     thing("cfile", { name: "ケースファイル", aliases: ["ケースファイル", "ファイル", "file"], loc: "l4a", scenery: true,
-      desc: "分厚いケースファイル。表紙の名前の欄は空白だ。",
+      desc: "分厚いケースファイル。表紙に鷲の印と「漂着者記録」。名前の欄は空白だ。",
       read: () => {
         const first = !S.fileRead; S.fileRead = true;
         if (first) addSan(-1, "");
-        return "「本人は夜間、なかなか眠らない。何かをしていないと落ち着かない様子。」\n「部屋の同じ場所を何度も確かめる。声をかけると止まる。止まっているように見えるだけかもしれない。」\n「できる、と記録した項目について、楽にできているのか、必死にこなしているのかは評価できていない。」\n「壁に向かって話しかける。話しかけている相手に、名前をつけている。」\n「書いているあいだだけ、静かになる。」\n" +
+        return "「本人は夜間、なかなか眠らない。何かをしていないと落ち着かない様子。」\n「同じ場所を何度も確かめる。声をかけると止まる。止まっているように見えるだけかもしれない。」\n「できる、と記録した項目について、楽にできているのか、必死にこなしているのかは評価できていない。」\n「壁に向かって話しかける。話しかけている相手に、名前をつけている。」\n「書いているあいだだけ、静かになる。」\n" +
           (S.named ? "最後の行は、新しいインクだ。「名前をつけてからは、相手との距離を保てるようになった。」\n" : "") +
           "……読み進めるうちに、指先が冷たくなっていく。これは、誰の記録だ。";
       } });
     thing("phone", { name: "内線電話", aliases: ["内線電話", "電話", "受話器", "phone"], loc: "l4a", scenery: true,
-      desc: () => S.written && !S.stairOpen ? "内線電話が鳴りつづけている。" : "壁かけの内線電話。" });
-    thing("sdoor", { name: "非常階段の扉", aliases: ["非常階段の扉", "鉄の扉", "扉", "非常階段"], en: "stair door", loc: "l4a", scenery: true,
-      desc: () => S.stairOpen ? "非常階段の鉄の扉。鍵は外れている。" : "非常階段の鉄の扉。鍵がかかっている。" });
-    thing("rooms4", { name: "居室", aliases: ["居室", "部屋", "ベッド"], en: "rooms", loc: "l4b", scenery: true,
-      desc: "どの部屋も扉が開け放たれ、ベッドはきれいに整えられている。誰もいない。それなのに、シーツにはさっきまで誰かが寝ていた温かさが残っている。" });
+      desc: () => S.written && !S.stairOpen ? "内線電話が鳴りつづけている。" : "受付台の内線電話。コードは、壁の中へ消えている。" });
+    thing("sdoor", { name: "階段室の扉", aliases: ["階段室の扉", "鉄の扉", "扉", "階段室", "非常階段"], en: "stair door", loc: "l4a", scenery: true,
+      desc: () => (S.stairOpen ? "階段室の鉄の扉。鍵は外れている。" : "階段室の鉄の扉。鍵がかかっている。") + "\n貼り紙：「M.E.G.　基地オメガ方面　関係者以外立入禁止」。紙は黄ばんで、角が丸い。" });
+    thing("windows4", { name: "塗られていない窓", aliases: ["塗られていない窓", "窓", "window"], en: "unpainted window", loc: "l4b", scenery: true,
+      desc: () => { const f = !S.winSeen; S.winSeen = true; if (f) addSan(-1, ""); return "ほかの窓は全部、黒く塗りつぶされている。この一枚だけ、塗られていない。\n外に、夜の街の明かりが見える。風が、木を揺らしている。……ここは、何階なのだろう。下へ降りてきたはずなのに。\n近づきたくなる。とても。"; } });
     thing("speaker", { name: "スピーカー", aliases: ["スピーカー", "speaker"], loc: "l4c", scenery: true,
-      desc: () => S.written ? "天井のスピーカー。もう何も鳴っていない。" : "天井のスピーカー。叫び声は、ここから出ている。網の奥が、ときどき息をするようにふくらむ。" });
-    thing("tray", { name: "トレー", aliases: ["トレー", "席", "tray"], loc: "l4c", scenery: true,
-      desc: () => "一つの席にだけ置かれたトレー。食事ではなく、" + (O.paper4.loc === "l4c" ? "白い紙が一枚" : "何もない") + (O.pencil.loc === "l4c" ? "と、鉛筆が一本。" : "。") });
+      desc: () => S.written ? "天井の館内放送のスピーカー。もう何も鳴っていない。" : "天井の館内放送のスピーカー。叫び声は、ここから出ている。網の奥が、ときどき息をするようにふくらむ。" });
+    thing("tray", { name: "席", aliases: ["席", "トレー", "seat"], en: "seat", loc: "l4c", scenery: true,
+      desc: () => "長机の、一つの席にだけ、何かが置いてある。" + (O.paper4.loc === "l4c" ? "白い紙が一枚" : "何もない") + (O.pencil.loc === "l4c" ? "と、鉛筆が一本。" : "。") });
     thing("paper4", { name: "白い紙", aliases: ["白い紙", "白紙", "紙"], en: "blank paper", loc: "l4c", take: true,
       desc: () => S.written ? "一行だけ書いた紙。「目を開ける。」" : "何も書いていない紙。",
       read: () => S.written ? "「目を開ける。」\n自分の字だ。書こうと思って書いた字ではない。" : "何も書いていない。" });
     thing("pencil", { name: "鉛筆", aliases: ["鉛筆", "pencil"], loc: "l4c", take: true,
       desc: "短くなった鉛筆。噛んだ跡がある。噛み方に、見覚えがある。" });
-    thing("pond", { name: "池", aliases: ["池", "pond"], loc: "l4d", scenery: true,
-      desc: "小さな池。水面に、建物の窓が映っている。映った窓の一つにだけ、明かりがついている。振り返ると、その窓は暗い。" });
+    thing("cooler", { name: "給水器", aliases: ["給水器", "ウォータークーラー", "水", "cooler"], en: "water cooler", loc: "l4d", scenery: true, drink: true,
+      desc: () => S.cooled ? "空になった給水器。ボトルの底に、甘い匂いだけが残っている。" : "給湯室の給水器。逆さのボトルに、透明な液体。ラベルはない。ほのかに、アーモンドの匂い。\n紙コップの水面に、天井の蛍光灯が映っている。一本だけ、消えている。" });
 
-    // ---- Level 5：土間
-    thing("hearth", { name: "カマド", aliases: ["カマドの火", "カマド", "かまど", "火", "fire"], en: "fire", loc: "l5a", scenery: true,
-      desc: () => S.l5done ? "火の消えたカマド。灰の下に、石の段が見えている。" : "カマドの火。この土間で、灯してよい明かりはこれだけだ。" });
+    // ---- Level 5：ホテル（「Level 5 - "Terror Hotel"」より）
+    thing("paint5", { name: "肖像画", aliases: ["肖像画", "絵", "絵画", "painting"], en: "painting", loc: "l5h", scenery: true,
+      desc: () => { const f = !S.paintSeen; S.paintSeen = true; if (f) addSan(-1, ""); return "金の額の、古い肖像画。描かれた人物の目が、こちらを追ってくる。\n" + (f ? "……絵の中の口元が、少しだけ笑った。" : "目を逸らしても、視線が首筋に残る。"); } });
+    thing("gdoors", { name: "金の札の扉", aliases: ["金の札の扉", "扉", "札"], en: "gold doors", loc: "l5h", scenery: true,
+      desc: "金の札のついた扉が、廊下の両側に並んでいる。381、7、1204、56……番号に、並びがない。ほとんどに鍵がかかっている。\n壁の向こうから、パーティーのざわめき。グラスの触れ合う音。" });
+    thing("cage5", { name: "銅の籠", aliases: ["銅の籠", "エレベーター", "籠", "cage"], en: "copper elevator", loc: "l5h", scenery: true,
+      desc: "銅の籠のエレベーター。ボタンが 1 から 382 まで並んでいる。13 から上のボタンには、誰かが布テープを貼っている。" });
+    thing("mahjong", { name: "麻雀卓", aliases: ["麻雀卓", "麻雀", "テーブル", "卓", "mahjong"], en: "mahjong table", loc: "l5b", scenery: true,
+      desc: "シャンデリアの真下の、小さなテーブル。飲みかけのグラスがいくつかと、途中で止まった麻雀。牌は、誰かがたった今まで握っていたように温かい。\n見ていると、離れたくなる。" });
+    thing("hearth", { name: "炉", aliases: ["炉", "炉の火", "火", "カマド", "かまど", "fire"], en: "furnace", loc: "l5a", scenery: true,
+      desc: () => S.l5done ? "火の消えた炉。灰の奥に、整備用の梯子が下へ続いている。" : "大きな炉。火が入っている。この部屋で、灯してよい明かりはこれだけだ。奥から、囁くような音がする。" });
     thing("pot", { name: "鍋", aliases: ["鍋", "木べら", "pot"], loc: "l5a", scenery: true,
-      desc: () => S.l5done ? "空になった鍋。" : S.beans ? "鍋の中で、豆がころころ鳴っている。" : "水を張った鍋。まだ何も入っていない。" });
+      desc: () => S.l5done ? "空になった鍋。" : S.beans ? "鍋の中で、豆がころころ鳴っている。" : "炉の前の鍋。水が張ってある。まだ何も入っていない。" });
     thing("sack", { name: "豆の袋", aliases: ["豆の袋", "豆", "袋", "beans"], en: "beans", loc: "l5a", scenery: true,
       desc: "棚の豆の袋。どんな夜でも、豆だけは切らしたことがない、と誰かが言っていた気がする。" });
-    thing("rules", { name: "柱の紙", aliases: ["柱の紙", "決まり", "柱", "rules"], en: "rules", loc: "l5a", scenery: true,
-      desc: "柱に貼られた、古い紙。",
-      read: "夜、眠れない者は豆を煮ること。\n一つ、カマドの火のほかに、灯りをつけてはならない。\n二つ、声を出してはならない。\n三つ、豆を入れたら、かき混ぜる手を止めてはならない。\n四つ、何が来ても、鍋から目を離してはならない。\n五つ、眠気が来たら、火を消すこと。" });
-    thing("bdoor", { name: "勝手口", aliases: ["勝手口", "戸", "back door"], en: "back door", loc: "l5a", scenery: true,
-      desc: () => S.door === 1 ? "（鍋から目を離すことになる）" : "勝手口の戸。鍵は外してある。外は、真っ暗だ。" });
+    thing("rules", { name: "柱の紙", aliases: ["柱の紙", "決まり", "柱", "貼り紙", "rules"], en: "rules", loc: "l5a", scenery: true,
+      desc: "柱に貼られた、従業員向けの古い紙。",
+      read: "従業員心得。夜、眠れない者は豆を煮ること。\n一つ、炉の火のほかに、灯りをつけてはならない。\n二つ、声を出してはならない。\n三つ、豆を入れたら、かき混ぜる手を止めてはならない。\n四つ、何が来ても、鍋から目を離してはならない。\n五つ、眠気が来たら、火を消すこと。" });
+    thing("bdoor", { name: "業務用の扉", aliases: ["業務用の扉", "戸", "扉", "back door"], en: "service door", loc: "l5a", scenery: true,
+      desc: () => S.door === 1 ? "（鍋から目を離すことになる）" : "奥の業務用の扉。鍵は外してある。向こうは、真っ暗だ。" });
+    thing("apipe", { name: "漏れる管", aliases: ["漏れる管", "管", "配管", "pipe"], en: "leaking pipe", loc: "l5a", scenery: true, drink: true,
+      desc: () => S.piped ? "管の継ぎ目から、まだ少しずつ漏れている。" : "絡み合った配管の継ぎ目から、透明な液体が漏れている。甘い匂い。アーモンド水だ。" });
 
-    // ---- Level 6：最下層
-    thing("figure", { name: "人影", aliases: ["人影", "誰か", "背中"], en: "figure", loc: "l6b", scenery: true,
-      desc: "こちらに背を向けて、机に向かっている。着ている服は、今の自分と同じだ。鉛筆の音が止まらない。書く速さが、こちらの呼吸と同じだと気づく。" });
-    thing("ms", { name: "原稿", aliases: ["原稿", "紙の束", "紙束", "manuscript"], loc: "l6b", scenery: true,
-      desc: "机の端に積まれた紙の束。いちばん上の一枚は、まだインクが乾いていない。",
+    // ---- Level 6：灯りのない階（「Level 6 - "Lights Out"」より）
+    thing("figure", { name: "人影", aliases: ["人影", "誰か", "背中"], en: "figure", loc: "l6b", scenery: true, glow: true,
+      desc: "見えない。でも、そこにいる。机に向かって、こちらに背を向けて座っている。鉛筆の音が止まらない。書く速さが、こちらの呼吸と同じだと気づく。\n手を伸ばせば、背中に届く距離だ。" });
+    thing("ms", { name: "原稿", aliases: ["原稿", "紙の束", "紙束", "manuscript"], loc: "l6b", scenery: true, glow: true,
+      desc: "机の端に積まれた紙の束。いちばん上の一枚は、まだ鉛筆の粉でざらついている。指でなぞると、強い筆圧のへこみで、字が読めそうだ。",
       read: () => {
         const recent = rows.filter(r => r.t === "cmd").slice(-4, -1).map(r => "「> " + r.ja + "」");
         const first = !S.msRead; S.msRead = true;
-        return "紙の束をめくる。一枚目：「目を開ける。」\n黄色い部屋。搬入通路。配管。同じ部屋の廊下。夜の詰所。土間。……全部、書いてある。\nいちばん上の一枚の、まだ乾いていない行：\n" +
+        return "指先で、紙のへこみをなぞる。一枚目：「目を開ける。」\n黄色い部屋。コンクリートの区画。配管。電気設備。事務所。ホテル。……全部、書いてある。\nいちばん上の一枚の、まだ粉っぽい行：\n" +
           (recent.length ? recent.join("\n") : "「> 見る」") + "\nそして、その下に、今まさに書かれていく一行。\n「あなたは原稿を読んでいる。」" +
-          (first ? "\n……束のいちばん下に、一枚だけ、白い紙が挟まっている。何も書かれていない。濡れた指の跡が一つ。\n石段のほうから、水の滴る音が上がってきた。" : "\nいちばん下の白い紙は、まだ白い。");
+          (first ? "\n……束のいちばん下に、一枚だけ、へこみのない紙が挟まっている。何も書かれていない。湿っていて、塩の匂いがする。\n遠く、足もとのずっと下のほうで、波の音がした気がした。" : "\nいちばん下の紙は、まだ白い。");
       } });
-    thing("chair6", { name: "空いた椅子", aliases: ["空いた椅子", "椅子", "chair"], loc: "l6b", scenery: true,
-      desc: "人影の後ろに置かれた、もう一脚の椅子。人影と同じほうを向いている。" });
+    thing("chair6", { name: "空いた椅子", aliases: ["空いた椅子", "椅子", "chair"], loc: "l6b", scenery: true, glow: true,
+      desc: "人影の後ろに置かれた、もう一脚の椅子。手でさわると、背もたれが人影と同じほうを向いている。座面は冷たい。" });
+    thing("switch6", { name: "スイッチ", aliases: ["スイッチ", "照明のスイッチ", "switch"], en: "light switch", loc: "l6b", scenery: true, glow: true,
+      desc: "壁の、照明のスイッチの手触り。この階で、たったひとつの。……背中が、小さな声で言う。「入れてくれ。それを、入れてくれ」" });
 
     // ---- Level 7：海（Backrooms Wiki「Level 7 - "Thalassophobia"」より）
     thing("book7", { name: "古い本", aliases: ["古い本", "本", "手記", "book"], en: "old book", loc: "l7a", take: true,
@@ -702,7 +727,7 @@ body.typing #pad { display: none; }
     thing("cup", { name: "戸棚", aliases: ["戸棚", "棚", "cupboard"], en: "cupboard", loc: "l11g", scenery: true, container: true, closed: true,
       desc: () => O.cup.closed ? "流しの上の戸棚。" : "開いた戸棚。" });
     thing("beans11", { name: "豆の袋", aliases: ["豆の袋", "豆", "袋"], en: "bag of beans", loc: null, take: true, grain: true,
-      desc: "豆の袋。土間の棚にあったものと、同じ袋だ。" });
+      desc: "豆の袋。ホテルのボイラー室の棚にあったものと、同じ袋だ。" });
     thing("breaker", { name: "分電盤", aliases: ["分電盤", "ブレーカー", "breaker"], en: "breaker", loc: "l11g", scenery: true,
       desc: () => S.kDark ? "分電盤のつまみは、下りている。" : "玄関の上の分電盤。つまみが一つ。部屋のスイッチは、押しても明かりが消えない。" });
     thing("curtain", { name: "カーテン", aliases: ["カーテン", "窓", "curtain"], en: "curtain", loc: "l11g", scenery: true,
@@ -736,83 +761,88 @@ body.typing #pad { display: none; }
     return `「九番目の道　標識 #${no}」\n矢印は、${DIR_JA[S.road[S.r8]]}を指している。` + (S.r8 > 0 && Math.random() < 0.5 ? `\n……さっき #${no + 3 + Math.floor(Math.random() * 3)} を過ぎたはずだ。` : "");
   }
   const places = () => Object.values(O).filter(o => o.place && o.loc === "l3r");
-  const EXTRA = ["shoebox", "fan", "outlet", "bath", "attic"];
+  const EXTRA = ["p_fus", "p_ven", "p_out", "p_tap", "p_cel"];
 
   // ---- 部屋 ----
-  // Level 0 はどこへ行っても似た部屋。記憶の切れはしが、壁や床に混ざっている
+  // Level 0 はどこへ行っても似た部屋。記憶の切れはしと、Level 0 の「変種」が混ざっている。
+  // hole: 床に穴の並ぶ部屋（「下」へ行くと落ちて、また黄色い部屋）
   const YELLOW = [
-    "床にボールペンが一本。次の部屋にも一本。その次には三本。数が増えている気がする。",
-    "天井のスピーカーが、曜日を読み上げている。順番が、少しずつずれていく。",
-    "壁の時計は、三時十二分を指したまま震えている。",
-    "床に名札が落ちている。名前の欄だけ、何度も消しゴムで消した跡がある。",
-    "柱の陰に、誰かが今まで座っていたような、湿った跡がある。",
-    "遠くで、誰かが同じことばをくり返している。ことばの形だけが届いて、意味が届かない。",
-    "壁紙の染みが、人の横顔に見える。次の部屋にも、同じ横顔がある。少しだけ、こちらを向いている。",
-    "「立入禁止」のドア。取っ手に手をかけると、それはドアの絵だった。",
-    "カーペットに、裸足の足跡。自分の足と同じ大きさだ。向きは、こちらへ来る向き。",
-    "蛍光灯のカバーの中で、羽虫が死んでいる。全部、同じ向きを向いて。",
-    "どこかで電話が鳴りつづけている。誰も出ない。",
-    "壁に、爪で引っかいた線。五本ずつ束ねて、何かを数えた跡。途中で数えるのをやめている。",
-    "床に、白い紙。「止まると、増える」。自分の字に似ている。",
-    "天井のパネルが一枚だけ外れている。その奥は暗い。今まで、何かが覗いていたような気がする。",
-    "壁の継ぎ目から、うなりと一緒に、かすかな寝息のような音が漏れている。",
-    "カーペットのその一角だけ、誰かが何度も行き来したように擦り切れている。",
+    { t: "床にボールペンが一本。次の部屋にも一本。その次には三本。数が増えている気がする。" },
+    { t: "壁の時計は、三時十二分を指したまま震えている。" },
+    { t: "床に名札が落ちている。名前の欄だけ、何度も消しゴムで消した跡がある。" },
+    { t: "白っぽい壁に、アーチ形の穴がいくつも開いている。穴の縁は、人が一人やっと腰かけられる幅だ。ここだけカーペットが深く、足首まで沈む。" },
+    { t: "柱が、格子のように規則正しく、どこまでも並んでいる。振り返ると、さっき通った柱の並びが、少しだけずれている。" },
+    { t: "床に、黒い穴が格子状に並んでいる。懐中電灯を向けても、光は穴の縁から先へ届かない。", hole: true },
+    { t: "遠くで、誰かが自分の名前を呼んだ。知っている声だった。……誰の声だったのかは、思い出せない。" },
+    { t: "壁紙の染みが、人の横顔に見える。次の部屋にも、同じ横顔がある。少しだけ、こちらを向いている。" },
+    { t: "「立入禁止」のドア。取っ手に手をかけると、それはドアの絵だった。" },
+    { t: "カーペットに、裸足の足跡。自分の足と同じ大きさだ。向きは、こちらへ来る向き。" },
+    { t: "床に、さっき自分でつけたはずの印がある。……印の向きが、逆になっている。" },
+    { t: "壁に、爪で引っかいた線。五本ずつ束ねて、何かを数えた跡。途中で数えるのをやめている。" },
+    { t: "床に、白い紙。「止まると、増える」。自分の字に似ている。" },
+    { t: "壁の向こうで、何かが爪を研ぐ音がする。こちらが歩くと、同じ速さでついてくる。" },
+    { t: "誰かへの書き置きが、壁に貼ってある。「ここで待つ」。日付は、ずっと前だ。誰も来なかったのだろう。" },
+    { t: "床にも、穴が並んでいる。いちばん近い穴の底から、青い光が一度だけまたたいた気がした。", hole: true },
   ];
   const DARK_COUNT = ["暗闇の奥で、何かが数を数えている。いち、に、さん……", "数える声が近い。耳のすぐ後ろで、ひとつずつ増えていく。"];
   const ROOMS = {
     y0: { name: "黄色い部屋", exits: () => S.y0dark ? { n: "y0", s: "y0", e: "y0", w: "y0", d: "l1a" } : { n: "y0", s: "y0", e: "y0", w: "y0" },
       desc: () => S.y0dark ?
-        "蛍光灯が一本だけ切れている部屋だ。ここだけ、うなりが聞こえない。\n床のカーペットが水を吸って、足の下でやわらかく沈む。その下に、空洞がある気がする。" :
-        YELLOW[S.yi] + "\n黄ばんだ壁紙、湿ったカーペット、蛍光灯のうなり。どこまでも、同じような部屋が続いている。" },
-    l1a: { name: "搬入通路", exits: { n: "l1b", e: "l1c", w: "l1e" },
-      desc: "コンクリート打ちっぱなしの、広い搬入通路だ。床のあちこちに水たまりがある。壁際に、釘で封をされた木箱。\n北に事務所の扉。東に、白い冷気の漏れる通路。西に、鉄格子の貨物エレベーター。" },
-    l1b: { name: "事務所", exits: { s: "l1a" },
-      desc: "狭い事務所。スチール机、細長いロッカー、止まった壁の時計。机の上に、日誌が開いたままになっている。\n南の扉から、搬入通路へ戻れる。" },
-    l1c: { name: "冷凍室の前", exits: () => S.freezerOpen ? { w: "l1a", e: "l1d" } : { w: "l1a" },
-      desc: () => "分厚い断熱扉の前。" + (S.freezerOpen ? "扉は開いていて、東の冷凍室から白い冷気が床を這ってくる。" : "扉は閉まっている。隙間から、白い冷気が漏れている。") + "\n西へ戻れば搬入通路。" },
-    l1d: { name: "冷凍室", exits: { w: "l1c" },
-      desc: "棚に段ボールがぎっしり並ぶ冷凍室。吐く息が、目の前で凍って落ちる。\n棚の一番下に、一つだけ霜のついていない箱。\n西の扉から出られる。" },
+        "蛍光灯が一本も点いていない区画に出た。ここだけ、うなりが聞こえない。耳鳴りのような静けさ。\n床が窪んでいて、カーペットが水をたっぷり吸っている。足の下で、やわらかく沈む。その下に、空洞がある気がする。" :
+        YELLOW[S.yi].t + (S.redWarn ? "\n……壁紙が、少し赤みを帯びている。耳の奥が、詰まったように重い。" : "") + "\n黄ばんだ壁紙、湿ったカーペット、蛍光灯のうなり。どこまでも、同じような部屋が続いている。" },
+    l1a: { name: "コンクリートの区画", exits: { n: "l1b", e: "l1c", w: "l1e" },
+      desc: "どこまでも続く、灰色のコンクリートの区画。駐車場のような太い柱。天井の管が、ときどきごうんと鳴る。床のあちこちに水たまり。柱の陰に、釘で封をされた木箱。\n北に、鷲の印のついた詰所の扉。東に、白い冷気の漏れる通路。西に、鉄格子の貨物エレベーター。" },
+    l1b: { name: "詰所", exits: { s: "l1a" },
+      desc: "狭い詰所。壁に、鷲の印と「M.E.G.」の文字。スチール机、細長いロッカー、止まった壁の時計。机の上に、巡回日誌が開いたままになっている。誰もいない。いつからいないのか、わからない。\n南の扉から、区画へ戻れる。" },
+    l1c: { name: "冷凍区画の前", exits: () => S.freezerOpen ? { w: "l1a", e: "l1d" } : { w: "l1a" },
+      desc: () => "木箱が天井まで積まれた、倉庫のような一角。突き当たりに、分厚い断熱扉。" + (S.freezerOpen ? "扉は開いていて、東の冷凍区画から白い冷気が床を這ってくる。" : "扉は閉まっている。隙間から、白い冷気が漏れている。") + "\n西へ戻れば、コンクリートの区画。" },
+    l1d: { name: "冷凍区画", exits: { w: "l1c" },
+      desc: "棚に段ボールがぎっしり並ぶ冷凍区画。吐く息が、目の前で凍って落ちる。\n棚の一番下に、一つだけ霜のついていない箱。\n西の扉から出られる。" },
     l1e: { name: "貨物エレベーター", exits: () => S.keyIn ? { e: "l1a", d: "l2a" } : { e: "l1a" },
-      desc: () => "鉄格子の貨物用エレベーター。操作盤には、ボタンが一つしかない。「下」。" + (S.keyIn ? "赤く灯っている。" : "その横に、鍵穴。") + "\n東へ出れば搬入通路。" },
-    l2a: { name: "配管室", exits: { n: "l2c", e: "l2b" },
-      desc: "低い天井を、太い配管が何本も這っている。どれも熱い。壁という壁に、何かで引っかいた文字。\n北に狭い通路の入口。東にボイラー室。見上げると、エレベーターのケージは、もう闇の中へ引き上げられていた。" },
-    l2b: { name: "ボイラー室", exits: { w: "l2a" },
-      desc: () => "唸りを上げるボイラー。圧力計。太いバルブが一つ。棚に、錆びた缶。" + (S.valve ? "\n蒸気の音は、もう遠い。" : "\nどこかで、蒸気が噴き出しつづける音がする。") + "\n西へ戻れば配管室。" },
+      desc: () => "鉄格子の貨物用エレベーター。操作盤には、ボタンが一つしかない。「下」。" + (S.keyIn ? "赤く灯っている。" : "その横に、鍵穴。") + "\n東へ出れば、コンクリートの区画。" },
+    l2a: { name: "配管の通路", exits: { n: "l2c", e: "l2b" },
+      desc: "低い天井と両側の壁を、太い配管と動かない機械が床から天井まで埋めている。むき出しの配線が蛍光灯をつないでいる。……一本が割れていて、その先の明かりが全部死んでいる。どれも熱い。機械のすき間の壁という壁に、引っかいた文字。窓のある鉄の扉が一つ。\n北に、さらに狭い通路。東に、機械室。見上げると、エレベーターのケージは、もう闇の中へ引き上げられていた。" },
+    l2b: { name: "機械室", exits: { w: "l2a" },
+      desc: () => "唸りを上げる古いボイラー。圧力計。太いバルブが一つ。工具の載った台車に、錆びた缶。" + (S.valve ? "\n蒸気の音は、もう遠い。" : "\n蒸気が噴き出しつづけている。空気が、肌を焼くほど熱い。") + "\n西へ戻れば配管の通路。" },
     l2c: { name: "細い通路", exits: () => {
         const e = { s: "l2a" };
         if (S.pos < 2 && (S.valve || S.pos > 0)) e.n = "l2c";
         if (S.pos === 2 && S.named) e.d = "l3a";
         return e;
       },
-      desc: () => ["狭い通路。北へ行くほど、壁が迫っている。", "肩が、両側の壁にこすれる。目の高さに、「なぜ」がびっしり並んでいる。", "体を横にしないと立っていられない。突き当たりの床に、丸い点検口がある。"][S.pos] +
+      desc: () => ["狭い通路。北へ行くほど、機械と配管が両側から迫っている。", "肩が、両側の配管にこすれる。熱い。目の高さに、「なぜ」がびっしり並んでいる。", "体を横にしないと立っていられない。突き当たりの床に、丸い点検口がある。"][S.pos] +
         (S.pos === 0 && !S.valve ? "\n北の奥から白い蒸気が噴き出していて、先へは進めない。" : "") +
-        (S.pos === 2 && !S.named ? "\n点検口の真上に、針金の塊が降りてきている。近づくと、トゲが頭の中に刺さる。" : "") +
-        "\n南へ戻れば配管室。" },
-    l3a: { name: "同じ部屋の廊下", exits: () => S.l3done ? { e: "l3a", w: "l3a", d: "l3s" } : { e: "l3a", w: "l3a" },
-      desc: () => "古い集合住宅の廊下だ。左右に、同じ形の扉が並んでいる。301、302、303、305、306。304がない。" +
-        (S.l3done ? "\n303と305のあいだの壁紙が剥がれ落ちて、番号のない扉が現れている。" : "\n303と305のあいだの壁だけ、壁紙の色が新しい。どこかで、時計がチクタクと鳴っている。") },
-    l3r: { name: "六畳の部屋", exits: { w: "l3a" },
-      desc: () => `六畳の部屋。ベッド、クローゼット、冷蔵庫、机、カーテン。扉の内側に、「${S.roomNo}」と書いてある。\n……さっきの部屋と、まったく同じだ。` +
-        (S.l3done ? "\n時計の音は、もうしない。" : "\nチクタク。チクタク。どこからか分からない。") + "\n西の扉から、廊下へ戻れる。" },
-    l3s: { name: "階段室", exits: { u: "l3a", d: "l4a" },
-      desc: "番号のない扉の向こうは、コンクリートの階段室だった。階段は、下にしか続いていない。上へ戻る段は、三段目から先が壁に埋まっている。" },
-    l4a: { name: "夜勤の詰所", exits: () => S.stairOpen ? { e: "l4b", d: "l5a" } : { e: "l4b" },
-      desc: "夜勤の詰所。蛍光灯が一本だけ点いている。机に巡回表とケースファイル。壁に内線電話。奥に「非常階段」と書かれた鉄の扉。\n東に、長い廊下。" },
-    l4b: { name: "居室の廊下", exits: { w: "l4a", e: "l4c", n: "l4d" },
-      desc: () => "居室の扉が並ぶ、長い廊下。どの扉も開け放たれていて、中のベッドはきれいに整えられている。誰もいない。名札の差しこみ口は、全部空っぽだ。" +
-        (S.written ? "\n廊下は、しんとしている。" : "\n東の突き当たりの食堂から、叫び声が響いてくる。") + "\n北の扉から中庭へ。西へ戻れば詰所。" },
-    l4c: { name: "食堂", exits: { w: "l4b" },
-      desc: () => "長机と椅子が並ぶ食堂。一つの席にだけ、トレーが置いてある。" + (S.written ? "\nスピーカーは、もう鳴っていない。" : "\n天井のスピーカーから、叫び声。「あ……え……え……」。耳元で鳴っているほど近い。") + "\n西へ戻れば廊下。" },
-    l4d: { name: "中庭", exits: { s: "l4b" },
-      desc: () => "夜の中庭。小さな池がある。建物の窓が、黒く並んでいる。" + (S.written ? "" : "\n叫び声が、壁越しに、遠く届いてくる。") + "\n南の扉から、建物の中へ戻れる。" },
-    l5a: { name: "土間", exits: () => S.l5done ? { d: "l6a" } : {},
-      desc: () => "古い家の土間に出た。下りてきたはずの階段は、どこにもない。灯りはカマドの火だけ。鍋には水が張ってある。棚に豆の袋。柱に、古い紙が貼ってある。勝手口の戸は、鍵が外してある。" +
-        (S.l5done ? "\nカマドの火は消えている。灰の下に、下へ続く石の段。" : S.door === 1 ? "\n勝手口が、少しだけ開いている。背中のほうに、気配がある。" : S.beans ? "\n鍋の中で、豆がころころ鳴っている。" : "") },
-    l6a: { name: "石段の底", exits: () => S.msRead ? { n: "l6b", d: "l7a" } : { n: "l6b" },
-      desc: () => "石段の底。うなりが、一切しない。自分の呼吸の音だけが、やけに大きい。\n北に、灯りの漏れる扉。" +
-        (S.msRead ? "\n……石段は、ここで終わってはいなかった。床の割れ目の奥に、濡れた段が、さらに下へ続いている。" : "") },
-    l6b: { name: "書斎", exits: { s: "l6a" },
-      desc: "裸電球が一つ下がった、小さな部屋。机に向かって、誰かが座っている。こちらに背を向けて、何かを書きつづけている。机の端には、紙の束。\n人影の後ろに、もう一脚、空いた椅子。\n南の扉から、石段へ戻れる。" },
+        (S.pos === 2 && !S.named ? "\n点検口の真上に、配線の塊が降りてきている。近づくと、トゲが頭の中に刺さる。" : "") +
+        "\n南へ戻れば配管の通路。" },
+    l3a: { name: "煉瓦の通路", exits: () => S.l3done ? { e: "l3a", w: "l3a", d: "l3s" } : { e: "l3a", w: "l3a" },
+      desc: () => "色のそろわない煉瓦の壁。埃っぽいコンクリートの床。薄暗い蛍光灯。壁一面に、古い配電盤と計器が並び、誰も触れていないのに、ときどき勝手に唸りだす。\n通路の片側は、鉄格子でふさがれている。天井の管から、黒い液体が滴っている。\n変電室の扉が並んでいる。第1、第2、第3、第5、第6。第4がない。" +
+        (S.l3done ? "\n第3と第5のあいだの煉瓦が崩れて、札のない扉が現れている。" : "\n第3と第5のあいだの壁だけ、煉瓦の色が新しい。どこかで、機械がカチ、カチと鳴っている。") },
+    l3r: { name: "変電室", exits: { w: "l3a" },
+      desc: () => `小さな変電室。配電盤、遮断器、計器、机。扉の内側に、「第${S.roomNo}変電室」と書いてある。\n……さっきの部屋と、まったく同じだ。` +
+        (S.l3done ? "\n機械の音は、もうしない。" : "\nカチ、カチ。どこの機械が鳴っているのか分からない。") + "\n西の扉から、通路へ戻れる。" },
+    l3s: { name: "エレベーターの前", exits: { u: "l3a", d: "l4a" },
+      desc: "札のない扉の向こうに、古いエレベーターが一基。ボタンは「4」しかない。……来た扉は、もう煉瓦の壁に戻っている。" },
+    l4a: { name: "受付", exits: () => S.stairOpen ? { e: "l4b", d: "l5h" } : { e: "l4b" },
+      desc: "がらんとした事務所の受付。家具はほとんど運び出されて、受付台が一つ残っているだけ。台の上に、入退室記録とケースファイル。内線電話。奥に「階段室」と書かれた鉄の扉。\n東に、執務フロア。" },
+    l4b: { name: "執務フロア", exits: { w: "l4a", e: "l4c", n: "l4d" },
+      desc: () => "机も椅子もない、広い執務フロア。カーペットに、机の脚の跡だけが四角く残っている。窓はどれも、内側から黒く塗りつぶされている。……一枚だけ、塗られていない窓がある。" +
+        (S.written ? "\nフロアは、しんとしている。" : "\n東の会議室から、叫び声が響いてくる。") + "\n北に給湯室。西へ戻れば受付。" },
+    l4c: { name: "会議室", exits: { w: "l4b" },
+      desc: () => "長机と椅子だけの会議室。一つの席にだけ、何かが置いてある。" + (S.written ? "\n天井のスピーカーは、もう鳴っていない。" : "\n天井のスピーカーから、叫び声。「あ……え……え……」。耳元で鳴っているほど近い。") + "\n西へ戻れば執務フロア。" },
+    l4d: { name: "給湯室", exits: { s: "l4b" },
+      desc: () => "狭い給湯室。給水器が一台、ごぼ、と泡を吐いた。流しは乾いている。" + (S.written ? "" : "\n叫び声が、壁越しに、遠く届いてくる。") + "\n南の扉から、執務フロアへ戻れる。" },
+    l5h: { name: "大広間", exits: { n: "l5b" },
+      desc: "マホガニー色と金の壁紙の、長い廊下。燭台の形をした電灯が、黄色い部屋と同じ音でうなっている。床は磨きあげられて、塵ひとつない。金の札の扉、銅の籠のエレベーター、金の額の肖像画。\n壁の向こうから、パーティーのざわめき。グラスの触れ合う音。誰もいない。\n北に、銀の札のかかった両開きの扉。「ビバリールーム」。" },
+    l5b: { name: "ビバリールーム", exits: { s: "l5h", n: "l5b", e: "l5b", w: "l5b" },
+      desc: "天井の高い舞踏室。大きなシャンデリア。真ん中に、小さなテーブルが一つだけ。\n壁という壁に、扉がある。床にも、天井にも。数えようとすると、数が合わない。\n南の扉から、大広間へ戻れる。" },
+    l5a: { name: "ボイラー室", exits: () => S.l5done ? { s: "l5b", d: "l6a" } : { s: "l5b" },
+      desc: () => "古い機械と絡み合った配管で、息が詰まるほど狭い。継ぎ目から、甘い匂いの液体が漏れて滴っている。暑い。灯りは大きな炉の火だけ。炉の前に、水を張った鍋。棚に豆の袋。柱に、古い貼り紙。奥に業務用の扉。" +
+        (S.l5done ? "\n炉の火は消えている。灰の奥に、下へ続く整備用の梯子。" : S.door === 1 ? "\n業務用の扉が、少しだけ開いている。背中のほうに、気配がある。" : S.beans ? "\n鍋の中で、豆がころころ鳴っている。" : "") + "\n南の扉から、ビバリールームへ戻れる。" },
+    l6a: { name: "灯りのない廊下", exits: () => S.msRead ? { n: "l6b", d: "l7a" } : { n: "l6b" },
+      desc: () => (S.seen.l6a ? "何も見えない。目を開けても閉じても、同じ黒。音もしない。" : "梯子を降りきると、何も見えなくなった。目を開けても閉じても、同じ黒。音もしない。自分の呼吸だけが、やけに大きい。") + "\n手で壁をたどる。狭い。冷たくて、なめらかだ。北のほうから、かすかに鉛筆の音がする。" +
+        (S.msRead ? "\n……足もとの床に、段の縁がある。下から、波の音が上がってくる。" : "") },
+    l6b: { name: "いちばん静かな部屋", exits: { s: "l6a" },
+      desc: "鉛筆の音。机の気配。誰かが座って、こちらに背を向けて、書きつづけている。\n手を伸ばすと、机の端に紙の束。壁に、スイッチの手触り。人影の後ろに、もう一脚、空いた椅子。\n南へ戻れば、灯りのない廊下。" },
 
     // ---- Level 7
     l7a: { name: "入口の部屋", exits: { u: "l6a", e: "l7s" },
@@ -906,12 +936,14 @@ body.typing #pad { display: none; }
       p9: 0, h9: null, odd9: "n", hid: false, smileOK: false, hound9: false, clearSeen: false,
       r10: 0, dig: 0, potSeen: false, lakeTry: 0, lakeDrunk: false, hayTry: 0,
       hProv: false, towerSeen: false, adI: 0, vended: false, door312: false, cupOpened: 0,
-      kDark: false, curtain: false, kGrain: false, kFire: false, kStir: 0, kKnock: 0, kSleepy: false, l11done: false, barTry: 0, aligned: false, specRead: false, wire8: false, skip: false, moved: false, broke: false, batWarn: false };
+      kDark: false, curtain: false, kGrain: false, kFire: false, kStir: 0, kKnock: 0, kSleepy: false, l11done: false, barTry: 0, aligned: false, specRead: false, wire8: false, skip: false, moved: false, broke: false, batWarn: false,
+      redWarn: false, spike: false, barsSeen: false, winSeen: false, winTry: 0, vdoorTry: 0, cooled: false, paintSeen: false, piped: false, switchTry: 0, boil5: "n", lastV: "" };
     S.yi = Math.floor(Math.random() * YELLOW.length);
     S.humDir = pickDir();
     const hs = makeHouses(); S.h9 = hs.h; S.odd9 = hs.odd;
     S.road = [0, 1, 2, 3].map(() => ["n", "e", "w"][Math.floor(Math.random() * 3)]);
     S.moth8 = 1 + Math.floor(Math.random() * 2);
+    S.boil5 = ["n", "e", "w"][Math.floor(Math.random() * 3)];
   }
   function pickDir() { return ["n", "s", "e", "w"][Math.floor(Math.random() * 4)]; }
   const SAVED_FIELDS = ["loc", "closed"];
@@ -982,7 +1014,7 @@ body.typing #pad { display: none; }
     const lv = document.createElement("span"); lv.className = "en";
     const real = levelOf(S.loc);
     lv.textContent = "Level " + (S.san <= 2 && !S.done && Math.random() < 0.5 ? ["0", "?", "−1", String(real + 1)][Math.floor(Math.random() * 4)] : String(real));
-    roomEl.textContent = isDark() ? "暗闇" : ROOMS[S.loc].name;
+    roomEl.textContent = isDark() && real !== 6 ? "暗闇" : ROOMS[S.loc].name;
     roomEl.append(lv);
     const sc = $("score");
     sc.textContent = "";
@@ -998,7 +1030,7 @@ body.typing #pad { display: none; }
     if (S.breath != null && WATER.includes(S.loc)) st = Math.max(st, (4 - S.breath) / 4);
     if (S.done) st = 0;
     fx("stress", st);
-    const ex = isDark() ? {} : exitsOf(S.loc);
+    const ex = isDark() && real !== 6 ? {} : exitsOf(S.loc);
     for (const b of document.querySelectorAll("[data-go]")) b.classList.toggle("open", !!ex[b.dataset.go]);
     const y = $("yoru");
     y.classList.toggle("on", !S.done && (S.named || (S.wireSeen && levelOf(S.loc) >= 2) || S.san <= 3));
@@ -1006,10 +1038,11 @@ body.typing #pad { display: none; }
   }
 
   // ---- 世界のしくみ ----
-  const lightOn = () => S.light && held("flashlight");
+  // Level 6 では、どんな灯りも働かない
+  const lightOn = () => S.light && held("flashlight") && LEVEL_OF[S.loc] !== 6;
   function baseDark(loc) {
     const lv = levelOf(loc);
-    if (lv === 2) return true;
+    if (lv === 2 || lv === 6) return true;
     if (lv === 1 && S.l1dark) return true;
     if (loc === "l7c" || (lv === 8 && loc !== "l8x")) return true;
     if (loc === "l9c" || loc === "l9h" || loc === "l9k") return true;
@@ -1035,8 +1068,14 @@ body.typing #pad { display: none; }
   function describe(full) {
     const r = ROOMS[S.loc];
     if (isDark()) {
-      say("暗闇", "title");
       const lv = levelOf(S.loc);
+      if (lv !== 6) say("暗闇", "title");
+      if (lv === 6) {
+        say(r.name, "title");
+        say(text(r.desc));
+        S.seen[S.loc] = true;
+        return;
+      }
       say("真っ暗だ。何も見えない。" + (lv === 2 ? "熱い配管の匂いがする。" : lv === 7 ? "冷たい水が、全身を押さえつけてくる。上も下も、わからない。" :
         lv === 8 ? "湿った岩の冷気。すぐそばで、たくさんの細い脚が、岩をこすっている。" : lv === 9 ? "電気の来ていない家の中。家具の輪郭すら見えない。" : "湿ったコンクリートの匂いがする。"));
       const g = Object.values(O).filter(o => o.loc === S.loc && o.glow && o.id !== "smiler");
@@ -1068,10 +1107,18 @@ body.typing #pad { display: none; }
     }
     if (S.loc === "y0") {
       if (dir === "d") {
+        if (!S.y0dark && YELLOW[S.yi].hole) {
+          say("穴の縁に足をかける。……縁が崩れた。");
+          gap(); sfx("stinger"); fx("flicker", 3);
+          say("落ちる。長く、長く。底に着いた感触はなかった。");
+          S.hum = 4; S.redWarn = false; S.yi = 0;
+          faint("……目を開ける。湿ったカーペットの匂い。蛍光灯のうなり。落ちた先も、黄色い部屋だった。", 2);
+          return;
+        }
         if (!S.y0dark) { say("床は、ただの湿ったカーペットだ。……どこかに、やわらかいところがあるのかもしれない。"); return; }
-        say("濡れたカーペットに体重をかけると、床が、ぬるりと抜けた。");
-        gap(); flicker(); fx("shock", 1);
-        say("落ちる。長くは落ちなかった。天井の換気口から、コンクリートの床へ、肩から転がり出た。");
+        say("窪みの、いちばん水の溜まったところに体重をかけると、床が、ぬるりと抜けた。");
+        gap(); flicker(); fx("shock", 1); sfx("splash");
+        say("落ちる。長くは落ちなかった。天井の管のすき間から、コンクリートの床へ、肩から転がり出た。");
         enter("l1a");
         return;
       }
@@ -1079,10 +1126,20 @@ body.typing #pad { display: none; }
       if (S.y0dark) S.hum = 1;
       if (dir === S.humDir) S.hum = Math.max(0, S.hum - 1); else S.hum = Math.min(S.hum + 1, 6);
       S.humDir = pickDir();
+      // 遠ざかりつづけると、赤い部屋に閉じこめられる（前ぶれのあとで）
+      if (S.hum >= 6 && S.redWarn) {
+        sfx("stinger"); fx("flicker", 4);
+        S.hum = 4; S.redWarn = false; S.yi = 1;
+        faint("壁紙が、真っ赤だ。蛍光灯まで赤い。振り返ると、来た道がない。どの扉を開けても、この部屋に戻る。息が、詰まる――", 3);
+        return;
+      }
+      S.redWarn = S.hum >= 6;
       S.y0dark = S.hum === 0;
       S.yi = (S.yi + 1 + Math.floor(Math.random() * 5)) % YELLOW.length;
       if (S.y0dark && O.note1.loc !== "player") O.note1.loc = "y0"; else if (O.note1.loc === "y0") O.note1.loc = null;
+      if (S.y0dark) { fx("flicker", 3); fx("bed", "silence"); } else fx("bed", "fluoro");
       describe(true);
+      if (S.redWarn) { sfx("hum"); fx("glitch"); }
       if (!S.y0dark && Math.random() < 0.35) addSan(-1, "同じ部屋を、何度も通った気がする。");
       return;
     }
@@ -1098,7 +1155,8 @@ body.typing #pad { display: none; }
           describe(true);
           gap();
           say("……頭の右上に、何かがいる。", "warn");
-          say("見上げると、針金を丸めたような、トゲだらけの塊が浮かんでいた。見ていると、答えのない問いが次々に湧いてくる。なぜ。なぜ。なぜ。");
+          say("見上げると、むき出しの配線を丸めたような、トゲだらけの塊が浮かんでいた。先端で、青い火花がはぜる。見ていると、答えのない問いが次々に湧いてくる。なぜ。なぜ。なぜ。");
+          sfx("spark"); sfx("stinger"); fx("flicker", 2);
           addSan(-1, "");
           return;
         }
@@ -1108,8 +1166,9 @@ body.typing #pad { display: none; }
       }
       if (dir === "d") {
         if (S.pos < 2) { say("ここに、降りる場所はない。"); return; }
-        if (!S.named) { addSan(-2, "点検口に近づこうとすると、針金の塊のトゲが、頭の中に刺さった。……近づけない。"); return; }
-        say("点検口の蓋を開けて、錆びた梯子を降りる。下から、時計の音が上がってくる。");
+        if (!S.named) { sfx("spark"); addSan(-2, "点検口に近づこうとすると、配線の塊のトゲが、頭の中に刺さった。……近づけない。"); return; }
+        sfx("clang");
+        say("点検口の蓋を開けて、錆びた梯子を降りる。下から、機械のカチ、カチという音が上がってくる。");
         gap();
         enter("l3a");
         return;
@@ -1117,21 +1176,23 @@ body.typing #pad { display: none; }
       if (dir === "s" && S.pos > 0) { S.pos--; say("南へ、体を引き抜く。少しだけ、壁が離れた。"); describe(true); return; }
     }
     if (S.loc === "l3a" && (dir === "e" || dir === "w")) {
-      say(dir === "e" ? "東へ歩く。306の次に、また301が来た。" : "西へ歩く。301の手前に、また306があった。");
+      say(dir === "e" ? "東へ歩く。第6の次に、また第1が来た。" : "西へ歩く。第1の手前に、また第6があった。");
       return;
     }
-    if (S.loc === "l3s" && dir === "u") { say("三段目から上は、壁に埋まっている。"); return; }
+    if (S.loc === "l3s" && dir === "u") { say("来た扉は、もう煉瓦の壁だ。"); return; }
     if (S.loc === "l4a" && dir === "d") {
-      if (!S.stairOpen) { say("非常階段の扉には、鍵がかかっている。"); return; }
-      say("鉄の扉を開け、非常階段を降りる。一階分のはずが、いつまでも終わらない。踊り場の数を数えるのを、途中でやめた。");
-      say("最後の段を降りると、足の裏が、土の感触に変わった。");
+      if (!S.stairOpen) { say("階段室の扉には、鍵がかかっている。"); return; }
+      sfx("door");
+      say("鉄の扉を開け、階段を降りる。一階分のはずが、いつまでも終わらない。踊り場の数を数えるのを、途中でやめた。");
+      say("最後の段を降りると、足の裏が、厚い絨毯の感触に変わった。遠くで、ピアノが鳴っている。");
       gap();
-      enter("l5a");
+      enter("l5h");
       return;
     }
     if (S.loc === "l5a" && dir === "d") {
       if (!S.l5done) { say("ここには、降りる場所がない。"); return; }
-      say("灰の中の石段を降りる。一段ごとに、うなりが遠のいていく。");
+      sfx("clang");
+      say("灰をかき分け、整備用の梯子を降りる。一段ごとに、機械の音が遠のいていく。……最後には、何も聞こえなくなった。");
       gap();
       enter("l6a");
       return;
@@ -1139,7 +1200,8 @@ body.typing #pad { display: none; }
     const to = exitsOf(S.loc)[dir];
     if (!to) { say(`${DIR_JA[dir] || "そちら"}へは行けない。`); return; }
     if (S.loc === "l3s" && dir === "d") {
-      say("階段を降りる。一階分を降りたところで、蛍光灯の色が変わった。どこかで、叫び声がしている。");
+      sfx("beep"); sfx("door");
+      say("「4」を押す。扉が閉まり、エレベーターが降りはじめる。止まって開いた扉の向こうは、蛍光灯の色が違った。どこかで、叫び声がしている。");
       gap();
     }
     enter(to);
@@ -1147,6 +1209,8 @@ body.typing #pad { display: none; }
   function enter(to) {
     S.moved = true;
     const fromLv = levelOf(S.loc);
+    // 足音は、別の階に着いたときだけ（移動のたびに鳴ると、タップの音に聞こえる）
+    if (!WATER.includes(to) && levelOf(to) !== fromLv) sfx("step");
     if (S.loc === "l5a" && to !== "l5a" && !S.l5done) { S.beans = false; S.stir = 0; S.door = 0; S.sleepy = false; }
     if (S.loc === "l11g" && to !== "l11g" && cooking11()) breakCook("鍋を置いたまま、部屋を出てしまった。", true);
     const keepDark = fromLv === 8 && levelOf(to) === 8;
@@ -1196,10 +1260,11 @@ body.typing #pad { display: none; }
   };
   function onEnterFx() {
     fx("align", !!S.aligned);
-    if (S.loc === "l11o") fx("level", 11, { mode: "wire" });
+    if (S.loc === "l11o") fx("level", 11, { mode: "wire", bed: "electric" });
+    fx("bed", roomBed(S.loc));
   }
   function levelFx(lv) {
-    if (S.l11done && lv === 11) fx("level", 11, { a: "#4a7d8f", b: "#c8f6ff", mode: "stars", hum: 0 });
+    if (S.l11done && lv === 11) fx("level", 11, { a: "#4a7d8f", b: "#c8f6ff", mode: "stars", bed: "silence" });
     else fx("level", lv);
     fx("tags", LV_TAGS[lv] || LV_TAGS[0]);
     document.body.dataset.lv = String(lv);
@@ -1207,14 +1272,11 @@ body.typing #pad { display: none; }
   }
   // 階が変わったときの出来事
   function arrive(lv) {
+    fx("flicker", 2);
     if (!S.seen["tr" + lv] && LV_TRUISM[lv]) { S.seen["tr" + lv] = true; fx("truism", LV_TRUISM[lv][0], LV_TRUISM[lv][1], "Level " + lv); }
-    if (lv === 1 && !S.seen.arr1) { S.seen.arr1 = true; say("見上げると、落ちてきたはずの換気口は、コンクリートで塞がれていた。", "note"); }
+    if (lv === 1 && !S.seen.arr1) { S.seen.arr1 = true; say("見上げると、落ちてきたはずの天井のすき間は、コンクリートで塞がれていた。", "note"); }
     if (lv === 3 && !S.seen.arr3) { S.seen.arr3 = true; haunt("振り向くな"); say("（記録のどこかが、書き換わった気がする）", "note"); }
-    if (lv === 5 && !S.seen.arr5) {
-      S.seen.arr5 = true;
-      if (lightOn()) say("懐中電灯の灯りが、柱の紙の一行目を照らした。「カマドの火のほかに、灯りをつけてはならない」。", "warn");
-    }
-    if (lv === 6 && !S.seen.arr6) { S.seen.arr6 = true; haunt("ここにいる"); }
+    if (lv === 6 && !S.seen.arr6) { S.seen.arr6 = true; haunt("ここにいる"); if (held("flashlight")) say("懐中電灯のスイッチは入っている。電池もある。なのに、光が出ない。", "note"); }
     if (lv === 7 && !S.seen.arr7) { S.seen.arr7 = true; say("ここから下のことは、原稿のどこにも書いていなかった。", "note"); }
     if (lv === 8 && !S.seen.arr8) { S.seen.arr8 = true; if (held("flashlight")) say("懐中電灯の光が、ここでは妙に弱く見える。", "note"); }
     if (lv === 9 && !S.seen.arr9) { S.seen.arr9 = true; haunt("開けて"); say("頭の中が、テレビの砂嵐のようにざらついている。", "note"); }
@@ -1247,7 +1309,7 @@ body.typing #pad { display: none; }
     S.broke = true;
     gap();
     say("頭の中が、数えたくないもので溢れた。蛍光灯のうなりしか聞こえない……", "warn");
-    fx("shock", 2);
+    fx("shock", 2); sfx("hum"); fx("flicker", 6);
     const lv = levelOf(S.loc);
     resetLv(lv);
     S.san = 5;
@@ -1265,7 +1327,7 @@ body.typing #pad { display: none; }
     S.broke = true;
     gap();
     say(why, "warn");
-    fx("shock", 2);
+    fx("shock", 2); sfx("stinger"); fx("flicker", 3);
     const lv = levelOf(S.loc);
     S.san = Math.max(0, S.san - cost);
     if (S.san === 0) { collapse(); return; }
@@ -1280,11 +1342,11 @@ body.typing #pad { display: none; }
   }
   // 暗闇で動きつづけると、数える声に触れられる
   function darkTick() {
-    if (!isDark() || WATER.includes(S.loc)) { S.darkT = 0; return; }
+    if (!isDark() || WATER.includes(S.loc) || levelOf(S.loc) === 6) { S.darkT = 0; return; }
     S.darkT++;
-    if (S.darkT <= 2) { say(DARK_COUNT[S.darkT - 1], "warn"); fx("glitch"); return; }
+    if (S.darkT <= 2) { say(DARK_COUNT[S.darkT - 1], "warn"); fx("glitch"); sfx("whisper"); return; }
     say("冷たい指が、首の後ろを、ひとつ、ふたつと数えた。", "warn");
-    fx("shock", 1);
+    fx("shock", 1); sfx("stinger");
     S.darkT = 0;
     S.broke = true;
     const lv = levelOf(S.loc);
@@ -1311,9 +1373,32 @@ body.typing #pad { display: none; }
   // ==== 書かれていなかった階（Level 7〜11）のしくみ ====
   const inWater = () => WATER.includes(S.loc);
   // 部屋に入ったときの、そこにいるものの気配（前ぶれ）
+  // 部屋ごとの環境音（fx.js の FX.bed）
+  function roomBed(l) {
+    const lv = levelOf(l);
+    if (l === "y0") return S.y0dark ? "silence" : "fluoro";
+    if (l === "l1b") return "office";
+    if (l === "l5b") return "party";
+    if (l === "l5a") return S.l5done ? "dark" : "pipes";
+    if (l === "l7a") return "pool";
+    if (l === "l7d") return "cave";
+    if (l === "l9c" || l === "l9h" || l === "l9k") return "dark";
+    if (l === "l11o") return "electric";
+    if (l === "l11s") return "cave";
+    if (l === "l11g") return S.l11done ? "silence" : S.kDark ? "dark" : "city";
+    if (lv === 11 && S.l11done) return "silence";
+    return { 0: "fluoro", 1: "warehouse", 2: "pipes", 3: "electric", 4: "office", 5: "hotel", 6: "dark", 7: "sea", 8: "cave", 9: "night", 10: "field", 11: "city" }[lv];
+  }
   function onEnter(to) {
     S.ph = 0;
-    if (to === "l7b" && !S.tinyStun) { S.ph = 1; say("遠くで、骨の擦れ合う音。何か大きなものが、こちらへ向きを変えた。", "warn"); fx("glitch"); }
+    fx("bed", roomBed(to));
+    if (to === "l5a" && !S.seen.arr5 && !S.l5done) {
+      S.seen.arr5 = true;
+      if (lightOn()) say("懐中電灯の灯りが、柱の紙の一行目を照らした。「炉の火のほかに、灯りをつけてはならない」。", "warn");
+    }
+    if (to === "l1d" && !S.seen.cold) { S.seen.cold = true; sfx("breath"); }
+    if (to === "l5b" && !S.seen.bev) { S.seen.bev = true; sfx("chime"); }
+    if (to === "l7b" && !S.tinyStun) { S.ph = 1; sfx("clang"); say("遠くで、骨の擦れ合う音。何か大きなものが、こちらへ向きを変えた。", "warn"); fx("glitch"); }
     if (to === "l7c" && !S.thingGone) {
       S.ph = 1;
       say(lightOn() ? "光の輪のすぐ外を、何か、とてつもなく大きなものが、ぐるりと回っている。" : "下のほうで、何か、とてつもなく大きなものが、向きを変えた。水が、ゆっくり押しのけられてくる。", "warn");
@@ -1322,7 +1407,7 @@ body.typing #pad { display: none; }
     if (to === "l8m") {
       O.moths.loc = S.r8 === S.moth8 && !S.mothFed ? "l8m" : null;
       if (O.moths.loc) {
-        if (lightOn()) { S.mothLit = 1; say("天井の翅が、一斉に、光のほうへ開いた。乾いた羽音が、雨のように降ってくる。", "warn"); fx("shock", 1); }
+        if (lightOn()) { S.mothLit = 1; say("天井の翅が、一斉に、光のほうへ開いた。乾いた羽音が、雨のように降ってくる。", "warn"); fx("shock", 1); sfx("scratch"); }
         else { S.mothLit = 0; say("頭の上の暗闇で、乾いた羽音が、無数に重なっている。", "warn"); }
       }
       if (S.r8 === 3 && !S.wire8) {
@@ -1331,16 +1416,16 @@ body.typing #pad { display: none; }
         fx("glitch");
       }
     }
-    if (to === "l8t") { S.ph = 1; say("黒い水面の泡が、指を広げた手の形にふくらんでいく。一つ、二つ、五つ。", "warn"); fx("glitch"); }
+    if (to === "l8t") { S.ph = 1; sfx("scratch"); say("黒い水面の泡が、指を広げた手の形にふくらんでいく。一つ、二つ、五つ。", "warn"); fx("glitch"); }
     if ((to === "l9s" || to === "l9y") && !(to === "l9y" && S.hound9)) { S.ph = 1; S.hid = false; say(to === "l9s" ? "通りの先の暗がりで、低い唸り声がした。" : "フェンスの向こうで、低い唸り声がした。", "warn"); fx("vibrate", [40, 60, 40]); }
     if (to === "l9c") { S.ph = 1; mimic(); }
     if (to === "l9k" && !S.smileOK) {
-      S.ph = 1;
+      S.ph = 1; sfx("stinger");
       say(lightOn() ? "廊下の奥の暗がりに、白い歯が浮かんだ。笑っている。光のほうへ、にじり寄ってくる。" : "廊下の奥の暗がりに、白く光る目が二つと、細長い白い歯が浮かんでいる。笑っている。", "warn");
       fx("shock", 1);
     }
     if (to === "l11d") { S.ph = 0; S.hProv = false; }
-    if (to === "l11o") fx("level", 11, { mode: "wire" });
+    if (to === "l11o") fx("level", 11, { mode: "wire", bed: "electric" });
     else if (levelOf(to) === 11) levelFx(11);
   }
   // 皮をかぶったものは、あなたが言ったことを、あなたの声で言う
@@ -1348,6 +1433,7 @@ body.typing #pad { display: none; }
     const h = S.hist.filter(x => x).slice(-12);
     const t = h.length ? h[Math.floor(Math.random() * h.length)] : "見る";
     say(`ソファの人が、こちらを見ずに言った。自分の声で。「${t}」`, "voice");
+    sfx("whisper");
   }
   // 同じ部屋にとどまって何かをしたとき、そこにいるものが近づく
   function entityTick(v) {
@@ -1415,6 +1501,28 @@ body.typing #pad { display: none; }
       if (S.ph >= 2) faint("四つ足が、路地の壁を蹴って跳んだ。この街でも、怒らせれば同じだ。", 3);
     }
   }
+  // 上の階の空気（ちらつき・うなり・熱・囁き）。文章と音と画面の明滅をそろえる
+  function ambient(lv) {
+    const l = S.loc, r = Math.random();
+    if (l === "y0" && !S.y0dark) {
+      if (S.spike) { S.spike = false; if (S.lastV !== "go") addSan(-1, "うなりが耳の奥に突き刺さる。立ち止まっていてはいけない。"); }
+      else if (r < 0.12) { S.spike = true; say("蛍光灯のうなりが、急に、耳を裂くほど大きくなった。", "warn"); sfx("hum"); fx("flicker", 4); }
+    }
+    if (lv === 1 && !S.l1dark && r < 0.1) { say("蛍光灯が、いっせいにちらついた。暗くなった一瞬、柱の陰で何かが動いた。", "warn"); fx("flicker", 3); sfx("scratch"); }
+    if (lv === 1 && r > 0.93) sfx("clang");
+    if (l === "l2b" && !S.valve && S.lvT % 2 === 0) addSan(-1, "蒸気の熱で、頭がぼうっとする。");
+    if (lv === 2 && r < 0.08) { sfx("clang"); say("配管の奥で、何かが金属を叩いた。", "note"); }
+    if (lv === 3 && !S.l3done && r < 0.12) { say("壁の配電盤が、誰も触れていないのに唸りだし、青い火花を散らした。", "warn"); sfx("spark"); fx("flicker", 2); }
+    if (lv === 4 && r < 0.06) { fx("flicker", 2); sfx("hum"); }
+    if (lv === 5 && l !== "l5a" && r < 0.12) { say(["壁の向こうで、誰かが笑った。グラスの割れる音。", "誰もいない背後で、肩を、とん、と叩かれた。", "暗い客室の扉の隙間から、灰色の翅が一枚、ひらりと出てきて、また戻った。"][Math.floor(r * 25) % 3], "note"); sfx(r < 0.04 ? "glass" : "whisper"); }
+    if (lv === 6) {
+      if (S.lvT % 3 === 0) {
+        const h = S.hist.filter(x => x).slice(-6);
+        if (h.length) { say(`暗闇のどこかで、誰かが、自分の声で言った。「${h[h.length - 1]}」`, "voice"); sfx("whisper"); }
+      }
+      if (S.lvT % 6 === 0) addSan(-1, "無音が、耳の中で鳴りはじめる。何もいないはずなのに、すぐそばに何かがいる気がする。");
+    }
+  }
   // 時間が過ぎる（電池・息・階ごとの重さ）
   function passTime() {
     if (S.done) return;
@@ -1428,12 +1536,15 @@ body.typing #pad { display: none; }
     }
     if (inWater() && S.breath != null) {
       S.breath--;
+      if (S.breath <= 3 && S.breath > 0) sfx("breath");
       if (S.breath === 3) say("胸が、苦しくなってきた。", "warn");
       else if (S.breath === 2) { say("喉の奥が、勝手に開こうとする。", "warn"); fx("shock", 1); }
       else if (S.breath === 1) { say("視界の端が、黒く縮んでいく。", "warn"); fx("blackout", 300); }
       else if (S.breath <= 0) { faint("肺が、勝手に水を吸った。冷たいものが、胸いっぱいに広がる――", 3); return; }
     }
-    if (lv === 9 && S.lvT % 4 === 0) addSan(-1, "頭の中で、砂嵐が鳴る。考えが、ざらざらに崩れる。");
+    ambient(lv);
+    if (S.broke || S.done) return;
+    if (lv === 9 && S.lvT % 4 === 0) { sfx("static"); addSan(-1, "頭の中で、砂嵐が鳴る。考えが、ざらざらに崩れる。"); }
     if (lv === 11 && !(S.loc === "l11g" && S.kDark) && !S.l11done && S.lvT % 4 === 0) addSan(-1, "眠れない。街の明かりが、まぶたの裏まで届く。");
     if (lv === 10) {
       if (S.lvT === 12) say("空の色が、ずっと変わらない。今が何時なのか、わからない。", "note");
@@ -1471,13 +1582,13 @@ body.typing #pad { display: none; }
     if (LOOP.n) say("いつ言ったのか、覚えていない。", "note");
   }
 
-  // ---- Level 5：土間 ----
+  // ---- Level 5：ボイラー室の決まりごと ----
   const stirring = () => S.loc === "l5a" && S.beans && !S.l5done;
   function break5(why) {
     say(why, "warn");
     fx("shock", 1);
     if (S.door === 1) {
-      say("……後ろには、誰もいなかった。勝手口は閉まっている。鍋の豆は、真っ黒に焦げていた。", "warn");
+      say("……後ろには、誰もいなかった。業務用の扉は閉まっている。鍋の豆は、真っ黒に焦げていた。", "warn");
       S.stir = 0; S.door = 0; S.sleepy = false;
       say("焦げた豆を捨てて、新しい豆を入れなおした。最初からだ。", "note");
       addSan(-2, "");
@@ -1492,11 +1603,11 @@ body.typing #pad { display: none; }
     say("鉛筆の音が、止まった。");
     say("長い沈黙のあと、背中が言った。");
     say("「それは、まだ一度も書いていない行だ」", "voice");
-    say("人影は鉛筆を置いた。それから、ゆっくりと振り向きかけて――裸電球が消えた。");
-    say("顔は、見なかった。見なくていい、と思った。");
+    say("人影は鉛筆を置いた。それから、ゆっくりと振り向いた気配がした。");
+    say("顔は、見えなかった。暗いからなのか、見なくていいからなのか、わからない。");
     say("足もとの床が、やわらかく抜けた。");
     gap();
-    say("落ちていく。土間も、詰所も、廊下も、配管も、搬入通路も、黄色い部屋も、上のほうへ遠ざかっていく。", "win");
+    say("落ちていく。……いや、上っていく。ホテルも、事務所も、煉瓦の通路も、配管も、コンクリートの区画も、黄色い部屋も、下のほうへ遠ざかっていく。", "win");
     say("……目を開ける。", "win");
     say("自分の部屋の、布団の中だった。午前三時十二分。天井の蛍光灯が、低くうなっている。", "win");
     say("頭の右上に、ヨルがいる。今夜も来ている。少し遠いところで、じっとしている。", "win");
@@ -1511,7 +1622,9 @@ body.typing #pad { display: none; }
   }
   function endFx(id, tr) {
     writeMeta(id);
-    fx("shock", 2);
+    fx("shock", 2); fx("flash"); fx("flicker", 5);
+    sfx({ wake: "chime", swap: "stinger", field: "chime", exit: "stinger", sleep: "chime" }[id]);
+    setTimeout(() => fx("bed", id === "field" ? "field" : "silence"), 1200);
     setTimeout(() => fx("truism", tr[0], tr[1], ENDINGS[id]), 900);
   }
   // Level 10：麦の家
@@ -1577,7 +1690,7 @@ body.typing #pad { display: none; }
     gap();
     say("……気がつくと、机に向かって座っていた。", "win");
     say("手が勝手に動いている。「目を開ける。湿ったカーペットの匂い。蛍光灯のうなり。」", "win");
-    say("背中のほうで、空いていたはずの椅子から、誰かが立ち上がる。石段を、上へ、上へと上がっていく足音。", "win");
+    say("背中のほうで、空いていたはずの椅子から、誰かが立ち上がる。暗闇を、上へ、上へと上がっていく足音。", "win");
     say("止めようとしても、手は止まらない。", "win");
     say("****  交代した  ****", "win");
     say("（≡ のメニューから、はじめから。……次のあなたが、目を開ける）", "note");
@@ -1592,49 +1705,52 @@ body.typing #pad { display: none; }
     if (isDark() && levelOf(S.loc) <= 2) return held("flashlight") ? "懐中電灯を「点ける」。" : "暗闇で動きまわらないほうがいい。灯りになるものを探そう。";
     switch (S.loc) {
       case "y0":
-        if (S.y0dark) return O.note1.loc === "y0" ? "濡れた紙切れを読んでから、「下」へ。" : "「下」へ。";
-        return "「耳をすます」と、うなりの強い方角が分かる。その方角へ進むと、うなりの途切れる場所に近づく。間違えると遠ざかる。";
+        if (S.y0dark) return O.note1.loc === "y0" ? "濡れた紙切れを読んでから、窪みの「下」へ。" : "窪みの「下」へ。";
+        if (S.redWarn) return "壁が赤い。同じ遠ざかり方をつづけてはいけない。";
+        return "「耳をすます」と、うなりの強い方角が分かる。強いほうへ進むと、うなりの途切れる場所に近づく。間違えると遠ざかる。穴の並ぶ部屋では、下へ行かないこと。";
       case "l1a": case "l1b": case "l1c": case "l1d": case "l1e":
-        if (S.loc === "l1e" && S.keyIn) return held("flashlight") ? "「下」へ。" : "灯りを持たずに降りる気にはなれない。事務所のロッカーに懐中電灯がある。";
+        if (S.loc === "l1e" && S.keyIn) return held("flashlight") ? "「下」へ。" : "灯りを持たずに降りる気にはなれない。詰所のロッカーに懐中電灯がある。";
         if (held("key")) return S.loc === "l1e" ? "鍵を鍵穴に「入れる」。" : "鍵を、西の貨物エレベーターの鍵穴へ。";
-        if (O.locker.closed) return "事務所のロッカーを「開ける」。";
+        if (O.locker.closed) return "詰所のロッカーを「開ける」。";
         if (!held("flashlight")) return "ロッカーの懐中電灯を「取る」。";
         if (!S.freezerOpen) return "東の断熱扉を「開ける」。寒さに備えて、手袋を「身につける」といい。";
-        if (O.wbox.closed) return S.loc === "l1d" ? "霜のない箱を「開ける」。" : "冷凍室の、霜のない箱を調べよう。";
+        if (O.wbox.closed) return S.loc === "l1d" ? "霜のない箱を「開ける」。" : "冷凍区画の、霜のない箱を調べよう。";
         return "箱の中の鍵を「取る」。";
       case "l2a": case "l2b": case "l2c":
-        if (!S.valve) return S.loc === "l2b" ? "バルブを「閉める」。" : "東のボイラー室で、蒸気を止められるかもしれない。";
-        if (O.tin.closed && !held("letter")) return "ボイラー室の錆びた缶を「開ける」。";
-        if (S.loc !== "l2c") return "北の細い通路の、突き当たりへ。";
+        if (!S.valve) return S.loc === "l2b" ? "バルブを「閉める」。長居すると、熱にやられる。" : "東の機械室で、蒸気を止められるかもしれない。";
+        if (O.tin.closed && !held("letter")) return "機械室の錆びた缶を「開ける」。";
+        if (S.loc !== "l2c") return "北の細い通路の、突き当たりへ。窓のある扉は、開けないほうがいい。";
         if (S.pos < 2) return "北へ進む。";
-        if (!S.named) return "針金の塊に「名前をつける」。手紙に、そのことが書いてあった。";
+        if (!S.named) return "配線の塊に「名前をつける」。手紙に、そのことが書いてあった。";
         return "点検口から「下」へ。";
       case "l3a":
-        if (S.l3done) return "番号のない扉から、「下」へ。";
-        return "どれかの扉を「開ける」と、部屋に入れる。";
+        if (S.l3done) return "札のない扉から、「下」へ。";
+        return "どれかの変電室の扉を「開ける」と、中に入れる。黒い管には触れないこと。ここで立ち止まらないこと。";
       case "l3r": {
-        if (S.l3done) return "廊下へ戻って、番号のない扉へ。";
+        if (S.l3done) return "通路へ戻って、札のない扉へ。";
         const un = places().filter(o => !S.chk[o.id]);
-        if (un.length) return `気になる場所を、一度ずつ「確かめる」。二度目は確かめない。（まだ：${un.map(o => o.name).join("、")}）`;
+        if (un.length) return `点検する場所を、一度ずつ「確かめる」。二度目は確かめない。（まだ：${un.map(o => o.name).join("、")}）`;
         return "全部確かめた。「もういい」と「言う」。";
       }
       case "l3s": return "「下」へ。";
       case "l4a": case "l4b": case "l4c": case "l4d":
-        if (S.stairOpen) return S.loc === "l4a" ? "非常階段から「下」へ。" : "詰所の非常階段へ。";
-        if (S.written) return S.loc === "l4a" ? "鳴っている内線電話を「取る」。" : "詰所で電話が鳴っている。";
-        if (!S.heard) return S.loc === "l4d" ? "ここで「耳をすます」。" : "食堂では近すぎて聞き取れない。北の中庭から、離れて「耳をすます」。";
-        if (!held("paper4") || !held("pencil")) return "食堂のトレーの、白い紙と鉛筆を「取る」。";
+        if (S.stairOpen) return S.loc === "l4a" ? "階段室から「下」へ。" : "受付の階段室へ。";
+        if (S.written) return S.loc === "l4a" ? "鳴っている内線電話を「取る」。" : "受付で電話が鳴っている。";
+        if (!S.heard) return S.loc === "l4d" ? "ここで「耳をすます」。" : "会議室では近すぎて聞き取れない。北の給湯室から、離れて「耳をすます」。塗られていない窓には、近づかないこと。";
+        if (!held("paper4") || !held("pencil")) return "会議室の席の、白い紙と鉛筆を「取る」。";
         return "紙に「書く」。";
+      case "l5h": return "北の、銀の札の扉へ。";
+      case "l5b": return "扉の向こうの音を、「耳をすます」で聞き分ける。麻雀には触れないこと。";
       case "l5a":
-        if (S.l5done) return "灰の下の石段から、「下」へ。";
-        if (lightOn()) return "懐中電灯を「消す」。この土間で灯してよいのは、カマドの火だけ。";
+        if (S.l5done) return "灰の奥の梯子から、「下」へ。";
+        if (lightOn()) return "懐中電灯を「消す」。この部屋で灯してよいのは、炉の火だけ。";
         if (!S.beans) return "柱の紙を「読む」。それから、豆の袋を鍋に「入れる」。";
         if (S.door === 1) return "何が来ても、振り向かない。声を出さない。そのまま「かき混ぜる」。";
-        if (S.sleepy) return "カマドの火を「消す」。";
+        if (S.sleepy) return "炉の火を「消す」。";
         return "手を止めずに「かき混ぜる」。";
-      case "l6a": return S.msRead ? "石段は、まだ下へ続いている。……それとも、北の扉へ戻るか。" : "北の扉へ。";
+      case "l6a": return S.msRead ? "波の音のする「下」へ。……それとも、北の部屋へ戻るか。" : "鉛筆の音のする北へ。";
       case "l6b":
-        if (!S.sat) return "人影には、触れないほうがいい。机の紙の束か、空いた椅子か。";
+        if (!S.sat) return "背中には、触れないほうがいい。スイッチにも。紙の束か、空いた椅子か。";
         return "思いつくことばを「言う」。……どれも書いたことのある行なら、まだ書いていない行を。";
       // ここから下は、遠回しにしか答えない
       case "l7a": return "本棚の本に、海のことが書いてある。テーブルの上のものは、持っていけそうだ。";
@@ -1717,10 +1833,11 @@ body.typing #pad { display: none; }
           addSan(-1, S.idle === 1 ? "立ち止まると、頭の中で何かが増えはじめる。数えたくないものを、数えてしまう。" : "増える。" + "ひとつ、ふたつ、".repeat(Math.min(S.idle, 4)));
           return;
         case "l1d": say("吐く息が凍る音だけ。"); return;
-        case "l3r": say("チクタク。待っていても、確かめたい気持ちは減らない。"); return;
-        case "l4c": say(S.written ? "静かな食堂。" : "「あ……え……え……」。近すぎて、ことばになる前に耳が痛む。"); return;
-        case "l4d": say("風が池を渡る。" + (S.heard || S.written ? "" : "……耳をすませば、何か聞こえるかもしれない。")); return;
-        case "l5a": addSan(-1, S.l5done ? "" : "眠れない。土間は暗く、頭だけが冴えていく。"); return;
+        case "l3r": say("カチ、カチ。待っていても、確かめたい気持ちは減らない。"); return;
+        case "l4c": say(S.written ? "静かな会議室。" : "「あ……え……え……」。近すぎて、ことばになる前に耳が痛む。"); return;
+        case "l4d": say("給水器が、ごぼ、と泡を吐く。" + (S.heard || S.written ? "" : "……耳をすませば、何か聞こえるかもしれない。")); return;
+        case "l5a": addSan(-1, S.l5done ? "" : "眠れない。炉の火だけが明るく、頭だけが冴えていく。"); return;
+        case "l5h": case "l5b": say("壁の向こうのざわめきが、少しだけ近づいた気がする。"); sfx("whisper"); return;
         case "l6b": say(S.sat ? "「何がある？」と、背中が、もう一度訊いた。" : "鉛筆の音が、こちらの呼吸に合わせて続く。"); return;
       }
       say("時が過ぎる。どこか遠くで、うなりが続いている。");
@@ -1746,27 +1863,29 @@ body.typing #pad { display: none; }
           if (S.y0dark) { say("ここだけ、うなりが聞こえない。耳鳴りのような静けさ。"); return; }
           say(`うなりは、${DIR_JA[S.humDir]}のほうが強い。……強いほうへ近づくと、どこかで途切れる気がする。`);
           return;
-        case "l1a": say("蛍光灯のうなり。水の滴る音。" + (held("radio") ? "腰のトランシーバーの、かすかなノイズ。" : "床のトランシーバーが、ときどきザッと鳴る。")); return;
+        case "l1a": sfx("drip"); say("天井の管が、ごうん、と鳴る。水の滴る音。" + (held("radio") ? "腰のトランシーバーの、かすかなノイズ。" : "床のトランシーバーが、ときどきザッと鳴る。")); return;
         case "l1b": say("時計の秒針が、同じ一目盛りを行ったり来たりする音。"); return;
-        case "l1c": case "l1d": say(O.wbox.closed ? "冷凍機の唸り。その奥に、トクン、トクン、と規則正しい音。" : "冷凍機の唸りだけ。"); return;
+        case "l1c": case "l1d": if (O.wbox.closed) sfx("heart"); say(O.wbox.closed ? "冷凍機の唸り。その奥に、トクン、トクン、と規則正しい音。" : "冷凍機の唸りだけ。"); return;
         case "l1e": say("ケーブルが、上のほうで軋む音。"); return;
         case "l2a": case "l2b": say("配管の中を、何かが叩きながら流れていく。" + (S.valve ? "" : "蒸気の噴き出す音。")); return;
-        case "l2c": say(S.named ? "ヨルが、ときどきチリ、と鳴る。" : "壁の「なぜ」が、ささやき合っている。"); return;
-        case "l3a": case "l3r": say(S.l3done ? "何も聞こえない。" : "チクタク。廊下で聞いても、部屋で聞いても、同じ大きさだ。"); return;
-        case "l3s": say("下のほうから、誰かの叫び声。"); return;
+        case "l2c": sfx(S.named ? "spark" : "whisper"); say(S.named ? "ヨルが、ときどきチリ、と火花を鳴らす。" : "壁の「なぜ」が、ささやき合っている。"); return;
+        case "l3a": case "l3r": say(S.l3done ? "機械の唸りだけ。カチ、カチという音は、もうしない。" : "カチ、カチ。通路で聞いても、変電室で聞いても、同じ大きさだ。……格子の奥から、すすり泣くような声も。"); return;
+        case "l3s": say("エレベーターの縦穴の下のほうから、誰かの叫び声。"); return;
         case "l4a": case "l4b": say(S.written ? (S.stairOpen ? "静かだ。" : "内線電話が鳴っている。") : "遠くの叫び声。「あ……え……え……」"); return;
         case "l4c": say(S.written ? "静かだ。" : "近すぎて、母音しか聞こえない。ことばなのか、ただの声なのかも分からない。"); return;
         case "l4d":
-          if (S.written) { say("風の音だけ。"); return; }
+          if (S.written) { say("給水器の泡の音だけ。"); return; }
           if (S.heard) { say("「か……い……て」。一度そう聞こえると、もうそうとしか聞こえない。"); return; }
           S.heard = true;
-          say("池の向こうの壁越しに、叫び声が届く。「あ……え……え……」。");
+          say("給湯室の壁越しに、会議室の叫び声が届く。「あ……え……え……」。");
           say("……距離を置いて聞くと、母音のあいだに、かすかな子音が混じっているのが分かった。");
           say("「か……い……て」", "voice");
           say("書いて。");
           return;
-        case "l5a": say(S.door === 1 ? "背中のほうで、静かな息づかい。自分と同じ速さだ。" : S.beans ? "豆の煮える、ころころという音。" : "カマドの火の、ぱちぱちという音。"); return;
-        case "l6a": say("何も聞こえない。うなりがないと、自分の心臓の音が大きすぎる。"); return;
+        case "l5a": if (S.door === 1) sfx("breath"); say(S.door === 1 ? "背中のほうで、静かな息づかい。自分と同じ速さだ。" : S.beans ? "豆の煮える、ころころという音。" : "炉の奥から、囁き声。数を数えている。……機械の轟音に、すぐかき消された。"); return;
+        case "l5h": say("壁の向こうで、パーティーのざわめき。こもったピアノ。誰かの笑い声。……どの部屋からなのかは、分からない。"); return;
+        case "l5b": say(`どの扉の向こうからも、笑い声とグラスの音。……${DIR_JA[S.boil5]}の壁の扉からだけ、機械の轟音と、水の滴る音が聞こえる。`); return;
+        case "l6a": say(S.msRead ? "何も聞こえない。……いや。足もとの、ずっと下のほうから、かすかに波の音。" : "何も聞こえない。うなりがないと、自分の心臓の音が大きすぎる。……北のほうで、かすかに、鉛筆が紙をこする音。"); return;
         case "l6b": say("鉛筆の音。こちらの呼吸と、同じ速さ。"); return;
       }
       say("何も聞こえない。");
@@ -1774,7 +1893,7 @@ body.typing #pad { display: none; }
     noclip: (o) => {
       if (S.loc === "y0") {
         if (S.y0dark) { go("d"); return; }
-        say("壁に肩を押しつけてみたが、すり抜けられない。うなりの途切れる場所を探そう。");
+        say("壁に肩を押しつけてみたが、すり抜けられない。……現実の、やわらかい折り目は、どこか別の場所にある。");
         return;
       }
       say("体を押しつけてみたが、ここはすり抜けられそうにない。");
@@ -1783,7 +1902,7 @@ body.typing #pad { display: none; }
     examine: (o) => {
       if (!need(o, "調べる")) return;
       if (isDark() && o.loc !== "player" && !o.glow) { say("暗くて、何も見えない。"); return; }
-      if (o.id === "bdoor" && (S.door === 1 || stirring())) { break5("勝手口のほうを見てしまった。鍋から目を離してはいけない。"); return; }
+      if (o.id === "bdoor" && (S.door === 1 || stirring())) { break5("業務用の扉のほうを見てしまった。鍋から目を離してはいけない。"); return; }
       say(text(o.desc) || `${o.name}に、特に変わったところはない。`);
     },
     read: (o) => {
@@ -1801,12 +1920,14 @@ body.typing #pad { display: none; }
       if (o.id === "sack") { say("豆の袋は、棚に置いておく。"); return; }
       if (!o.take) { say(`${o.name}は取れない。`); return; }
       o.loc = "player";
+      sfx(["crowbar", "key", "flashlight", "bell", "shovel", "key11", "bat8", "bat9", "radio", "cam8"].includes(o.id) ? "clang" : o.drink ? "glass" : "thud");
       say(`${o.name}を取った。`);
       if (o.id === "key" && !S.l1dark) {
         S.l1dark = true;
         gap();
-        say("鍵を持ち上げた瞬間、冷凍室の灯りが消えた。", "warn");
-        fx("blackout", 900);
+        fx("flicker", 6); sfx("hum");
+        say("鍵を持ち上げた瞬間、冷凍区画の灯りが、激しくちらついて――消えた。", "warn");
+        fx("blackout", 1200); sfx("stinger");
         say("搬入通路のほうからも、蛍光灯が一本ずつ消えていく音がする。パチン。パチン。パチン。");
         if (!lightOn()) say("真っ暗だ。");
       }
@@ -1839,23 +1960,25 @@ body.typing #pad { display: none; }
       if (!need(o, "開ける")) return;
       if (darkBlock()) return;
       if (o.place) { VERB_DO.verify(o); return; }
-      if (o.room) { S.roomNo = o.room; say(`${o.room}号室の扉を開けて、中に入る。`); gap(); enter("l3r"); return; }
-      if (o.id === "blank3") { if (!S.l3done) { say("ここに扉はない。"); return; } say("番号のない扉を開ける。"); gap(); enter("l3s"); return; }
+      if (o.room) { S.roomNo = o.room; sfx("door"); say(`第${o.room}変電室の扉を開けて、中に入る。`); gap(); enter("l3r"); return; }
+      if (o.id === "blank3") { if (!S.l3done) { say("ここに扉はない。"); return; } sfx("door"); say("札のない扉を開ける。"); gap(); enter("l3s"); return; }
       if (o.id === "crate") {
         if (!O.crate.closed) { say("もう開いている。"); return; }
         if (!held("crowbar")) { say("釘で封をされていて、手では開かない。てこになるものがあれば。"); return; }
         O.crate.closed = false;
+        sfx("clang");
         say("バールを隙間に差しこんで、釘を浮かせた。蓋が外れる。中には、透明な液体の入ったボトルが二本。");
         return;
       }
       if (o.id === "fdoor") {
         if (S.freezerOpen) { say("もう開いている。"); return; }
         S.freezerOpen = true;
-        say("重い断熱扉を引く。白い冷気が、足もとからあふれ出した。東に、冷凍室。");
+        sfx("door");
+        say("重い断熱扉を引く。白い冷気が、足もとからあふれ出した。東に、冷凍区画。");
         return;
       }
       if (o.id === "sdoor") { if (!S.stairOpen) { say("鍵がかかっている。"); return; } go("d"); return; }
-      if (o.id === "bdoor") { say("勝手口は、開けておくものだ。こちらから開けて出ていくものではない。"); return; }
+      if (o.id === "bdoor") { say("業務用の扉は、向こうから開くものだ。こちらから開けて出ていくものではない。"); return; }
       if (o.id === "hatch2") { go("d"); return; }
       if (o.container) {
         if (!o.closed) { say("もう開いている。"); return; }
@@ -1895,7 +2018,7 @@ body.typing #pad { display: none; }
       }
       if (S.light) { say("もう点いている。"); return; }
       S.light = true;
-      if (stirring()) { break5("懐中電灯を点けてしまった。カマドの火のほかに、灯りをつけてはならない。"); return; }
+      if (stirring()) { break5("懐中電灯を点けてしまった。炉の火のほかに、灯りをつけてはならない。"); return; }
       say("懐中電灯を点けた。");
       if (S.darkT) say("数える声が、ぴたりと止んだ。光の届かないところで、息だけが続いている。", "note");
       S.darkT = 0;
@@ -1914,6 +2037,7 @@ body.typing #pad { display: none; }
       if (!o.drink) { say(`${o.name}は、飲めない。`); return; }
       if (o.loc !== "player" && !visible().includes(o)) { say(`ここに${o.name}はない。`); return; }
       o.loc = "gone";
+      sfx("splash");
       const up = o.up || 4;
       addSan(up, "");
       say(`アーモンド水を飲みほした。甘い。喉を通るあいだだけ、うなりが遠のいた。（正気 +${up}）`);
@@ -1963,9 +2087,9 @@ body.typing #pad { display: none; }
         O.blank3.loc = "l3a";
         gap();
         say("「……もういい」", "voice");
-        say("声に出すと、時計の音が一拍だけ止まった。");
+        say("声に出すと、カチ、カチという音が一拍だけ止まった。"); sfx("chime");
         say("もう一度確かめたい気持ちは、消えない。それでも、ここで手を止める。");
-        say("廊下のほうで、壁紙の剥がれ落ちる音がした。");
+        say("通路のほうで、煉瓦の崩れ落ちる音がした。"); sfx("thud");
         addSan(2, "");
         return;
       }
@@ -2003,7 +2127,7 @@ body.typing #pad { display: none; }
         }
         S.chk[o.id] = true;
         say(o.chk);
-        if (places().every(p => S.chk[p.id])) say("点検表の場所は、全部確かめた。チクタクは、まだ鳴っている。", "note");
+        if (places().every(p => S.chk[p.id])) say("点検表の場所は、全部確かめた。カチ、カチは、まだ鳴っている。", "note");
         return;
       }
       if (o.id === "figure") { say("確かめるには、触れるしかない。……触れてはいけない気がする。"); return; }
@@ -2022,8 +2146,9 @@ body.typing #pad { display: none; }
       say("「目を開ける。」", "voice");
       say("一行だけ。自分の字だ。");
       if (S.loc === "l4c") say("スピーカーの叫び声が、ぷつりと止んだ。");
-      else say("食堂のほうで、叫び声が、ぷつりと止んだ。");
-      say("静けさの中、遠くの詰所で、内線電話が鳴りはじめた。");
+      else say("会議室のほうで、叫び声が、ぷつりと止んだ。");
+      say("静けさの中、遠くの受付で、内線電話が鳴りはじめた。");
+    sfx("phone");
     },
     sit: () => {
       if (S.loc === "l6b") {
@@ -2041,25 +2166,28 @@ body.typing #pad { display: none; }
     stir: () => {
       if (S.loc !== "l5a") { say("ここに、かき混ぜるものはない。"); return; }
       if (S.l5done) { say("火は消した。"); return; }
+      sfx("drip");
       if (!S.beans) { say("鍋には、まだ水しか入っていない。"); return; }
-      if (lightOn()) { break5("懐中電灯が点いたままだ。カマドの火のほかに、灯りをつけてはならない。"); return; }
+      if (lightOn()) { break5("懐中電灯が点いたままだ。炉の火のほかに、灯りをつけてはならない。"); return; }
       S.stir++;
       const n = S.stir;
       if (n === 1) say("木べらで、黙ってかき混ぜる。豆が、鍋の底でころころ鳴る。頭の中のざわつきが、少しずつ鍋のほうへ流れていく。");
-      else if (n === 2) say("かき混ぜる。湯気。豆の匂い。カマドの火だけが、ぼんやりしている。");
+      else if (n === 2) say("かき混ぜる。湯気。豆の匂い。管から滴るアーモンド水の甘い匂いが、混ざる。炉の火だけが、ぼんやりしている。");
       else if (n === 3) {
         S.door = 1;
-        say("かき混ぜていると、背中のほうで、勝手口が開く音がした。少しだけ開けたままになっている。夜の土と草の匂いが入ってくる。");
+        sfx("door");
+        say("かき混ぜていると、背中のほうで、業務用の扉が開く音がした。少しだけ開けたままになっている。冷たい、絨毯と埃の匂いが入ってくる。");
         say("……気配が、すぐ後ろに来た。", "warn");
+        sfx("breath"); fx("flicker", 2);
         if (held("radio")) { say("腰のトランシーバーが、ザッと鳴った。自分の声で。", "note"); say("「振り向いて」", "voice"); }
       } else if (S.door === 1 && n === 4) say("目を離さない。かき混ぜる。首の後ろに、自分と同じ速さの息がかかる。");
-      else if (S.door === 1) { S.door = 2; say("かき混ぜる。豆の煮える音だけがする。……やがて、勝手口の閉まる音がした。気配は、もうない。"); }
+      else if (S.door === 1) { S.door = 2; sfx("door"); say("かき混ぜる。豆の煮える音だけがする。……やがて、業務用の扉の閉まる音がした。気配は、もうない。"); }
       else if (S.door === 2 && !S.sleepy) { S.sleepy = true; say("かき混ぜていると、まぶたが重くなってきた。眠気だ。"); }
       else say("眠気が来ている。火を消す頃だ。");
     },
     lookback: () => {
       if (S.loc === "l5a" && (S.door === 1 || stirring())) { break5("振り向いてしまった。"); return; }
-      if (S.loc === "l6b") { say("後ろには、石段へ戻る扉があるだけだ。前には、背中がある。"); return; }
+      if (S.loc === "l6b") { say("後ろには、暗闇があるだけだ。前には、背中がある。"); return; }
       if (S.loc === "l1a" && !S.puddleSeen) { say("振り向いても、誰もいない。……なのに、水たまりの水面が揺れている。"); return; }
       addSan(S.san > 5 ? -1 : 0, "振り向く。誰もいない。……振り向く前は、いた気がする。");
     },
@@ -2084,9 +2212,19 @@ body.typing #pad { display: none; }
     const l = S.loc;
     if ((l === "l9s" || l === "l9y") && S.ph >= 2 && !(l === "l9y" && S.hound9)) { faint("背を向けて走った瞬間、四つ足が跳んだ。", 3); return true; }
     if (l === "l6a" && dir === "d") {
-      if (!S.msRead) { say("石段は、ここで終わっている。……足の下の割れ目から、冷たい風が上がってくる気がする。"); return true; }
-      say("割れ目の奥の、濡れた段を降りる。段は、ずいぶん長く続いた。足もとの水が、少しずつ深くなる。");
-      gap(); enter("l7a"); return true;
+      if (!S.msRead) { say("足で床を探る。……冷たく、平らな床だけだ。どちらへ行けば下りられるのか、何の手がかりもない。"); return true; }
+      say("波の音のするほうへ、手と足で段を探りながら降りる。段は、ずいぶん長く続いた。足もとが濡れてくる。……下のほうが、ぼんやりと明るい。");
+      gap(); fx("flash"); sfx("drip");
+      enter("l7a"); return true;
+    }
+    if (l === "l5b" && (dir === "n" || dir === "e" || dir === "w")) {
+      sfx("door");
+      if (dir === S.boil5) {
+        say(`${DIR_JA[dir]}の壁の扉を開ける。……熱気と、機械の轟音。階段を少し降りると、配管だらけの部屋に出た。`);
+        enter("l5a"); return true;
+      }
+      say(`${DIR_JA[dir]}の壁の扉を開ける。……そこは、さっきの大広間だった。振り返ると、扉は金の札の扉に変わっている。`);
+      enter("l5h"); return true;
     }
     if (l === "l7a" && dir === "e") {
       say("戸口へ近づく。その前に立った瞬間、重さの向きが、九十度変わった。");
@@ -2182,6 +2320,7 @@ body.typing #pad { display: none; }
     if (l === "l9c" && dir === "n") { say("台所の扉を開ける。……そこは、同じ居間だった。ソファの人が、こちらを見ている。", "warn"); return true; }
     if (l === "l9k" && dir === "n") {
       if (!S.smileOK) { faint("笑みの横をすり抜けようとした瞬間、白い歯が、目の前いっぱいに広がった。", 3); return true; }
+      sfx("glass");
       say("暗がりから目を離さずに、壁づたいにゆっくり進む。裏口のガラス戸を開ける。");
       enter("l9y"); return true;
     }
@@ -2255,6 +2394,7 @@ body.typing #pad { display: none; }
     S.l11done = true; S.kFire = false;
     gap();
     say("コンロの火を消した。部屋が、真っ暗になる。");
+    fx("flicker", 6);
     say("……カーテンの縁から漏れていた光が、ふっと細くなった。");
     say("窓の外で、街の明かりが、一つ、また一つと消えていく。信号も。看板も。自販機も。", "win");
     fx("blackout", 1600);
@@ -2301,6 +2441,43 @@ body.typing #pad { display: none; }
       breakCook(why);
       if (v === "lightoff") S.kFire = false;
       return true;
+    }
+    // ---- 上の階（Level 0〜6）の物
+    if (a && a.id === "vdoor" && ["open", "enter", "press"].includes(v)) {
+      if (!S.vdoorTry) { S.vdoorTry = 1; sfx("door"); say("扉を開ける。……向こうは、果てのない黒。床も壁もない。音もしない。一歩踏み出せば、どこまでも落ちていける気がする。", "warn"); say("扉を閉めた。", "note"); return true; }
+      S.vdoorTry = 0; faint("黒の中へ、一歩踏み出した。……扉の四角い明かりが、すぐに点のように小さくなった。", 2); return true;
+    }
+    if (a && a.id === "windows4" && ["open", "enter", "press", "take"].includes(v)) {
+      if (!S.winTry) { S.winTry = 1; say("窓に近づく。外の風が、ガラス越しに頬に当たった気がした。……窓枠に手をかける。ガラスに映った自分の後ろに、誰も立っていないのが、なぜか怖い。", "warn"); sfx("whisper"); return true; }
+      S.winTry = 0; sfx("glass"); faint("窓を押し開けた。――外には、何もなかった。夜の街だと思ったものは、窓に描かれた絵だった。絵の中へ、体が傾いていく。", 2); return true;
+    }
+    if (a && a.id === "bpipe" && ["take", "press", "drink", "verify"].includes(v)) {
+      sfx("spark"); addSan(-2, "黒い液体に指が触れた。焼けるように熱い。指先から、頭の芯まで痺れが走る。"); return true;
+    }
+    if (a && a.id === "bars" && ["take", "press", "open", "verify"].includes(v)) { sfx("clang"); say("格子を揺する。びくともしない。……奥の影が、同じように格子を揺すった。こちら側の格子を。", "warn"); addSan(-1, ""); return true; }
+    if (a && a.id === "mahjong" && ["take", "press", "verify", "open"].includes(v)) { addSan(-1, "牌に手を伸ばす。……指が、勝手に引っこんだ。ここから離れたい、という気持ちだけが残る。"); sfx("whisper"); return true; }
+    if (a && a.id === "gdoors" && (v === "open" || v === "enter")) { sfx("door"); say("金の札の扉を、いくつか回してみる。どれも鍵がかかっている。……一つだけ開いた扉の向こうも、同じ廊下だった。"); return true; }
+    if (a && a.id === "cage5" && (v === "press" || v === "enter" || v === "open")) { sfx("beep"); say("銅の籠に入って、「1」を押す。……籠は動かない。テープの下の「13」だけが、内側から光っている。押さなかった。"); return true; }
+    if (a && a.id === "switch6" && ["press", "lighton", "verify", "take"].includes(v)) {
+      if (!S.switchTry) { S.switchTry = 1; say("指が、スイッチに触れた。背中の鉛筆が、止まった。「そうだ。それだ。入れてくれ」\n……触れたまま、まだ押してはいない。", "warn"); sfx("whisper"); return true; }
+      swapEnding(); return true;
+    }
+    if (v === "drink" && a && a.id === "cooler") {
+      if (S.cooled) { say("給水器は空だ。"); return true; }
+      S.cooled = true; sfx("splash"); addSan(3, ""); say("紙コップに注いで、飲む。甘い。アーモンド水だ。（正気 +3）"); return true;
+    }
+    if (v === "drink" && a && a.id === "apipe") {
+      if (S.piped) { say("もう、じゅうぶん飲んだ。"); return true; }
+      S.piped = true; sfx("drip"); addSan(2, ""); say("管の継ぎ目に口を寄せて、漏れるアーモンド水を飲む。熱くて、甘い。（正気 +2）"); return true;
+    }
+    if (v === "take" && a && (a.id === "cooler" || a.id === "apipe")) return deepPre("drink", a);
+    if (v === "lighton" && levelOf(l) === 6 && held("flashlight") && (!a || a.id === "flashlight")) {
+      S.light = true; say("懐中電灯のスイッチを入れる。……光が出ない。電池はある。音もした。光だけが、ここでは生まれない。", "warn"); return true;
+    }
+    if (v === "wait" && l === "l3a" && !S.l3done) { sfx("whisper"); addSan(-1, "立ち止まると、格子の奥から見られているのが分かる。首筋が、じりじりと焼ける。"); return true; }
+    if (v === "say") {
+      if (l === "y0") { sfx("whisper"); say(`「${(a && (a.show || a.ja)) || "……"}」\n声は、どこにも届かない。……しばらくして、自分の声が、少し遅れて、遠くの部屋から返ってきた。`); return true; }
+      if (levelOf(l) === 6 && l !== "l6b") { say(`「${(a && (a.show || a.ja)) || "……"}」\n声は、壁に吸いこまれて消えた。……すぐ後ろで、誰かが、同じことばを、同じ声でくり返した。`, "warn"); sfx("whisper"); return true; }
     }
     if (v === "say") {
       if (l === "l9c") { if (S.ph >= 3) faint("話しかけた瞬間、それは、こちらと同じ声で同じことばを返し――長い指が伸びてきた。", 3); else { S.ph = 2; say(`「${(a && (a.show || a.ja)) || "……"}」\nソファの人が、こちらへ顔を向けた。そして、同じことばを、自分の声で返した。`, "warn"); } return true; }
@@ -2411,7 +2588,7 @@ body.typing #pad { display: none; }
       }
       if (a.id === "vend") {
         if (S.vended) { say("どのボタンも「売切」だ。"); return true; }
-        S.vended = true; O.water7.loc = l;
+        S.vended = true; O.water7.loc = l; sfx("thud");
         say("ボタンを押す。……ガコン、と缶が落ちてきた。値段は、最後まで表示されなかった。");
         return true;
       }
@@ -2459,7 +2636,7 @@ body.typing #pad { display: none; }
     if (v === "stir" && l === "l11g") { stir11(); return true; }
     if (v === "write" && l === "l11g") { say("ノートの三ページ目は、白い。……今夜は、書かなくていい気がする。"); return true; }
     if (v === "listen" || v === "listenTo") {
-      const t = { l6a: S.msRead ? "下のほうで、水の滴る音。" : null, l7a: "戸口の向こうで、波の音。……それが、横から聞こえる。", l7s: "波の音。足の下の、ずっと深いところで、骨の擦れるような音。",
+      const t = { l7a: "戸口の向こうで、波の音。……それが、横から聞こえる。", l7s: "波の音。足の下の、ずっと深いところで、骨の擦れるような音。",
         l7b: S.tinyStun ? "遠くで、何かがまだ、のたうっている。" : "骨の擦れ合う音が、だんだん近くなる。", l7c: "何も聞こえない。音を立てないものが、近くにいる気がする。", l7d: "水の滴る音。上り坂の奥から、かちかちという音。",
         l8a: "かちかち。かさかさ。岩のどこかで、たくさんのものが動いている。", l8c: "何も聞こえない。遺体の口元に、蜘蛛が一匹。", l8m: O.moths.loc === "l8m" ? "頭の上で、乾いた羽音。" : S.r8 === 3 && !S.wire8 ? "頭の上で、何かが、音のしたほうを探っている。" : "遠くで、岩が崩れる音。",
         l8t: "泡がはじける音。……泡の中から、指の鳴る音がする。", l8x: "足の下で、何かが流れている音。",
@@ -2488,10 +2665,11 @@ body.typing #pad { display: none; }
     const n = S.kStir;
     if (n === 1) { say("木べらで、黙ってかき混ぜる。青い火だけが、部屋の中で揺れている。"); say("ここからは、手を止めない。声を出さない。", "note"); }
     else if (n === 2) say("かき混ぜる。湯気。……カーテンの向こうで、街が低く唸っている。");
-    else if (n === 3) { S.kKnock = 1; say("玄関の扉を、誰かが叩いた。", "warn"); say("「開けて」", "voice"); say("自分の声だ。", "warn"); fx("shock", 1); }
+    else if (n === 3) { S.kKnock = 1; sfx("knock"); say("玄関の扉を、誰かが叩いた。", "warn"); say("「開けて」", "voice"); say("自分の声だ。", "warn"); fx("shock", 1); sfx("stinger"); }
     else if (n === 4) {
       const h = S.hist.filter(x => x).slice(-10);
       const pk = () => h.length ? h[Math.floor(Math.random() * h.length)] : "見る";
+      sfx("knock"); sfx("whisper");
       say("扉の向こうの声が、こちらがしてきたことを、ひとつずつ読み上げる。", "warn");
       say(`「${pk()}」「${pk()}」「${pk()}」`, "voice");
     }
@@ -2516,10 +2694,10 @@ body.typing #pad { display: none; }
         S.tinyStun = true; S.ph = 0;
         say("呼び鈴を、力いっぱい振った。水の中で、音が何倍にも膨らむ。");
         say("……骨の擦れる音が、悲鳴のように乱れた。巨大な影が身をよじり、のたうちながら遠ざかっていく。", "warn");
-        fx("shock", 1); fx("tone", 1760, 0.6, "sine", 0.04);
+        fx("shock", 1); sfx("bell");
         return;
       }
-      fx("tone", 1760, 0.4, "sine", 0.03);
+      sfx("bell");
       if (l === "l7a") { say("澄んだ音が、部屋いっぱいに響いた。……戸口の向こう、海のほうで、何か大きなものが水面を叩いた。"); return; }
       if (l === "l7s") { say("鈴の音が、水平線まで転がっていく。……足の下の深いところで、何かがびくりと身をすくめた。"); return; }
       if (l === "l7c") { say("鈴の音は、深い水に吸いこまれた。下のものは、音には何も感じないらしい。"); return; }
@@ -2576,7 +2754,7 @@ body.typing #pad { display: none; }
         addSan(-1, "ベッドに横になる。……眠れない。" + (!S.kDark ? "天井の明かりが白い。" : !S.curtain ? "窓から、街の明かりが流れこむ。" : "頭の中が、まだ煮えている。"));
         return;
       }
-      if (l === "l5a") { say("眠れない。眠れない夜のための土間だ。"); return; }
+      if (l === "l5a") { say("眠れない。ここは、眠れない夜のための部屋だ。"); return; }
       say("こんなところでは、眠れない。");
     },
     enter: (o) => {
@@ -2612,7 +2790,7 @@ body.typing #pad { display: none; }
     if (S.l5done) { say("今夜の豆は、もう煮た。"); return; }
     if (S.beans) { say("豆は、もう鍋に入っている。"); return; }
     S.beans = true; S.stir = 0; S.door = 0; S.sleepy = false;
-    say("袋から豆をひとすくい、鍋に入れた。カマドの火が、ぼんやりと鍋の底を照らす。");
+    say("袋から豆をひとすくい、鍋に入れた。炉の火が、ぼんやりと鍋の底を照らす。"); sfx("splash");
     say("ここからは、手を止めない。鍋から目を離さない。声を出さない。", "note");
   }
   function douse() {
@@ -2622,8 +2800,9 @@ body.typing #pad { display: none; }
     S.beans = false;
     addSan(2, "");
     gap();
-    say("カマドの火を消した。煮豆を片づける。");
-    say("灰の中に、指が沈んだ。灰の下は、空洞だった。石の段が、下へ続いている。");
+    say("炉の火を消した。煮豆を片づける。機械の轟音が、一つずつ止まっていく。");
+    say("灰の奥に、指が沈んだ。灰の向こうは、空洞だった。整備用の梯子が、下へ続いている。");
+    sfx("thud"); fx("flicker", 3); fx("bed", "dark");
   }
   function answerPhone() {
     if (S.loc !== "l4a") { say("ここに電話はない。"); return; }
@@ -2632,10 +2811,12 @@ body.typing #pad { display: none; }
     S.stairOpen = true;
     gap();
     say("鳴りつづける受話器を取る。");
+    sfx("static");
     say("長い沈黙。それから、ひどく近い声で、一言。");
     say("「下へ」", "voice");
     say("受話器の向こうで、誰かが、こちらと同じ速さで息をしている。");
-    say("非常階段の扉の鍵が、カチリと外れた。");
+    say("階段室の扉の鍵が、カチリと外れた。");
+    sfx("clang"); fx("flicker", 2);
   }
 
   // ---- 命令を読む ----
@@ -2748,7 +2929,8 @@ body.typing #pad { display: none; }
   function tick(v) {
     if (S.done) return;
     if (!META.includes(v) && ["l4a", "l4b", "l4c"].includes(S.loc) && !S.written && Math.random() < 0.5) say("「あ……え……え……」", "voice");
-    if (!META.includes(v) && S.loc === "l4a" && S.written && !S.stairOpen) say("内線電話が、鳴りつづけている。", "note");
+    if (!META.includes(v) && S.loc === "l4a" && S.written && !S.stairOpen) { say("内線電話が、鳴りつづけている。", "note"); sfx("phone"); }
+    if (!META.includes(v) && ["l4a", "l4b", "l4c"].includes(S.loc) && !S.written && Math.random() < 0.3) sfx("whisper");
     if (META.includes(v) || v === "examine" || v === "read") return;
     if (S.loc !== "y0") S.idle = 0;
     if (S.loc === "l1d" && !S.gloves) addSan(-1, "指先の感覚が、なくなっていく。");
@@ -2775,7 +2957,7 @@ body.typing #pad { display: none; }
     if (!p) { say("その言い方はわからない。「命令を作る」を使うと確実だ。"); return; }
     S.moves++;
     if (label && !META.includes(p.v)) { S.hist.push(label); if (S.hist.length > 30) S.hist.shift(); }
-    S.moved = false; S.broke = false;
+    S.moved = false; S.broke = false; S.lastV = p.v;
     const after = v => { if (S.done || S.broke) return; if (S.moved) moveTick(); else tick(v); };
     if (p.v === "go") { if (cooking11()) { deepPre("go"); after("go"); return; } go(p.dir); after("go"); return; }
     if (p.v === "say") { if (!deepPre("say", p.w)) VERB_DO.say(p.w); after("say"); return; }
