@@ -1,7 +1,7 @@
 {
   "name": "階層目録",
   "short_name": "階層目録",
-  "description": "Backrooms のテキストアドベンチャー4本を選んで遊ぶ",
+  "description": "Backrooms のテキストアドベンチャー5本を選んで遊ぶ",
   "lang": "ja",
   "start_url": "./index.html",
   "scope": "./",
