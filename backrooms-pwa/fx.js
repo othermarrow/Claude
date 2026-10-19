@@ -585,7 +585,8 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
       if (power === 2) { pulse("fx-shock2", 950); A.burst(2, 0.9); if (A.live()) A.sfx("thud"); FX._flickVisual(2); FX.vibrate([60, 40, 120, 40, 200]); }
       else { pulse("fx-shock", 480); A.burst(1); FX.vibrate([30, 30, 60]); }
     },
-    glitch() { jitter(); A.burst(0, 0.18); },
+    // 画面を一瞬乱す。sound に false を渡すと音なし（タップの直後に呼ぶとき用）
+    glitch(sound) { jitter(); if (sound !== false) A.burst(0, 0.18); },
     flash() { mount(); if (!moving()) return; flash.classList.remove("on"); void flash.offsetWidth; flash.classList.add("on"); },
     blackout(ms) {
       mount(); document.body.classList.add("fx-black");

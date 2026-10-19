@@ -1137,7 +1137,6 @@ body.typing #pad { display: none; }
       S.y0dark = S.hum === 0;
       S.yi = (S.yi + 1 + Math.floor(Math.random() * 5)) % YELLOW.length;
       if (S.y0dark && O.note1.loc !== "player") O.note1.loc = "y0"; else if (O.note1.loc === "y0") O.note1.loc = null;
-      sfx("step");
       if (S.y0dark) { fx("flicker", 3); fx("bed", "silence"); } else fx("bed", "fluoro");
       describe(true);
       if (S.redWarn) { sfx("hum"); fx("glitch"); }
@@ -1177,7 +1176,6 @@ body.typing #pad { display: none; }
       if (dir === "s" && S.pos > 0) { S.pos--; say("南へ、体を引き抜く。少しだけ、壁が離れた。"); describe(true); return; }
     }
     if (S.loc === "l3a" && (dir === "e" || dir === "w")) {
-      sfx("step");
       say(dir === "e" ? "東へ歩く。第6の次に、また第1が来た。" : "西へ歩く。第1の手前に、また第6があった。");
       return;
     }
@@ -1210,8 +1208,9 @@ body.typing #pad { display: none; }
   }
   function enter(to) {
     S.moved = true;
-    if (!WATER.includes(to)) sfx("step");
     const fromLv = levelOf(S.loc);
+    // 足音は、別の階に着いたときだけ（移動のたびに鳴ると、タップの音に聞こえる）
+    if (!WATER.includes(to) && levelOf(to) !== fromLv) sfx("step");
     if (S.loc === "l5a" && to !== "l5a" && !S.l5done) { S.beans = false; S.stir = 0; S.door = 0; S.sleepy = false; }
     if (S.loc === "l11g" && to !== "l11g" && cooking11()) breakCook("鍋を置いたまま、部屋を出てしまった。", true);
     const keepDark = fromLv === 8 && levelOf(to) === 8;
