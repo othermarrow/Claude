@@ -1,7 +1,7 @@
 /* 階層目録：オフラインでも開けるようにする。
    まずネットワーク（Termux のサーバー）から取り、取れないときは前に取っておいたものを返す。
    ファイルを足したら FILES に足し、VERSION を上げる。 */
-const VERSION = "kaisou-v6";
+const VERSION = "kaisou-v7";
 const FILES = [
   "./",
   "./index.html",
