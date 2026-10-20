@@ -1,7 +1,7 @@
 # 階層目録
 
-Backrooms のテキストアドベンチャー6本を、起動画面から選んで遊べるようにしたアプリ（PWA）。
-Chrome で「インストール」すると、ホーム画面のアイコンから開ける。記録 01〜04 は、もとの版より階層を深く、難しくし、目的が分からないように作り直している。記録 05 は、利用者の物語をもとに新しく作った。記録 06 は、空欄の骨組みを残して物語を書き直した別の版。演出は、階層ごとに画面全体の色が変わり、走査線・ネオンの格言・背景の線画・bytebeat の音・揺れ・振動が出る。
+Backrooms のテキストアドベンチャー8本を、起動画面から選んで遊べるようにしたアプリ（PWA）。
+Chrome で「インストール」すると、ホーム画面のアイコンから開ける。記録 01〜04 は、もとの版より階層を深く、難しくし、目的が分からないように作り直している。記録 05 は、利用者の物語をもとに新しく作った。記録 06 は、空欄の骨組みを残して物語を書き直した別の版。記録 07 は降下記録の派手版、記録 08 は青空文庫の本文を降りていく話で、どちらも演出を自前で持っている（fx.js は使わない）。演出は、階層ごとに画面全体の色が変わり、走査線・ネオンの格言・背景の線画・bytebeat の音・揺れ・振動が出る。
 
 | 札 | ゲーム | ファイル | 状態 |
 |---|---|---|---|
@@ -10,7 +10,9 @@ Chrome で「インストール」すると、ホーム画面のアイコンか�
 | 記録 03 | ノークリップ | `games/noclip.html` | 強化済み（Level 0〜11・37・Fun・!・433 N、結末 6） |
 | 記録 04 | 野帳 | `games/yacho.html` | 強化済み（Level 0〜11・433 N・444 N、結末 17） |
 | 記録 05 | 未定稿 | `games/miteiko.html` | 新作（地上・地下・黄色い部屋・箱と四つの層・吊り橋・海の底、結末 5） |
-| 記録 06 | 空欄 ver2 | `games/kuuran2.html` | 新作（空欄の書き直し。病棟・校舎・Level 1・Level 7、結末 6） |
+| 記録 06 | 空欄_2 | `games/kuuran2.html` | 新作（空欄の書き直し。病棟・校舎・Level 1・Level 7、結末 6） |
+| 記録 07 | 閾の降下録 | `games/liminal.html` | 降下記録の派手版をそのまま入れた（Level 0〜6、結末 4） |
+| 記録 08 | 膨大な量のテキスト | `games/boudai-text.html` | 青空文庫の本文を頁にして降りる（第一層〜末尾、終わり方 7）。もとは `boudai-text/` |
 
 記録 01〜04 のもとの版（`tane-wo-niru/` `kuuran/` `noclip/` `yacho/`）はそのまま残してある。こちらは別の保存場所を使うので、もとの版の続きとはつながらない。
 
@@ -18,15 +20,16 @@ Chrome で「インストール」すると、ホーム画面のアイコンか�
 
 PWA は `https://` か `http://localhost` で開いたときだけインストールできる。リポジトリが非公開なので、Termux の中で小さなサーバーを動かして、同じスマホの Chrome から開く。
 
-1. Termux で、ブランチを取ってきてサーバーを動かす。
+1. Termux で、ブランチを取ってきてサーバーを動かす。はじめての時はクローンから（非公開なので、ユーザー名とトークンを聞かれることがある）。
 
    ```sh
-   cd ~/Claude
-   git fetch origin ccr-d4f31da7-u5hlbp
-   git checkout ccr-d4f31da7-u5hlbp
-   git pull origin ccr-d4f31da7-u5hlbp
+   cd ~
+   git clone --depth 1 -b ccr-miteiko-3da37d61 https://github.com/othermarrow/Claude.git ~/othermarrow-Claude
+   cd ~/othermarrow-Claude
    sh backrooms-pwa/serve.sh
    ```
+
+   二回目からは、`cd ~/othermarrow-Claude && git pull && sh backrooms-pwa/serve.sh`。
 
    「Chrome で http://localhost:8080/ を開いてください」と出たら、Termux はそのままにしておく。
 
@@ -46,7 +49,7 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 
 ## 設定
 
-起動画面の下に「音」「振動」「動き」の切り替えがある。6本のゲームでも同じ設定が使われる（localStorage の `bpwa.settings`）。「動き」を切ると、揺れ・明滅・背景の動きが止まる。端末の「視覚効果を減らす」設定がオンのときも止まる。
+起動画面の下に「音」「振動」「動き」の切り替えがある。記録 01〜06 のゲームでも同じ設定が使われる（localStorage の `bpwa.settings`）。記録 07・08 は、それぞれのメニューに自分の音の切り替えがある。「動き」を切ると、揺れ・明滅・背景の動きが止まる。端末の「視覚効果を減らす」設定がオンのときも止まる。
 
 ## 中身
 
@@ -54,7 +57,9 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 |---|---|
 | `index.html` | 起動画面。札を押すとゲームへ。各ゲームの結末の数・いちばん深い階層・周回数を札に出す |
 | `fx.js` | 共通の演出。蛍光灯のうなりと階層ごとの環境音（15種）、効果音（20種）、鼓動、背景の線画（13星座・波形・海・洞窟の雫・住宅地・麦畑・街など）、走査線、ネオンの格言、揺れ、閃光、停電、記録映像ふうの表示、bytebeat の音、振動（タップしたときの音は出さない） |
-| `games/*.html` | 6本のゲーム。どれも HTML 一枚で、`../fx.js` を読む（読めなくても遊べる） |
+| `games/*.html` | 8本のゲーム。どれも HTML 一枚。記録 01〜06 は `../fx.js` を読む（読めなくても遊べる）。07・08 は演出を中に持っている |
+| `games/boudai-local.js` | 膨大な量のテキストの「手もとの棚」。`make-boudai-local.py` が作る生成物で、コミットしない（`.gitignore`）。なければ GitHub の青空文庫から取る |
+| `make-boudai-local.py` | Obsidian の Vault2 にある青空文庫の本から、手もとの棚を作る（下の「膨大な量のテキスト」） |
 | `manifest.webmanifest` | アプリの名前・アイコン・色 |
 | `sw.js` | オフラインでも開けるようにする仕組み（Service Worker）。ファイルを足したら `FILES` に足し、`VERSION` を上げる |
 | `icons/` | アイコン（192px、512px、マスク用 512px） |
@@ -64,7 +69,7 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 
 ### ゲームと起動画面の約束
 
-- 保存：`localStorage["bpwa.<id>.state"]`（id は `koka` `kuuran` `noclip` `yacho` `miteiko` `kuuran2`）。
+- 保存：`localStorage["bpwa.<id>.state"]`（id は `koka` `kuuran` `noclip` `yacho` `miteiko` `kuuran2` `liminal` `boudai`）。
 - 札に出す要約：`localStorage["bpwa.<id>.meta"]` に `{"endings": [...], "total": 数, "deepest": "Level 11", "runs": 数, "updated": 時刻}`。
 - 各ゲームの ≡ メニューに「起動画面へ」がある。
 
@@ -83,10 +88,11 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 | `noclip-standalone.html`（ノークリップ） | `/storage/emulated/0/Tasker/noclip2/noclip2-data.json`（`%NOCLIP2`） |
 | `yacho-standalone.html`（野帳） | `/storage/emulated/0/Tasker/yacho2/yacho2-data.json`（`%YACHO2`） |
 | `miteiko-standalone.html`（未定稿） | `/storage/emulated/0/Tasker/miteiko/miteiko-data.json`（`%MITEIKO`） |
-| `kuuran2-standalone.html`（空欄 ver2） | `/storage/emulated/0/Tasker/kuuran3/kuuran3-data.json`（`%KUURAN3`） |
+| `kuuran2-standalone.html`（空欄_2） | `/storage/emulated/0/Tasker/kuuran3/kuuran3-data.json`（`%KUURAN3`） |
 
 - 保存先は、もとの版（`Tasker/tane-wo-niru/`、`Tasker/kuuran/`、`Tasker/noclip/`、`Tasker/yacho/`）とは分けてあるので、もとの版の記録を上書きしない。
 - ゲームを直したら、`python3 build_standalone.py tane-wo-niru kuuran noclip yacho miteiko kuuran2` で作り直す。
+- 記録 07・08 は fx.js を使わないので、一枚版は作らない。`games/liminal.html` はそのまま一枚で開ける（Tasker の保存先は `/storage/emulated/0/Tasker/liminal/liminal-data.json`、変数 `%LIMINAL`）。膨大な量のテキストを単独で遊ぶときは、もとの `boudai-text/` を使う。
 
 ## 降下記録（強化版）
 
@@ -266,7 +272,7 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 
 </details>
 
-## 空欄 ver2（新作。空欄の物語を書き直した版）
+## 空欄_2（新作。空欄の物語を書き直した版）
 
 - 骨組み（白い部屋 613、入所記録の五つの欄と名前の欄、順番どおりに来ない曜日と切り取られた日曜、校舎の三つの約束、インコと公衆電話、体温、日曜の配達員）は残し、出来事・謎・文章・結末を書き直した。空欄（記録 02）はそのまま残してあり、保存場所は別（`bpwa.kuuran2.*`）なので、どちらの記録も混ざらない。
 - 五つの欄は「好きなもの」「苦手なもの」「落ち着く場所」「伝え方」「本人の希望」。どれも、病棟と校舎のどこかで、自分で見つけたときに自分の字で埋まる。
@@ -279,7 +285,7 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 - 「わからない」は一日三回までで、聞くたびに体温が上がる。遊び方の説明は操作だけ。結末は6つで、どれが正解かは書いていない。
 
 <details>
-<summary>空欄 ver2 の攻略（ネタばれ）</summary>
+<summary>空欄_2 の攻略（ネタばれ）</summary>
 
 | id | 結末 | 条件 |
 |---|---|---|
@@ -302,6 +308,33 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 8. 失敗：校舎の約束を一日三回破る／土曜の白衣の前で二手とどまる／Level 7 で窓を三回見つめる・突き当たりから潜る二回目・冷えきる／Level 1 の搬入口で灯りが消えているあいだに二回動く／熱が 38℃。どれも、翌朝の白い部屋から続けられる（そのたびに欄が一つ、他人の字で埋まる）。
 
 </details>
+
+## 閾の降下録（記録 07）
+
+利用者が別に作った「降下記録」の派手版（閾の降下録 // LIMINAL DESCENT）を、そのまま入れた。物語・演出・音には手を入れていない。変えたのは次の三つだけ。
+
+- 保存先：`localStorage["bpwa.liminal.state"]`、Tasker では `/storage/emulated/0/Tasker/liminal/liminal-data.json`（`%LIMINAL`）。単独の派手版は、もとの降下記録と同じ `Tasker/tane-wo-niru/` を使っていたので、記録を上書きしないように分けた。
+- ≡ のメニューに「起動画面へ」を足した。
+- 起動画面の札に、結末の数（A・B・C・S の4つ）・いちばん深い階層・周回を出すようにした（`bpwa.liminal.meta`）。
+
+## 膨大な量のテキスト（記録 08）
+
+増えつづけるテキストの中を、ランプ一つで層ごとに降りていく話。頁は青空文庫の本物の文章で、手もとの棚（`games/boudai-local.js`）があればそこから、なければ GitHub の aozorabunko/aozorabunko からその場で取ってくる。もとは `boudai-text/`（別のブランチ）。物語には手を入れず、次だけを変えた。
+
+- 保存先：`bpwa.boudai.state`（目録と本のかけらは `bpwa.boudai.catalog` `bpwa.boudai.works`）。単独の版の保存とは混ざらない。
+- ≡ のメニューに「起動画面へ」を足し、起動画面の札に、見た終わり（7つ）・いちばん深い層・周回を出すようにした（`bpwa.boudai.meta`）。
+
+### 手もとの棚を入れる（Termux）
+
+Vault2 の青空文庫から、100冊ぶんの棚を作って `games/` に書き出す。走らせるたびに、並ぶ本が入れかわる。
+
+```sh
+cd ~/othermarrow-Claude/backrooms-pwa
+python make-boudai-local.py /storage/emulated/0/Obsidian/Vault2 games
+```
+
+- できた `games/boudai-local.js` はコミットしない（`.gitignore`）。サーバーを動かしているあいだにアプリで一度開くと、アプリの中にも取っておかれる。
+- 棚がないときは、電波があれば GitHub の青空文庫から取る。電波もないときは、前に取ってきた本だけで遊ぶ。
 
 ## もとにしたものとライセンス
 
@@ -395,7 +428,7 @@ The Backrooms は、2019年に匿名掲示板 4chan に投稿された黄色い�
 - The Manila Room と Entity 15 は、この環境からページを直接開けず、作者名は検索結果の表記による。
 - JP Wiki の「Level 433 N」（https://japan-backrooms-wiki.wikidot.com/level-433-n ）、「Level 444 N」（https://japan-backrooms-wiki.wikidot.com/level-444-n ）：場所の設定だけを借り、文章は使っていない（ライセンスの表記は未確認）。444 N の放送で鳴るのは短い五音音階のフレーズで、曲そのものではない。
 
-### 空欄 ver2 で使った Backrooms Wiki の記事
+### 空欄_2 で使った Backrooms Wiki の記事
 
 | 記事 | 作者（各ページの「Cite this page as」の表記） |
 |---|---|
@@ -404,7 +437,7 @@ The Backrooms は、2019年に匿名掲示板 4chan に投稿された黄色い�
 | [Object 1 - "Almond Water"](https://backrooms-wiki.wikidot.com/object-1) | Natedagreat563 |
 | [The M.E.G.](https://backrooms-wiki.wikidot.com/the-m-e-g) | Greggita Mahayfaio, Natedagreat563, Orb1t41, Poliacci, Positive123, Praetor3005, Robert Goerman, Reyday, Snomwriting and Squibblezombie |
 
-- 空欄 ver2 では、場所の設定（コンクリートの倉庫と前哨基地、水没した部屋と水平線のない海、アーモンド水、M.E.G.）だけを借りた。白い部屋・記録係・校舎の約束などは、この版のための創作。空欄（記録 02）で使った記事は、ver2 では使っていない。
+- 空欄_2 では、場所の設定（コンクリートの倉庫と前哨基地、水没した部屋と水平線のない海、アーモンド水、M.E.G.）だけを借りた。白い部屋・記録係・校舎の約束などは、この版のための創作。空欄（記録 02）で使った記事は、空欄_2 では使っていない。
 
 ### そのほかに参考にしたもの
 
@@ -422,7 +455,8 @@ The Backrooms は、2019年に匿名掲示板 4chan に投稿された黄色い�
 - 空欄：Playwright で、5つの結末すべてに命令だけでたどり着けること、裏側と新しい部屋を通ること、13種類の失敗が前ぶれのあとで起き、翌朝から続けられること、ランダムな命令 72,000 回で例外が出ないこと、fx.js が読めなくても遊べること、古い保存（一つ前の版）から続きを遊べることを確かめた。
 - ノークリップ：6つの結末すべてに命令だけでたどり着けること（道筋を変えて各結末 250〜300回）、18種類の失敗に前ぶれがあり続けて遊べること、ランダムな命令 75,000 回以上で例外が出ないこと、ゲーム本体（ENGINE）が画面やブラウザの機能に触らないこと、古い保存が壊れないことを確かめた。
 - 未定稿：Playwright（Chromium、幅 390px）で、5つの結末すべてに命令だけでたどり着けること、暗闇で消される・弁の順を間違える・願いを口にする・壁をすり抜ける・立入禁止の扉・小部屋に閉じこめられるなどの失敗のあとも遊び続けられること、回収人が盗んだ物が古本の部屋に移ること、ランダムな命令 72,000 回（地上・地下・箱・各層から始めて）で例外が出ないこと、fx.js がなくても遊べること、起動画面の札に結末の数と最深の層が出ることを確かめた。
-- 空欄 ver2：Playwright（Chromium、幅 390〜412px）で、6つの結末すべてに命令だけでたどり着けること、五つの欄がそれぞれ自分の字で埋まること、記録係の字が消しゴムで消えて自分の字に戻ること、土曜の白衣・校舎の約束・Level 7 の窓・Level 1 の暗闇で倒れたあとも翌朝から続けられること、ランダムな命令 約 50,000 回（はじめから、と途中の9か所から）で例外が出ないこと、fx.js が読めなくても遊べること、空欄（記録 02）の保存と混ざらないことを確かめた。
+- 空欄_2：Playwright（Chromium、幅 390〜412px）で、6つの結末すべてに命令だけでたどり着けること、五つの欄がそれぞれ自分の字で埋まること、記録係の字が消しゴムで消えて自分の字に戻ること、土曜の白衣・校舎の約束・Level 7 の窓・Level 1 の暗闇で倒れたあとも翌朝から続けられること、ランダムな命令 約 50,000 回（はじめから、と途中の9か所から）で例外が出ないこと、fx.js が読めなくても遊べること、空欄（記録 02）の保存と混ざらないことを確かめた。
 - 野帳：17の結末と 433 N・444 N を通る道筋（20通り）に命令だけでたどり着けること、23種類の失敗に前ぶれがあり続けて遊べること、ランダムな命令 130,000 回で例外が出ないこと、時計版の切り出し（`yacho-watch/tools/build-engine.js`）がこの版でもエラーなく動くことを確かめた（時計版は今も `yacho/yacho.html` から作っている）。
 - 音：環境音と効果音がエラーなく鳴り、音が割れないこと（ピークが 0.25 未満）をブラウザの中で測った。スピーカーでどう聞こえるかは確かめていない。
+- 閾の降下録・膨大な量のテキスト：Playwright（Chromium、幅 360〜390px）で、開いて命令が通ること、≡ の「起動画面へ」で戻れること、起動画面の札に結末の数・最深・周回が出ること、オフラインでも開けること、ランダムな命令 各 3,000 回（途中で、はじめからをはさむ）で例外が出ないことを確かめた。膨大な量のテキストは、手もとの棚があるとき・ないときの両方で開けた。
 - **実機（Xperia 1 IV の Chrome）では、まだ確かめていない。** インストールできるか、Termux を止めたあとにホーム画面から開けるか、音・振動が出るかは、未確認。

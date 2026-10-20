@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>空欄 ver2</title>
+<title>空欄_2</title>
 <meta name="theme-color" content="#0d0c07">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -267,7 +267,7 @@ body.typing #pad { display: none; }
 
 <div id="app">
   <header id="bar">
-    <span id="room">空欄 ver2</span>
+    <span id="room">空欄_2</span>
     <span id="score">木曜　36.5℃</span>
     <button id="menu-btn" type="button" aria-label="メニュー" aria-expanded="false">≡</button>
   </header>
@@ -323,7 +323,7 @@ body.typing #pad { display: none; }
 
   <div id="sheet" hidden>
     <div class="panel" role="dialog" aria-label="メニュー">
-      <h2>空欄 ver2</h2>
+      <h2>空欄_2</h2>
       <p>十字キーで移動する。左上の「上」と右下の「下」で、上下にも動ける。「命令を作る」を押し、動詞 → 物（またはことば）の順にタップすると命令になる。入力欄に日本語で書いてもいい。「わからない」と言うと、どこかで誰かが小さく答えることがある。そのたびに、熱が少し上がる。答えてくれる回数には、限りがある。</p>
       <p>途中の状態は自動で残り、次に開くと続きから始まる。</p>
       <div id="opt-row">
@@ -990,7 +990,7 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
   const TK_VAR = "KUURAN3";
   const KEY = "bpwa.kuuran2.state";
   const META_KEY = "bpwa.kuuran2.meta";
-  // 「空欄」の物語を書き直した版（ver2）。保存は空欄（記録 02）とは別
+  // 「空欄」の物語を書き直した版（空欄_2）。保存は空欄（記録 02）とは別
   const VERSION = 4;
   // 結末。何が正解だったのかは、どこにも書いていない
   const ENDINGS = { number: "番号", blank: "空欄", unknown: "宛先不明", reply: "返事", nochange: "特変なし", assign: "配属" };
@@ -3240,7 +3240,7 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
 
   // ---- 起動 ----
   function intro() {
-    say("空欄 ver2", "title");
+    say("空欄_2", "title");
     gap();
     say(LOOP.n ? "「ここ、どこ？」……前にも、同じことを訊いた気がする。" : "「ここ、どこ？」", "voice");
     say("白い天井。蛍光灯のカバーの中に、羽虫の影がいくつも溜まっている。");

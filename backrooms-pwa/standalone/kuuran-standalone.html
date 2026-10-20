@@ -1040,7 +1040,7 @@ body.fx-still.fx-shock #app,body.fx-still.fx-shock2 #app,body.fx-still.fx-jitter
     const base = { n: 0, echo: [], endings: [], runs: 0, deep: 0 };
     try {
       const v = JSON.parse(localStorage.getItem(KEY + ".loop") || "null");
-      // v: 4 は、空欄 ver2 を一時この場所で遊んだときの記録。こちらのものではないので使わない
+      // v: 4 は、空欄_2 を一時この場所で遊んだときの記録。こちらのものではないので使わない
       if (v && typeof v === "object" && v.v !== 4) {
         const out = Object.assign(base, v);
         if (!Array.isArray(out.echo)) out.echo = [];

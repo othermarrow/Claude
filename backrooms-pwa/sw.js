@@ -1,7 +1,7 @@
 /* 階層目録：オフラインでも開けるようにする。
    まずネットワーク（Termux のサーバー）から取り、取れないときは前に取っておいたものを返す。
    ファイルを足したら FILES に足し、VERSION を上げる。 */
-const VERSION = "kaisou-v10";
+const VERSION = "kaisou-v11";
 const FILES = [
   "./",
   "./index.html",
@@ -16,7 +16,11 @@ const FILES = [
   "./games/yacho.html",
   "./games/miteiko.html",
   "./games/kuuran2.html",
+  "./games/liminal.html",
+  "./games/boudai-text.html",
 ];
+// 膨大な量のテキストの手もとの棚（games/boudai-local.js）は、ない人もいるので FILES に入れない。
+// あれば、開いたときに下の fetch で取っておかれる。
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
@@ -51,6 +55,6 @@ self.addEventListener("fetch", e => {
     fetch(req).then(res => {
       if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
       return res;
-    }).catch(() => caches.match(req, { ignoreSearch: true }).then(hit => hit || caches.match("./index.html")))
+    }).catch(() => caches.match(req, { ignoreSearch: true }).then(hit => hit || (req.mode === "navigate" ? caches.match("./index.html") : new Response("", { status: 504 }))))
   );
 });
