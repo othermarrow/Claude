@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>階層目録</title>
 <meta name="theme-color" content="#0d0c07">
-<meta name="description" content="Backrooms のテキストアドベンチャー5本を選んで遊ぶ">
+<meta name="description" content="Backrooms のテキストアドベンチャー6本を選んで遊ぶ">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -159,7 +159,7 @@ body #fx-truism { top: auto; bottom: calc(1em + env(safe-area-inset-bottom, 0px)
   <details>
     <summary>もとにしたもの・ライセンス</summary>
     <p>The Backrooms は、2019年に匿名掲示板 4chan へ投稿された一枚の写真（黄色い壁紙の、がらんとした部屋）と、「現実からすり抜けて（ノークリップして）落ちると、ここに出る」という短い書きこみから広まった共同創作です。2022年からは Kane Pixels による映像シリーズでも知られるようになりました。</p>
-    <p>記録 01〜04 は、共同創作 The Backrooms と Backrooms Wiki（https://backrooms-wiki.wikidot.com/ ）の設定・記事をもとにした二次創作です。wiki の記事は CC BY-SA 3.0 で公開されており、記事をもとにした部分もそれに従います（https://creativecommons.org/licenses/by-sa/3.0/ ）。</p>
+    <p>記録 01〜04 と 06 は、共同創作 The Backrooms と Backrooms Wiki（https://backrooms-wiki.wikidot.com/ ）の設定・記事をもとにした二次創作です。wiki の記事は CC BY-SA 3.0 で公開されており、記事をもとにした部分もそれに従います（https://creativecommons.org/licenses/by-sa/3.0/ ）。</p>
     <p>記録 05「未定稿」は、利用者が書いてきた物語の中身を言い換えて組み、テキストアドベンチャー Zork I の骨組み（郵便受け・家・飾り棚・跳ね上げ戸・迷路・灯り・泥棒）に倣ったものです。Zork の文章は使っていません。黄色い部屋だけは Backrooms Wiki「Level 0」の設定を借りています。</p>
     <p>使った記事と作者の一覧は、リポジトリの <code>backrooms-pwa/README.md</code> にあります。</p>
     <ul id="credit-list"></ul>
@@ -185,6 +185,8 @@ body #fx-truism { top: auto; bottom: calc(1em + env(safe-area-inset-bottom, 0px)
       p: "見たものを、ただ書きとめる。" },
     { id: "miteiko", file: "games/miteiko.html", no: "記録 05", ja: "未定稿", en: "UNREVISED", lv: 5, c: "#ff9f5a",
       p: "古い家の下に、書きかけの迷宮。結末は、まだ書かれていない。" },
+    { id: "kuuran2", file: "games/kuuran2.html", no: "記録 06", ja: "空欄 ver2", en: "BLANK v2", lv: "white", c: "#e8f0ff",
+      p: "白い部屋。欄を埋めるのは、誰の字か。" },
   ];
   const read = k => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } };
   const has = k => { try { return localStorage.getItem(k) != null; } catch (e) { return false; } };
@@ -346,7 +348,7 @@ body #fx-truism { top: auto; bottom: calc(1em + env(safe-area-inset-bottom, 0px)
 
   if (window.FX) {
     FX.level(0, { mode: "wire" });
-    FX.tags(["[記録 01]", "[記録 02]", "[記録 03]", "[記録 04]", "[記録 05]", "[目的：未記入]", "M.E.G.", "[クラス ?]", "[通信途絶]", "Lv.0 → Lv.?", "[到達者 0]"]);
+    FX.tags(["[記録 01]", "[記録 02]", "[記録 03]", "[記録 04]", "[記録 05]", "[記録 06]", "[目的：未記入]", "M.E.G.", "[クラス ?]", "[通信途絶]", "Lv.0 → Lv.?", "[到達者 0]"]);
   }
   render();
   scope();

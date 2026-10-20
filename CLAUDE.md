@@ -23,6 +23,7 @@
 | `gh-reader/` | Balance 2 で GitHub のフォルダ・Markdown を読むミニアプリ（Zepp OS） |
 | `research_bot/` | テーマ文から文献を集め、抄録カタログを作るツール |
 | `zork-ja/` | 英語版 Zork I を Termux で日本語で遊ぶためのラッパー |
+| `zork-ja-pwa/` | ZORK I 日本語版の PWA（Termux の `localhost:8090` で配る。`serve.sh`） |
 | `zork-watch/` | Zork I を Balance 2 の中だけで動かすミニアプリ（日英表示・英語入力） |
 | `tane-wo-niru/` | 黄色い部屋から下へ降りていくサイコホラーのテキストアドベンチャー「降下記録」（HTML 一枚） |
 | `kuuran/` | 白い部屋で目を覚ます、目的の書かれていないテキストアドベンチャー「空欄」（HTML 一枚） |
@@ -30,7 +31,7 @@
 | `noclip/` | 本家 Backrooms の設定（レベル・実体・M.E.G.・アーモンド水）で一から作ったテキストアドベンチャー「ノークリップ」（HTML 一枚） |
 | `yacho/` | Backrooms Wiki の記事をもとに、出会うものを観察して野帳に書きとめていくテキストアドベンチャー「野帳」（HTML 一枚、CC BY-SA 3.0） |
 | `yacho-watch/` | 「野帳」を Balance 2 の中だけで動かすミニアプリ（Zepp OS、全部タップで遊ぶ、振動つき） |
-| `backrooms-pwa/` | 「階層目録」：降下記録・空欄・ノークリップ・野帳を強化し、物語から作った新作「未定稿」（Zork + Backrooms）を足して、起動画面から選べるようにした PWA（Chrome でインストール、Termux の localhost で配る） |
+| `backrooms-pwa/` | 「階層目録」：降下記録・空欄・ノークリップ・野帳を強化し、物語から作った新作「未定稿」（Zork + Backrooms）と、空欄の物語を書き直した「空欄 ver2」を足して、起動画面から選べるようにした PWA（Chrome でインストール、Termux の localhost で配る） |
 
 新しいプロジェクトを足したら、この表も更新する。
 
