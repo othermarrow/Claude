@@ -258,7 +258,7 @@ body.typing #pad { display: none; }
   const logEl = $("log"), screenEl = $("screen"), cmdEl = $("cmd");
   const KEY = "bpwa.boudai.state", LOOP_KEY = KEY + ".loop", SND_KEY = KEY + ".sound", META_KEY = "bpwa.boudai.meta";
   const CAT_KEY = "bpwa.boudai.catalog", WORKS_KEY = "bpwa.boudai.works";
-  const VERSION = 1;
+  const VERSION = 2;   // 2：層を6から12に増やした（古い保存は読まない）
   const Q = new URLSearchParams(location.search);
   // 青空文庫のリポジトリ。raw が駄目なら jsDelivr を試す。?base= で差し替えられる（確かめる用）
   const BASES = Q.get("base") ? [Q.get("base")] : [
@@ -502,8 +502,15 @@ body.typing #pad { display: none; }
   let pending = {};
   let LOOP = { n: 0, endings: {}, last: null };
 
-  const KANJI_NUM = ["〇", "一", "二", "三", "四", "五", "六", "七"];
-  const floorName = n => n === 7 ? "末尾" : `第${KANJI_NUM[n]}層`;
+  const BOT = 12, LAST = 13;   // 降りられる最後の層、そして奥付
+  const KANJI_NUM = ["〇", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二", "十三"];
+  const floorName = n => n === LAST ? "末尾" : `第${KANJI_NUM[n]}層`;
+  // 表示だけがずれる（中身の階は変わらない）。深いほど、よく間違える
+  const shownFloor = n => (n >= 2 && n < LAST && Math.random() < Math.min(0.5, 0.05 * (n - 1))) ? floorName(1 + Math.floor(Math.random() * 12)) : floorName(n);
+  const ODD = ["蛍光灯の音がする。ここに蛍光灯はない。", "この部屋には、さっきも来た。さっきは、来ていない。", "壁の紙の継ぎ目が、少しだけ動いた。",
+    "足音が、あなたより一歩あとから聞こえる。", "行き止まりだと思った場所に、昨日の自分が立っている。昨日は、まだ来ていない。",
+    "天井の高さが、読むたびに変わる。", "同じ行を三度読んだ。三度とも、違う行だった。", "ここは、さっき出た部屋の隣のはずだ。隣には、何もなかった。",
+    "湿った紙の匂い。それから、新品のカーペットの匂い。", "どこかで、誰かが何かを数えている。数がひとつ、足りない。"];
   const DIRS = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] };
   const OPP = { n: "s", s: "n", e: "w", w: "e" };
   const DIR_JA = { n: "北", s: "南", e: "東", w: "西", u: "上", d: "下" };
@@ -625,12 +632,24 @@ body.typing #pad { display: none; }
     6: ["音がない。頁の増える音だけが、まわりじゅうから聞こえる。", "ここの頁は、どれも開かない。厚すぎて、綴じ目まで指が届かない。",
       "床が紙でできている。踏むと、下の層の文字が透けて見える。その下にも、まだある。", "この先に、最後の一行がある気がする。気がするだけだ。",
       "ここまで降りてきた人のランプの煤が、頁の上に何本も残っている。煤は、途中で途切れている。"],
+    7: ["壁紙の継ぎ目が、文の継ぎ目と同じ場所にある。どちらも、少しずつずれていく。", "湿った黄色い紙。蛍光灯の音がする。蛍光灯は、どこにもない。",
+      "ここは、さっきの部屋に似ている。さっきの部屋は、ここに似ていた。", "床に敷かれたカーペットが、頁の形に毛羽立っている。踏むと、読み上げる声が小さく鳴る。"],
+    8: ["廊下が、頁の幅ぶんだけ続く。幅は、読むたびに変わる。", "天井が低い。手を伸ばすと、指先が文字に埋まる。引き抜くと、指に墨ではなく、ほこりがついている。",
+      "同じ形の部屋が、扉も窓もなく、いくつも並んでいる。どれも、あなたが先に来たことになっている。", "壁の紙が、剥がれたところから、もう一枚の壁紙が覗いている。その下も、壁紙だ。"],
+    9: ["照明の下で、影が二つできる。もう一つは、読み終わった側にできている。", "角を曲がるたびに、同じ匂いがする。古い紙と、湿ったカーペットと、誰かの手の匂い。",
+      "遠くで、頁をめくる音と、同じ間隔の足音が重なる。足音は、あなたのものではない。", "壁に「出口」と書いた紙が貼ってある。矢印は、紙の外を指している。"],
+    10: ["どこまでも続く部屋。部屋の数を数えようとすると、数が、先に進んでいる。", "床の模様が、文字になりかけては、ほどける。読めたことは、一度もない。",
+      "ここには、何も書かれていない頁だけが、いくつもある。白紙のほうが、うるさい。", "あなたの名前が、壁に控えめに書いてある。誰かが、書き写している途中のようだ。"],
+    11: ["同じ廊下を、もう歩いた気がする。歩いた覚えはない。気がする、だけがある。", "照明が一つだけ点いている。照らされた部分だけ、文字が増えていない。",
+      "壁の向こうで、誰かが読み上げている。ほとんど、あなたの知っている文だ。", "ここまで降りてきたことは、もう誰も覚えていない。あなたも、少し怪しい。"],
+    12: ["行き止まりのはずが、廊下は続いている。続いているはずが、行き止まりに見える。", "何もない。壁も、床も、頁も、ある。それでも、何もない。",
+      "最後の層だ。層は、最後に来るまで、最後と言わない。", "壁紙の継ぎ目に、小さな字で、奥付、と書いてある。見るたびに、字が小さくなる。"],
   };
   const DARK_LINES = ["暗い。手を伸ばすと、紙の背に触れる。何も読めない。", "真っ暗だ。紙の匂いだけが、さっきより濃い。",
     "暗闇のなかで、どこかの頁がめくれる音がした。", "目を開けているのか閉じているのか、分からない。"];
 
   function makeFloor(n, main, extras) {
-    const count = n === 1 ? 5 : 5 + rnd(3);
+    const count = n === 1 ? 5 : 5 + rnd(3) + Math.floor(n / 4);
     const ex = layout(count);
     const used = new Set();
     const books = [main, ...extras].map(w => ({ t: w.t, a: w.a, d: w.d }));
@@ -674,7 +693,7 @@ body.typing #pad { display: none; }
   }
 
   function makeColophon() {
-    return { n: 7, books: [], start: 0, door: null, rooms: [{ ex: {}, nm: "最後の頁", at: 0, ss: [], src: [], w: [], burned: false, seen: false }] };
+    return { n: LAST, books: [], start: 0, door: null, rooms: [{ ex: {}, nm: "最後の頁", at: 0, ss: [], src: [], w: [], burned: false, seen: false }] };
   }
 
   function addQuotes(w) {
@@ -741,7 +760,7 @@ body.typing #pad { display: none; }
     showUnread();
   }, 1000);
   async function prepareFloor(n) {
-    if (n >= 7) return makeColophon();
+    if (n >= LAST) return makeColophon();
     if (!catalog && catalogP) catalog = await catalogP;
     const main = await getWork(true);
     if (!main) { S.offline = true; return makeFloor(n, BLANK, []); }
@@ -751,7 +770,7 @@ body.typing #pad { display: none; }
     return makeFloor(n, main, extras);
   }
   function prefetch(n) {
-    if (n > 7 || S.floors[n] || pending[n]) return;
+    if (n > LAST || S.floors[n] || pending[n]) return;
     const owner = S;
     pending[n] = prepareFloor(n).then(f => { if (S === owner && !S.floors[n]) S.floors[n] = f; return f; }).catch(() => null);
   }
@@ -775,7 +794,7 @@ body.typing #pad { display: none; }
   // 深く降りるほど、暗いほど、×が近いほど、字が崩れる
   function rot() {
     if (!S || S.phase !== "play") return 0;
-    return Math.max(0, 0.015 * (S.floor - 1) + (S.lamp < 25 ? 0.04 : 0) + (redDist() <= 1 ? 0.08 : 0) + S.catches * 0.025);
+    return Math.max(0, Math.min(0.2, 0.015 * (S.floor - 1)) + (S.lamp < 25 ? 0.04 : 0) + (redDist() <= 1 ? 0.08 : 0) + S.catches * 0.025);
   }
   function corrupt(t, lv) {
     if (!lv) return t;
@@ -806,7 +825,7 @@ body.typing #pad { display: none; }
     return true;
   }
 
-  // 階層目録の起動画面の札に出す要約。終わり方は7つ
+  // 階層目録の起動画面の札に出す要約。終わり方は7つ（層は12＋末尾）
   let metaFloor = -1;
   function writeMeta() {
     let deep = 0;
@@ -820,16 +839,16 @@ body.typing #pad { display: none; }
     if (!S) return;
     if (S.floor !== metaFloor) { metaFloor = S.floor; writeMeta(); }
     showUnread();
-    $("room").textContent = S.phase === "play" || S.phase === "end" ? (F() ? R().nm : "膨大な量のテキスト") : "膨大な量のテキスト";
+    $("room").textContent = S.phase === "play" || S.phase === "end" ? (F() ? ((S.floor >= 2 && S.floor < LAST && Math.random() < 0.15) ? pick(ROOM_NAMES) : R().nm) : "膨大な量のテキスト") : "膨大な量のテキスト";
     const sc = $("score");
     sc.textContent = "";
     if (!S.floor) return;
     const lamp = document.createElement("span");
-    lamp.textContent = S.floor === 7 ? "灯 —" : `灯${S.lamp}`;
-    if (S.floor < 7 && S.lamp <= 20) lamp.className = "hot";
-    sc.append(floorName(S.floor) + "　", lamp, "　" + nameShown());
-    document.body.classList.toggle("dark", S.phase === "play" && S.floor < 7 && S.lamp <= 0);
-    document.body.style.setProperty("--lamp", String(S.phase !== "play" ? 1 : S.floor === 7 ? 0.6 : Math.max(0, S.lamp) / 100));
+    lamp.textContent = S.floor === LAST ? "灯 —" : `灯${S.lamp}`;
+    if (S.floor < LAST && S.lamp <= 20) lamp.className = "hot";
+    sc.append(shownFloor(S.floor) + "　", lamp, "　" + nameShown());
+    document.body.classList.toggle("dark", S.phase === "play" && S.floor < LAST && S.lamp <= 0);
+    document.body.style.setProperty("--lamp", String(S.phase !== "play" ? 1 : S.floor === LAST ? 0.6 : Math.max(0, S.lamp) / 100));
     document.body.classList.toggle("near", S.phase === "play" && redDist() <= 1);
     for (const b of document.querySelectorAll("[data-go]")) {
       const d = b.dataset.go;
@@ -890,7 +909,7 @@ body.typing #pad { display: none; }
     update() {
       if (!this.ctx || !S) return;
       const t = this.ctx.currentTime, on = this.on && S.phase === "play";
-      const dark = S.lamp <= 0 || S.floor === 7;
+      const dark = S.lamp <= 0 || S.floor === LAST;
       this.droneGain.gain.setTargetAtTime(on ? (dark ? 0.12 : 0.05 + 0.01 * S.floor) : 0, t, 0.8);
       this.airGain.gain.setTargetAtTime(on && !dark ? 0.006 + (redDist() <= 1 ? 0.03 : 0) : 0, t, 0.5);
     },
@@ -900,9 +919,9 @@ body.typing #pad { display: none; }
   const buzz = p => { try { if (Snd.on && navigator.vibrate) navigator.vibrate(p); } catch (e) { /* 振動なし */ } };
 
   // ---- 伏字（×）----
-  const coolFor = n => n >= 6 ? 1 : n >= 4 ? 2 : 3;
+  const coolFor = n => n >= 9 ? 1 : n >= 5 ? 2 : 3;
   function setupRed() {
-    if (S.floor < 2 || S.floor >= 7) { S.red = null; return; }
+    if (S.floor < 2 || S.floor >= LAST) { S.red = null; return; }
     S.red = { room: redSpot(), cool: coolFor(S.floor) + 1 };
   }
   // ×の置き場所。扉の部屋には置かない（扉の前で待ち伏せされると降りられない）
@@ -1011,7 +1030,7 @@ body.typing #pad { display: none; }
   function describe(full) {
     const r = R();
     say(r.nm, "title");
-    if (S.floor === 7) { colophon(); return; }
+    if (S.floor === LAST) { colophon(); return; }
     if (S.lamp <= 0) { say(pick(DARK_LINES)); exitsLine(); return; }
     say(atmos(r));
     if (r.burned) say("足もとに、焼けた頁の灰。その上に、もう新しい頁が積もりはじめている。");
@@ -1032,7 +1051,7 @@ body.typing #pad { display: none; }
 
   // ---- 時間が進む ----
   function drain(cost) {
-    if (S.floor >= 7) return;
+    if (S.floor >= LAST) return;
     const was = S.lamp;
     S.lamp = Math.max(0, S.lamp - cost);
     if (S.lamp <= 20 && was > 20 && !S.warnedLow) { S.warnedLow = true; say("ランプの油が残り少ない。火が細く揺れる。", "warn"); }
@@ -1045,7 +1064,7 @@ body.typing #pad { display: none; }
     }
   }
   function chaos() {
-    if (S.floor >= 7 || !chance(0.05 + 0.02 * S.floor)) return;
+    if (S.floor >= LAST || !chance(0.05 + 0.015 * S.floor)) return;
     const r = R();
     const k = rnd(7);
     if (k === 6) { avalanche(); return; }
@@ -1066,7 +1085,8 @@ body.typing #pad { display: none; }
     } else if (k === 4 && S.quotes.length) {
       say(`頁の向こうで、誰かが言った。「${pick(S.quotes)[0]}」`, "voice");
       say("覗いても、誰もいない。", "note");
-    } else say(pick(["背中の頁の山から、誰かの視線。振り向いても、文字が積もっているだけだ。", "ランプの火が、一瞬、青く揺れた。", "遠くで、誰かが頁をめくった。あなたより先に、ここを読んでいる。"]), "note");
+    } else if (chance(0.5)) say(pick(ODD), "note");
+    else say(pick(["背中の頁の山から、誰かの視線。振り向いても、文字が積もっているだけだ。", "ランプの火が、一瞬、青く揺れた。", "遠くで、誰かが頁をめくった。あなたより先に、ここを読んでいる。"]), "note");
   }
   // 頁の雪崩。積もったテキストが、いっぺんに降ってくる
   function avalanche() {
@@ -1083,7 +1103,7 @@ body.typing #pad { display: none; }
   function tick(kind) {
     if (S.phase !== "play") return;
     S.turn++;
-    drain(kind === "move" ? 3 + S.floor : 1);
+    drain(kind === "move" ? 2 + Math.ceil(S.floor / 2) : 1);
     if (S.phase !== "play") return;
     redTurn();
     if (S.phase !== "play") return;
@@ -1127,12 +1147,13 @@ body.typing #pad { display: none; }
   function hint() {
     const f = F();
     S.hints++;
-    if (S.floor === 7) return "最後の頁の空欄に、何かを書く（拾った言葉でも、自分の名前でも）。待ってもいい。燃やしてもいい。どれを選んでも、ここで終わる。";
+    if (S.floor === LAST) return "最後の頁の空欄に、何かを書く（拾った言葉でも、自分の名前でも）。待ってもいい。燃やしてもいい。どれを選んでも、ここで終わる。";
     if (S.lamp <= 0) return "暗い。頁を燃やせば、しばらく明るくなる。ただし、燃やした頁はもう読めない。";
     if (redDist() <= 1) return "×が近い。「隠れる」でやり過ごせる。声を出すと、寄ってくる。";
     const d = f.door, here = bfs(f, S.room);
     const toward = r => here.first[r] ? DIR_JA[here.first[r]] : "";
     if (d.solved) return S.room === d.room ? "扉は開いている。「下」へ。" : `扉の部屋へ戻って「下」へ。扉は${toward(d.room)}のほう。`;
+    if (chance(0.6)) return pick(["下は、上と同じ方向にある。", "扉は、探すと逃げる。探さないと、背中にある。", "読むほど、読んでいない量が増える。", "ここは何層目か、と考えると、分からなくなる。", "床を信用しなくていい。", "答えは、頁の外に書いてある。頁の外は、頁だ。", "道は、歩いた分だけ短くなって、歩いた分だけ遠くなる。", "同じ部屋に、二度入ると、二度目は別の部屋だ。"]);
     if (!d.seen) return "この層のどこかに、下へ降りる扉がある。頁を読みながら、奥へ。灯は動くたびに減る。";
     if (d.any) return "扉は、何を書いても開く。拾った言葉を、扉の前で「書く」。";
     if (S.inv.includes(d.key)) return "扉の□に入る言葉を、もう持っている。扉の前で「書く」。";
@@ -1158,6 +1179,16 @@ body.typing #pad { display: none; }
         const to = r.ex[o];
         if (to === undefined) { say(S.lamp <= 0 ? "手が紙の壁にぶつかった。そっちには行けない。" : "頁の山にふさがれている。"); return null; }
         S.room = to;
+        // 歩いた先が、見えていた先と合わないことがある
+        if (S.floor < LAST && chance(Math.min(0.4, 0.1 + 0.02 * S.floor))) {
+          const others = F().rooms.map((x, i) => i).filter(i => i !== S.room);
+          if (others.length) { S.room = pick(others); if (chance(0.5)) say(pick(ODD), "note"); }
+        }
+        // 足もとが抜ける（ノークリップ）
+        if (S.floor < BOT && chance(0.025)) {
+          say("踏んだ頁が、床ではなかった。", "warn");
+          return "descend";
+        }
         Snd.page();
         gap();
         describe(false);
@@ -1166,8 +1197,8 @@ body.typing #pad { display: none; }
       }
       case "look": describe(true); return null;
       case "read": {
-        const what = o || (S.floor === 7 ? "colophon" : "page");
-        if (what === "colophon" || S.floor === 7) { colophon(); return "time"; }
+        const what = o || (S.floor === LAST ? "colophon" : "page");
+        if (what === "colophon" || S.floor === LAST) { colophon(); return "time"; }
         if (S.lamp <= 0) { say("暗くて、一字も読めない。"); return "time"; }
         if (what === "door") {
           if (!d || d.room !== S.room) { say("ここに扉はない。"); return null; }
@@ -1196,7 +1227,7 @@ body.typing #pad { display: none; }
       case "drop": {
         if (!S.inv.includes(o)) { say(`「${o}」を持っていない。`); return null; }
         S.inv = S.inv.filter(w => w !== o);
-        if (S.floor < 7 && !r.burned) r.w.push(o);
+        if (S.floor < LAST && !r.burned) r.w.push(o);
         say(`「${o}」を床に置いた。`);
         return "time";
       }
@@ -1204,7 +1235,7 @@ body.typing #pad { display: none; }
         if (!o) { say("何を書く？"); return null; }
         const isName = o === "@name";
         if (!isName && !S.inv.includes(o)) { say(`「${o}」を持っていない。`); return null; }
-        if (S.floor === 7) {
+        if (S.floor === LAST) {
           if (isName) ending("in");
           else ending(o.includes("青") ? "ao" : "teihon", o);
           return null;
@@ -1218,7 +1249,7 @@ body.typing #pad { display: none; }
             say(`□に「${o}」を書きこんだ。文が、ひとつながりになる。`);
             say("紙の扉が、内側へめくれた。下の層へ降りる斜面がある。", "title");
             Snd.door();
-          } else if (chance(0.08)) {
+          } else if (chance(0.35)) {
             d.solved = true;
             say(`□に「${o}」を書いた。違う字だ。それでも、扉は開いた。正しかったのかどうか、扉も知らない。`);
             Snd.door();
@@ -1250,7 +1281,7 @@ body.typing #pad { display: none; }
       }
       case "call": {
         S.calls++;
-        if (S.floor === 7) { say("「だれか」と呼んだ。\n返事はない。ここまで降りてきた声は、ひとつもない。"); return "time"; }
+        if (S.floor === LAST) { say("「だれか」と呼んだ。\n返事はない。ここまで降りてきた声は、ひとつもない。"); return "time"; }
         say("「だれか」と呼んだ。");
         if (!S.quotes.length || chance(0.25)) say("返事はない。積もった紙が声を吸いこんで、何も返さない。");
         else {
@@ -1264,11 +1295,11 @@ body.typing #pad { display: none; }
         return S.phase === "play" ? "time" : null;
       }
       case "burn": {
-        if (S.floor === 7) { ending("blank"); return null; }
+        if (S.floor === LAST) { ending("blank"); return null; }
         if (r.burned || !r.ss.length) { say("燃やせる頁は、もうない。"); return null; }
         const b = f.books[r.src[0]] || { t: "（題名なし）" };
         r.burned = true; r.ss = []; r.w = [];
-        S.lamp = Math.min(100, S.lamp + 35); S.dark = 0; S.burned++;
+        S.lamp = Math.min(100, S.lamp + 40); S.dark = 0; S.burned++;
         say(`頁をランプにくべた。『${b.t}』の、ここにあった数行が、明るく燃えて消えた。`);
         say("もう誰も、ここを読むことはできない。燃えた分は、テキスト全体から見れば、ないのと同じだ。");
         if (S.burned === 3) say("これで三枚目だ。灯のために、死んだ人の声を燃やしている。", "note");
@@ -1279,11 +1310,11 @@ body.typing #pad { display: none; }
       }
       case "hide": {
         S.hide = true;
-        say(S.floor === 7 ? "隠れる頁の山もない。罫線の枠の外にうずくまる。" : "頁の山のすきまに体を押しこんで、息を止める。");
+        say(S.floor === LAST ? "隠れる頁の山もない。罫線の枠の外にうずくまる。" : "頁の山のすきまに体を押しこんで、息を止める。");
         return "time";
       }
       case "listen": {
-        if (S.floor === 7) { say("何も聞こえない。頁の外の音は、ここまで届かない。"); return "time"; }
+        if (S.floor === LAST) { say("何も聞こえない。頁の外の音は、ここまで届かない。"); return "time"; }
         const dist = redDist();
         if (!S.red || dist === Infinity) say("頁の増える音だけがする。どこからともなく、絶え間なく。ほかには、自分の呼吸だけ。");
         else {
@@ -1296,7 +1327,7 @@ body.typing #pad { display: none; }
         return "time";
       }
       case "wait": {
-        if (S.floor === 7) {
+        if (S.floor === LAST) {
           S.waits++;
           const L = ["待った。誰も来ない。", "待った。この欄を埋めにくる人は、まだ来ない。", "待った。罫線の外が、少し暗くなった。"];
           if (S.waits >= 4) { ending("wait"); return null; }
@@ -1308,14 +1339,14 @@ body.typing #pad { display: none; }
       }
       case "inv": {
         say(S.inv.length ? "持っている言葉：" + S.inv.map(w => `「${w}」`).join("") : "持っている言葉は、ない。");
-        say(S.floor === 7 ? "ランプ（もう要らない）" : `ランプ（灯${S.lamp}）`);
+        say(S.floor === LAST ? "ランプ（もう要らない）" : `ランプ（灯${S.lamp}）`);
         say(`名前：${nameShown()}`);
         say(`読んだ字数：${fmt(S.readChars)}字　未読：${fmt(S.unread)}字`, "note");
         return null;
       }
       case "hint": say(hint(), "note"); return null;
       case "help":
-        say("十字キーで動く。「命令を作る」で、動詞 → 言葉（物）を選ぶ。\n頁に書かれた言葉を拾い、扉の文の□に書くと、下へ降りられる。\n灯は動くたびに減る。頁を燃やすと灯が戻る。燃やした頁は戻らない。\n×（伏字）が近づいたら「隠れる」。声を出すと、×は寄ってくる。\n上の帯の「未読」は、ここに積もっているテキストの字数。読んでも、増えるほうが速い。", "note");
+        say("十字キーで動く。「命令を作る」で、動詞 → 言葉（物）を選ぶ。\n頁の言葉を拾い、扉の□に書くと、下へ降りられることがある。降りられないこともある。足もとが抜けて落ちることもある。\n歩いた先が、見えていた先と合わないことがある。層の数も、部屋の名前も、合わないことがある。気にしても、合わない。\n灯は動くたびに減る。頁を燃やすと灯が戻る。燃やした頁は戻らない。\n×（伏字）が近づいたら「隠れる」。声を出すと、×は寄ってくる。\n上の帯の「未読」は、ここに積もっているテキストの字数。読んでも、増えるほうが速い。", "note");
         return null;
       case "exit": say("出口は、目録に載っていない。"); return null;
     }
@@ -1334,7 +1365,7 @@ body.typing #pad { display: none; }
       scrollDown();
       try { f = await (pending[next] || prepareFloor(next)); } catch (e) { f = null; }
       if (S !== owner) return;
-      if (!f) f = next >= 7 ? makeColophon() : makeFloor(next, BLANK, []);
+      if (!f) f = next >= LAST ? makeColophon() : makeFloor(next, BLANK, []);
     }
     busy = false; document.body.classList.remove("busy");
     delete S.floors[S.floor];
@@ -1343,13 +1374,14 @@ body.typing #pad { display: none; }
     setupRed();
     gap();
     say(floorName(next), "title");
-    if (next === 7) say("テキストが、尽きた。いちばん底に、頁が一枚だけ敷いてある。");
+    if (next === LAST) say("テキストが、尽きた。いちばん底に、頁が一枚だけ敷いてある。");
     else if (next === 6) say("ここが最後の層だと、なぜか分かる。");
-    if (next < 7) say(`未読、${fmt(S.unread)}字。`, "note");
+    else if (next === 9) say("ここが最後の層だと、前にも思った。");
+    else if (next === BOT) say("ここが最後の層だと、今度は本当に分かる。本当だった、と、あとで思う。");
+    if (next < LAST) say(`未読、${fmt(S.unread)}字。`, "note");
     gap();
     describe(false);
-    if (next < 6) prefetch(next + 1);
-    else if (next === 6) prefetch(7);
+    if (next < LAST) prefetch(next + 1);
   }
 
   // ---- 日本語の命令を読む ----
@@ -1449,6 +1481,7 @@ body.typing #pad { display: none; }
     cmdEl.value = "";
     if (S && S.phase === "name") { nameEntered(v); return; }
     if (!v.trim()) return;
+    if (S && !S.floors[S.floor]) return;   // 最初の層をまだ取ってきているあいだは、命令を受けない
     act(parse(v), v.trim());
   });
   const PAD_CMD = { look: "見る", read: "読む", inv: "持ち物", listen: "耳をすます", hide: "隠れる", wait: "待つ", hint: "わからない" };
@@ -1474,16 +1507,16 @@ body.typing #pad { display: none; }
     const f = F(), r = R(), d = f.door, inv = S.inv.map(w => [`「${w}」`, w]);
     const name = ["自分の名前", "@name"];
     if (v === "read") {
-      if (S.floor === 7) return [["奥付", "colophon"]];
+      if (S.floor === LAST) return [["奥付", "colophon"]];
       const a = [["頁", "page"]];
       if (d && d.room === S.room) a.push(["扉", "door"]);
       return a;
     }
-    if (v === "take") return S.floor === 7 ? [] : inRoomWords().map(w => [`「${w}」`, w]);
+    if (v === "take") return S.floor === LAST ? [] : inRoomWords().map(w => [`「${w}」`, w]);
     if (v === "write") return inv.concat([name]);
     if (v === "say") return inv.concat([name]);
     if (v === "drop") return inv;
-    if (v === "burn") return S.floor === 7 ? [["奥付", "colophon"]] : r.burned || !r.ss.length ? [] : [["頁", "page"]];
+    if (v === "burn") return S.floor === LAST ? [["奥付", "colophon"]] : r.burned || !r.ss.length ? [] : [["頁", "page"]];
     return [];
   }
   const JA_FORM = { read: "%を読む", take: "%を拾う", write: "%を書く", say: "%と言う", drop: "%を捨てる", burn: "%を燃やす" };
