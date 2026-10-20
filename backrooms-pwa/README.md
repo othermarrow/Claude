@@ -59,7 +59,7 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 | `fx.js` | 共通の演出。蛍光灯のうなりと階層ごとの環境音（15種）、効果音（20種）、鼓動、背景の線画（13星座・波形・海・洞窟の雫・住宅地・麦畑・街など）、走査線、ネオンの格言、揺れ、閃光、停電、記録映像ふうの表示、bytebeat の音、振動（タップしたときの音は出さない） |
 | `games/*.html` | 8本のゲーム。どれも HTML 一枚。記録 01〜06 は `../fx.js` を読む（読めなくても遊べる）。07・08 は演出を中に持っている |
 | `games/boudai-local.js` | 膨大な量のテキストの「手もとの棚」。`make-boudai-local.py` が作る生成物で、コミットしない（`.gitignore`）。なければ GitHub の青空文庫から取る |
-| `make-boudai-local.py` | Obsidian の Vault2 にある青空文庫の本から、手もとの棚を作る（下の「膨大な量のテキスト」） |
+| `make-boudai-local.py` | SD カードの Vault2（`/storage/EFD7-F3DE/Vault2`）にある青空文庫の本から、手もとの棚を作る（下の「膨大な量のテキスト」） |
 | `manifest.webmanifest` | アプリの名前・アイコン・色 |
 | `sw.js` | オフラインでも開けるようにする仕組み（Service Worker）。ファイルを足したら `FILES` に足し、`VERSION` を上げる |
 | `icons/` | アイコン（192px、512px、マスク用 512px） |
@@ -326,11 +326,11 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 
 ### 手もとの棚を入れる（Termux）
 
-Vault2 の青空文庫から、100冊ぶんの棚を作って `games/` に書き出す。走らせるたびに、並ぶ本が入れかわる。
+SD カードの Vault2（`/storage/EFD7-F3DE/Vault2`）の青空文庫から、100冊ぶんの棚を作って `games/` に書き出す。走らせるたびに、並ぶ本が入れかわる。
 
 ```sh
 cd ~/othermarrow-Claude/backrooms-pwa
-python make-boudai-local.py /storage/emulated/0/Obsidian/Vault2 games
+python make-boudai-local.py /storage/EFD7-F3DE/Vault2 games
 ```
 
 - できた `games/boudai-local.js` はコミットしない（`.gitignore`）。サーバーを動かしているあいだにアプリで一度開くと、アプリの中にも取っておかれる。

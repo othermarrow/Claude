@@ -2,9 +2,9 @@
 """膨大な量のテキスト：手もとの青空文庫（Obsidian の Vault2 など）から「手もとの棚」を作る。
 
 使い方（Termux。階層目録のフォルダで）:
-    python make-boudai-local.py /storage/emulated/0/Obsidian/Vault2 games
+    python make-boudai-local.py /storage/EFD7-F3DE/Vault2 games
 
-既定は /storage/emulated/0/Obsidian/Vault2 を読み、
+引数なしなら SD カードの /storage/EFD7-F3DE/Vault2 を読み、
 /storage/emulated/0/Download/boudai-local.js に書き出す。
 games/boudai-text.html と同じフォルダ（games/）に boudai-local.js を置くと、ゲームはそちらの本を使う。
 （もとは boudai-text/make-local.py。中身は同じで、使い方の説明だけ階層目録向けに変えた）
@@ -19,7 +19,7 @@ import re
 import sys
 import time
 
-SRC = "/storage/emulated/0/Obsidian/Vault2"
+SRC = "/storage/EFD7-F3DE/Vault2"
 OUT = "/storage/emulated/0/Download"
 MAX_WORKS = 100          # 棚に並べる本の数（多すぎるとゲームの読みこみが重くなる）
 MAX_SENTENCES = 250      # 一冊から残す文の数
@@ -219,7 +219,7 @@ def main():
     src = args[0] if args else SRC
     out = args[1] if len(args) > 1 else OUT
     if not os.path.isdir(src):
-        sys.exit(f"フォルダがない：{src}")
+        sys.exit(f"フォルダがない（SD カードなら、Termux が読める状態か確かめる）：{src}")
     files = []
     for root, dirs, names in os.walk(src):
         dirs[:] = [d for d in dirs if not d.startswith(".")]
