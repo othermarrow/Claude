@@ -6,7 +6,7 @@ Chrome で「インストール」すると、ホーム画面のアイコンか�
 | 札 | ゲーム | ファイル | 状態 |
 |---|---|---|---|
 | 記録 01 | 降下記録 | `games/tane-wo-niru.html` | 強化済み（Level 0〜11） |
-| 記録 02 | 空欄 | `games/kuuran.html` | 強化済み（裏側 7か所、結末 5） |
+| 記録 02 | 空欄 | `games/kuuran.html` | 物語を書き直した版（病棟・校舎・Level 1・Level 7、結末 6） |
 | 記録 03 | ノークリップ | `games/noclip.html` | 強化済み（Level 0〜11・37・Fun・!・433 N、結末 6） |
 | 記録 04 | 野帳 | `games/yacho.html` | 強化済み（Level 0〜11・433 N・444 N、結末 17） |
 | 記録 05 | 未定稿 | `games/miteiko.html` | 新作（地上・地下・黄色い部屋・箱と四つの層・吊り橋・海の底、結末 5） |
@@ -78,7 +78,7 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 | ファイル | Tasker のシーンで開くときの保存先（変数） |
 |---|---|
 | `tane-wo-niru-standalone.html`（降下記録） | `/storage/emulated/0/Tasker/koka/koka-data.json`（`%KOKA`） |
-| `kuuran-standalone.html`（空欄） | `/storage/emulated/0/Tasker/kuuran2/kuuran2-data.json`（`%KUURAN2`） |
+| `kuuran-standalone.html`（空欄） | `/storage/emulated/0/Tasker/kuuran3/kuuran3-data.json`（`%KUURAN3`。書き直す前の版は `kuuran2`） |
 | `noclip-standalone.html`（ノークリップ） | `/storage/emulated/0/Tasker/noclip2/noclip2-data.json`（`%NOCLIP2`） |
 | `yacho-standalone.html`（野帳） | `/storage/emulated/0/Tasker/yacho2/yacho2-data.json`（`%YACHO2`） |
 | `miteiko-standalone.html`（未定稿） | `/storage/emulated/0/Tasker/miteiko/miteiko-data.json`（`%MITEIKO`） |
@@ -122,38 +122,40 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 
 </details>
 
-## 空欄（強化版）
+## 空欄（物語を書き直した版）
 
-- もとの骨組み（白い部屋、613 のファイルと五つの欄、曜日が進むこと、校舎の決まり、インコと公衆電話、体温、日曜の配達員と「613」か「　」）を残したまま、建物と「裏側」を Backrooms Wiki と JP Wiki の設定で作り直した。
-- 白いのは 613 の部屋だけ。扉の外の建物は夜で、病棟・喫煙所・喫茶・校舎・音楽室・屋上・図書室・土手で配色がはっきり変わる。
-- 建物の中：誰ともすれ違わない病棟（孤立効果）、前の人たちの「申し送りノート」、土曜にだけ来る看護師（職員のふりをする Skin-Stealer）、喫煙所の顔のない三人（Facelings）、アーモンドの匂いの水割り、並びに理由のない校舎と二階（JP Level 2 N 風。家庭科室の顔のない子どもたち、図画工作室の笑った風船）。
-- 裏側（すり抜けた先）：Level 37（白いタイルのプール）、Level 4（事務所）、Level 9（夜の住宅地）、Level 11（街）、Level Fun、Level 444 N（夕暮れの田園。バス停）。
-- 体温が上がると鼓動が鳴る。部屋ごとに環境音が変わり、扉・物・配達員のベル・公衆電話・実体の前ぶれに効果音が鳴る。
-- 「わからない」は1日3回までで、聞くたびに体温が上がる。遊び方の説明は操作だけ。結末は5つで、どれが正解かは書いていない。
+- 骨組み（白い部屋 613、入所記録の五つの欄と名前の欄、順番どおりに来ない曜日と切り取られた日曜、校舎の三つの約束、インコと公衆電話、体温、日曜の配達員）は残し、出来事・謎・文章・結末を書き直した。前の版（強化版）の記録は引き継がない（保存の版を 4 にして、はじめからにした）。
+- 五つの欄は「好きなもの」「苦手なもの」「落ち着く場所」「伝え方」「本人の希望」。どれも、病棟と校舎のどこかで、自分で見つけたときに自分の字で埋まる。
+- 記録係：倒れる（熱が 38℃ を越える・冷えきる・何かに捕まる）と、眠っているあいだに、空いた欄を一つ、記録係が他人の字で埋める（「特になし」など）。他人の字は消しゴムで消せる。消すと、前に自分で見つけたことが自分の字で戻る。五つ全部を他人の字で埋められると、結末「特変なし」。
+- 土曜は、記録係が白衣で病棟（廊下・詰所）を歩きまわる。通りすぎるのは見逃してくれるが、同じ場所で二手何かすると捕まる。お守りを持っていれば、見逃してくれる。
+- 校舎の三つの約束：チャイムが鳴ったら席につく（二手以内に「座る」）／名前を呼ばれたら返事をする（声でも、手をあげても、二回叩いてもよい）／わからないときは手をあげる（「手をあげる」の次の手で「わからない」）。一日に三回破ると倒れる。
+- 曜日の出来事：水曜と土曜に配達員が 616 を近道に使う（すぐあとに 616 へ入ると Level 1）。月曜は面会の日。公衆電話は、欄の「伝え方」が埋まるまで毎日鳴る。
+- 裏側：Level 1（倉庫・M.E.G. の前哨基地・灯りの消える搬入口。いるだけで熱がたまる）と Level 7（水没した病室と廊下、水平線のない海。いるだけで体温を取られる）。
+- 部屋ごとに配色・背景・環境音が変わる（病棟・浴室・リネン室・中庭・校舎・保健室・放送室・体育館・用具室・土手・Level 1・Level 7）。
+- 「わからない」は一日三回までで、聞くたびに体温が上がる。遊び方の説明は操作だけ。結末は6つで、どれが正解かは書いていない。
 
 <details>
 <summary>空欄の攻略（ネタばれ）</summary>
 
 | id | 結末 | 条件 |
 |---|---|---|
-| number | 受け取った | 日曜、配達員に「613」と答える |
-| blank | 空欄 | 日曜、配達員に「　」と答える |
-| pool | 浮かぶ | 五つの欄が埋まった状態で 615 → 寝る×2 |
-| face | 顔 | Level 11 の大通りで待つ×3 |
-| dusk | 夕焼け | 五つの欄が埋まったあと、日曜に校舎 → 理科室の前から東 → Level 444 N → 東のバス停 → 座る×2 |
+| number | 番号 | 日曜、配達員に「613」と答える |
+| blank | 空欄 | 日曜、配達員に何も言わない（「」） |
+| unknown | 宛先不明 | 日曜、配達員に「わからない」 |
+| reply | 返事 | 日曜、封筒（か配達員）を二回叩く |
+| nochange | 特変なし | 五つの欄を全部、記録係の字で埋められる |
+| assign | 配属 | Level 1 の前哨基地で反射ベストを着てクリップボードを持ち、無線に「はい」 |
 
-1. 木曜：ベッドを調べる → 北 → 西（申し送りノートを読む）→ 東 → 北 → 西 → 待つ（皆が壁を向く）→ 鍵束を取る → 警備員室の扉を開ける → 北 → DVDプレーヤーを押す → 冷蔵庫を開ける →「エンドロールだけの映画」と言う。
-2. 南 → 東 → 東 → スイッチを押す → 弦を取る → 西 → 南 → 611 の扉を開ける → 蛍光灯を消す → 耳をすます。
-3. 東 → 東 → 東 → 下 → 鉛筆を取る → 上 → 北（校舎で走る・押す・しゃべると怪物が来て、言葉が分かる）→ 東（教室）→ チョークを取る →「おさない」「はしらない」「しゃべらない」と書く → 答案用紙を取る。
-4. 西 → 北 → 東 → ケースを開ける → 弦をバイオリンに入れる → 弾く →「きれい」→「帰る」。
-5. 正面玄関のガラスに額をぶつけて 37.0〜37.4℃ にする → 615 を開ける → 夢を書く（どれでもよい）→ 下。
-6. 詰所で Scroll Lock を押す → 待つ×2 → 返却口の硬貨を取る → 東 → 笑う顔を調べる → 東 → 待つ → 下。
-7. 寝る → 月曜：鏡の破片を取る → 理科室の鍵穴を調べる → のりを取る → パンフレットを折る → 破片を調べる → 寝る。
-8. 水曜：配達員のあとで 616 を開ける → しゃべらない家で皿を食べる → 標識を調べて矢印のとおりに×3 → 売店で硬貨を店番に渡す → 東 → 北 → 詰所で日曜の紙をカレンダーに貼る。
-9. 視聴覚室で質問を3回言う → 食べた料理を言う → 白い部屋で寝る。
-10. 日曜：正面玄関から北 → 配達員に「613」か「　」。
+日曜が来る条件：五つの欄がすべて自分の字で埋まっていて、詰所のカレンダーに日曜の列が貼ってあること。その状態で白い部屋で寝る。
 
-- 寄り道：二階の泣いている子に、光る音符・水筒・硬貨のどれかを渡すと、料理の味を知れる。二階の風船 → Level Fun（裏返しのポスター → Level 4、手すりから下 → Level 37）。土曜の詰所は2手以内に出る。外階段は走って上ると屋上 → 天窓を開ける（熱が下がる）。
+1. 伝え方：渡り廊下で鳴っている公衆電話に出る → 受話器を叩く。月曜の面会の約束をもらう。
+2. 好きなもの：616（リネン室）で乾燥機が止まるまで待つ → 乾燥機を開ける → タオルの匂いを嗅ぐ（止まってから数手のうち。冷めたら閉めて回し直す）。
+3. 苦手なもの：保健室で耳当てを取ってつける → 校舎でチャイムを待つ。耳当てなしでも、チャイムが鳴った次の手で「耳をふさぐ」でよい。閉めた用具室でチャイムを聞いてもよい。
+4. 落ち着く場所：体育館の用具室の引き戸を開けて入る → 内側から閉める → 待つ×2（座る・寝るでもよい）。
+5. 本人の希望：6年13組で出席に返事 → 613の机を開けて鉛筆と消しゴムを取る → 放送室で台本に「本人に聞く」と書く → 翌朝、白い部屋でスピーカーに答える（「外を歩きたい」「名前で呼ばれたい」「ここにいたい」「まだ、わからない」のどれでも。「わからない」もよい）。
+6. 日曜の列：615（浴室）で栓をする → 蛇口をひねる → 待つ×2〜3 → 湯船に入る → 潜る → Level 7 の病室で日曜の列を取る → 上（浴室に戻る）→ 616 で日曜の列を乾燥機に入れて閉め、回して止まるまで待つ → 取り出す → 保健室の引き出しのテープを持って、詰所のカレンダーに貼る。
+7. 寄り道：月曜に面会室で座って待つ → すりガラスを叩く → お守り（記録係から守る）。Level 1 の搬入口の木箱にアーモンド水（熱が下がる）。中庭のベンチ（一日一回、熱が少し下がる）。保健室のベッド（一日一回、熱が下がる）。申し送りノートとインコは、まだ埋まっていない欄の手がかりを言う。
+8. 失敗：校舎の約束を一日三回破る／土曜の白衣の前で二手とどまる／Level 7 で窓を三回見つめる・突き当たりから潜る二回目・冷えきる／Level 1 の搬入口で灯りが消えているあいだに二回動く／熱が 38℃。どれも、翌朝の白い部屋から続けられる（そのたびに欄が一つ、他人の字で埋まる）。
 
 </details>
 
@@ -298,20 +300,12 @@ The Backrooms は、2019年に匿名掲示板 4chan に投稿された黄色い�
 
 | 記事 | 作者（各ページの「Cite this page as」の表記） |
 |---|---|
-| [Level 0 - "Threshold"](https://backrooms-wiki.wikidot.com/level-0) | DivineAtlas, DrAkimoto, and RobertGoerman |
-| [Level 4 - "Abandoned Office"](https://backrooms-wiki.wikidot.com/level-4) | u/M654zy on Reddit |
-| [Level 9 - "The Suburbs"](https://backrooms-wiki.wikidot.com/level-9) | Stretchsterz |
-| [Level 11 - "The City That Never Sleeps"](https://backrooms-wiki.wikidot.com/level-11) | Greggita Mahayfaio, inspired by the original Level 11 by nerdykiddo4884 |
-| [Level 26 - "The SS Fun =)"](https://backrooms-wiki.wikidot.com/level-26) | Robert Goerman and MC_Crafter_24_7 |
-| [Level 37 - "Sublimity"](https://backrooms-wiki.wikidot.com/level-37) | egglord |
-| [Entity 3 - "Smilers"](https://backrooms-wiki.wikidot.com/entity-3) | Palico22, rewritten by Stretchsterz |
-| [Entity 9 - "Facelings"](https://backrooms-wiki.wikidot.com/entity-9) | Original co authors: Jo and Higher Being Love Cereal!. Original collaborators: Backrooms explorers Reddit. Author of first rewrite: 1000dumplings. Author of current rewrite: Nikuchan |
-| [Entity 10 - "Skin-Stealer"](https://backrooms-wiki.wikidot.com/entity-10) | Original author is AndromedaMapping1; Rewritten by 1000dumplings |
-| [Entity 67 - "Partygoers =)"](https://backrooms-wiki.wikidot.com/entity-67) | Robert Goerman and MC_Crafter_24_7 |
+| [Level 1 - "Habitable Zone"](https://backrooms-wiki.wikidot.com/level-1) | Praetor3005 and DivineAtlas |
+| [Level 7 - "Thalassophobia"](https://backrooms-wiki.wikidot.com/level-7) | Bart0nius |
 | [Object 1 - "Almond Water"](https://backrooms-wiki.wikidot.com/object-1) | Natedagreat563 |
 | [The M.E.G.](https://backrooms-wiki.wikidot.com/the-m-e-g) | Greggita Mahayfaio, Natedagreat563, Orb1t41, Poliacci, Positive123, Praetor3005, Robert Goerman, Reyday, Snomwriting and Squibblezombie |
 
-- 空欄で参考にした JP Wiki の記事：「Level 2 N」（https://japan-backrooms-wiki.wikidot.com/level-2-n ）、「Level 444 N」（https://japan-backrooms-wiki.wikidot.com/level-444-n ）。場所の設定だけを借り、文章は使っていない（ライセンスの表記は未確認）。
+- 物語を書き直した版では、場所の設定（コンクリートの倉庫と前哨基地、水没した部屋と水平線のない海、アーモンド水、M.E.G.）だけを借りた。白い部屋・記録係・校舎の約束などは、この版のための創作。書き直す前の版で使った記事（Level 0・4・9・11・26・37、Entity 3・9・10・67、JP Wiki の Level 2 N・444 N）は、今の版では使っていない。
 
 ### ノークリップで使った Backrooms Wiki の記事
 
@@ -369,7 +363,7 @@ The Backrooms は、2019年に匿名掲示板 4chan に投稿された黄色い�
 
 - 起動画面：Playwright（Chromium、幅 390px）で開き、エラーが出ないこと、Service Worker が登録されること、オフラインでも開けること、Chrome がインストールできると判定すること（試験用の画面ではシークレット扱いになるので、その理由だけが出た）を確かめた。
 - 降下記録：Playwright で、5つの結末すべてに命令だけでたどり着けること、Level 0〜11 を全部通ること、21種類の失敗が前ぶれのあとで起き、そのあとも遊び続けられること、ランダムな命令 36,000 回で例外が出ないこと、幅 360px でも ≡ が押せること、古い保存があっても壊れずにはじめからになることを確かめた。
-- 空欄：Playwright で、5つの結末すべてに命令だけでたどり着けること、裏側と新しい部屋を通ること、13種類の失敗が前ぶれのあとで起き、翌朝から続けられること、ランダムな命令 72,000 回で例外が出ないこと、fx.js が読めなくても遊べること、古い保存（一つ前の版）から続きを遊べることを確かめた。
+- 空欄（書き直した版）：Playwright（Chromium、幅 390〜412px）で、6つの結末すべてに命令だけでたどり着けること、五つの欄がそれぞれ自分の字で埋まること、記録係の字が消しゴムで消えて自分の字に戻ること、土曜の白衣・校舎の約束・Level 7 の窓・Level 1 の暗闇で倒れたあとも翌朝から続けられること、ランダムな命令 約 50,000 回（はじめから、と途中の9か所から）で例外が出ないこと、fx.js が読めなくても遊べること、書き直す前の版の保存が残っていても壊れずにはじめからになることを確かめた。
 - ノークリップ：6つの結末すべてに命令だけでたどり着けること（道筋を変えて各結末 250〜300回）、18種類の失敗に前ぶれがあり続けて遊べること、ランダムな命令 75,000 回以上で例外が出ないこと、ゲーム本体（ENGINE）が画面やブラウザの機能に触らないこと、古い保存が壊れないことを確かめた。
 - 未定稿：Playwright（Chromium、幅 390px）で、5つの結末すべてに命令だけでたどり着けること、暗闇で消される・弁の順を間違える・願いを口にする・壁をすり抜ける・立入禁止の扉・小部屋に閉じこめられるなどの失敗のあとも遊び続けられること、回収人が盗んだ物が古本の部屋に移ること、ランダムな命令 72,000 回（地上・地下・箱・各層から始めて）で例外が出ないこと、fx.js がなくても遊べること、起動画面の札に結末の数と最深の層が出ることを確かめた。
 - 野帳：17の結末と 433 N・444 N を通る道筋（20通り）に命令だけでたどり着けること、23種類の失敗に前ぶれがあり続けて遊べること、ランダムな命令 130,000 回で例外が出ないこと、時計版の切り出し（`yacho-watch/tools/build-engine.js`）がこの版でもエラーなく動くことを確かめた（時計版は今も `yacho/yacho.html` から作っている）。
