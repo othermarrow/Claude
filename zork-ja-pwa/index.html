@@ -40,10 +40,45 @@ body[data-pal="white"] {
 
 html, body { height: 100%; }
 [hidden] { display: none !important; }
+/* ---- 場面ごとの背景色。部屋が変わると1.6秒かけて色が移る ---- */
+@property --bg1 { syntax: "<color>"; inherits: true; initial-value: #04070a; }
+@property --bg2 { syntax: "<color>"; inherits: true; initial-value: #0f1c24; }
+@property --bg3 { syntax: "<color>"; inherits: true; initial-value: #0a1a14; }
+body { --bg1: #04070a; --bg2: #0f1c24; --bg3: #0a1a14; transition: --bg1 1.6s ease, --bg2 1.6s ease, --bg3 1.6s ease; }
+body[data-zone="out"]     { --bg1: #020c06; --bg2: #0e3a22; --bg3: #24300a; }
+body[data-zone="house"]   { --bg1: #0d0804; --bg2: #3a240c; --bg3: #2e0f06; }
+body[data-zone="water"]   { --bg1: #01080f; --bg2: #073a58; --bg3: #052c40; }
+body[data-zone="roar"]    { --bg1: #020c12; --bg2: #0e5466; --bg3: #1a4a5e; }
+body[data-zone="machine"] { --bg1: #0b0b03; --bg2: #38340a; --bg3: #3e2200; }
+body[data-zone="holy"]    { --bg1: #08040e; --bg2: #32145a; --bg3: #40300a; }
+body[data-zone="hades"]   { --bg1: #0b0103; --bg2: #440818; --bg3: #24001a; }
+body[data-zone="mine"]    { --bg1: #0e0602; --bg2: #421a07; --bg3: #2e0f02; }
+body[data-zone="maze"]    { --bg1: #07040c; --bg2: #2a1240; --bg3: #0e302a; }
+body.dark                 { --bg1: #000000; --bg2: #070003; --bg3: #180004; }
+body.dying                { --bg1: #140002; --bg2: #4a0010; --bg3: #2a0008; }
+#scene-bg {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+  background:
+    radial-gradient(ellipse 95% 60% at 50% 28%, var(--bg2), transparent 72%),
+    radial-gradient(ellipse 80% 45% at 50% 105%, var(--bg3), transparent 75%),
+    var(--bg1);
+}
+#scene-bg::before {
+  content: ""; position: absolute; inset: -25%;
+  background:
+    radial-gradient(circle at 30% 40%, var(--bg2), transparent 38%),
+    radial-gradient(circle at 72% 64%, var(--bg3), transparent 34%);
+  opacity: .55; mix-blend-mode: screen;
+}
+body.fx-full #scene-bg::before { animation: bgDrift 22s ease-in-out infinite alternate; }
+@keyframes bgDrift {
+  0% { transform: translate(-6%, -4%) rotate(0deg) scale(1); }
+  50% { transform: translate(5%, 3%) rotate(8deg) scale(1.12); }
+  100% { transform: translate(-3%, 6%) rotate(-6deg) scale(1.04); }
+}
 body {
   margin: 0;
-  background: radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--phosphor) 9%, var(--screen)) 0%, var(--screen) 72%);
-  background-color: var(--screen);
+  background: var(--bg1);
   color: var(--phosphor);
   font-family: var(--dot);
   font-size: var(--size);
@@ -194,7 +229,7 @@ body.mode-en .row.tw .en { opacity: 1; }
   position: relative; z-index: 3;
   border-top: 1px solid color-mix(in srgb, var(--phosphor) 55%, transparent);
   box-shadow: 0 -10px 24px -14px var(--glow);
-  background: color-mix(in srgb, var(--screen) 82%, transparent);
+  background: color-mix(in srgb, var(--bg1) 80%, transparent);
   backdrop-filter: blur(3px);
   padding-block: .5em calc(.6em + env(safe-area-inset-bottom, 0px));
 }
@@ -376,6 +411,7 @@ body.fx-mild #card .cj::before, body.fx-mild #card .cj::after { display: none; }
 </style>
 </head>
 <body data-pal="green" class="fx-full mode-both">
+<div id="scene-bg" aria-hidden="true"></div>
 <canvas id="fx-bg" aria-hidden="true"></canvas>
 
 <div id="app">
@@ -494,7 +530,7 @@ body.fx-mild #card .cj::before, body.fx-mild #card .cj::after { display: none; }
       <p>「命令を作る」を押すと、動詞 → 物 → （必要なら）2つ目の物 の順にタップするだけで命令ができます。入力欄には日本語でも英語でも書けます（例：郵便受けを開ける／剣でトロールを攻撃）。文章が打ち出されている途中で画面をタップすると、すぐに全部出ます。</p>
       <p>セーブは1か所に保存され、ロードで戻れます。途中の画面は自動で残り、次に開いたときに続きから遊べます。</p>
       <p>ZORK I © Infocom（MIT ライセンスで公開されたゲームファイルを使用）</p>
-      <p>版 4（2026-10-19）</p>
+      <p>版 5（2026-10-20）</p>
       <button class="key" type="button" id="close-sheet">閉じる</button>
     </div>
   </div>
@@ -1327,7 +1363,9 @@ const Scene = (() => {
   const SEE_INSIDE = [10, 11, 12];
 
   // 命令に使う英単語。ゲームの辞書にある単語だけで名前を作る
+  const WORD_FIX = {"wall with engravings":"engravings","jewel-encrusted egg":"egg","hand-held air pump":"pump","mountain range":"range"};
   function nounWord(zm, name) {
+    if (WORD_FIX[name]) return WORD_FIX[name];
     const words = name.toLowerCase().split(/\s+/).filter(Boolean);
     if (!words.length) return "";
     const ofAt = words.indexOf("of");
@@ -1347,8 +1385,11 @@ const Scene = (() => {
     }
   }
 
-  function findPlayer(zm, room) {
-    for (let c = zm.child(room); c; c = zm.sibling(c)) if (zm.objName(c) === "cretin") return c;
+  function findPlayer(zm, room, depth = 0) {
+    for (let c = zm.child(room); c; c = zm.sibling(c)) {
+      if (zm.objName(c) === "cretin") return c;
+      if (depth < 3) { const p = findPlayer(zm, c, depth + 1); if (p) return p; }
+    }
     return 0;
   }
 
@@ -1668,11 +1709,12 @@ const SND = (() => {
     roar: { roar: 1, water: .5 },
     machine: { hum: 1.4, mach: 1, drone: .3 },
     holy: { choir: 1, drone: .5, hum: .2 },
+    hades: { choir: .8, drone: 1.3, wind: .3 },
     mine: { wind: .45, drone: .8, hum: .2 },
     maze: { drone: .9, wind: .3, hum: .2 },
     cave: { drone: .8, hum: .3 },
   };
-  const ECHO = { out: 0, house: .05, water: .2, roar: .1, machine: .15, holy: .45, mine: .35, maze: .35, cave: .35 };
+  const ECHO = { out: 0, house: .05, water: .2, roar: .1, machine: .15, holy: .45, hades: .55, mine: .35, maze: .35, cave: .35 };
   function setZone(z, isDark, instant) {
     zone = z; dark = !!isDark;
     if (!ac) return;
@@ -1788,13 +1830,23 @@ const FX = (() => {
     ["roar", /^Loud Room$|^Aragain Falls$|^Dam$/],
     ["machine", /^Dam Lobby$|^Maintenance Room$|^Machine Room$/],
     ["water", /Reservoir|Stream|River|Shore|Beach|Atlantis|Dam Base|White Cliffs|Sandy Cave/],
-    ["holy", /Temple|Altar|Egyptian|Dome Room|Torch Room|Hades|Land of the Dead|Engravings/],
+    ["hades", /Hades|Land of the Dead/],
+    ["holy", /Temple|Altar|Egyptian|Dome Room|Torch Room|Engravings/],
     ["mine", /Mine|Squeaky|Bat Room|Shaft|Smelly|Gas Room|Coal|Ladder|Timber|Drafty|Slide Room/],
     ["maze", /^Maze$|^Dead End$|Twisting|Winding|Grating Room/],
   ];
   function zoneOf(room) {
     for (const [z, rx] of ZONES) if (rx.test(room || "")) return z;
     return "cave";
+  }
+  // 背景の色を場面に合わせる（色そのものは style.css の body[data-zone]）
+  const BAR_TINT = { out: "#020c06", house: "#0d0804", water: "#01080f", roar: "#020c12", machine: "#0b0b03",
+    holy: "#08040e", hades: "#0b0103", mine: "#0e0602", maze: "#07040c", cave: "#04070a" };
+  function setScene(z) {
+    if (document.body.dataset.zone === z) return;
+    document.body.dataset.zone = z;
+    const m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute("content", BAR_TINT[z] || BAR_TINT.cave);
   }
 
   // ---- 描画 ----
@@ -1807,8 +1859,6 @@ const FX = (() => {
     const cs = getComputedStyle(document.body);
     const v = n => cs.getPropertyValue(n).trim();
     cols = { p: v("--phosphor"), b: v("--bright"), gold: v("--gold"), blood: v("--blood"), acc: v("--accent"), screen: v("--screen") };
-    const m = document.querySelector('meta[name="theme-color"]');
-    if (m && cols.screen) m.setAttribute("content", cols.screen);
   }
   function resize() {
     const dpr = Math.min(2, devicePixelRatio || 1);
@@ -2181,6 +2231,7 @@ const FX = (() => {
     const roomChanged = !p || p.room !== st.room;
     const isDark = RE.dark.test(raw);
     const z = zoneOf(st.room);
+    setScene(z);
     const nowDark = isDark || (document.body.classList.contains("dark") && !roomChanged && !RE.light.test(raw));
     SND.setZone(z, nowDark);
     if (roomChanged && st.room) {
@@ -2453,6 +2504,7 @@ const FX = (() => {
       later.push(() => {
         if (!st.room) return;
         SND.setZone(zoneOf(st.room), false);
+        setScene(zoneOf(st.room));
         powerOn();
         setTimeout(() => roomCard(namer(st.room), st.room), full() ? 300 : 0);
         sfx("room");
@@ -2875,6 +2927,7 @@ window.FX = FX;
     ["鍵を開ける", "unlock % with #", "#で%の鍵を開ける"], ["火をつける", "light % with #", "#で%に火をつける"],
     ["投げる", "throw % at #", "%を#に投げる"], ["渡す", "give % to #", "%を#に渡す"],
     ["ふくらます", "inflate % with #", "#で%をふくらます"], ["掘る", "dig in % with #", "#で%を掘る"],
+    ["しぼませる", "deflate %", "%をしぼませる"], ["漕ぎ出す", "launch %", "%で漕ぎ出す"],
   ];
   // 文章に出てきても、物の一覧には出さない名前
   const NOT_THINGS = ["you", "me", "myself", "yourself", "it", "them", "all", "ground", "number", "pseudo",
