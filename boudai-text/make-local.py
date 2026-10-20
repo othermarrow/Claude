@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""空文庫：手もとの青空文庫（Obsidian の Vault2 など）から「手もとの棚」を作る。
+"""膨大な量のテキスト：手もとの青空文庫（Obsidian の Vault2 など）から「手もとの棚」を作る。
 
 使い方（Termux）:
     python make-local.py [読むフォルダ] [書き出すフォルダ]
 
 既定は /storage/emulated/0/Obsidian/Vault2 を読み、
-/storage/emulated/0/Download/karabunko-local.js に書き出す。
-karabunko.html と同じフォルダに karabunko-local.js を置くと、ゲームはそちらの本を使う。
+/storage/emulated/0/Download/boudai-local.js に書き出す。
+boudai-text.html と同じフォルダに boudai-local.js を置くと、ゲームはそちらの本を使う。
 
 青空文庫らしいファイル（「底本：」や「青空文庫」を含む、ルビ《》や注記［＃］がある）だけを使う。
 ふつうのメモが混ざらないように、それ以外のファイルは読まない（--all を付けると全部読む）。
@@ -209,7 +209,7 @@ def load(path, take_all):
     s = sentences_of(body)
     if len(s) < 20:
         return None
-    return {"t": title, "a": author or "（著者不明）", "d": died, "s": best_window(s, MAX_SENTENCES), "q": quotes_of(body)}
+    return {"t": title, "a": author or "（著者不明）", "d": died, "s": best_window(s, MAX_SENTENCES), "q": quotes_of(body), "n": len(re.sub(r"\s", "", body))}
 
 
 def main():
@@ -247,18 +247,19 @@ def main():
     shelf += dark[int(MAX_WORKS * 0.7):][:MAX_WORKS - len(shelf)]
     for n, w in enumerate(shelf):
         w["p"] = f"local:{n}"
-    data = {"v": 1, "made": time.strftime("%Y-%m-%d %H:%M"), "found": len(works), "works": shelf}
+    total = sum(w.pop("n") for w in works)
+    data = {"v": 1, "made": time.strftime("%Y-%m-%d %H:%M"), "found": len(works), "chars": total, "works": shelf}
     os.makedirs(out, exist_ok=True)
-    path = os.path.join(out, "karabunko-local.js")
+    path = os.path.join(out, "boudai-local.js")
     with open(path, "w", encoding="utf-8") as fp:
-        fp.write("window.KARABUNKO_LOCAL = ")
+        fp.write("window.BOUDAI_LOCAL = ")
         json.dump(data, fp, ensure_ascii=False, separators=(",", ":"))
         fp.write(";\n")
     authors = {}
     for w in shelf:
         authors[w["a"]] = authors.get(w["a"], 0) + 1
     top = sorted(authors.items(), key=lambda x: -x[1])[:8]
-    print(f"本として読めたもの {len(works)} 冊、使わなかったファイル {skipped} 個（{time.time() - t0:.0f} 秒）")
+    print(f"本として読めたもの {len(works)} 冊（ぜんぶで {total:,} 字）、使わなかったファイル {skipped} 個（{time.time() - t0:.0f} 秒）")
     print(f"棚に並べた本 {len(shelf)} 冊：" + "、".join(f"{a} {n}" for a, n in top))
     print(f"書き出した：{path}（{os.path.getsize(path) // 1024} KB）")
     print("もう一度走らせると、棚の本が入れかわる。")
