@@ -3,7 +3,7 @@
 青空文庫から青が抜けて、空（から）の書庫だけが残った——という設定の、カオスで、絶望的で、ひとりきりのホラー・テキストアドベンチャー。
 書庫の地下を、ランプ一つで最下層まで降りていく。
 
-- ファイル：`karabunko.html`（HTML 一枚。外から読みこむのは DotGothic16 フォントと、青空文庫の本文）
+- ファイル：`karabunko.html`（HTML 一枚。外から読みこむのは DotGothic16 フォントと、青空文庫の本文）、`make-local.py`（手もとの青空文庫から棚を作る。任意）
 - 操作：「空欄」「野帳」と同じ（状態行・「命令を作る」・十字キー・よく使う6ボタン・≡ メニュー・自動保存）
 - 文章：ゲームの地の文は書き下ろし。床に落ちている「頁」と、棚の向こうから返ってくる声は、青空文庫の本物の文章
 
@@ -26,6 +26,33 @@ curl -sI https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/index_
 ```
 
 `HTTP/2 200` と出れば、ゲームからも取れるはず。
+
+## 手もとの棚（Obsidian の Vault2 から）
+
+スマホの `/storage/emulated/0/Obsidian/Vault2` にある青空文庫の全文から、ゲーム用の棚ファイル `karabunko-local.js` を作れる。
+これを `karabunko.html` と同じフォルダに置くと、ゲームは GitHub に取りに行かず、手もとの本だけで遊ぶ（電波がいらない）。
+
+Termux で次を貼りつけて実行する。
+
+```sh
+cat > ~/karabunko-shelf.sh <<'EOF'
+cd ~/Claude
+git fetch origin ccr-e757ea96-4yc97j
+git checkout ccr-e757ea96-4yc97j
+git pull origin ccr-e757ea96-4yc97j
+python karabunko/make-local.py /storage/emulated/0/Obsidian/Vault2 /storage/emulated/0/Download
+cp karabunko/karabunko.html /storage/emulated/0/Download/
+EOF
+sh ~/karabunko-shelf.sh
+```
+
+- 読むのは `.txt`・`.md`・`.html`。青空文庫らしいもの（「底本：」「青空文庫」を含む、ルビ《》や注記［＃］がある）だけを使い、ふつうのメモは読まない。`.obsidian` などの隠しフォルダも読まない。
+- 青空文庫のテキスト形式（題名・著者・記号の説明・本文・底本）、Markdown の前置き（`title:`・`author:`・`没年:` など）、青空文庫の XHTML に対応する。ルビ・注記・外字の説明は取りのぞく。
+- 棚に並べるのは 100 冊まで（怪談寄りの書き手が 7 割）。一冊から 250 文。もう一度走らせると、棚の本が入れかわる。
+- 没年はファイルに書いてあればそれを使い、なければ主な書き手の没年の表から引く。どちらにもなければ「没年不明」。
+- 終わると、見つけた本の数と、多い書き手が表示される。0 冊なら、ファイルの形が想定と違う。
+
+Tasker で開くときは、`karabunko-local.js` も `/storage/emulated/0/Tasker/karabunko/` にコピーする。
 
 ## 遊び方
 
@@ -101,4 +128,6 @@ python3 -m http.server 8000
   - 取れない本（404）があっても次の本に移ること。リポジトリにつながらないときは白紙の棚で遊べること
   - 自動で遊ばせて、最下層まで降り、入力済み・白紙・校正待ち・伏字・消灯の終わりが出ること。青と底本は、最下層に置いて言葉を持たせた状態から出ることを確かめた
   - ボタンのランダム操作 2000 回で例外が出ないこと、開き直すと続きから始まること
+- 手もとの棚：偽の Vault（青空文庫形式の Shift_JIS の txt、前置きつき Markdown、XHTML、ふつうのメモ、隠しフォルダ）で `make-local.py` を走らせ、青空文庫らしい 3 冊だけが拾われ、ルビ・注記が残らないこと。ゲームが localhost と file:// の両方でその棚を使い、GitHub に取りに行かないこと。
+- 本物の Vault2 の中身は見ていない（このクラウド環境からは見えない）。ファイルの形が想定と違えば、本が 0 冊になる。
 - 実機（Xperia 1 IV のブラウザ、Tasker のシーン）では、まだ確かめていない。

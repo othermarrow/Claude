@@ -223,7 +223,7 @@ body.typing #pad { display: none; }
     <div class="panel" role="dialog" aria-label="メニュー">
       <h2>空文庫</h2>
       <p>十字キーで動く。「命令を作る」を押し、動詞 → 言葉（物）の順にタップすると命令になる。入力欄に日本語で書いてもいい。困ったら「わからない」。</p>
-      <p>床に落ちている頁は、青空文庫（GitHub の aozorabunko/aozorabunko）から、その場で取ってきた本物の文章。どの本かは「読む」で出る。電波がないときは、前に取ってきた本だけで遊ぶ。</p>
+      <p id="source-line">床に落ちている頁は、青空文庫（GitHub の aozorabunko/aozorabunko）から、その場で取ってきた本物の文章。どの本かは「読む」で出る。電波がないときは、前に取ってきた本だけで遊ぶ。</p>
       <p id="endings-line"></p>
       <p>途中の状態は自動で残り、次に開くと続きから始まる。</p>
       <button class="key" type="button" id="sound-btn"></button>
@@ -237,6 +237,8 @@ body.typing #pad { display: none; }
   </div>
 </div>
 
+<!-- 手もとの棚（make-local.py が作る）。なければ GitHub の青空文庫から取る -->
+<script src="karabunko-local.js"></script>
 <script>
 (() => {
   "use strict";
@@ -336,6 +338,9 @@ body.typing #pad { display: none; }
     "小川未明", "宮沢賢治", "夏目漱石", "佐藤春夫", "谷崎潤一郎", "牧逸馬", "国枝史郎", "上田秋成", "原民喜", "葉山嘉樹", "林芙美子", "北条民雄"];
 
   // 目録の一冊 = [作品名, 著者, 没年, "cards番号/ファイル名", 怪談寄りか(1/0), 新字新仮名か(1/0)]
+  const LOCAL = window.KARABUNKO_LOCAL && Array.isArray(window.KARABUNKO_LOCAL.works) && window.KARABUNKO_LOCAL.works.length >= 3 && !Q.get("base")
+    ? window.KARABUNKO_LOCAL.works.filter(w => w && Array.isArray(w.s) && w.s.length) : null;
+
   let catalog = null;
   async function loadCatalog() {
     const c = lsGet(CAT_KEY);
@@ -665,6 +670,14 @@ body.typing #pad { display: none; }
   }
 
   async function getWork(mainPick, ms) {
+    if (LOCAL) {
+      let pool = LOCAL.filter(w => !S.used.includes(w.p) && (!mainPick || w.s.length >= 20));
+      if (!pool.length) pool = LOCAL;
+      if (mainPick) { const dark = pool.filter(w => DARK_AUTHORS.includes(w.a)); if (dark.length && chance(0.8)) pool = dark; }
+      const w = pick(pool);
+      S.used.push(w.p);
+      return w;
+    }
     const usable = it => !S.used.includes(it[3]);
     if (catalog) {
       for (let tries = 0; tries < 4; tries++) {
@@ -1339,9 +1352,10 @@ body.typing #pad { display: none; }
     say("目録を引いている……", "note");
     scrollDown();
     const owner = S;
-    try { catalog = await catalogP; } catch (e) { catalog = null; }
+    if (!LOCAL) { try { catalog = await catalogP; } catch (e) { catalog = null; } }
     if (S !== owner) return;
-    if (catalog) say(`目録には、${catalog.length}冊ぶんのカードが残っている。どのカードも、書いた人の欄に、没年が書いてある。`, "note");
+    if (LOCAL) say(`手もとの棚に、${LOCAL.length}冊。どの本も、書いた人はもう死んでいる。`, "note");
+    else if (catalog) say(`目録には、${catalog.length}冊ぶんのカードが残っている。どのカードも、書いた人の欄に、没年が書いてある。`, "note");
     else {
       const n = worksCache().order.length;
       say("目録に手が届かない。（青空文庫のリポジトリに接続できなかった。電波のある場所で開き直すと、本物の頁が棚に並ぶ）", "note");
@@ -1468,6 +1482,7 @@ body.typing #pad { display: none; }
     $("restart-btn").hidden = false;
     $("sound-btn").textContent = Snd.on ? "音と振動：あり" : "音と振動：なし";
     const seen = Object.keys(LOOP.endings || {}).map(k => ENDINGS[k]).filter(Boolean);
+    if (LOCAL) $("source-line").textContent = `床に落ちている頁は、手もとの棚（${window.KARABUNKO_LOCAL.made || ""} に作った ${LOCAL.length}冊）の青空文庫の文章。どの本かは「読む」で出る。棚を入れかえるには、Termux で make-local.py をもう一度走らせる。`;
     $("endings-line").textContent = `見た終わり ${seen.length}／7` + (seen.length ? "：" + seen.join("・") : "");
   }
   $("menu-btn").addEventListener("click", () => openSheet(sheet.hidden));
@@ -1499,7 +1514,7 @@ body.typing #pad { display: none; }
     logEl.textContent = "";
     LOOP = Object.assign({ n: 0, endings: {}, last: null }, lsGet(LOOP_KEY) || {});
     const saved = fresh ? null : lsGet(KEY);
-    catalogP = loadCatalog().catch(() => null);
+    catalogP = LOCAL ? Promise.resolve(null) : loadCatalog().catch(() => null);
     if (saved && saved.v === VERSION && saved.phase && saved.phase !== "loading") {
       S = saved;
       const old = S.log; S.log = [];
