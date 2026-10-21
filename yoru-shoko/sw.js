@@ -1,7 +1,7 @@
 /* 夜の書庫：オフラインでも開けるようにする。
    まずネットワーク（Termux のサーバー）から取り、取れないときは前に取っておいたものを返す。
    ファイルを足したら FILES に足し、VERSION を上げる。 */
-const VERSION = "yoru-v1";
+const VERSION = "yoru-v2";
 const FILES = [
   "./",
   "./index.html",
@@ -17,6 +17,9 @@ const FILES = [
   "./stories/zork1.z3",
   "./stories/zork2.z3",
   "./stories/zork3.z3",
+  "./glulx/quixe.min.js",
+  "./glulx/glkapi.min.js",
+  "./glulx/glkote-mini.js",
   "./kura/engine.js",
   "./kura/house.js",
   "./kura/village.js",

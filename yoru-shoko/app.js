@@ -38,7 +38,7 @@
   const dbPut = rec => dbDo("readwrite", s => s.put(rec));
   const dbDel = id => dbDo("readwrite", s => s.delete(id));
 
-  // ゲームファイルから Z コードを取り出す（blorb なら ZCOD の塊）
+  // ゲームファイルから、Z コードか Glulx の本体を取り出す。{ fmt: "z" | "g", bytes }
   function extractStory(bytes) {
     const tag = (o) => String.fromCharCode(bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]);
     if (bytes.length > 12 && tag(0) === "FORM" && tag(8) === "IFRS") {
@@ -46,16 +46,16 @@
       while (p + 8 <= bytes.length) {
         const id = tag(p);
         const len = (bytes[p + 4] << 24 | bytes[p + 5] << 16 | bytes[p + 6] << 8 | bytes[p + 7]) >>> 0;
-        if (id === "ZCOD") return bytes.slice(p + 8, p + 8 + len);
-        if (id === "GLUL") throw new Error("Glulx 形式のゲームは、まだ動かせません。");
+        if (id === "ZCOD") return { fmt: "z", bytes: bytes.slice(p + 8, p + 8 + len) };
+        if (id === "GLUL") return { fmt: "g", bytes: bytes.slice(p + 8, p + 8 + len) };
         p += 8 + len + (len & 1);
       }
       throw new Error("blorb の中にゲームが見つかりません。");
     }
-    if (tag(0) === "Glul") throw new Error("Glulx 形式のゲームは、まだ動かせません。");
+    if (tag(0) === "Glul") return { fmt: "g", bytes };
     const v = bytes[0];
-    if (v < 1 || v > 8 || v === 6) throw new Error("Z マシンのゲームファイルではないようです（版 " + v + "）。");
-    return bytes;
+    if (v < 1 || v > 8 || v === 6) throw new Error("Z-machine でも Glulx でもないようです（先頭 " + v + "）。");
+    return { fmt: "z", bytes };
   }
 
   // ---- 画面の切り替え ----
@@ -112,12 +112,12 @@
     section("持ち込んだゲーム");
     const mine = await dbAll();
     for (const rec of mine) {
-      const g = { id: rec.id, kind: "z", title: rec.title, sub: rec.name, bytes: rec.bytes, imported: true, tags: [["英語（訳すボタン）", ""], ["持ち込み", ""]] };
+      const g = { id: rec.id, kind: "z", fmt: rec.fmt || "z", title: rec.title, sub: rec.name, bytes: rec.bytes, imported: true, tags: [["英語（訳すボタン）", ""], ["持ち込み", ""], [rec.fmt === "g" ? "Glulx" : "Z-machine", ""]] };
       shelf.append(card(g));
     }
     const p = document.createElement("p");
     p.className = "note";
-    p.textContent = mine.length ? "" : "ゲームファイル（.z3 .z5 .z8 .zblorb）を、自分で用意して開けます。ファイルはこの端末の中だけに置かれます。";
+    p.textContent = mine.length ? "" : "ゲームファイル（.z3 .z5 .z8 .ulx .zblorb .gblorb）を、自分で用意して開けます。ファイルはこの端末の中だけに置かれます。";
     shelf.append(p);
     const row = document.createElement("div");
     row.className = "row-btns";
@@ -136,7 +136,7 @@
     const d = document.createElement("details");
     d.innerHTML = "<summary>ゲームの探しかた</summary>" +
       "<p>Anchorhead や Slouching Towards Bedlam のような無料のインタラクティブ・フィクションは、IFDB（ifdb.org）や IF Archive（ifarchive.org）で名前を検索すると、配布ページが見つかります。" +
-      "Z-machine 形式（.z5 .z8 .zblorb）なら、ここで動きます。Glulx 形式（.gblorb .ulx）はまだ動きません。</p>" +
+      "Z-machine 形式（.z5 .z8 .zblorb）と Glulx 形式（.ulx .gblorb）が、ここで動きます。</p>" +
       "<p>作者が再配布を認めているかは、ゲームごとに違います。配布元のページで確かめて、自分で取ってきてください。このアプリには入れていません。</p>" +
       "<p>英語のゲームは、画面右上の「⋮」にある「訳す」で、いまの場面を翻訳サービスに送れます（押したときだけ、その文章が送られます）。</p>";
     shelf.append(d);
@@ -151,11 +151,11 @@
     e.target.value = "";
     if (!f) return;
     try {
-      const bytes = extractStory(new Uint8Array(await f.arrayBuffer()));
-      new ZVM(bytes, {});
+      const st = extractStory(new Uint8Array(await f.arrayBuffer()));
+      if (st.fmt === "z") new ZVM(st.bytes, {});
       const name = f.name;
       const title = name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ");
-      await dbPut({ id: "u" + Date.now().toString(36), name, title, bytes });
+      await dbPut({ id: "u" + Date.now().toString(36), name, title, bytes: st.bytes, fmt: st.fmt });
       renderLibrary();
     } catch (err) {
       alert("このファイルは開けませんでした。\n" + (err && err.message ? err.message : err));
@@ -311,6 +311,7 @@
   // Z マシンのゲーム
   // =====================================================================
   let zp = null;   // {vm, tr, cp, segs, upperDirty}
+  let pendingFresh = false;
   const Z_DIRS = [["n", "北"], ["s", "南"], ["e", "東"], ["w", "西"], ["u", "上"], ["d", "下"],
     ["ne", "北東"], ["nw", "北西"], ["se", "南東"], ["sw", "南西"], ["in", "入る"], ["out", "出る"]];
   const Z_VERBS = [["look", 1], ["inventory", 1], ["wait", 1], ["again", 1], ["undo", 1],
@@ -338,6 +339,7 @@
   async function startZ(fresh) {
     const g = cur;
     const bytes = await storyBytes(g);
+    if (g.fmt === "g") return startG(bytes, fresh || pendingFresh);
     let tr = null, cp = null;
     if (g.dict) {
       if (typeof ZDICT === "undefined") { await loadScript("translate.js"); await loadScript("dict.js"); }
@@ -505,6 +507,7 @@
   function zSubmit(text, en) {
     const z = zp;
     if (!z) return;
+    if (z.glk) return gSubmit(text);
     const vm = z.vm, st = vm.state;
     if (!st || st.type === "quit") return;
     try {
@@ -528,6 +531,110 @@
         vm.submitLine(cmd);
       }
       zPresent(vm.run());
+    } catch (e) {
+      sys("エラーが起きました: " + (e && e.message ? e.message : e));
+    }
+  }
+
+  // =====================================================================
+  // Glulx のゲーム（Quixe）
+  // =====================================================================
+  async function startG(bytes, fresh) {
+    const g = cur;
+    pendingFresh = false;
+    // Quixe は同じページで二度は始められない。二つ目からは、再読み込みして始める
+    if (window.Quixe && window.Quixe.vm_started) {
+      try { sessionStorage.setItem("yoru.autoopen", g.id); sessionStorage.setItem("yoru.autofresh", fresh ? "1" : "0"); } catch (e) { /* 失敗したら手で開き直す */ }
+      sys("Glulx のゲームを切りかえるため、画面を読み込みなおします…");
+      persistLog();
+      setTimeout(() => location.reload(), 300);
+      return;
+    }
+    if (typeof window.Quixe === "undefined") {
+      await loadScript("glulx/quixe.min.js");
+      await loadScript("glulx/glkapi.min.js");
+      await loadScript("glulx/glkote-mini.js");
+    }
+    if (fresh) { rows = []; logEl.textContent = ""; LS.del(key(g.id, "log")); }
+    else if (rows.length) { push({ t: "sep" }); sys("（Glulx のゲームは、ゲーム内の「save」「restore」で続きを遊びます。最初から始めます）"); }
+    const z = zp = { glk: true, segs: [], tr: null, vm: null, lastText: "", state: { type: "busy" } };
+    const slotNo = () => LS.get(key(g.id, "slotn")) || "1";
+    YGlk.start(bytes, {
+      prefix: g.id,
+      slot: slotNo,
+      out: (t, s) => { if (!(s & 16)) z.segs.push({ t, s }); },
+      clear: () => { zFlush(); push({ t: "sep" }); },
+      grid: lines => { z.grid = lines; },
+      note: t => { z.notes = (z.notes || []).concat(t); },
+      flush: st => gPresent(st),
+    });
+  }
+
+  function gPresent(st) {
+    const z = zp;
+    if (!z || !z.glk) return;
+    z.state = st;
+    if (st.type === "busy") return;
+    zFlush();
+    for (const n of z.notes || []) sys(n);
+    z.notes = [];
+    // 状態行（文字の窓）
+    const lines = (z.grid || []).flat().filter(s => s.trim());
+    const collapse = s => s.trim().replace(/\s{2,}/g, "  ·  ");
+    if (lines.length) setBar(collapse(lines[0]), "", "");
+    const upEl = $("upper");
+    if (lines.length > 1) { upEl.textContent = lines.map(s => s.replace(/\s+$/, "")).join("\n"); upEl.hidden = false; }
+    else upEl.hidden = true;
+    gUpdateInput();
+    if (st.type === "quit") {
+      push({ t: "sys", ja: "ゲームが終わりました。右上の ⋮ から「はじめから遊ぶ」を選べます。" });
+      scrollDown();
+    }
+    persistLog();
+  }
+
+  function gUpdateInput() {
+    const z = zp, st = z.state;
+    const chips = $("chips");
+    chips.textContent = "";
+    const pad = $("pad");
+    if (st.type === "quit" || st.type === "busy") { chips.hidden = true; pad.textContent = ""; return; }
+    chips.hidden = false;
+    if (st.type === "char") {
+      cmdEl.placeholder = "キーを1つ入力（送るだけなら Enter）";
+      chips.append(chip("Enter（進める）", () => submit(""), "ask"), chip("スペース", () => submit(" "), "ask"));
+    } else {
+      cmdEl.placeholder = "命令を英語で入力";
+      if (/\(y\/n\)|\[y\/n\]|yes or no|\(y is affirmative\)/i.test(z.lastText)) {
+        chips.append(chip("はい（yes）", () => submit("yes"), "ask"), chip("いいえ（no）", () => submit("no"), "ask"));
+      }
+      for (const [v, one] of Z_VERBS) {
+        chips.append(chip(v, () => { if (one) submit(v); else cmdEl.value = v + " "; }, "verb"));
+      }
+    }
+    if (!pad.childElementCount) {
+      for (const [en, ja] of Z_DIRS) {
+        const b = chip(ja, () => submit(en), "");
+        const s = document.createElement("small"); s.textContent = en; b.append(s);
+        pad.append(b);
+      }
+    }
+  }
+
+  function gSubmit(text) {
+    const z = zp, st = z.state;
+    if (!st || st.type === "busy" || st.type === "quit") return;
+    text = String(text || "");
+    try {
+      if (st.type === "char") {
+        push({ t: "cmd", ja: text.trim() ? text : "（Enter）", en: "" });
+        z.state = { type: "busy" };
+        YGlk.submitChar(text.length ? text : "\n");
+      } else {
+        push({ t: "cmd", ja: text.trim(), en: "" });
+        z.state = { type: "busy" };
+        YGlk.submitLine(text.trim());
+      }
     } catch (e) {
       sys("エラーが起きました: " + (e && e.message ? e.message : e));
     }
@@ -735,6 +842,15 @@
   }
 
   // ---- 起動 ----
-  renderLibrary();
+  renderLibrary().then(async () => {
+    // Glulx は、同じページで二つ目を始められない。そのときは再読み込みして、ここから開く
+    let id = null, fresh = false;
+    try { id = sessionStorage.getItem("yoru.autoopen"); fresh = sessionStorage.getItem("yoru.autofresh") === "1"; sessionStorage.removeItem("yoru.autoopen"); sessionStorage.removeItem("yoru.autofresh"); } catch (e) { id = null; }
+    if (!id) return;
+    const rec = (await dbAll()).find(r => r.id === id);
+    if (!rec) return;
+    pendingFresh = fresh;
+    openGame({ id: rec.id, kind: "z", fmt: rec.fmt || "z", title: rec.title, sub: rec.name, bytes: rec.bytes, imported: true, tags: [] });
+  });
   window.YoruDebug = { get zp() { return zp; }, get kp() { return kp; } };
 })();
