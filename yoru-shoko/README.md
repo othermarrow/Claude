@@ -15,6 +15,7 @@ Chrome でインストールすると、ホーム画面のアイコンから開�
 ## 持ち込みについて（Anchorhead・Slouching Towards Bedlam など）
 
 - ゲームファイルは、このアプリには入れていない。自分で取ってきて、「ゲームファイルを開く」で選ぶ。
+  Termux なら `sh yoru-shoko/tools/fetch_games.sh` で、Anchorhead と Bedlam を Download に取ってこられる（取得先の URL は、このセッションからは確かめられていない。取れなければ、IFDB で探して手で保存する）。
   ファイルは、この端末の IndexedDB にだけ置かれる（どこにも送られない）。
 - Anchorhead は Z-machine 形式（.z8）。Slouching Towards Bedlam の形式は未確認だが、Z-machine でも Glulx でも動く。
 - Glulx は Quixe（MIT ライセンス、`glulx/LICENSE-quixe.txt`）で動かす。Glulx のゲームは、ゲームを閉じて別の Glulx のゲームを開くとき、画面を読み込みなおす。
