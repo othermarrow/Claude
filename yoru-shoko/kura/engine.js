@@ -290,6 +290,7 @@ const Kura = (() => {
 
     function go(dir) {
       if (S.over) return;
+      if (S.prompt) { say("まず、いまの問いに答えてほしい。", "sub"); return; }
       const r = DEFS.rooms[S.room];
       const e = exitDef(r, dir);
       if (!e || !exitVisible(r, dir)) { say("そちらへは行けない。", "sub"); return; }
@@ -659,6 +660,16 @@ const Kura = (() => {
       changed();
     };
     g.state = () => S;
+    // 保存用：いまの状態と、「ひとつ戻す」の履歴
+    g.export = () => ({ v: 2, S, h: history.slice(-12) });
+    g.import = o => {
+      if (o && o.v === 2 && o.S) {
+        history.length = 0;
+        for (const x of (o.h || [])) history.push(x);
+        return g.load(o.S);
+      }
+      return g.load(o);
+    };
     g.load = o => {
       if (!o || typeof o !== "object" || !o.loc || !DEFS.rooms[o.room]) return false;
       const base = newState();

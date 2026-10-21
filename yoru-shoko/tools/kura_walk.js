@@ -27,25 +27,27 @@ function make(g, Kura, verbose) {
   w.goto = to => {
     let guard = 0;
     while (g.S.room !== to && !g.S.over && guard++ < 60) {
+      w.clearPrompt();
       const r = g.S.room;
       const d = w.route(r, to)[0];
       g.go(d);
       if (g.S.room === r && !g.S.over) throw new Error("動けなかった: " + d + " @ " + r + "（" + to + "へ）\n" + g.out.slice(-3).join("\n"));
     }
   };
-  w.act = (v, a, b) => g.act(v, a, b);
+  w.act = (v, a, b) => { w.clearPrompt(); g.act(v, a, b); };
   w.take = id => {
+    w.clearPrompt();
     g.act("take", id);
     if (g.S.loc[id] !== "held") throw new Error("取れなかった: " + id + " @ " + g.S.room + "\n" + g.out.slice(-3).join("\n"));
   };
-  w.open = id => g.act("open", id);
-  w.read = id => g.act("read", id);
-  w.use = id => g.act("use", id);
-  w.use2 = (a, b) => g.act("use2", a, b);
-  w.talk = id => g.act("talk", id);
-  w.ask = (id, t) => g.act("ask", id, "t:" + t);
-  w.give = (a, b) => g.act("give", a, b);
-  w.pull = id => g.act("pull", id);
+  w.open = id => w.act("open", id);
+  w.read = id => w.act("read", id);
+  w.use = id => w.act("use", id);
+  w.use2 = (a, b) => w.act("use2", a, b);
+  w.talk = id => w.act("talk", id);
+  w.ask = (id, t) => w.act("ask", id, "t:" + t);
+  w.give = (a, b) => w.act("give", a, b);
+  w.pull = id => w.act("pull", id);
   w.choose = label => {
     const c = g.choices().find(x => x.label === label);
     if (!c) throw new Error("選択肢がない: " + label + " / " + JSON.stringify(g.choices()) + "\n" + g.out.slice(-3).join("\n"));
@@ -53,9 +55,17 @@ function make(g, Kura, verbose) {
   };
   w.want = (cond, msg) => { if (!cond) throw new Error("条件が満たされていない: " + msg + " [" + w.state() + "]\n" + g.out.slice(-4).join("\n")); };
   w.state = () => `${g.S.day}日目 ${g.S.phase} t=${g.S.t} nt=${g.S.nt} 場所=${g.S.room} 不安=${g.S.dread}`;
-  w.waitPhase = (phase) => { let n = 0; while (g.S.phase !== phase && !g.S.over && n++ < 80) g.act("wait"); };
-  w.waitNt = nt => { let n = 0; while (g.S.phase === "夜" && g.S.nt < nt && !g.S.over && n++ < 80) g.act("wait"); };
-  w.waitDay = day => { let n = 0; while (g.S.day < day && !g.S.over && n++ < 200) g.act("wait"); };
+  w.clearPrompt = () => {
+    const ch = g.choices();
+    if (ch.length) {
+      const safe = ch.find(c => /しない|断る|やめる|見送る/.test(c.label)) || ch[ch.length - 1];
+      g.choose(safe.id);
+    }
+  };
+  w.wait1 = () => { w.clearPrompt(); g.act("wait"); };
+  w.waitPhase = (phase) => { let n = 0; while (g.S.phase !== phase && !g.S.over && n++ < 80) w.wait1(); };
+  w.waitNt = nt => { let n = 0; while (g.S.phase === "夜" && g.S.nt < nt && !g.S.over && n++ < 80) w.wait1(); };
+  w.waitDay = day => { let n = 0; while (g.S.day < day && !g.S.over && n++ < 200) w.wait1(); };
   w.light = () => { if (!g.on("kaichu")) g.act("use", "kaichu"); };
   w.log = (...a) => { if (verbose) console.log("   ##", ...a, "|", w.state()); };
   return w;
@@ -146,7 +156,8 @@ function day2(w) {
 
 function day3morning(w) {
   const { g } = w;
-  w.want(g.S.day === 3 && g.S.room === "gate", "3日目の朝 " + w.state());
+  w.want(g.S.day === 3, "3日目の朝 " + w.state());
+  w.goto("gate");
   w.talk("tome");
   w.want(g.has("kuranokagi"), "蔵の鍵");
 }

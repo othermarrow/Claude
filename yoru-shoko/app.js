@@ -561,9 +561,9 @@
     let saved = null;
     if (!fresh) { try { saved = JSON.parse(LS.get(key(cur.id, "auto")) || "null"); } catch (e) { saved = null; } }
     if (fresh) { rows = []; logEl.textContent = ""; LS.del(key(cur.id, "auto")); }
-    game.onChange = () => { LS.set(key(cur.id, "auto"), JSON.stringify(game.state())); persistLog(); kuraBuilder(); };
-    game.save = () => LS.set(key(cur.id, "auto"), JSON.stringify(game.state()));
-    if (saved && game.load(saved)) {
+    game.onChange = () => { LS.set(key(cur.id, "auto"), JSON.stringify(game.export())); persistLog(); kuraBuilder(); };
+    game.save = () => LS.set(key(cur.id, "auto"), JSON.stringify(game.export()));
+    if (saved && game.import(saved)) {
       game.look(true);
     } else {
       game.start();
