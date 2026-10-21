@@ -7,7 +7,7 @@ Chrome でインストールすると、ホーム画面のアイコンから開�
 
 | 札 | 内容 | 日本語 |
 |---|---|---|
-| 蔵守（くらもり） | 書き下ろしの長編ホラー。山あいの旧家で三晩。蔵の戸は開けてはいけない。部屋 43・結末 7 | 全文日本語 |
+| 蔵守（くらもり） | 書き下ろしの長編ホラー。山あいの旧家で三晩。蔵の戸は開けてはいけない。部屋 48・結末 8・三つの章 | 全文日本語 |
 | ZORK I | Infocom（MIT ライセンスで公開されたもの） | 辞書で日本語表示（`zork-ja/` の辞書を使う） |
 | ZORK II・III | 同上 | 英語。「訳す」ボタンで翻訳サービスに送れる |
 | 持ち込んだゲーム | Z-machine（.z3〜.z8 .zblorb）と Glulx（.ulx .gblorb）のゲームファイルを、自分で開く | 英語。「訳す」ボタン |
@@ -57,7 +57,7 @@ Chrome で `http://localhost:8081/` を開く。Chrome の ⋮ →「アプリ�
 | `translate.js` / `dict.js` | Zork I の日本語辞書（`tools/build.py` が `zork-ja/` から作る） |
 | `stories/` | Zork I〜III（`LICENSE-zork.txt` を参照） |
 | `kura/engine.js` | 日本語アドベンチャー用のエンジン（部屋・物・時間・夜・問い・ひとつ戻す） |
-| `kura/house.js` `village.js` `night.js` | 『蔵守』の世界（家と蔵／集落とダムと底／人・夜・結末・ヒント） |
+| `kura/house.js` `village.js` `night.js` `extra.js` | 『蔵守』の世界（家と蔵／集落とダムと底／人・夜・結末・ヒント／旧家・駐在所・郵便局・七つの割符・夢） |
 | `kura/WALKTHROUGH.md` | 『蔵守』の攻略メモ（**ネタバレ**） |
 | `tools/play.js` | Z-machine を Node で動かして試す（`node tools/play.js stories/zork1.z3 "open mailbox"`） |
 | `tools/kura_test.js` `kura_walk.js` | 『蔵守』を画面なしで通して、全結末に着けるか確かめる（`node tools/kura_test.js return`） |
@@ -67,7 +67,7 @@ Chrome で `http://localhost:8081/` を開く。Chrome の ⋮ →「アプリ�
 
 - 画面の下の「動詞→物」のボタンで命令を作る。日本語で打ち込んでもよい（「表札を調べる」「北へ」など）。
 - 「手がかり」で、見つけたことを見返せる。「ヒントを見る」は右上の ⋮ にある。
-- 失敗しても「ひとつ戻す」でやり直せる。結末は 7 つ。一覧の札に、見た結末の数が出る。
+- 失敗しても「ひとつ戻す」でやり直せる。結末は 8 つ。一覧の札に、見た結末の数が出る。
 - 時間は、移動や「待つ」で進む。夜は家の外にいてはいけない。
 
 ## 確認したこと・していないこと
@@ -77,7 +77,7 @@ Chrome で `http://localhost:8081/` を開く。Chrome の ⋮ →「アプリ�
 - Inform 6 で作った Z-machine のテスト用ゲーム（v5・v8）で、命令の読み取り・状態行（上の窓）・やり直し・保存と復元が動く。
 - 持ち込み（ファイル選択→一覧→遊ぶ→再読み込みで続き）が動く。
 - Glulx：Inform 6 で作ったテスト用の Glulx ゲームが、持ち込み・命令・状態行・save/restore・別のゲームを挟んでの再読み込みまで動く。
-- 『蔵守』の全 7 結末に、攻略手順（`tools/kura_walk.js`）で着ける。
+- 『蔵守』の全 8 結末に、攻略手順（`tools/kura_walk.js`）で着ける。
 
 確認していないこと：
 - Android の実機（Xperia 1 IV の Chrome）での動作。PWA のインストールと、サーバーを止めたあとの起動。

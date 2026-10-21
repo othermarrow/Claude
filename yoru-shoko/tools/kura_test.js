@@ -6,7 +6,7 @@ const vm = require("vm");
 const dir = path.join(__dirname, "..", "kura");
 const ctx = { console, module: {} };
 vm.createContext(ctx);
-for (const f of ["engine.js", "house.js", "village.js", "night.js"]) {
+for (const f of ["engine.js", "house.js", "village.js", "night.js", "extra.js"]) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), "utf8").replace(/^const Kura =/m, "var Kura ="), ctx, { filename: f });
 }
 const Kura = ctx.Kura;

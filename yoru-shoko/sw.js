@@ -1,7 +1,7 @@
 /* 夜の書庫：オフラインでも開けるようにする。
    まずネットワーク（Termux のサーバー）から取り、取れないときは前に取っておいたものを返す。
    ファイルを足したら FILES に足し、VERSION を上げる。 */
-const VERSION = "yoru-v2";
+const VERSION = "yoru-v3";
 const FILES = [
   "./",
   "./index.html",
@@ -24,6 +24,7 @@ const FILES = [
   "./kura/house.js",
   "./kura/village.js",
   "./kura/night.js",
+  "./kura/extra.js",
 ];
 
 self.addEventListener("install", e => {

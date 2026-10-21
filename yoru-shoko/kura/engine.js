@@ -230,6 +230,7 @@ const Kura = (() => {
       S.phase = DEFS.plan[S.day][0][0]; S.t = 0; S.nt = 0;
       ui.sep();
       say("── " + dayName() + " ──", "title");
+      if (DEFS.chapter && DEFS.chapter[S.day]) say(DEFS.chapter[S.day], "sub");
       if (DEFS.morning) DEFS.morning(g);
       look(true);
     }

@@ -332,6 +332,83 @@ const WALKS2 = {
 };
 Object.assign(WALKS, WALKS2);
 
+function day2plus(w) {
+  const { g } = w;
+  w.want(g.S.day === 2, "2日目");
+  w.goto("tadokoro");
+  w.open("tadokoro_butsudan"); w.take("wappu_tadokoro");
+  w.goto("matsuoka");
+  w.open("matsuoka_irori"); w.take("wappu_matsuoka"); w.read("matsuoka_tegami");
+  w.goto("yubin");
+  w.open("yubin_yama"); w.take("wappu_kubo");
+  w.goto("suijinja");
+  w.open("saisenbako"); w.take("wappu_tsuruta");
+  w.goto("hondo");
+  w.talk("juushoku");
+  w.read("kakocho");
+  w.open("mokugyo"); w.take("wappu_onodera");
+  w.goto("chuzaisho");
+  w.read("nisshi");
+  w.use("kinko"); w.choose("0620");
+  w.take("hatsu_tegami"); w.take("kagi_yobi"); w.take("wappu_mizuno");
+  w.read("hatsu_tegami");
+  w.goto("dam_office");
+  w.use2("kagi_yobi", "tenkey");
+  w.goto("kanri");
+  w.read("tejunsho");
+  w.use("seigyoban");
+  w.choose("主電源を入れる"); w.choose("放流警報を鳴らす"); w.choose("副ゲートを開く");
+  w.want(g.flag("drawdown"), "放流");
+  w.log("day2plus done");
+}
+
+function day3plus(w) {
+  const { g } = w;
+  w.goto("nagaya");
+  w.take("kama"); w.take("nagagutsu"); w.take("kago");
+  w.goto("kuramae");
+  w.use2("kama", "kura_no_to");
+  w.use2("kuranokagi", "kura_no_to");
+  w.open("kura_no_to");
+  w.goto("kura1");
+  w.light();
+  w.open("kura_tsukue"); w.take("nikki3"); w.read("nikki3");
+  w.goto("kura2");
+  w.use2("nafuda", "ningyo");
+  w.take("wappu_kashiwagi");
+  w.goto("kura1");
+  w.pull("kura_ita");
+  w.log("day3plus done");
+}
+
+WALKS.plus = function (w) {
+  const { g } = w;
+  day1(w);
+  w.goto("maeniwa");
+  w.waitPhase("夜");
+  duty(w, 1);
+  w.waitDay(2);
+  day2plus(w);
+  w.goto("zashiki");
+  w.waitPhase("夜");
+  w.waitDay(3);
+  day3morning(w);
+  day3plus(w);
+  w.waitPhase("夜");
+  w.goto("kura_b");
+  w.light();
+  w.take("suikyo");
+  w.read("meibo_copy");
+  g.go("e"); g.go("e"); g.go("e");
+  w.want(g.S.room === "soko", "底の社 " + w.state());
+  w.use2("suikyo", "soko_daiza");
+  for (const id of ["wappu_kashiwagi","wappu_tadokoro","wappu_matsuoka","wappu_mizuno","wappu_kubo","wappu_onodera","wappu_tsuruta"]) w.want(g.has(id), "割符 " + id);
+  w.use2("wappu_kashiwagi", "soko_daiza");
+  w.want((g.flag("wappu") || 0) >= 7, "割符7");
+  w.read("meibo_copy");
+  w.want(g.S.over === "return_plus", "結末 return_plus / " + g.S.over);
+};
+
 module.exports = { make, WALKS };
 module.exports.run = function (newGame, name, verbose, Kura) {
   const g = newGame(verbose);

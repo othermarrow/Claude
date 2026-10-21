@@ -6,8 +6,8 @@ const GAMES = [
     id: "kura", kind: "kura",
     title: "蔵守", sub: "山あいの旧家で、三晩。蔵の戸は開けてはいけない。",
     tags: [["日本語", "ja"], ["書き下ろし", ""], ["長編", ""]],
-    endings: 7,
-    scripts: ["kura/engine.js", "kura/house.js", "kura/village.js", "kura/night.js"],
+    endings: 8,
+    scripts: ["kura/engine.js", "kura/house.js", "kura/village.js", "kura/night.js", "kura/extra.js"],
   },
   {
     id: "zork1", kind: "z", file: "stories/zork1.z3", dict: true,
