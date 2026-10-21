@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>夜の書庫</title>
+<meta name="theme-color" content="#0b0d12">
+<meta name="description" content="Zork と、日本語で遊べるホラーのテキストアドベンチャーを選んで遊ぶ">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Shippori+Mincho:wght@500;700&display=swap">
+<style>
+:root {
+  --bg: #0b0d12;
+  --panel: #12151c;
+  --line: #262b36;
+  --text: #cfd3d9;
+  --bright: #f4f1e8;
+  --dim: #7c8491;
+  --accent: #d6453a;
+  --accent-dim: #7d2a24;
+  --dot: "DotGothic16", "Noto Sans Mono CJK JP", ui-monospace, monospace;
+  --mincho: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --size: 17px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: var(--dot); font-size: var(--size); line-height: 1.65;
+  -webkit-tap-highlight-color: transparent; overflow: hidden;
+}
+button { font: inherit; color: inherit; }
+
+/* 書庫（一覧） */
+#library { height: 100%; overflow-y: auto; padding: calc(1.2em + env(safe-area-inset-top, 0px)) 16px calc(2em + env(safe-area-inset-bottom, 0px)); }
+#library .wrap { max-width: 560px; margin: 0 auto; }
+#library h1 { font-family: var(--mincho); font-weight: 700; font-size: 2.4em; letter-spacing: 0.3em; color: var(--bright); text-align: center; margin: 0.6em 0 0.1em; }
+#library .lead { text-align: center; color: var(--dim); font-size: 0.86em; margin: 0 0 1.6em; }
+#library h2 { font-size: 0.86em; color: var(--accent); letter-spacing: 0.2em; margin: 1.8em 0 0.5em; border-bottom: 1px solid var(--line); padding-bottom: 0.2em; font-weight: normal; }
+.card { display: block; width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 0.7em 0.9em; margin: 0 0 0.6em; cursor: pointer; }
+.card:active, .card:focus-visible { border-color: var(--accent); outline: none; }
+.card .t { color: var(--bright); font-size: 1.1em; }
+.card .s { color: var(--dim); font-size: 0.82em; }
+.card .tags { margin-top: 0.3em; display: flex; flex-wrap: wrap; gap: 0.4em; }
+.tag { font-size: 0.72em; border: 1px solid var(--line); border-radius: 3px; padding: 0 0.5em; color: var(--dim); }
+.tag.ja { color: #9fd3a8; border-color: #2c4a33; }
+.tag.save { color: #e3c06a; border-color: #5a4a22; }
+.tag.new { color: var(--accent); border-color: var(--accent-dim); }
+.note { color: var(--dim); font-size: 0.82em; margin: 0.4em 0; }
+.btn { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 0.55em 1em; cursor: pointer; }
+.btn.primary { border-color: var(--accent); color: var(--bright); }
+.btn:active { border-color: var(--accent); }
+.row-btns { display: flex; gap: 0.6em; flex-wrap: wrap; margin: 0.6em 0; }
+details { margin: 0.8em 0; color: var(--dim); font-size: 0.86em; }
+details summary { cursor: pointer; color: var(--text); }
+details p { margin: 0.5em 0; }
+
+/* ゲーム */
+#game { height: 100%; display: flex; flex-direction: column; }
+#bar { display: flex; align-items: center; gap: 0.6em; background: #1a1e28; color: var(--bright); padding: calc(0.2em + env(safe-area-inset-top, 0px)) 8px 0.2em; white-space: nowrap; }
+#bar button { background: none; border: 0; padding: 0.2em 0.5em; cursor: pointer; font-size: 1.1em; }
+#room { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#room .en { font-size: 0.78em; margin-left: 0.6em; color: var(--dim); }
+#score { font-variant-numeric: tabular-nums; color: var(--dim); font-size: 0.86em; }
+#upper { background: #151922; color: var(--bright); white-space: pre; font-size: 0.82em; overflow-x: auto; padding: 0 12px; border-bottom: 1px solid var(--line); line-height: 1.4; }
+#screen { flex: 1; min-height: 0; overflow-y: auto; padding: 1em 16px 0.6em; overscroll-behavior: contain; }
+#log { max-width: 46em; margin: 0 auto; }
+.row { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.row .en { display: block; color: var(--dim); font-size: 0.86em; line-height: 1.45; }
+.row.indent { padding-left: 1.5em; }
+.row.room .ja, .row.room { color: var(--bright); }
+.row .b { font-weight: bold; color: var(--bright); }
+.row .i { font-style: italic; }
+.row .fx { font-family: ui-monospace, monospace; }
+.row .rev { background: var(--text); color: var(--bg); }
+.gap { height: 0.7em; }
+.cmd { color: var(--bright); margin-top: 0.5em; }
+.cmd .sent { color: var(--dim); font-size: 0.86em; margin-left: 0.8em; }
+.sys { color: var(--dim); font-size: 0.86em; }
+.sep { border-top: 1px dashed var(--line); margin: 1em 0; }
+body.mode-ja .row .en, body.mode-ja .cmd .sent { display: none; }
+body.mode-en .row .ja { display: none; }
+body.mode-en .row .ja.en-too { display: inline; }
+body.mode-en .row .en { color: var(--text); font-size: 1em; line-height: 1.65; }
+.row.k { font-family: var(--mincho); }
+.row.k.sub { color: var(--dim); }
+.row.k.warn { color: var(--accent); }
+.row.k.dream { color: #8fb4d9; font-style: italic; }
+.row.k.take { color: #e3c06a; }
+.row.k.title { color: var(--bright); font-size: 1.1em; }
+
+#dock { border-top: 1px solid var(--line); background: var(--panel); padding-bottom: env(safe-area-inset-bottom, 0px); }
+#chips { display: flex; gap: 6px; overflow-x: auto; padding: 6px 8px 2px; scrollbar-width: none; }
+#chips::-webkit-scrollbar { display: none; }
+#chips:empty { display: none; }
+.key { flex: none; background: #1a1e28; border: 1px solid var(--line); border-radius: 4px; padding: 0.25em 0.7em; cursor: pointer; white-space: nowrap; }
+.key:active { border-color: var(--accent); }
+.key.on { border-color: var(--accent); color: var(--bright); }
+.key.held { color: #e3c06a; }
+.key.ask { border-color: var(--accent-dim); color: var(--bright); }
+#pad { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; padding: 4px 8px; }
+#pad .key { text-align: center; padding: 0.3em 0; }
+#pad .key small { display: block; font-size: 0.6em; color: var(--dim); line-height: 1; }
+#prompt { display: flex; gap: 6px; padding: 4px 8px 8px; }
+#cmd { flex: 1; min-width: 0; background: #0b0d12; color: var(--bright); border: 1px solid var(--line); border-radius: 4px; padding: 0.4em 0.6em; font: inherit; }
+#cmd:focus { outline: none; border-color: var(--accent); }
+#go { background: var(--accent-dim); border: 0; border-radius: 4px; padding: 0 1em; cursor: pointer; }
+#builder { padding: 0 8px 6px; }
+#builder .head { color: var(--dim); font-size: 0.82em; padding: 2px 0; }
+#builder .grid { display: flex; flex-wrap: wrap; gap: 5px; max-height: 30vh; overflow-y: auto; }
+#builder .key { padding: 0.2em 0.6em; font-size: 0.92em; }
+body.typing #pad, body.typing #builder { display: none; }
+
+/* メニュー */
+#sheet { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: flex-end; z-index: 5; }
+#sheet .box { width: 100%; max-height: 80%; overflow-y: auto; background: var(--panel); border-top: 1px solid var(--accent); padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+#sheet h3 { margin: 0.6em 0 0.3em; font-size: 0.86em; color: var(--accent); font-weight: normal; letter-spacing: 0.15em; }
+#sheet .line { display: flex; flex-wrap: wrap; gap: 6px; margin: 0.3em 0; }
+#sheet .key[aria-pressed="true"] { border-color: var(--accent); color: var(--bright); }
+@media (prefers-reduced-motion: no-preference) { .row.fresh { animation: type-in 0.18s steps(3, end); } @keyframes type-in { from { opacity: 0; } to { opacity: 1; } } }
+</style>
+</head>
+<body class="mode-both">
+
+<section id="library">
+  <div class="wrap">
+    <h1>夜の書庫</h1>
+    <p class="lead">テキストアドベンチャーの本棚。遊んだ続きは、この端末に残ります。</p>
+    <div id="shelf"></div>
+  </div>
+</section>
+
+<section id="game" hidden>
+  <div id="bar">
+    <button id="back" aria-label="書庫へ戻る">≡</button>
+    <span id="room"></span>
+    <span id="score"></span>
+    <button id="menu" aria-label="メニュー">⋮</button>
+  </div>
+  <div id="upper" hidden></div>
+  <div id="screen"><div id="log"></div></div>
+  <div id="dock">
+    <div id="chips"></div>
+    <div id="builder" hidden></div>
+    <div id="pad"></div>
+    <form id="prompt" autocomplete="off">
+      <input id="cmd" type="text" enterkeyhint="send" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="命令を入力">
+      <button id="go" type="submit">送る</button>
+    </form>
+  </div>
+</section>
+
+<div id="sheet" hidden><div class="box" id="sheetbox"></div></div>
+<input id="file" type="file" hidden accept=".z1,.z2,.z3,.z4,.z5,.z7,.z8,.zblorb,.blb,.dat,application/octet-stream">
+
+<script src="zvm.js"></script>
+<script src="games.js"></script>
+<script src="app.js"></script>
+<script>
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  navigator.serviceWorker.register("sw.js").catch(function () {});
+}
+</script>
+</body>
+</html>
