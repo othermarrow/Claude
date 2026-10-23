@@ -15,5 +15,6 @@
 | [kuuran-watch](kuuran-watch/) | 「空欄」を Amazfit Balance 2 で遊ぶミニアプリ (Zepp OS) |
 | [noclip](noclip/) | 本家 Backrooms の設定で作ったテキストアドベンチャー「ノークリップ」(HTML) |
 | [yacho](yacho/) | Backrooms Wiki をもとに、観察して野帳に書くテキストアドベンチャー「野帳」(HTML) |
+| [kuuran2-watch](kuuran2-watch/) | 「空欄_2」を Amazfit Balance 2 で遊ぶミニアプリ (Zepp OS) |
 | [yacho-watch](yacho-watch/) | 「野帳」を Amazfit Balance 2 で遊ぶミニアプリ (Zepp OS) |
 | [backrooms-pwa](backrooms-pwa/) | 階層目録(上の4本を強化し、自分の物語から作った「未定稿」、空欄を書き直した「空欄_2」、降下記録の派手版「閾の降下録」、青空文庫を降りる「膨大な量のテキスト」を足して、起動画面から選べるようにした、Chrome でインストールできるアプリ) |
