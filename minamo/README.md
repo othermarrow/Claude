@@ -4,6 +4,8 @@
 中身は Gemini API か NVIDIA API で、固定のセリフはない。何を書いても、丁寧な敬語のまま打ち返してくる。
 理性的で形式的なカウンセリングの枠が、内側から少しずつ腐っていく。
 
+遊び方は二通り：Termux の中で直接話す CUI 版（`minamo.py`）と、Chrome でインストールする PWA 版（`server.py` + `web/`）。
+
 ## 仕掛け
 
 | 仕掛け | 中身 |
@@ -81,7 +83,33 @@ EOS
 chmod +x $PREFIX/bin/minamo
 ```
 
-## 遊び方
+## PWA 版（Chrome でインストール）
+
+Termux で小さなサーバーを動かし、Chrome で開いてインストールする。APIキーはサーバー（Termux）だけが持ち、画面には渡さない。
+
+```bash
+sh ~/Claude/minamo/serve.sh
+```
+
+「Chrome で http://localhost:8082/ を開いてください」と出たら、Termux はそのままにして、
+Chrome で `http://localhost:8082/` を開く。Chrome の ⋮ →「アプリをインストール」（または「ホーム画面に追加」）。
+
+- 次からはホーム画面の「ミナモ」から開ける。ただし面接には API を使うので、**遊ぶ前に毎回 `serve.sh` を動かしておく**。動いていないと、起動画面にそう出る。
+- `serve.sh` に付けた引数はそのまま渡る：`sh ~/Claude/minamo/serve.sh --backend nvidia`、`--fake`（APIなしで試す）、`--no-karte` など。
+- `127.0.0.1` でだけ待つので、同じ Wi-Fi のほかの端末からは見えない。ほかのサイトから勝手に API を使われないように、Host と専用のヘッダーを確かめている。
+- インストールした場所は `localhost:8082`。ポートを変えると別のアプリ扱いになる。
+
+PWA 版だけの観測（CUI 版にはない）：
+
+| 観測 | 中身 |
+|---|---|
+| 書きかけて消した文字数 | 打ってから消した文字の数を AI に渡す。黙っているときは「書きかけたまま送らずにいる」「書きかけて消した」も伝わる |
+| 画面を離れていた時間 | 返答の途中でほかのアプリに移ると、離れていた秒数が伝わる（離れている間は沈黙に数えない） |
+| 振動 | 侵食・融合の段階では、長い間のところで短く震える |
+
+沈黙は「最後に何か打ってから 60 秒」で数える。右上の「面接をやめる」で、演出なしにすぐ抜けられる。
+
+## 遊び方（CUI 版）
 
 ```bash
 minamo                     # 面接を始める
@@ -97,6 +125,16 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 
 記録は既定で `~/minamo/records/年月日-時分秒.md` に保存される。Obsidian で読むなら `--records` で Vault の中を指定する。
 
+## ファイル
+
+| ファイル | 中身 |
+|---|---|
+| `minamo.py` | CUI 版。プロンプト・段階・API の呼び出しもここにあり、PWA 版のサーバーも使う |
+| `karte.txt` | 紹介状の束 |
+| `server.py` `serve.sh` | PWA 版のサーバー（画面を配り、API に中継し、記録を保存する） |
+| `web/` | PWA 版の画面（`index.html` `app.js` `sw.js` `manifest.webmanifest` `icons/`）。ファイルを足したら `sw.js` の `FILES` に足し、`VERSION` を上げる |
+| `tools/make_icons.py` | アイコン（水面の波紋）を作り直す |
+
 ## 設定
 
 `minamo.py` の上の方：
@@ -108,10 +146,12 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 | `SILENCE_SEC` | 60 | 黙っているとミナモが話しかけるまでの秒数 |
 | `MAX_UNPROMPTED` | 2 | 続けて話しかけてくる上限 |
 | `PHASES` | — | 段階が変わるターン数・印字の速さ・長考の確率 |
-| `CRISIS_WORDS` | — | 演出を止める言葉 |
+| `CRISIS_WORDS` | — | 演出を止める言葉（PWA 版もここを使う） |
+| `PORT`（`server.py`） | 8082 | PWA 版のポート |
 
 ## 送るもの・確認状況
 
 - Gemini / NVIDIA に送るのは、会話・観測メモ（秒数・文字数・時刻・ユーザー名・機種・電池）・紹介状。それ以外は端末の外に出さない。
 - 開発環境で、Gemini・NVIDIA の応答を模したテストと `--fake` で、印字・沈黙の割り込み・段階の進行・終了・危機の言葉での停止・記録の保存は確かめた。
-- **実際の Gemini API・NVIDIA API と Termux 実機ではまだ確かめていない。** NVIDIA のモデルが日本語の敬語や `[間]` の使い方をどこまで守るかも未確認。
+- PWA 版は、開発環境の Chromium（Playwright）と `--fake` のサーバーで、起動・沈黙の割り込み・書きかけて消した文字数・終了と所見・記録の保存・危機の言葉での停止・Service Worker の登録を確かめた。
+- **実際の Gemini API・NVIDIA API と Termux 実機、Xperia の Chrome での PWA インストールはまだ確かめていない。** NVIDIA のモデルが日本語の敬語や `[間]` の使い方をどこまで守るかも未確認。

@@ -337,13 +337,10 @@ class Fake:
              "そのためらいは、とても大切な材料です。続けてください。",
              "私たちは、もう何度もこの話をしましたね。[間] いいえ、初めてでしたか。"]
 
-    def __init__(self):
-        self.i = 0
-
     def ask(self, contents):
         time.sleep(0.5)
-        self.i += 1
-        return self.LINES[min(self.i - 1, len(self.LINES) - 1)]
+        i = sum(1 for m in contents if m["role"] == "model")
+        return self.LINES[min(i, len(self.LINES) - 1)]
 
 
 # ==========================================
@@ -516,6 +513,26 @@ class Session:
         return path
 
 
+def make_llm(backend=None, model=None, no_karte=False, fake=False):
+    """使う API を決めて組み立てる。キーがなければ LookupError（キーの名前）。"""
+    if fake:
+        return Fake()
+    if not backend:
+        backend = ("gemini" if load_key("GEMINI_API_KEY")
+                   else "nvidia" if load_key("NVIDIA_API_KEY") else "gemini")
+    name = "GEMINI_API_KEY" if backend == "gemini" else "NVIDIA_API_KEY"
+    key = load_key(name)
+    if not key:
+        raise LookupError(name)
+    system = SYSTEM_PROMPT
+    karte = "" if no_karte else load_karte()
+    if karte:
+        system += KARTE_PROMPT.format(karte=karte)
+    if backend == "gemini":
+        return Gemini(key, model or MODEL, system)
+    return Nvidia(key, model or NVIDIA_MODEL, system)
+
+
 def main():
     global RECORD_DIR
     ap = argparse.ArgumentParser(description="旧式カウンセリングAI「ミナモ」との面接")
@@ -533,26 +550,11 @@ def main():
     a = ap.parse_args()
     RECORD_DIR = os.path.expanduser(a.records)
 
-    if a.fake:
-        llm = Fake()
-    else:
-        backend = a.backend
-        if not backend:
-            backend = ("gemini" if load_key("GEMINI_API_KEY")
-                       else "nvidia" if load_key("NVIDIA_API_KEY") else "gemini")
-        name = "GEMINI_API_KEY" if backend == "gemini" else "NVIDIA_API_KEY"
-        key = load_key(name)
-        if not key:
-            print(f"{name} が見つかりません。README の「APIキー」を見てください。")
-            sys.exit(1)
-        system = SYSTEM_PROMPT
-        karte = "" if a.no_karte else load_karte()
-        if karte:
-            system += KARTE_PROMPT.format(karte=karte)
-        if backend == "gemini":
-            llm = Gemini(key, a.model or MODEL, system)
-        else:
-            llm = Nvidia(key, a.model or NVIDIA_MODEL, system)
+    try:
+        llm = make_llm(a.backend, a.model, a.no_karte, a.fake)
+    except LookupError as e:
+        print(f"{e} が見つかりません。README の「APIキー」を見てください。")
+        sys.exit(1)
 
     s = Session(llm, a.silence or None, not a.no_env)
     try:

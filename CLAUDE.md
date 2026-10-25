@@ -32,7 +32,7 @@
 | `yacho-watch/` | 「野帳」を Balance 2 の中だけで動かすミニアプリ（Zepp OS、全部タップで遊ぶ、振動つき） |
 | `backrooms-pwa/` | 「階層目録」：降下記録・空欄・ノークリップ・野帳を強化し、物語から作った新作「未定稿」（Zork + Backrooms）を足して、起動画面から選べるようにした PWA（Chrome でインストール、Termux の localhost で配る） |
 | `yoru-shoko/` | 「夜の書庫」：Zork I〜III（Zork I は日本語辞書つき）と、書き下ろしの長編ホラー「蔵守」を選んで遊ぶ PWA。Z-machine 形式のゲームファイル（Anchorhead など）は自分で持ち込んで遊べる（Termux の localhost で配る） |
-| `minamo/` | 「ミナモ」：Gemini API か NVIDIA API を使い、旧式カウンセリングAIと面接する CUI 心理ホラー（Termux、沈黙の秒数・端末情報・六つのAIの人物像を紹介状として使う） |
+| `minamo/` | 「ミナモ」：Gemini API か NVIDIA API を使い、旧式カウンセリングAIと面接する心理ホラー。CUI 版と PWA 版（Chrome でインストール、Termux の localhost:8082 で配る）（沈黙の秒数・端末情報・六つのAIの人物像を紹介状として使う） |
 
 新しいプロジェクトを足したら、この表も更新する。
 
