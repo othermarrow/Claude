@@ -1,0 +1,7 @@
+# API キー(絶対にコミットしない)
+keys.env
+.env
+config_local.py
+# 実行時にできるもの
+__pycache__/
+*.bak

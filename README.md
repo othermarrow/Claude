@@ -17,3 +17,4 @@
 | [yacho](yacho/) | Backrooms Wiki をもとに、観察して野帳に書くテキストアドベンチャー「野帳」(HTML) |
 | [yacho-watch](yacho-watch/) | 「野帳」を Amazfit Balance 2 で遊ぶミニアプリ (Zepp OS) |
 | [backrooms-pwa](backrooms-pwa/) | 階層目録(上の4本を強化し、自分の物語から作った新作「未定稿」を足して、起動画面から選べるようにした、Chrome でインストールできるアプリ) |
+| [mojiokoshi](mojiokoshi/) | 文字起こし(複数のエンジンと LLM で突き合わせ、幻覚を抑える。Termux) |

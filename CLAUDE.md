@@ -32,6 +32,7 @@
 | `yacho-watch/` | 「野帳」を Balance 2 の中だけで動かすミニアプリ（Zepp OS、全部タップで遊ぶ、振動つき） |
 | `backrooms-pwa/` | 「階層目録」：降下記録・空欄・ノークリップ・野帳を強化し、物語から作った新作「未定稿」（Zork + Backrooms）を足して、起動画面から選べるようにした PWA（Chrome でインストール、Termux の localhost で配る） |
 | `yoru-shoko/` | 「夜の書庫」：Zork I〜III（Zork I は日本語辞書つき）と、書き下ろしの長編ホラー「蔵守」を選んで遊ぶ PWA。Z-machine 形式のゲームファイル（Anchorhead など）は自分で持ち込んで遊べる（Termux の localhost で配る） |
+| `mojiokoshi/` | 録音状態の悪い音声を、複数の文字起こしエンジン(Groq の Whisper 2種・NVIDIA の Parakeet と Whisper・Gemini 3.5 Transcribe)と複数の LLM の統合・合議・校正で突き合わせて文字にする(Termux。Converter フォルダを一括処理) |
 
 新しいプロジェクトを足したら、この表も更新する。
 
