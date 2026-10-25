@@ -67,7 +67,8 @@ ENGINES = [
     dict(name="parakeet", kind="riva", function_id="71203149-d3b7-4460-8231-1be2543a1fca",
          language_code="ja-JP", family="parakeet", audio="denoise", glossary=False, trust=0.3, enabled=True),
     dict(name="gemini-transcribe", kind="gemini_transcribe", model="gemini-3.5-transcribe",
-         family="gemini", audio="light", glossary=True, max_request_sec=1200, trust=1.0, enabled=True),
+         family="gemini", audio="light", glossary=True, max_request_sec=1200, trust=1.0, probe=False,
+         enabled=True),
     # NVIDIA 上の Whisper large-v3。function-id は build.nvidia.com/openai/whisper-large-v3 の
     # API のページで確かめること(check で ✗ になったら、そのページの値に書き換える)。
     dict(name="nv-whisper", kind="riva", function_id="b702f636-f60c-4a3d-a6f4-f3568c13bd7d",
@@ -131,6 +132,11 @@ PROOF_COUNT = 2
 PROOF_BATCH = 6                 # 校正で1回に送る区間の数
 MERGE_ENABLED = True
 PROOF_ENABLED = True
+# 実行前に、統合・校正の LLM と文字起こしエンジンへごく短い問い合わせを送り、
+# 使えるもの(403・404 なら同じ枠の次の候補)だけで始める。結果はこの時間だけ覚えておく
+# (上限に当たったものは1時間)。--recheck で問い合わせ直す、--no-preflight で確かめない。
+PREFLIGHT = True
+PREFLIGHT_CACHE_HOURS = 6
 
 # ==========================================
 # 4. 出力の書き方

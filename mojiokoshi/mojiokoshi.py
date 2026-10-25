@@ -37,9 +37,10 @@ import audio
 import config
 import llm
 import net
+import preflight
 import textproc as tp
 
-VERSION = "1.3"
+VERSION = "1.4"
 LABELS = "ABCDEFGHIJ"
 _print_lock = threading.Lock()
 
@@ -153,13 +154,13 @@ def profile_wav(ctx, name):
 # ==========================================
 # 3. 文字起こし
 # ==========================================
-_SIG_IGNORE = {"enabled", "trust", "max_request_sec"}     # 結果を変えない設定
+_SIG_IGNORE = {"enabled", "trust", "max_request_sec", "probe"}     # 結果を変えない設定
 
 
 def engine_sig(e, glossary, legacy=None):
     d = {k: v for k, v in e.items() if not k.startswith("_") and k not in _SIG_IGNORE}
     if legacy is not None:               # 1.2 までの名前(trust・max_request_sec も含めていた)
-        d = {k: v for k, v in e.items() if not k.startswith("_") and k != "enabled"}
+        d = {k: v for k, v in e.items() if not k.startswith("_") and k not in ("enabled", "probe")}
         if "max_request_sec" in d:
             d["max_request_sec"] = legacy
     extra = [glossary.signature() if e.get("glossary") else "", config.ASR_LANGUAGE,
@@ -991,15 +992,28 @@ def cmd_run(args):
     if tp._KAKASI is None:
         say("(pykakasi が無いので、読みをそろえずに比べます。pip install pykakasi で精度が上がります)")
     engines = active_engines(args.engines.split(",") if args.engines else None)
+    use_pf = config.PREFLIGHT and not args.no_preflight
+    if use_pf:
+        say("\n[実行前の確かめ] 文字起こしエンジン")
+        engines = preflight.engines(engines, fresh=args.recheck)
     if not engines:
         sys.exit("使える文字起こしエンジンがありません。python mojiokoshi.py check で確かめてください。")
     if len(engines) < 2:
         say("! 使えるエンジンが1つだけです。突き合わせができないので、幻覚を見つけにくくなります。")
     merge_names = args.merge.split(",") if args.merge else config.MERGE_MODELS
     proof_names = args.proof.split(",") if args.proof else config.PROOF_MODELS
-    merge_models = resolve_models(merge_names, "統合") if config.MERGE_ENABLED and not args.no_llm else []
-    proof_models = (proof_model_list(proof_names) if config.PROOF_ENABLED and not args.no_proof
-                    and not args.no_llm else [])
+    want_merge = config.MERGE_ENABLED and not args.no_llm
+    want_proof = config.PROOF_ENABLED and not args.no_proof and not args.no_llm
+    if use_pf and (want_merge or want_proof):
+        say("[実行前の確かめ] 統合・校正の LLM")
+    if use_pf:
+        merge_models = preflight.llm_models(merge_names, "統合", fresh=args.recheck) if want_merge else []
+        proof_models = preflight.llm_models(proof_names, "校正", fresh=args.recheck) if want_proof else []
+    else:
+        merge_models = resolve_models(merge_names, "統合") if want_merge else []
+        proof_models = proof_model_list(proof_names) if want_proof else []
+    if want_merge and not merge_models:
+        say("! 統合に使える LLM がありません。音声認識の候補から選ぶだけになります。")
     for i, f in enumerate(todo, 1):
         say(f"\n[{i}/{len(todo)}] {os.path.basename(f)}")
         try:
@@ -1101,6 +1115,8 @@ def main():
     ap.add_argument("--proof", help="校正に使う LLM をカンマ区切りで(LLMS の名前)")
     ap.add_argument("--no-proof", action="store_true", help="校正しない")
     ap.add_argument("--no-llm", action="store_true", help="LLM を使わない(音声認識の候補から選ぶだけ)")
+    ap.add_argument("--no-preflight", action="store_true", help="実行前の確かめをしない")
+    ap.add_argument("--recheck", action="store_true", help="実行前の確かめで、前回の結果を使わずに問い合わせ直す")
     ap.add_argument("--deep", action="store_true", help="check で LLM にも実際に問い合わせる")
     ap.add_argument("--all", action="store_true", help="check で無効のエンジンも確かめる")
     args = ap.parse_args()
