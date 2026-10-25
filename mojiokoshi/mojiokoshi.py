@@ -39,7 +39,7 @@ import llm
 import net
 import textproc as tp
 
-VERSION = "1.1"
+VERSION = "1.2"
 LABELS = "ABCDEFGHIJ"
 _print_lock = threading.Lock()
 
@@ -227,11 +227,11 @@ def asr_worker(e, ctx, glossary, label):
             save_json(path, cache)
             say(f"  ✗ {label} {e['name']}: 回数・量の上限に達しました。残りは次に実行したときに送ります — {ex.message[:120]}")
             return cache
-        except net.ApiError as ex:
+        except (net.ApiError, asr.GrpcError, ValueError, OSError, AttributeError, KeyError) as ex:
             fails += 1
-            say(f"  ! {label} {e['name']}: 区間 {grp[0]['id']}〜{grp[-1]['id']} が失敗 — {ex}")
+            say(f"  ! {label} {e['name']}: 区間 {grp[0]['id']}〜{grp[-1]['id']} が失敗 — {type(ex).__name__}: {ex}")
             if fails >= 3:
-                cache["error"] = str(ex)
+                cache["error"] = f"{type(ex).__name__}: {ex}"
                 save_json(path, cache)
                 say(f"  ✗ {label} {e['name']}: 続けて失敗したので、今回はここまでにします")
                 return cache
@@ -256,6 +256,7 @@ def run_asr(ctx, engines, glossary):
     results, errors = run_parallel(tasks)
     for name, ex in errors.items():
         say(f"  ✗ {name}: 予期しないエラー — {type(ex).__name__}: {ex}")
+        results[name] = {"chunks": {}, "error": f"予期しないエラー {type(ex).__name__}: {ex}"}
     return results
 
 
@@ -273,6 +274,19 @@ def assemble(ctx, engines, results, glossary):
     fam_ids = {}
     for e in engines:
         fam_ids.setdefault(fam_of[e["name"]], len(fam_ids) + 1)
+    gkanji = glossary.kanji_set() if glossary else frozenset()
+    # 半分以上の区間が話し言葉になっていないエンジンは、このファイルでは丸ごと外す
+    junk_engines = {}
+    for e in engines:
+        outs = [tp.clean_asr_text(tp.join_units(u.get("text", "") for u in us))
+                for us in ((results.get(e["name"]) or {}).get("chunks") or {}).values()]
+        outs = [t for t in outs if t]
+        bad = sum(1 for t in outs if tp.junk_reason(t, gkanji))
+        if len(outs) >= 5 and bad / len(outs) > 0.5:
+            junk_engines[e["name"]] = f"{bad}/{len(outs)} 区間が用語・漢字の羅列"
+    ctx["junk_engines"] = junk_engines
+    for name, why in junk_engines.items():
+        say(f"  ✗ {name}: このファイルでは使いません — {why}")
     table = {}
     for c in ctx["chunks"]:
         row = {"chunk": c, "texts": {}, "notes": {}, "dropped": {}}
@@ -280,6 +294,8 @@ def assemble(ctx, engines, results, glossary):
         if c["silent"]:
             continue
         for e in engines:
+            if e["name"] in junk_engines:
+                continue
             res = results.get(e["name"]) or {}
             units = (res.get("chunks") or {}).get(str(c["id"]))
             if units is None:
@@ -302,7 +318,12 @@ def assemble(ctx, engines, results, glossary):
                         dropped.append(("用語集の書き写し", t))
                         continue
                 kept.append(t)
-            row["texts"][e["name"]] = tp.clean_asr_text(tp.join_units(kept))
+            text = tp.clean_asr_text(tp.join_units(kept))
+            why = tp.junk_reason(text, gkanji)
+            if why:
+                dropped.append((why, text))
+                text = ""
+            row["texts"][e["name"]] = text
             if dropped:
                 row["dropped"][e["name"]] = dropped
         texts = row["texts"]
@@ -346,7 +367,8 @@ def assemble(ctx, engines, results, glossary):
             mean_sim[n] = sum(vals) / len(vals) if vals else 0.0
         row["mean_sim"] = mean_sim
         best_pair = max(sims.values()) if sims else 0.0
-        medoid = max(names, key=lambda n: (mean_sim[n], len(norms[n]))) if names else None
+        trust = {e["name"]: e.get("trust", 0.5) for e in engines}
+        medoid = max(names, key=lambda n: (mean_sim[n] + 0.15 * trust[n], len(norms[n]))) if names else None
         row["medoid"] = medoid
         # 2つ以上の系統が一致した内容(取りこぼしの測りに使う)
         if medoid:
@@ -492,10 +514,24 @@ def run_merge(ctx, engines, table, glossary, models):
     def validate(it, text):
         longest = max((len(tp.norm(t)) for _, t, _ in it["cands"]), default=0)
         return len(tp.norm(text)) <= 2 * longest + 20
-    tasks = [(m["name"], (lambda m=m: llm_worker("merge", m, items, ctx, gloss_for(glossary, m), m["batch"],
-                                                 llm.merge, validate)))
-             for m in models]
-    results, errors = run_parallel(tasks)
+    def work(m, lst):
+        return lambda: llm_worker("merge", m, lst, ctx, gloss_for(glossary, m), m["batch"], llm.merge, validate)
+    results, errors = run_parallel([(m["name"], work(m, items)) for m in models])
+    # どの LLM からも統合が返らなかった区間だけ、代わりの LLM に回す
+    for name in [n for n in config.MERGE_BACKUPS if n not in results]:
+        missing = [it for it in items if not any(
+            ((r.get("chunks") or {}).get(str(it["id"])) or {}).get("text") is not None
+            and ((r.get("chunks") or {}).get(str(it["id"])) or {}).get("h") == it["h"] for r in results.values())]
+        if not missing:
+            break
+        found = resolve_models([name], "統合の代わり")
+        if not found:
+            continue
+        m = found[0]
+        say(f"  [統合の代わり] {m['name']}={m['model']} に {len(missing)} 区間")
+        more, err2 = run_parallel([(m["name"], work(m, missing))])
+        results.update(more)
+        errors.update(err2)
     for name, ex in errors.items():
         say(f"  ✗ 統合 {name}: 予期しないエラー — {type(ex).__name__}: {ex}")
     return results, items
@@ -774,6 +810,9 @@ def write_outputs(ctx, out_stem, engines, results, table, merges, chosen, final,
         f.write("\n".join(cmp_lines) + "\n")
     if len(review) == 4:
         review.append("なし")
+    if ctx.get("junk_engines"):
+        review += ["", "## 外したエンジン(出力が話し言葉になっていない)", ""] + \
+                  [f"- {n}: {w}" for n, w in ctx["junk_engines"].items()]
     if missing:
         review += ["", "## 欠けたエンジン", ""] + [f"- {m}" for m in missing] + \
                   ["", "時間をおいて `python mojiokoshi.py --force ファイル名` を実行すると、欠けた分だけ問い合わせて作り直します。"]

@@ -176,14 +176,42 @@ _CHAR_REPEAT_RE = re.compile(r"(.)\1{7,}")
 _NOISE_RE = re.compile(r"[♪♫♬]+|[\[［(（【](?:音楽|拍手|笑|笑い|BGM|music|Music|MUSIC|雑音|無音)[\]］)）】]")
 
 
+# 日本語の録音に混ざるはずのない文字(キリル・ギリシャ・ハングル・アラビア等)。
+# Parakeet は聞き取れない所でロシア語風の綴りを出した
+_FOREIGN_RE = re.compile(r"[\u0370-\u03ff\u0400-\u052f\u0590-\u06ff\u1100-\u11ff\uac00-\ud7af]+[.,!?。、]?")
+
+
 def clean_asr_text(text: str) -> str:
     """エンジンの出力の、言葉でない部分と機械的な繰り返しを取る。"""
     t = (text or "").replace("\r", "").replace("\n", " ")
     t = _NOISE_RE.sub("", t)
+    t = _FOREIGN_RE.sub("", t)
     t = _CJK_SPACE_RE.sub("", t)          # Parakeet は日本語の1字ごとに空白を入れる
     t = _SPACES_RE.sub(" ", t)
     t = collapse_repeats(t)
     return t.strip()
+
+
+def junk_reason(text: str, gloss_kanji=frozenset()):
+    """話し言葉になっていない出力なら、その理由。普通の文なら None。
+
+    実際の録音で、Parakeet は用語集の語の漢字(人名・棟の名前)だけを並べた。
+    日本語の話し言葉は仮名が多い(他のエンジンは最低でも4割)ので、
+    仮名が2割未満で、同じ漢字の繰り返しか用語集の漢字ばかりのものを捨てる。
+    """
+    js = [c for c in text if "\u3041" <= c <= "\u9fff"]
+    if len(js) < 6:
+        return None
+    kana = sum(1 for c in js if c <= "\u30ff")
+    if kana / len(js) >= 0.2:
+        return None
+    kanji = [c for c in js if c > "\u30ff"]
+    gcov = sum(1 for c in kanji if c in gloss_kanji) / len(kanji) if kanji else 0.0
+    if gcov >= 0.5:
+        return "用語の羅列"
+    if len(set(js)) / len(js) < 0.6:
+        return "漢字の羅列"
+    return None
 
 
 def collapse_repeats(t: str) -> str:
@@ -353,6 +381,9 @@ class Glossary:
             else:
                 text = text.replace(w, r)
         return text
+
+    def kanji_set(self):
+        return frozenset(c for t in self.terms for c in t if "\u4e00" <= c <= "\u9fff")
 
     def norm_terms(self):
         return [x for x in (norm(t, drop_fillers=False) for t in self.terms) if len(x) >= 2]

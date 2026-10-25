@@ -33,11 +33,19 @@ Termux だけで完結する(PC は要らない)。
 
 | 候補 | エンジン | サービス | 系統 | 前処理 |
 |---|---|---|---|---|
-| A | `whisper-v3`(Whisper large-v3、用語集をプロンプトで渡す) | Groq | Whisper | light |
+| A | `whisper-v3`(Whisper large-v3) | Groq | Whisper | light |
 | B | `whisper-turbo`(Whisper large-v3 turbo、用語集なし) | Groq | Whisper | denoise |
-| C | `parakeet`(Parakeet 1.1B RNNT 多言語、ja-JP、用語集で単語ブースト) | NVIDIA | Parakeet | denoise |
+| C | `parakeet`(Parakeet 1.1B RNNT 多言語、ja-JP) | NVIDIA | Parakeet | denoise |
 | D | `gemini-transcribe`(Gemini 3.5 Transcribe、逐語・単語の時刻・custom_vocabulary) | Gemini | Gemini | light |
 | E | `nv-whisper`(Whisper large-v3) | NVIDIA | Whisper | raw |
+
+用語集は Gemini と統合・校正の LLM にだけ渡す。実際の録音で、Whisper はプロンプトの用語を
+聞こえていない所に差し込み、Parakeet は単語ブーストで用語の羅列しか出さなくなったため。
+
+話し言葉になっていない出力(仮名が 2 割未満で、同じ漢字の繰り返しか用語集の漢字ばかりのもの)は
+区間ごとに捨て、録音の半分以上がそうなったエンジンは、そのファイルでは丸ごと外す
+(`要確認.md` の「外したエンジン」に出る)。LLM の統合が無い区間では、`trust`(信頼の重み)を
+加えて候補を選ぶ。
 
 ほかに `nemotron-asr`(Nemotron 3.5 ASR、40言語・ストリーミング)と `gemini-flash-asr`
 (Gemini 3.8 Flash に聞かせる)を用意してある(既定では無効)。使えないエンジンは自動で外れ、
@@ -225,21 +233,25 @@ TEACCH, ティーチ, 構造化
 | `pykakasi が無いので…` | `pip install pykakasi`(無くても動く) |
 | 小さい声の所が抜ける | `VAD_MARGIN_DB=4 moji --fresh 名前`(声の検出をゆるめる) |
 | 〔?〕が多すぎる | `UNSUPPORTED_MIN_CHARS` を上げる。用語集に固有名詞を足す |
-| 上限で止まる | 時間をおいて `moji --force 名前`(済んだ分は使い回す) |
+| 上限で止まる | 時間をおいて `moji --force 名前`(済んだ分は使い回す)。Groq の 1時間あたりの上限は 20 分まで待つ(`MAX_WAIT_SEC`) |
+| 統合が 1 つも動かない(フロントマターの `merge_models: []`) | `mojilog 300` の「✗ 統合」の行を見る。上限なら時間をおく |
 | 動きを確かめたい | `python ~/mojiokoshi/mojiokoshi.py selftest`(通信しない自己点検) |
 
 ## 確認状況
 
-- 確認済み(開発環境): 自己点検 12 項目。偽の API サーバー(Groq・Gemini・NVIDIA の形式を真似たもの)と、
+- 確認済み(開発環境): 自己点検 13 項目。偽の API サーバー(Groq・Gemini・NVIDIA の形式を真似たもの)と、
   NVIDIA の公式の定義(riva_asr.proto)から作った偽の gRPC サーバーに対して、前処理から出力までの
   通しの動き、curl(HTTP/2・暗号化あり/なし)と grpcio の両方での NVIDIA への送受信、
   一括→ストリーミングへの自動切り替え、上限に達したときの代わりのモデルへの切り替え、
   途中経過の使い回し
-- 実機の `mojicheck`(2026-10、Xperia 1 IV の Termux): parakeet・gemini-transcribe・nv-whisper が
-  1.5 秒の音に応答した(nv-whisper の function-id は合っていた。nv-whisper は 440Hz の音に
-  「ご視聴ありがとうございました」と書いた。無音・雑音で Whisper が書く典型的な幻覚で、照合の段で消す対象)。
-  Groq の 2 つは HTTP 403(error code: 1010)で、1.1 で直した(直したあとの実機での確認はまだ)
-- 未確認: 実際の録音での通しの動作と精度、Groq の LLM(gpt-oss・qwen)への問い合わせ
+- 実機(2026-10、Xperia 1 IV の Termux、1時間47分の会話の録音、1.1 で実行):
+  - whisper-v3 は全 170 区間、gemini-transcribe は最初の 19 区間で上限(429)、whisper-turbo は 64 区間で
+    Groq の 1時間あたりの音声の上限(429)。nv-whisper は 0 区間(原因は記録に残らず。1.2 で記録するようにした)
+  - parakeet は単語ブーストのせいで用語の羅列とキリル文字だけになり、羅列が最終稿に 3 か所入った(1.2 で修正。
+    同じ結果を 1.2 の照合に通すと、parakeet は丸ごと外れ、羅列は最終稿に残らないことを確かめた)
+  - 統合の LLM 4 つがどれも結果を返さず、校正は代わりの gemini-3.5-flash-lite だけが動いた。
+    原因は未確認(ログが要る)。1.2 では、統合が返らない区間を代わりの LLM(`MERGE_BACKUPS`)に回す
+- 未確認: 1.2 での実機の動作、統合の LLM が動いたときの精度
 
 ## ファイル構成
 

@@ -40,6 +40,17 @@ def _():
     assert tp.clean_asr_text("♪(音楽)こんにちは") == "こんにちは"
 
 
+@check("用語・漢字の羅列(Parakeet の単語ブーストの暴走)を見分け、普通の文は残す")
+def _():
+    g = tp.Glossary.parse("山田\n東棟\n西棟\n主任")
+    k = g.kanji_set()
+    assert tp.junk_reason("大東棟大山田大大主任大大西棟大大", k)
+    assert tp.junk_reason("大山田大大山田大山田", k)
+    for ok in ("11月最終土曜日", "強度行動障害支援者養成研修", "13時半それ15時半", "山田さんが来た"):
+        assert tp.junk_reason(ok, k) is None, ok
+    assert tp.clean_asr_text("大山田Толедожените.はい") == "大山田はい"
+
+
 @check("フィラーだけを消す(「あの人」は残す)")
 def _():
     assert tp.strip_fillers("えー、あのー、あの人が、えっと来ました") == "あの人が、来ました"

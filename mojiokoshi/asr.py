@@ -302,7 +302,9 @@ def _grpc_call_grpcio(path, requests, metadata, timeout, streaming):
         fn = ch.unary_unary(path)
         return [fn(requests[0], metadata=md, timeout=timeout)]
     except grpc.RpcError as e:
-        raise GrpcError(e.code().value[0], e.details() or "")
+        code = e.code() if hasattr(e, "code") else None
+        details = e.details() if hasattr(e, "details") else str(e)
+        raise GrpcError(code.value[0] if code is not None else 2, details or "")
 
 
 def _grpc_call_curl(path, requests, metadata, timeout):

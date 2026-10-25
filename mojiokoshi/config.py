@@ -49,25 +49,29 @@ ASR_LANGUAGE_BCP47 = "ja-JP"   # Gemini に渡す言語
 #          1つにまとめる。系統の違うエンジン同士の一致を重く見る。
 # audio    前処理の種類(AUDIO_PROFILES)。エンジンごとに変えると誤りが重なりにくい。
 # glossary 用語集をエンジンに渡すか(Whisper はプロンプト、NVIDIA は単語ブースト、
-#          Gemini は custom_vocabulary)。Whisper のプロンプトは無音部分で用語を
-#          そのまま書き出す幻覚の元にもなるので、Whisper 2つのうち片方だけに渡す。
+#          Gemini は custom_vocabulary)。実際の録音(2026-10、1時間47分の会話)で、
+#          Whisper はプロンプトの用語を聞こえていない所に差し込み(「〇〇棟の地表は」等)、
+#          Parakeet は単語ブーストで用語(人名・棟の名前)の羅列とキリル文字しか出さなく
+#          なった。どちらも既定では渡さない。用語集は Gemini と、統合・校正の LLM に渡る。
+# trust    音声認識の候補だけから選ぶとき(LLM の統合が無い区間)の信頼の重み(0〜1)。
+#          同じ録音で、聞き取りの良かった順に高くしてある。
 # max_request_sec  1回に送る音声の長さの上限(秒)。区間(チャンク)を無音を詰めて
 #          つなぎ、単語の時刻で区間に振り分け直す。1日の回数制限が厳しいエンジンほど長くする。
 ENGINES = [
     dict(name="whisper-v3", kind="groq", model="whisper-large-v3",
-         family="whisper", audio="light", glossary=True, enabled=True),
+         family="whisper", audio="light", glossary=False, trust=0.8, enabled=True),
     dict(name="whisper-turbo", kind="groq", model="whisper-large-v3-turbo",
-         family="whisper", audio="denoise", glossary=False, enabled=True),
+         family="whisper", audio="denoise", glossary=False, trust=0.7, enabled=True),
     # 25言語対応の Parakeet(日本語は ja-JP)。function-id は build.nvidia.com の
     # parakeet-1_1b-rnnt-multilingual-asr のページの例と同じもの。
     dict(name="parakeet", kind="riva", function_id="71203149-d3b7-4460-8231-1be2543a1fca",
-         language_code="ja-JP", family="parakeet", audio="denoise", glossary=True, enabled=True),
+         language_code="ja-JP", family="parakeet", audio="denoise", glossary=False, trust=0.3, enabled=True),
     dict(name="gemini-transcribe", kind="gemini_transcribe", model="gemini-3.5-transcribe",
-         family="gemini", audio="light", glossary=True, max_request_sec=600, enabled=True),
+         family="gemini", audio="light", glossary=True, max_request_sec=600, trust=1.0, enabled=True),
     # NVIDIA 上の Whisper large-v3。function-id は build.nvidia.com/openai/whisper-large-v3 の
     # API のページで確かめること(check で ✗ になったら、そのページの値に書き換える)。
     dict(name="nv-whisper", kind="riva", function_id="b702f636-f60c-4a3d-a6f4-f3568c13bd7d",
-         language_code="ja", family="whisper", audio="raw", glossary=False, enabled=True),
+         language_code="ja", family="whisper", audio="raw", glossary=False, trust=0.7, enabled=True),
     # Nemotron 3.5 ASR(40言語、ストリーミング専用)。function-id を build.nvidia.com の
     # nemotron-asr-streaming のページで調べて入れ、enabled=True にする。
     dict(name="nemotron-asr", kind="riva_stream", function_id="",
@@ -117,6 +121,8 @@ LLMS = {
 # 統合(候補を読み比べて1つの本文にする)に使う LLM。2〜5個。それぞれが独立に統合し、
 # 音声認識の候補との一致・取りこぼしの少なさ・LLM 同士の一致で、区間ごとに最良を選ぶ。
 MERGE_MODELS = ["gemini", "gpt-oss", "qwen", "nemotron"]
+# MERGE_MODELS のどれからも統合が返らなかった区間だけを回す代わりの LLM
+MERGE_BACKUPS = ["gemini-lite"]
 # 校正(句読点・誤変換・フィラー・段落)に使う LLM。上から順に PROOF_COUNT 個を使い、
 # 使えないものは次へ回る。複数の校正結果は、元の文からの変わり方が小さいものを選ぶ。
 PROOF_MODELS = ["gemini", "gpt-oss", "nemotron", "qwen", "gemini-lite"]
@@ -206,7 +212,10 @@ REQUEST_TIMEOUT = 300           # 1回の問い合わせの上限(秒)
 MAX_RETRIES = 6
 # 429 で待つよう言われた時間がこれを超えたら、そのモデルは今回の実行では使わない
 # (1日の上限に達したとみなす)。次に実行したとき、残りの分だけ問い合わせる。
-MAX_WAIT_SEC = 180
+# Groq の音声は「1時間あたりの秒数」の上限があり、長い録音では途中で十数分待てと
+# 言われる(実測: 1時間47分の録音で whisper-turbo が 64/170 区間で止まった)。
+# 一括処理なので、20分までは待つ。
+MAX_WAIT_SEC = 1200
 MODELS_CACHE_HOURS = 12         # モデル一覧を取り直す間隔
 
 
