@@ -22,8 +22,10 @@
   --dim: #56685b;
   --you: #7fb08a;
   --warn: #d9b25f;
+  --blood: #b85a5a;
   --dot: "DotGothic16", "Noto Sans Mono CJK JP", ui-monospace, monospace;
   --mincho: "Shippori Mincho", "Noto Serif CJK JP", serif;
+  --silence: 0;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -36,47 +38,160 @@ body {
   display: flex; flex-direction: column; overflow: hidden;
 }
 button, input, textarea { font: inherit; color: inherit; }
+
+/* ブラウン管：走査線と周辺の暗がり。沈黙が深いほど暗がりが迫る */
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 5;
+  background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0,0,0,.22) 2px 3px);
+  opacity: .55;
+}
+body::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 6;
+  background: radial-gradient(ellipse at 50% 45%, transparent calc(62% - 22% * var(--silence)),
+              rgba(0,0,0, calc(.55 + .4 * var(--silence))) 100%);
+  transition: background .8s linear;
+}
+body[data-phase="2"]::before { opacity: .7; }
+body[data-phase="3"]::before { opacity: .85; }
+body[data-calm]::before, body[data-calm]::after { display: none; }
+
 header {
-  flex: none; display: flex; align-items: center; justify-content: space-between;
+  flex: none; display: flex; align-items: center; gap: .8em;
   padding: calc(0.4em + env(safe-area-inset-top, 0px)) 16px 0.4em;
   border-bottom: 1px solid var(--line); color: var(--dim); font-size: 0.78em;
+  position: relative; z-index: 2;
 }
-header button { background: none; border: none; color: var(--dim); padding: 0.2em 0; cursor: pointer; }
+#title { flex: none; letter-spacing: .05em; }
+body[data-phase="2"] #title { color: var(--text); }
+body[data-phase="3"] #title { color: var(--bright); font-family: var(--mincho); letter-spacing: .4em; }
+#toast { flex: 1; min-width: 0; text-align: right; color: var(--blood); opacity: 0; transition: opacity .4s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#toast.on { opacity: 1; }
+header button { flex: none; background: none; border: none; color: var(--dim); padding: 0.2em 0; cursor: pointer; }
+
 #log {
-  flex: 1; overflow-y: auto; padding: 1em 16px 0.5em;
+  flex: 1; overflow-y: auto; padding: 1em 16px 0.5em; position: relative; z-index: 1;
   overscroll-behavior: contain; word-break: break-word;
+  opacity: calc(1 - .35 * var(--silence)); transition: opacity .8s linear;
 }
+body[data-fx="high"][data-phase="3"] #log { animation: breathe 6s ease-in-out infinite; }
+@keyframes breathe { 50% { opacity: calc(.94 - .35 * var(--silence)); } }
 .wrap { max-width: 640px; margin: 0 auto; }
 .sys { color: var(--dim); font-size: 0.82em; margin: 0 0 1em; white-space: pre-wrap; }
-.msg { margin: 0 0 1.3em; white-space: pre-wrap; }
+.msg { margin: 0 0 1.3em; white-space: pre-wrap; transition: transform .25s; }
 .msg .who { display: block; font-size: 0.75em; letter-spacing: 0.15em; }
 .msg.ai .who { color: var(--dim); }
-.msg.ai .body { font-family: var(--mincho); color: var(--bright); font-size: 1.05em; }
+.msg.ai .body { font-family: var(--mincho); color: var(--bright); font-size: 1.05em;
+  text-shadow: 0 0 6px rgba(160,255,190,.22); }
+body[data-phase="2"] .msg.ai .body { text-shadow: 0 0 6px rgba(160,255,190,.22), .6px 0 rgba(255,70,70,.35); }
+body[data-phase="3"] .msg.ai .body { text-shadow: 0 0 8px rgba(200,255,215,.3), .8px 0 rgba(255,70,70,.45), -.8px 0 rgba(70,220,255,.3); }
 .msg.you .who { color: var(--you); opacity: 0.7; }
 .msg.you .body { color: var(--you); }
-.msg.note .body { font-family: var(--mincho); color: var(--text); }
+.msg.mirror .body { display: block; transform: scaleX(-1); }
 .cursor::after { content: "▍"; animation: blink 1s steps(1) infinite; color: var(--dim); }
 @keyframes blink { 50% { opacity: 0; } }
 .recording { color: var(--dim); font-size: 0.82em; margin: 0 0 1em; }
+s.strike { text-decoration: line-through; text-decoration-color: var(--blood); text-decoration-thickness: 2px; opacity: .65; }
+.annot { color: var(--blood); font-size: .7em; margin-left: .3em; font-family: var(--mincho); }
+.jit { display: inline-block; }
+body[data-fx="mid"] .jit, body[data-fx="high"] .jit { animation: jit .22s steps(2) infinite; }
+@keyframes jit { 50% { transform: translate(.6px, -.6px); } }
+
+/* 画面の乱れ（短く、明るさは変えない） */
+body.glitch #log, body.glitch header { animation: glitch .26s steps(3) 1; }
+body.glitch .msg .body { text-shadow: 2px 0 rgba(255,0,60,.55), -2px 0 rgba(0,255,220,.55) !important; }
+@keyframes glitch {
+  0% { transform: translate(-3px, 0) skewX(-3deg); clip-path: inset(10% 0 30% 0); }
+  40% { transform: translate(3px, 1px) skewX(2deg); clip-path: inset(40% 0 5% 0); }
+  80% { transform: translate(-1px, 0); clip-path: inset(0 0 0 0); }
+  100% { transform: none; }
+}
+body[data-fx="low"].glitch #log, body[data-fx="low"].glitch header { animation: none; }
+
+/* 水面の波紋 */
+.ripple {
+  position: fixed; width: 24px; height: 24px; border-radius: 50%; pointer-events: none; z-index: 4;
+  border: 1px solid rgba(169,201,176,.55); transform: translate(-50%, -50%) scale(1, .35);
+  animation: ripple 2.8s ease-out forwards;
+}
+.ripple::after { content: ""; position: absolute; inset: 6px; border-radius: 50%; border: 1px solid rgba(169,201,176,.35); }
+@keyframes ripple { to { transform: translate(-50%, -50%) scale(36, 12.6); opacity: 0; } }
+
+/* 消した文字 */
+.erased-float {
+  position: fixed; z-index: 7; pointer-events: none; color: var(--blood);
+  text-decoration: line-through; font-size: .9em; white-space: nowrap;
+  animation: floatup 2.5s ease-out forwards;
+}
+@keyframes floatup { to { transform: translateY(-140px); opacity: 0; filter: blur(2px); } }
+
+/* 水面の映り込み：最後に書いた言葉が、逆さにぼやけて沈んでいる */
+#wm {
+  position: fixed; left: 0; right: 0; bottom: 22%; z-index: 0; pointer-events: none;
+  text-align: center; font-family: var(--mincho); font-size: 2.4em; color: var(--bright);
+  white-space: nowrap; overflow: hidden; transform: scaleY(-1); filter: blur(1.6px);
+  opacity: calc(.05 + .08 * var(--silence));
+  -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,.8), transparent 90%);
+          mask-image: linear-gradient(to top, rgba(0,0,0,.8), transparent 90%);
+}
+body[data-fx="low"] #wm, body[data-calm] #wm { display: none; }
+
 form {
-  flex: none; display: flex; gap: 0.5em; align-items: flex-end;
+  flex: none; display: flex; gap: 0.5em; align-items: flex-end; position: relative; z-index: 2;
   padding: 0.5em 16px calc(0.6em + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--line); background: var(--panel);
 }
-#label { flex: none; color: var(--you); font-size: 0.8em; padding-bottom: 0.55em; min-width: 3.5em; }
+#label { flex: none; color: var(--you); font-size: 0.8em; padding-bottom: 0.55em; min-width: 3.5em; transition: color .3s; }
 #input {
   flex: 1; min-width: 0; resize: none; max-height: 8em;
   background: transparent; border: none; outline: none; color: var(--you);
   padding: 0.35em 0; line-height: 1.6;
 }
+#input.ghost { color: var(--bright); font-family: var(--mincho); opacity: .75; }
+body[data-phase="3"] #label { color: var(--bright); }
 #send {
   flex: none; background: none; border: 1px solid var(--line); border-radius: 4px;
   color: var(--text); padding: 0.3em 0.8em; cursor: pointer;
 }
 #send:disabled { opacity: 0.35; }
+
+/* カルテ */
+.karte {
+  position: relative; margin: 1.4em 0 1.6em; padding: 1em 1.1em 1.2em;
+  background: #e8e3d4; color: #2a2620; font-family: var(--mincho); line-height: 1.9;
+  border-radius: 2px; box-shadow: 0 6px 24px rgba(0,0,0,.5);
+  transform: rotate(-.6deg);
+}
+.karte h3 { margin: 0 0 .6em; font-size: .8em; font-weight: 500; letter-spacing: .3em;
+  border-bottom: 1px solid #8a8275; padding-bottom: .3em; color: #4a443a; }
+.karte .body { white-space: pre-wrap; }
+.karte .stamp {
+  position: absolute; right: .9em; top: .5em; width: 3.4em; height: 3.4em; border-radius: 50%;
+  border: 2px solid #b0302a; color: #b0302a; display: flex; align-items: center; justify-content: center;
+  font-size: .78em; transform: rotate(-14deg); opacity: 0; transition: opacity .2s, transform .2s;
+}
+.karte .stamp.on { opacity: .85; transform: rotate(-14deg) scale(1); }
+.karte .cursor::after { color: #8a8275; }
+
+/* 起動画面・終わりの画面・各種の覆い */
+.full {
+  position: fixed; inset: 0; z-index: 20; background: #000;
+  padding: calc(1.2em + env(safe-area-inset-top, 0px)) 16px 16px; overflow: hidden;
+}
+#boot pre { margin: 0; font-family: var(--dot); color: #7fd18b; font-size: .82em; line-height: 1.7;
+  white-space: pre-wrap; text-shadow: 0 0 6px rgba(127,209,139,.35); }
+#boot.out { opacity: 0; transition: opacity .8s; }
+#ending { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 1em; }
+#ending p { margin: 0; }
+#ending .small { color: var(--dim); font-size: .75em; word-break: break-all; max-width: 30em; }
+#ending .ai { font-family: var(--mincho); color: var(--bright); font-size: 1.1em; min-height: 1.8em;
+  text-shadow: 0 0 8px rgba(200,255,215,.3), .8px 0 rgba(255,70,70,.45); }
+#ending .btns { display: flex; gap: .6em; flex-wrap: wrap; justify-content: center; opacity: 0; transition: opacity 1.2s; }
+#ending .btns.on { opacity: 1; }
+
 .overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.82);
-  display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10;
+  position: fixed; inset: 0; background: rgba(0,0,0,0.82); z-index: 10;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
 }
 .box {
   max-width: 460px; width: 100%; background: var(--panel);
@@ -84,18 +199,26 @@ form {
   color: var(--bright); font-family: system-ui, sans-serif; line-height: 1.7;
 }
 .box p { margin: 0 0 0.8em; }
-.box .btns { display: flex; gap: 0.6em; justify-content: flex-end; flex-wrap: wrap; }
-.box button { background: none; border: 1px solid var(--line); border-radius: 4px; padding: 0.4em 1em; cursor: pointer; }
-.box button.main { border-color: var(--warn); }
+.btns { display: flex; gap: 0.6em; justify-content: flex-end; flex-wrap: wrap; }
+.btn, .box button { background: none; border: 1px solid var(--line); border-radius: 4px; padding: 0.4em 1em; cursor: pointer; color: var(--text); }
+.box button.main, .btn.main { border-color: var(--warn); color: var(--bright); }
+#crisis { z-index: 30; }
 #start .box { border-color: var(--line); font-family: var(--dot); color: var(--text); }
 #start h1 { font-family: var(--mincho); font-weight: 500; letter-spacing: 0.4em; color: var(--bright); margin: 0 0 0.2em; font-size: 1.8em; }
 #start .small { color: var(--dim); font-size: 0.8em; }
 #start code { color: var(--bright); }
+.setting { display: flex; align-items: center; gap: .6em; margin: .5em 0; font-size: .85em; }
+.setting > span { min-width: 3em; color: var(--dim); }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button { border: none !important; border-radius: 0 !important; padding: .25em .8em !important; color: var(--dim) !important; }
+.seg button[aria-pressed="true"] { background: #1a2522; color: var(--bright) !important; }
 </style>
 </head>
-<body>
+<body data-phase="0" data-fx="high">
+<div id="wm" aria-hidden="true"></div>
 <header>
   <span id="title">SOMA 対話支援システム ver.0.9.7</span>
+  <span id="toast" aria-live="polite"></span>
   <button id="quit" type="button" hidden>面接をやめる</button>
 </header>
 <main id="log"><div class="wrap" id="lines"></div></main>
@@ -110,11 +233,25 @@ form {
     <h1>ミナモ</h1>
     <p class="small">旧式カウンセリングAIとの面接（心理ホラーの作り話です）</p>
     <p id="status" class="small">接続を確かめています……</p>
+    <div class="setting"><span>演出</span>
+      <div class="seg" id="seg-level">
+        <button type="button" data-v="2">強</button><button type="button" data-v="1">標準</button><button type="button" data-v="0">弱</button>
+      </div>
+    </div>
+    <div class="setting"><span>音</span>
+      <div class="seg" id="seg-sound">
+        <button type="button" data-v="1">あり</button><button type="button" data-v="0">なし</button>
+      </div>
+    </div>
+    <p class="small">強い点滅はありません。「弱」は画面の乱れ・波紋・揺れを止めます。イヤホン推奨。</p>
     <div class="btns">
       <button id="begin" class="main" type="button" disabled>面接を始める</button>
     </div>
   </div>
 </div>
+
+<div id="boot" class="full" hidden></div>
+<div id="ending" class="full" hidden></div>
 
 <div id="crisis" class="overlay" hidden>
   <div class="box">
@@ -128,6 +265,7 @@ form {
   </div>
 </div>
 
+<script src="fx.js"></script>
 <script src="app.js"></script>
 <script>
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
