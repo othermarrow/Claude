@@ -221,7 +221,10 @@
     } catch (e) {
       rec.remove();
       if (userText) S.contents.pop();
-      sysLine("[通信の不調] " + e.message + "\nTermux でサーバー（serve.sh）が動いているか確かめてください。");
+      const down = e instanceof TypeError;    // サーバーに届かなかった
+      sysLine("[通信の不調] " + e.message + "\n" + (down
+        ? "Termux でサーバー（serve.sh）が動いているか確かめてください。"
+        : "API がエラーを返しました。Termux の画面にも理由が出ています。"));
       S.busy = false;
       if (!S.done) setInput(true);
       return null;

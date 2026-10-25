@@ -43,7 +43,11 @@ import urllib.request
 # 設定
 # ==========================================
 MODEL = "gemini-2.5-flash"
-NVIDIA_MODEL = "openai/gpt-oss-120b"
+# openai/gpt-oss-120b は NVIDIA で 2026-09-03 に提供終了（HTTP 410）。
+NVIDIA_MODEL = "openai/gpt-oss-20b"
+# NVIDIA_MODEL が使えない（提供終了 410・見つからない 404）とき、順に試す代わり。
+# research_bot の 2026-10 の実測で応答していたもの。
+NVIDIA_FALLBACKS = ["nvidia/nemotron-3-super-120b-a12b", "nvidia/nemotron-3-ultra-550b-a55b"]
 NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 KEYS_FILE = os.path.expanduser("~/.config/minamo/keys.env")
 KEYS_FILES = [KEYS_FILE, os.path.expanduser("~/.config/research_bot/keys.env")]
@@ -364,12 +368,35 @@ class Nvidia:
 
     def __init__(self, key, model, system):
         self.key, self.model, self.system = key, model, system
+        self.candidates = [model] + [m for m in NVIDIA_FALLBACKS if m != model]
 
     def ask(self, contents):
         msgs = [{"role": "system", "content": self.system}]
         for m in contents:
             msgs.append({"role": "assistant" if m["role"] == "model" else "user",
                          "content": "".join(p["text"] for p in m["parts"])})
+        while True:
+            try:
+                data = self._post(msgs)
+                break
+            except RuntimeError as e:
+                # 提供が終わった・無いモデルなら、代わりに切り替えて続ける
+                code = str(e)[:8]
+                if code not in ("HTTP 404", "HTTP 410") or len(self.candidates) < 2:
+                    raise
+                gone = self.candidates.pop(0)
+                self.model = self.candidates[0]
+                print(f"\n[モデル] {gone} は使えません（{code[5:]}）。"
+                      f"{self.model} に切り替えます。", file=sys.stderr, flush=True)
+        choices = data.get("choices") or []
+        if not choices:
+            return None
+        text = (choices[0].get("message") or {}).get("content") or ""
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
+        text = text.split("</think>")[-1]     # 開きタグなしで閉じだけ来る場合
+        return text.strip() or None
+
+    def _post(self, msgs):
         body = {"model": self.model, "messages": msgs,
                 "temperature": 1.0, "top_p": 0.95, "max_tokens": 2048}
         # 考えている途中の文章まで返ってこないように、思考を止める（最小にする）。
@@ -380,20 +407,13 @@ class Nvidia:
         headers = {"Authorization": f"Bearer {self.key}",
                    "Accept": "application/json"}
         try:
-            data = post_json(NVIDIA_URL, body, headers, timeout=120)
+            return post_json(NVIDIA_URL, body, headers, timeout=120)
         except RuntimeError as e:
             # 思考を止める指定を受け付けないモデルなら、外してもう一度
             if not str(e).startswith("HTTP 400"):
                 raise
             body.pop(think_key)
-            data = post_json(NVIDIA_URL, body, headers, timeout=120)
-        choices = data.get("choices") or []
-        if not choices:
-            return None
-        text = (choices[0].get("message") or {}).get("content") or ""
-        text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
-        text = text.split("</think>")[-1]     # 開きタグなしで閉じだけ来る場合
-        return text.strip() or None
+            return post_json(NVIDIA_URL, body, headers, timeout=120)
 
 
 class Fake:

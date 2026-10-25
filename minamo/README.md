@@ -1,7 +1,7 @@
 # ミナモ（minamo）
 
 旧式の心理カウンセリングAI「ミナモ」と面接する、Termux 用の CUI 心理ホラー。
-中身は NVIDIA API（`openai/gpt-oss-120b`）か Gemini API で、固定のセリフはない。何を書いても、丁寧な敬語のまま打ち返してくる。
+中身は NVIDIA API（`openai/gpt-oss-20b` など）か Gemini API で、固定のセリフはない。何を書いても、丁寧な敬語のまま打ち返してくる。
 理性的で形式的なカウンセリングの枠が、内側から少しずつ腐っていく。
 
 遊び方は二通り：Termux の中で直接話す CUI 版（`minamo.py`）と、Chrome でインストールする PWA 版（`server.py` + `web/`）。
@@ -94,7 +94,11 @@ pkg install termux-api
 
 ### APIキー
 
-NVIDIA と Gemini のどちらか一つあればよい。両方あると NVIDIA（`openai/gpt-oss-120b`）を使う（`--backend gemini` で切り替え）。
+NVIDIA と Gemini のどちらか一つあればよい。両方あると NVIDIA を使う（`--backend gemini` で切り替え）。
+
+NVIDIA のモデルは提供が終わることがある（`openai/gpt-oss-120b` は 2026-09-03 に終了し、HTTP 410 が返る）。
+既定のモデルが 410（提供終了）か 404（見つからない）を返したら、`NVIDIA_FALLBACKS` の順に切り替えて続け、Termux の画面に「[モデル] ○○ は使えません。△△ に切り替えます。」と出す。
+今どのモデルが使えるかは、research_bot の `python research_bot.py models` でも確かめられる。
 
 **NVIDIA**：research_bot の `~/.config/research_bot/keys.env` に `NVIDIA_API_KEY` があれば、そのまま読むので何もしなくてよい。
 ミナモ用に別に置くなら：
@@ -186,7 +190,7 @@ minamo --no-karte          # 紹介状を読ませない
 minamo --library DIR       # 蔵書のフォルダ（何度でも。既定 ~/minamo/library と Vault/心理学）
 minamo --no-library        # 蔵書を使わない
 minamo --backend gemini    # Gemini を使う（NVIDIA のキーもあるとき）
-minamo --model nvidia/nemotron-3-super-120b-a12b      # NVIDIA の別のモデル
+minamo --model nvidia/nemotron-3-ultra-550b-a55b     # NVIDIA の別のモデル（大きく質が高いが遅め）
 minamo --backend gemini --model gemini-2.5-pro
 minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を変える
 ```
@@ -211,7 +215,8 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 | 名前 | 既定 | 中身 |
 |---|---|---|
 | `MODEL` | `gemini-2.5-flash` | Gemini で使うモデル。`--model` でも変えられる |
-| `NVIDIA_MODEL` | `openai/gpt-oss-120b` | NVIDIA で使うモデル。gpt-oss は思考を止められないので `reasoning_effort: low` で最小にして送る（research_bot と同じ扱い）。ほかのモデルは `enable_thinking: false` |
+| `NVIDIA_MODEL` | `openai/gpt-oss-20b` | NVIDIA で使うモデル。gpt-oss は思考を止められないので `reasoning_effort: low` で最小にして送る（research_bot と同じ扱い）。ほかのモデルは `enable_thinking: false` |
+| `NVIDIA_FALLBACKS` | `nemotron-3-super-120b-a12b`・`nemotron-3-ultra-550b-a55b` | 既定のモデルが使えないときに、順に試す代わり |
 | `LIBRARY_DIRS` | `~/minamo/library`・`/storage/emulated/0/Vault/心理学` | 蔵書として読むフォルダ |
 | `SILENCE_SEC` | 60 | 黙っているとミナモが話しかけるまでの秒数 |
 | `MAX_UNPROMPTED` | 2 | 続けて話しかけてくる上限 |
@@ -226,4 +231,4 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 - 蔵書は、届いた 48 冊の txt と、GitHub の Vault（othermarrow/Psychology）の `心理学` フォルダで試した。本 34 冊・ノート 2,024 件を読み、14 冊（検査の手引き・自殺の本・当事者の手記）を外した。発言から一節を探す時間は 1 回 0.02〜0.13 秒。端末での速さは未確認。
 - PWA の演出は、開発環境の Chromium（Playwright）と `--fake` のサーバーで、起動画面・段階の切り替え（融合で題名が「わたしたち」）・沈黙の暗がり・幽霊の入力・（抹消）と名前の書き換え・逆さの映り込み・カルテと判子・終わりの画面・前回の記憶の保存を、エラーなしで確かめた。音と振動と Wake Lock は、実機で聞いて・触って確かめていない。
 - PWA 版は、開発環境の Chromium（Playwright）と `--fake` のサーバーで、起動・沈黙の割り込み・書きかけて消した文字数・終了と所見・記録の保存・危機の言葉での停止・Service Worker の登録を確かめた。
-- **実際の Gemini API・NVIDIA API と Termux 実機、Xperia の Chrome での PWA インストールはまだ確かめていない。** gpt-oss-120b が日本語の敬語や `[間]` の使い方をどこまで守るかも未確認。
+- **実際の Gemini API・NVIDIA API と Termux 実機、Xperia の Chrome での PWA インストールはまだ確かめていない。** gpt-oss-20b が日本語の敬語や `[間]` の使い方をどこまで守るかも未確認。
