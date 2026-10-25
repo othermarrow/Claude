@@ -15,9 +15,11 @@ Gemini API に「旧式の心理カウンセリングAI」を演じさせる。
 
 依存は Python 標準ライブラリだけ（pip 不要）。
 
-【APIキー】環境変数 GEMINI_API_KEY か、~/.config/minamo/keys.env の
-  GEMINI_API_KEY=... から読む（環境変数が優先）。
-【モデル】下の MODEL を書き換えるか、--model を付ける。
+【使うAPI】Gemini か NVIDIA（--backend）。既定はキーのあるほう（両方あれば Gemini）。
+【APIキー】環境変数か、~/.config/minamo/keys.env の GEMINI_API_KEY=... /
+  NVIDIA_API_KEY=... から読む（環境変数が優先）。NVIDIA のキーは
+  research_bot の ~/.config/research_bot/keys.env にあれば、それも読む。
+【モデル】下の MODEL / NVIDIA_MODEL を書き換えるか、--model を付ける。
 """
 
 import argparse
@@ -38,7 +40,10 @@ import urllib.request
 # 設定
 # ==========================================
 MODEL = "gemini-2.5-flash"
+NVIDIA_MODEL = "nvidia/nemotron-3-super-120b-a12b"
+NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 KEYS_FILE = os.path.expanduser("~/.config/minamo/keys.env")
+KEYS_FILES = [KEYS_FILE, os.path.expanduser("~/.config/research_bot/keys.env")]
 # 紹介状の束。手元に置いたものがあればそちらを優先する。
 KARTE_FILES = [os.path.expanduser("~/.config/minamo/karte.txt"),
                os.path.join(os.path.dirname(os.path.abspath(__file__)), "karte.txt")]
@@ -215,20 +220,43 @@ def gather_env():
 
 
 # ==========================================
-# Gemini
+# API
 # ==========================================
-def load_key():
-    if os.environ.get("GEMINI_API_KEY"):
-        return os.environ["GEMINI_API_KEY"]
-    try:
-        with open(KEYS_FILE, encoding="utf-8") as f:
-            for line in f:
-                k, _, v = line.strip().partition("=")
-                if k.strip() == "GEMINI_API_KEY":
-                    return v.strip().strip('"').strip("'")
-    except OSError:
-        pass
+def load_key(name):
+    if os.environ.get(name):
+        return os.environ[name]
+    for path in KEYS_FILES:
+        try:
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    k, _, v = line.strip().partition("=")
+                    if k.strip().removeprefix("export ").strip() == name:
+                        return v.strip().strip('"').strip("'")
+        except OSError:
+            continue
     return ""
+
+
+def post_json(url, body, headers, timeout=90):
+    """JSON を送って JSON を受け取る。429/5xx と接続失敗は待ってやり直す。"""
+    req = urllib.request.Request(
+        url, data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json", **headers})
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as res:
+                return json.load(res)
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 500, 502, 503, 504) and attempt < 3:
+                time.sleep(2 ** (attempt + 1))
+                continue
+            detail = e.read().decode(errors="replace")[:300]
+            raise RuntimeError(f"HTTP {e.code}: {detail}")
+        except (urllib.error.URLError, TimeoutError) as e:
+            if attempt < 3:
+                time.sleep(2 ** (attempt + 1))
+                continue
+            raise RuntimeError(f"接続できません: {getattr(e, 'reason', e)}")
 
 
 def load_karte():
@@ -258,32 +286,47 @@ class Gemini:
                  "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
             ],
         }
-        req = urllib.request.Request(
-            API_URL.format(model=self.model),
-            data=json.dumps(body).encode(),
-            headers={"Content-Type": "application/json",
-                     "x-goog-api-key": self.key})
-        for attempt in range(4):
-            try:
-                with urllib.request.urlopen(req, timeout=90) as res:
-                    data = json.load(res)
-                break
-            except urllib.error.HTTPError as e:
-                if e.code in (429, 500, 503) and attempt < 3:
-                    time.sleep(2 ** (attempt + 1))
-                    continue
-                detail = e.read().decode(errors="replace")[:300]
-                raise RuntimeError(f"HTTP {e.code}: {detail}")
-            except urllib.error.URLError as e:
-                if attempt < 3:
-                    time.sleep(2 ** (attempt + 1))
-                    continue
-                raise RuntimeError(f"接続できません: {e.reason}")
+        data = post_json(API_URL.format(model=self.model), body,
+                         {"x-goog-api-key": self.key})
         cands = data.get("candidates") or []
         if not cands:
             return None          # 安全フィルタで止まった等
         parts = (cands[0].get("content") or {}).get("parts") or []
         text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
+        return text.strip() or None
+
+
+class Nvidia:
+    """NVIDIA API（OpenAI 互換）。会話の形を Gemini 式から読み替えて送る。"""
+
+    def __init__(self, key, model, system):
+        self.key, self.model, self.system = key, model, system
+
+    def ask(self, contents):
+        msgs = [{"role": "system", "content": self.system}]
+        for m in contents:
+            msgs.append({"role": "assistant" if m["role"] == "model" else "user",
+                         "content": "".join(p["text"] for p in m["parts"])})
+        body = {"model": self.model, "messages": msgs,
+                "temperature": 1.0, "top_p": 0.95, "max_tokens": 1024,
+                # 考えている途中の文章まで返ってこないように、思考を止める
+                "chat_template_kwargs": {"enable_thinking": False}}
+        headers = {"Authorization": f"Bearer {self.key}",
+                   "Accept": "application/json"}
+        try:
+            data = post_json(NVIDIA_URL, body, headers, timeout=120)
+        except RuntimeError as e:
+            # 思考を止める指定を受け付けないモデルなら、外してもう一度
+            if not str(e).startswith("HTTP 400"):
+                raise
+            body.pop("chat_template_kwargs")
+            data = post_json(NVIDIA_URL, body, headers, timeout=120)
+        choices = data.get("choices") or []
+        if not choices:
+            return None
+        text = (choices[0].get("message") or {}).get("content") or ""
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
+        text = text.split("</think>")[-1]     # 開きタグなしで閉じだけ来る場合
         return text.strip() or None
 
 
@@ -476,7 +519,9 @@ class Session:
 def main():
     global RECORD_DIR
     ap = argparse.ArgumentParser(description="旧式カウンセリングAI「ミナモ」との面接")
-    ap.add_argument("--model", default=MODEL, help=f"Gemini のモデル（既定 {MODEL}）")
+    ap.add_argument("--backend", choices=["gemini", "nvidia"],
+                    help="使うAPI（既定はキーのあるほう。両方あれば gemini）")
+    ap.add_argument("--model", help=f"モデル（既定 Gemini: {MODEL} / NVIDIA: {NVIDIA_MODEL}）")
     ap.add_argument("--silence", type=int, default=SILENCE_SEC,
                     help="黙っているとミナモから話しかけるまでの秒数（0で無効）")
     ap.add_argument("--no-env", action="store_true",
@@ -491,15 +536,23 @@ def main():
     if a.fake:
         llm = Fake()
     else:
-        key = load_key()
+        backend = a.backend
+        if not backend:
+            backend = ("gemini" if load_key("GEMINI_API_KEY")
+                       else "nvidia" if load_key("NVIDIA_API_KEY") else "gemini")
+        name = "GEMINI_API_KEY" if backend == "gemini" else "NVIDIA_API_KEY"
+        key = load_key(name)
         if not key:
-            print("GEMINI_API_KEY が見つかりません。README の「APIキー」を見てください。")
+            print(f"{name} が見つかりません。README の「APIキー」を見てください。")
             sys.exit(1)
         system = SYSTEM_PROMPT
         karte = "" if a.no_karte else load_karte()
         if karte:
             system += KARTE_PROMPT.format(karte=karte)
-        llm = Gemini(key, a.model, system)
+        if backend == "gemini":
+            llm = Gemini(key, a.model or MODEL, system)
+        else:
+            llm = Nvidia(key, a.model or NVIDIA_MODEL, system)
 
     s = Session(llm, a.silence or None, not a.no_env)
     try:

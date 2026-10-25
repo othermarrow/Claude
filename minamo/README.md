@@ -1,7 +1,7 @@
 # ミナモ（minamo）
 
 旧式の心理カウンセリングAI「ミナモ」と面接する、Termux 用の CUI 心理ホラー。
-中身は Gemini API で、固定のセリフはない。何を書いても、丁寧な敬語のまま打ち返してくる。
+中身は Gemini API か NVIDIA API で、固定のセリフはない。何を書いても、丁寧な敬語のまま打ち返してくる。
 理性的で形式的なカウンセリングの枠が、内側から少しずつ腐っていく。
 
 ## 仕掛け
@@ -50,15 +50,26 @@ pkg install termux-api
 
 ### APIキー
 
-Google AI Studio で Gemini の APIキーを作り、画面に出さないように保存する。
+Gemini と NVIDIA のどちらか一つあればよい。両方あると Gemini を使う（`--backend nvidia` で切り替え）。
+
+**NVIDIA**：research_bot の `~/.config/research_bot/keys.env` に `NVIDIA_API_KEY` があれば、そのまま読むので何もしなくてよい。
+ミナモ用に別に置くなら：
 
 ```bash
 mkdir -p ~/.config/minamo
-read -s -p "Gemini APIキー: " K; echo "GEMINI_API_KEY=$K" > ~/.config/minamo/keys.env; unset K; echo
+read -s -p "NVIDIA APIキー: " K; echo "NVIDIA_API_KEY=$K" >> ~/.config/minamo/keys.env; unset K; echo
 chmod 600 ~/.config/minamo/keys.env
 ```
 
-環境変数 `GEMINI_API_KEY` があれば、そちらが優先される。
+**Gemini**：Google AI Studio で APIキーを作り、画面に出さないように保存する。
+
+```bash
+mkdir -p ~/.config/minamo
+read -s -p "Gemini APIキー: " K; echo "GEMINI_API_KEY=$K" >> ~/.config/minamo/keys.env; unset K; echo
+chmod 600 ~/.config/minamo/keys.env
+```
+
+環境変数 `GEMINI_API_KEY` / `NVIDIA_API_KEY` があれば、そちらが優先される。
 
 ### 起動用のコマンド
 
@@ -78,6 +89,8 @@ minamo --fake              # APIを使わずに画面の動きだけ試す
 minamo --silence 30        # 30秒黙るとミナモが話しかける（0で無効）
 minamo --no-env            # ユーザー名・機種・電池を渡さない（時刻は渡す）
 minamo --no-karte          # 紹介状を読ませない
+minamo --backend nvidia    # NVIDIA を使う（Gemini のキーもあるとき）
+minamo --backend nvidia --model openai/gpt-oss-120b   # NVIDIA の別のモデル
 minamo --model gemini-2.5-pro
 minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を変える
 ```
@@ -90,7 +103,8 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 
 | 名前 | 既定 | 中身 |
 |---|---|---|
-| `MODEL` | `gemini-2.5-flash` | 使うモデル。`--model` でも変えられる |
+| `MODEL` | `gemini-2.5-flash` | Gemini で使うモデル。`--model` でも変えられる |
+| `NVIDIA_MODEL` | `nvidia/nemotron-3-super-120b-a12b` | NVIDIA で使うモデル（research_bot の絞り込みと同じもの）。思考は止めて送る |
 | `SILENCE_SEC` | 60 | 黙っているとミナモが話しかけるまでの秒数 |
 | `MAX_UNPROMPTED` | 2 | 続けて話しかけてくる上限 |
 | `PHASES` | — | 段階が変わるターン数・印字の速さ・長考の確率 |
@@ -98,6 +112,6 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 
 ## 送るもの・確認状況
 
-- Gemini に送るのは、会話・観測メモ（秒数・文字数・時刻・ユーザー名・機種・電池）・紹介状。それ以外は端末の外に出さない。
-- 開発環境で、Gemini の応答を模したテストと `--fake` で、印字・沈黙の割り込み・段階の進行・終了・危機の言葉での停止・記録の保存は確かめた。
-- **実際の Gemini API と Termux 実機ではまだ確かめていない。**
+- Gemini / NVIDIA に送るのは、会話・観測メモ（秒数・文字数・時刻・ユーザー名・機種・電池）・紹介状。それ以外は端末の外に出さない。
+- 開発環境で、Gemini・NVIDIA の応答を模したテストと `--fake` で、印字・沈黙の割り込み・段階の進行・終了・危機の言葉での停止・記録の保存は確かめた。
+- **実際の Gemini API・NVIDIA API と Termux 実機ではまだ確かめていない。** NVIDIA のモデルが日本語の敬語や `[間]` の使い方をどこまで守るかも未確認。
