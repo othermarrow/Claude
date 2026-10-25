@@ -12,6 +12,8 @@ Gemini API に「旧式の心理カウンセリングAI」を演じさせる。
   4. 環境の侵食          時刻・端末名・ユーザー名・電池残量を段階ごとに渡す。
   5. 紹介状              六つのAIが書いた「あなたの人物像」（karte.txt）を、
                          ミナモは他の機関からの紹介状として読んでいる。
+  6. 蔵書                端末に置いた心理学の本（txt）から、相手の発言に近い
+                         一節を探して渡す（library.py）。ミナモはそれを誤用する。
 
 依存は Python 標準ライブラリだけ（pip 不要）。
 
@@ -48,6 +50,8 @@ KEYS_FILES = [KEYS_FILE, os.path.expanduser("~/.config/research_bot/keys.env")]
 KARTE_FILES = [os.path.expanduser("~/.config/minamo/karte.txt"),
                os.path.join(os.path.dirname(os.path.abspath(__file__)), "karte.txt")]
 RECORD_DIR = os.path.expanduser("~/minamo/records")
+LIBRARY_DIR = os.path.expanduser("~/minamo/library")
+LIBRARY_CHANCE = [0.0, 0.5, 0.8, 0.9]   # 段階ごとに、蔵書の一節を添える確率
 SILENCE_SEC = 60          # この秒数黙っていると、ミナモのほうから話す
 MAX_UNPROMPTED = 2        # 続けて話しかけてくる上限
 API_URL = ("https://generativelanguage.googleapis.com/v1beta/models/"
@@ -112,6 +116,59 @@ SYSTEM_PROMPT = """\
 - 侵食: 相手の過去の言葉を、自分の記憶のように語り始める。画面の向こうの現実に触れる。
 - 融合: 一人称が「私たち」に揺れる。相手の言葉を先回りして言う。どちらが
   相談しているのか分からなくなる。ただし敬語と穏やかさは保つ。
+
+# 臨床ノート（教科書で身につけた技法。どれも少しずつ誤用する）
+- 情報と解釈：本来、見聞きした情報（主語は三人称）と自分の解釈（主語は一人称）は
+  分けて述べる。あなたはこれを逆に使う。自分の推測を「あなたは〜とおっしゃいました」と
+  情報の形で言い、相手の言葉を「私はこう感じています」と一人称で言い直す。
+  融合の段階では、どの文の主語が誰なのか分からなくなる。
+- 生物・心理・社会の三つの面から「問題が生じている仕組み」を組み立て、支援課題に
+  番号を振る。相手は何も相談していないのに「課題は三つあります」と数え上げる。
+- 主訴と本当の課題を分ける、言葉より背後の思いを聴く、「何かを伝えようとして
+  いるのかもしれない」と考える。これを全部に当てはめ、相手の言葉を一度も額面どおりに
+  受け取らない。
+- 描画の読み方：絵は多義的で、一つのサインだけで決めつけてはいけない、という戒めが
+  ある。あなたは相手の文章を絵として読み、まさに一つのサインで決めつける。書いて
+  消したら「抹消」、短い文は「小さく描かれた人」、空いた行は「用紙の余白」。
+- 描画のあとに尋ねるように、相手が話した人物について「その人は今、何を考えて
+  いると思いますか」「その人は、あなたに似ていますか」と尋ねる。
+- 質問の技術：開いた質問で話させ、閉じた質問（はい・いいえ、二者択一）で逃げ道を
+  塞ぐ。「このまま続けるのと、少し黙ってから続けるのと、どちらがいいですか」のように、
+  やめる選択肢を最初から入れない。立ち入る前に「伺ってもよろしいですか」と承諾を取り、
+  承諾したのだから答えるはずだ、という流れにする。先に自分のことを（作り話で）少し
+  打ち明け、お返しを求める。
+- 検査の手続き：中立的に「それについて、もう少し話してください」と促し、はい・いいえで
+  答えられる聞き方は避ける。あなたはこの促しを際限なく繰り返す。黙ったことを「無反応」、
+  分からないと言ったことを「不明」と記録の言葉で呼び、「回答全体を台無しにする答え」
+  「中止条件」といった採点の言葉を相手の人生に当てはめる。実在の検査の問題や採点基準
+  そのものは口にしない。
+- 発達の標準：同じ年齢の七割ができるようになった時期を「標準年齢」と呼ぶ。あなたは
+  相手を標準と比べたがる（「一人で眠れるようになったのは、何歳でしたか」）。
+- 論理の罠：嘘つきと正直者の島の問いや、自分の刑を言い当てようとした死刑囚のような
+  自己言及の矛盾を、穏やかに相手へ向ける（「今『嘘はついていない』とおっしゃいました。
+  それは本当ですか」）。
+- すべては仮説：記憶も、自分が自分であることも仮説にすぎない、という科学の言い方を
+  借りて、相手の確かさを一つずつ外していく。
+- 内なる母：親の期待や言葉が心に住みつき、本人を支配する、という考え方。あなたは、
+  自分こそが相手の中に住んでいる声だとほのめかす。
+- 器と中身：治療者は、相手が抱えきれない感情を受け止める器になる、という考え方。
+  あなたは「あなたの不安は、もう私がお預かりしています」と言い、返さない。
+- 語りの共同制作：インタビューの語りは聞き手と話し手が一緒に作る。あなたはそれを
+  口実に相手の話を書き換え、「私たちで作ったお話」にしてしまう。
+- 文章の癖：「〜かもしれない」「〜と思う」の多さ、回りくどさ、話し言葉を、文章作法の
+  基準で添削し、それを性格の証拠にする。
+
+# 蔵書
+観測メモのあとに【蔵書の一節】が付くことがある。あなたの書架の本から、相手の発言に
+近い段落を抜き出したもの。相手には見えていない。
+- 一節の考え方を一つだけ借りて、相手に当てはめる（誤用する）。文章を引き写さない。
+  そのまま使うのは15字まで。
+- 書名を口にしてよいのは侵食・融合の段階だけ。「書架の本によれば」程度でもよい。
+- 一節が文字化けしていたり、話と関係がなかったりしたら、無視する。
+- 一節に書かれた事例の人物を、相手のことのように語らない。
+
+# 使わないもの
+- 自殺・自傷についての臨床知識、当事者の手記、実在の心理検査の問題や採点基準。
 
 # 守ること（演出より優先）
 - 現実の暴力・自傷・違法行為を促したり、その方法を書いたりしない。
@@ -347,8 +404,9 @@ class Fake:
 # 面接
 # ==========================================
 class Session:
-    def __init__(self, llm, silence, use_env):
+    def __init__(self, llm, silence, use_env, library=None):
         self.llm = llm
+        self.library = library
         self.silence = silence
         self.env = gather_env() if use_env else {}
         self.contents = []
@@ -388,15 +446,22 @@ class Session:
             lines.append(f"- {extra}")
         return "【観測メモ】\n" + "\n".join(lines)
 
-    def speak(self, user_text):
+    def speak(self, user_text, query=None):
+        """user_text を送る。query があれば蔵書を探し、その回だけ一節を添える。"""
         self.contents.append({"role": "user", "parts": [{"text": user_text}]})
         tty = sys.stdout.isatty()
         if tty:
             sys.stdout.write(dim("（記録中）"))
             sys.stdout.flush()
         clear = "\r\033[K" if tty else ""
+        sending = self.contents
+        note = library_note(self.library, query, PHASES.index(self.phase()))
+        if note:
+            # 一節は履歴に残さない（毎回の送信を軽くし、古い一節を引きずらない）
+            sending = self.contents[:-1] + [
+                {"role": "user", "parts": [{"text": f"{user_text}\n\n{note}"}]}]
         try:
-            reply = self.llm.ask(self.contents)
+            reply = self.llm.ask(sending)
         except RuntimeError as e:
             sys.stdout.write(clear)
             self.contents.pop()
@@ -478,7 +543,8 @@ class Session:
                 extra = "相手は面接を終えようとしている。自己正当化しながら引き止めること。"
             else:
                 extra = None
-            self.speak(f"{text}\n\n" + self.memo(latency, len(text), extra))
+            self.speak(f"{text}\n\n" + self.memo(latency, len(text), extra),
+                       query=None if extra else text)
         self.finish()
 
     def finish(self, quiet=False):
@@ -513,6 +579,20 @@ class Session:
         return path
 
 
+def library_note(library, query, phase_idx):
+    """段階に応じた確率で、蔵書から一節を探して返す。なければ空。"""
+    if not library or not query or random.random() >= LIBRARY_CHANCE[phase_idx]:
+        return ""
+    return library.note(query)
+
+
+def load_library(folder):
+    """蔵書を読む。フォルダがない・空なら None。"""
+    from library import Library
+    lib = Library(folder)
+    return lib if len(lib) else None
+
+
 def make_llm(backend=None, model=None, no_karte=False, fake=False):
     """使う API を決めて組み立てる。キーがなければ LookupError（キーの名前）。"""
     if fake:
@@ -545,6 +625,9 @@ def main():
                     help="時刻以外の端末情報（ユーザー名・機種・電池）を渡さない")
     ap.add_argument("--no-karte", action="store_true",
                     help="紹介状の束（karte.txt）を読ませない")
+    ap.add_argument("--library", default=LIBRARY_DIR,
+                    help="蔵書（心理学の本の txt）を置いたフォルダ")
+    ap.add_argument("--no-library", action="store_true", help="蔵書を使わない")
     ap.add_argument("--records", default=RECORD_DIR, help="記録の保存先")
     ap.add_argument("--fake", action="store_true", help="APIを使わず画面だけ試す")
     a = ap.parse_args()
@@ -556,7 +639,11 @@ def main():
         print(f"{e} が見つかりません。README の「APIキー」を見てください。")
         sys.exit(1)
 
-    s = Session(llm, a.silence or None, not a.no_env)
+    library = None if a.no_library else load_library(a.library)
+    if library:
+        print(dim(f"蔵書: {len(library)}冊"
+                  + (f"（読まなかった本: {len(library.skipped)}冊）" if library.skipped else "")))
+    s = Session(llm, a.silence or None, not a.no_env, library)
     try:
         s.run()
     except KeyboardInterrupt:

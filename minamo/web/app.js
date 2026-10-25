@@ -119,7 +119,7 @@
     return "【観測メモ】\n" + L.join("\n");
   }
 
-  async function speak(userText, findings) {
+  async function speak(userText, findings, libQuery) {
     S.busy = true; setInput(false);
     if (userText) S.contents.push({ role: "user", parts: [{ text: userText }] });
     const rec = document.createElement("div");
@@ -127,7 +127,10 @@
     lines.appendChild(rec); toBottom();
     let reply;
     try {
-      reply = (await api("/api/ask", { contents: S.contents, findings: !!findings })).text;
+      reply = (await api("/api/ask", {
+        contents: S.contents, findings: !!findings,
+        lib_query: libQuery || "", phase: cfg.phases.indexOf(phase()),
+      })).text;
     } catch (e) {
       rec.remove();
       if (userText) S.contents.pop();
@@ -259,7 +262,8 @@
       }
       extra = "相手は面接を終えようとしている。自己正当化しながら引き止めること。";
     }
-    await speak(text + "\n\n" + memo({ latency, chars: text.length, erased, away, extra }));
+    await speak(text + "\n\n" + memo({ latency, chars: text.length, erased, away, extra }),
+                false, extra ? "" : text);
   });
 
   // ---------- 終わり ----------
@@ -327,7 +331,8 @@
       return;
     }
     st.textContent = "API: " + cfg.backend + (cfg.model ? " / " + cfg.model : "") +
-                     (cfg.karte ? "　紹介状: あり" : "　紹介状: なし");
+                     (cfg.karte ? "　紹介状: あり" : "　紹介状: なし") +
+                     "　蔵書: " + (cfg.library ? cfg.library + "冊" : "なし");
     btn.textContent = "面接を始める"; btn.disabled = false;
     btn.onclick = () => begin();
   }

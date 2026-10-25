@@ -41,6 +41,7 @@ def info():
         "crisis_words": minamo.CRISIS_WORDS,
         "exit_words": minamo.EXIT_WORDS,
         "records": minamo.RECORD_DIR,
+        "library": len(STATE["library"]) if STATE["library"] else 0,
     }
 
 
@@ -116,6 +117,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                                  "parts": [{"text": minamo.FINDINGS_PROMPT}]})
             if not contents:
                 return self._json(400, {"error": "empty"})
+            # 蔵書の一節は、その回の最後の発言にだけ添える（画面には返さない）
+            try:
+                phase = max(0, min(int(data.get("phase") or 0), len(minamo.PHASES) - 1))
+            except (TypeError, ValueError):
+                phase = 0
+            note = minamo.library_note(STATE["library"], str(data.get("lib_query") or ""), phase)
+            if note and contents[-1]["role"] == "user":
+                contents[-1]["parts"][0]["text"] += "\n\n" + note
+                print("蔵書: " + note.splitlines()[0])
             try:
                 text = STATE["llm"].ask(contents)
             except RuntimeError as e:
@@ -142,12 +152,15 @@ def main():
     ap.add_argument("--silence", type=int, default=minamo.SILENCE_SEC)
     ap.add_argument("--no-env", action="store_true")
     ap.add_argument("--no-karte", action="store_true")
+    ap.add_argument("--library", default=minamo.LIBRARY_DIR)
+    ap.add_argument("--no-library", action="store_true")
     ap.add_argument("--records", default=minamo.RECORD_DIR)
     ap.add_argument("--fake", action="store_true")
     a = ap.parse_args()
     minamo.RECORD_DIR = os.path.expanduser(a.records)
 
-    STATE.update(llm=None, error="", silence=a.silence,
+    library = None if a.no_library else minamo.load_library(a.library)
+    STATE.update(llm=None, error="", silence=a.silence, library=library,
                  backend="fake" if a.fake else a.backend,
                  env={} if a.no_env else minamo.gather_env())
     try:
@@ -162,6 +175,9 @@ def main():
     llm = STATE["llm"]
     if llm is not None:
         print(f"API: {STATE['backend']} / {getattr(llm, 'model', '-')}")
+    if library:
+        print(f"蔵書: {len(library)}冊"
+              + (f"（読まなかった本: {len(library.skipped)}冊）" if library.skipped else ""))
     print(f"Chrome で http://localhost:{a.port}/ を開いてください（止めるときは Ctrl+C）")
     try:
         srv.serve_forever()
