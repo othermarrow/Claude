@@ -36,7 +36,7 @@ Termux だけで完結する(PC は要らない)。
 | A | `whisper-v3`(Whisper large-v3) | Groq | Whisper | light |
 | B | `whisper-turbo`(Whisper large-v3 turbo、用語集なし) | Groq | Whisper | denoise |
 | C | `parakeet`(Parakeet 1.1B RNNT 多言語、ja-JP) | NVIDIA | Parakeet | denoise |
-| D | `gemini-transcribe`(Gemini 3.5 Transcribe、逐語・単語の時刻・custom_vocabulary) | Gemini | Gemini | light |
+| D | `gemini-transcribe`(Gemini 3.5 Transcribe、逐語・単語の時刻・custom_vocabulary。無料枠は1日25回なので20分ずつ送る) | Gemini | Gemini | light |
 | E | `nv-whisper`(Whisper large-v3) | NVIDIA | Whisper | raw |
 
 用語集は Gemini と統合・校正の LLM にだけ渡す。実際の録音で、Whisper はプロンプトの用語を
@@ -234,6 +234,8 @@ TEACCH, ティーチ, 構造化
 | 小さい声の所が抜ける | `VAD_MARGIN_DB=4 moji --fresh 名前`(声の検出をゆるめる) |
 | 〔?〕が多すぎる | `UNSUPPORTED_MIN_CHARS` を上げる。用語集に固有名詞を足す |
 | 上限で止まる | 時間をおいて `moji --force 名前`(済んだ分は使い回す)。Groq の 1時間あたりの上限は 20 分まで待つ(`MAX_WAIT_SEC`) |
+| `HTTP 403: The model ... is blocked at the project level`(Groq) | Groq のプロジェクトでそのモデルが止められている。Chrome で console.groq.com を開き、プロジェクトの設定(エラーに出る URL)でモデル(gpt-oss・qwen)を有効にする |
+| `HTTP 404: Function ... Not found for account`(NVIDIA) | 一覧に載っていても、このアカウントでは配信されていないモデル。1.3 から同じ枠の次の候補へ自動で切り替わる |
 | 統合が 1 つも動かない(フロントマターの `merge_models: []`) | `mojilog 300` の「✗ 統合」の行を見る。上限なら時間をおく |
 | 動きを確かめたい | `python ~/mojiokoshi/mojiokoshi.py selftest`(通信しない自己点検) |
 
@@ -251,7 +253,16 @@ TEACCH, ティーチ, 構造化
     同じ結果を 1.2 の照合に通すと、parakeet は丸ごと外れ、羅列は最終稿に残らないことを確かめた)
   - 統合の LLM 4 つがどれも結果を返さず、校正は代わりの gemini-3.5-flash-lite だけが動いた。
     原因は未確認(ログが要る)。1.2 では、統合が返らない区間を代わりの LLM(`MERGE_BACKUPS`)に回す
-- 未確認: 1.2 での実機の動作、統合の LLM が動いたときの精度
+- 実機(1.2 で同じ録音を作り直し、20 分 46 秒): parakeet は単語ブーストを外すと全 170 区間で普通の文になり、
+  一致度の平均は 0.14 → 0.76。統合は gemini(8 区間で 429)のあと代わりの gemini-3.5-flash-lite が残り
+  162 区間を担当。分かった原因と 1.3 での対処:
+  - nv-whisper: Android の Python に `os.link` が無く落ちていた → 使わないようにした
+  - whisper-turbo: Groq の 1 分 20 回の上限はプロジェクト全体で共有で、Whisper 2 つが別々に 18 回/分
+    送っていた → 2 つで 18 回/分を分け合う。1 分あたりの上限では諦めずに待つ
+  - gpt-oss・qwen(Groq): プロジェクトの設定でモデルが止められていた(403) → 利用者が設定で有効にする
+  - nemotron(NVIDIA): このアカウントでは配信されていない(404) → 次の候補へ自動で切り替える
+  - gemini-transcribe: 無料枠は 1 日 25 回 → 1 回に送る長さを 20 分にした(1 時間 47 分で 6 回)
+- 未確認: 1.3 での実機の動作、統合の LLM が複数動いたときの精度
 
 ## ファイル構成
 

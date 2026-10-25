@@ -67,7 +67,7 @@ ENGINES = [
     dict(name="parakeet", kind="riva", function_id="71203149-d3b7-4460-8231-1be2543a1fca",
          language_code="ja-JP", family="parakeet", audio="denoise", glossary=False, trust=0.3, enabled=True),
     dict(name="gemini-transcribe", kind="gemini_transcribe", model="gemini-3.5-transcribe",
-         family="gemini", audio="light", glossary=True, max_request_sec=600, trust=1.0, enabled=True),
+         family="gemini", audio="light", glossary=True, max_request_sec=1200, trust=1.0, enabled=True),
     # NVIDIA 上の Whisper large-v3。function-id は build.nvidia.com/openai/whisper-large-v3 の
     # API のページで確かめること(check で ✗ になったら、そのページの値に書き換える)。
     dict(name="nv-whisper", kind="riva", function_id="b702f636-f60c-4a3d-a6f4-f3568c13bd7d",
@@ -114,7 +114,8 @@ LLMS = {
         "moonshotai/kimi-k2-instruct-0905", "moonshotai/kimi-k2-instruct"]),
     "nemotron": dict(provider="nvidia", batch=4, temperature=0.0, extra=None, candidates=[
         "nvidia/nemotron-3-super-120b-a12b", "nvidia/nemotron-3-ultra-550b-a55b",
-        "openai/gpt-oss-120b"]),
+        "openai/gpt-oss-120b", "nvidia/nemotron-3.5-lightning-30b-a3b", "openai/gpt-oss-20b",
+        "google/gemma-4-31b-it"]),
     "gemini-lite": dict(provider="gemini", batch=8, temperature=None, extra=None, candidates=[
         "gemini-3.5-flash-lite", "gemini-2.5-flash-lite"]),
 }
@@ -207,7 +208,8 @@ PROOF_MAX_GROWTH = 1.15
 # 7. 通信
 # ==========================================
 # 1分あたりの送信上限。Groq はモデルごと、NVIDIA はアカウント全体、Gemini はモデルごと。
-RPM = {"groq": 18, "nvidia": 35, "gemini": 8}
+# groq_audio は Whisper 2つの合計(Groq のプロジェクト全体で 20 回/分。実測)。
+RPM = {"groq": 18, "groq_audio": 18, "nvidia": 35, "gemini": 8}
 REQUEST_TIMEOUT = 300           # 1回の問い合わせの上限(秒)
 MAX_RETRIES = 6
 # 429 で待つよう言われた時間がこれを超えたら、そのモデルは今回の実行では使わない

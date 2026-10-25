@@ -44,11 +44,8 @@ def make_profile(base, name, dst):
     if not filt:
         if os.path.exists(dst):
             os.remove(dst)
-        try:
-            os.link(base, dst)
-        except OSError:
-            import shutil
-            shutil.copyfile(base, dst)
+        import shutil                  # Android の Python には os.link が無い
+        shutil.copyfile(base, dst)
         return
     ffmpeg("-i", base, "-af", filt, "-ac", "1", "-ar", str(SR), "-c:a", "pcm_s16le", dst)
 

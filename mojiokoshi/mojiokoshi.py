@@ -39,7 +39,7 @@ import llm
 import net
 import textproc as tp
 
-VERSION = "1.2"
+VERSION = "1.3"
 LABELS = "ABCDEFGHIJ"
 _print_lock = threading.Lock()
 
@@ -137,6 +137,8 @@ def prepare(src, wd):
 
 
 def profile_wav(ctx, name):
+    if config.AUDIO_PROFILES.get(name) == "":
+        return ctx["base"]                 # 前処理なしは、変換しただけの音声をそのまま使う
     path = os.path.join(ctx["wd"], f"p_{name}.wav")
     with _profile_locks_lock:
         lock = _profile_locks.setdefault(path, threading.Lock())
@@ -151,12 +153,31 @@ def profile_wav(ctx, name):
 # ==========================================
 # 3. 文字起こし
 # ==========================================
-def engine_sig(e, glossary):
-    d = {k: v for k, v in e.items() if not k.startswith("_") and k != "enabled"}
+_SIG_IGNORE = {"enabled", "trust", "max_request_sec"}     # 結果を変えない設定
+
+
+def engine_sig(e, glossary, legacy=None):
+    d = {k: v for k, v in e.items() if not k.startswith("_") and k not in _SIG_IGNORE}
+    if legacy is not None:               # 1.2 までの名前(trust・max_request_sec も含めていた)
+        d = {k: v for k, v in e.items() if not k.startswith("_") and k != "enabled"}
+        if "max_request_sec" in d:
+            d["max_request_sec"] = legacy
     extra = [glossary.signature() if e.get("glossary") else "", config.ASR_LANGUAGE,
              config.ASR_LANGUAGE_BCP47, config.UPLOAD_FORMAT, config.RIVA_AUDIO,
              config.AUDIO_PROFILES.get(e.get("audio", "raw"))]
     return sha([d, extra], 8)
+
+
+def asr_cache_path(e, ctx, glossary):
+    path = os.path.join(ctx["wd"], f"asr_{e['name']}_{engine_sig(e, glossary)}.json")
+    if not os.path.exists(path):
+        # 1.2 までの途中経過を引き継ぐ(1日の回数の上限がある分を取り直さないため)
+        for old in (e.get("max_request_sec"), 600):
+            p = os.path.join(ctx["wd"], f"asr_{e['name']}_{engine_sig(e, glossary, legacy=old)}.json")
+            if os.path.exists(p):
+                shutil.copyfile(p, path)
+                break
+    return path
 
 
 def plan_groups(chunks, max_sec):
@@ -196,7 +217,7 @@ def distribute(units, grp, layout):
 
 
 def asr_worker(e, ctx, glossary, label):
-    path = os.path.join(ctx["wd"], f"asr_{e['name']}_{engine_sig(e, glossary)}.json")
+    path = asr_cache_path(e, ctx, glossary)
     cache = load_json(path) or {"chunks": {}}
     todo = [c for c in ctx["chunks"] if not c["silent"] and str(c["id"]) not in cache["chunks"]]
     total = sum(1 for c in ctx["chunks"] if not c["silent"])
@@ -432,12 +453,30 @@ PROOF_VERSION = 1
 
 
 def llm_worker(stage, model, items, ctx, glossary_text, batch, fn, validate):
+    """llm_worker_one を呼び、モデルが使えなければ(404・403)同じ枠の次の候補で続ける。"""
+    tried = set()
+    while True:
+        tried.add(model["model"])
+        state = {}
+        cache = llm_worker_one(stage, model, items, ctx, glossary_text, batch, fn, validate, state)
+        if not state.get("unavailable"):
+            return cache
+        try:
+            nxt = llm.resolve(model["name"], exclude=tried)
+        except llm.ModelUnavailable:
+            return cache
+        say(f"  → {model['name']}: {nxt['model']} に切り替えます")
+        model = nxt
+
+
+def llm_worker_one(stage, model, items, ctx, glossary_text, batch, fn, validate, outer):
     """items を batch 個ずつ LLM に送り、区間ごとの結果をキャッシュに残す。
 
     まとめて送って返ってこなかった区間(出力が途中で切れた等)は、1つずつ送り直す。
     """
     path = os.path.join(ctx["wd"], f"{stage}_{model['name']}_{sha([model['model'], glossary_text], 8)}.json")
     cache = load_json(path) or {"chunks": {}}
+    cache["model"] = f"{model['provider']}:{model['model']}"
     stage_ja = "統合" if stage == "merge" else "校正"
 
     def have(x):
@@ -453,6 +492,8 @@ def llm_worker(stage, model, items, ctx, glossary_text, batch, fn, validate):
             state["fails"] = 0
         except (net.QuotaExhausted, llm.ModelUnavailable) as ex:
             say(f"  ✗ {stage_ja} {model['name']}({model['model']}): 今回はここまで — {str(ex)[:160]}")
+            if isinstance(ex, llm.ModelUnavailable):
+                outer["unavailable"] = True
             return "stop"
         except net.ApiError as ex:
             low = (ex.message or "").lower()
@@ -854,8 +895,8 @@ def process_file(src, out_stem, engines, merge_models, proof_models, glossary, f
         say(f"  [校正] {', '.join(m['name'] + '=' + m['model'] for m in proof_models[:config.PROOF_COUNT])}")
         proofs = run_proof(ctx, table, chosen, glossary, proof_models)
     final = finalize(table, chosen, proofs, glossary)
-    models_used = {"merge": [m["model"] for m in merge_models if merges.get(m["name"], {}).get("chunks")],
-                   "proof": [m["model"] for m in proof_models if proofs.get(m["name"], {}).get("chunks")]}
+    models_used = {"merge": [c.get("model", n) for n, c in merges.items() if c.get("chunks")],
+                   "proof": [c.get("model", n) for n, c in proofs.items() if c.get("chunks")]}
     write_outputs(ctx, out_stem, engines, results, table, merges, chosen, final, models_used, started)
     if not config.KEEP_AUDIO_CACHE:
         for f in os.listdir(wd):

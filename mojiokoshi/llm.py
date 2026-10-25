@@ -74,8 +74,11 @@ def list_models(provider, use_cache=True):
         return set(ids)
 
 
-def resolve(name):
-    """LLMS の名前 → 使うモデルの設定(dict)。使えなければ ModelUnavailable。"""
+def resolve(name, exclude=()):
+    """LLMS の名前 → 使うモデルの設定(dict)。使えなければ ModelUnavailable。
+
+    exclude は、実行中に使えないと分かったモデル(404・403)。次の候補を選ぶ。
+    """
     cfg = config.LLMS.get(name)
     if cfg is None:
         raise ModelUnavailable(f"LLMS に {name} がありません")
@@ -85,10 +88,11 @@ def resolve(name):
     ids = list_models(prov)
     model = None
     unverified = ids is None
+    cands = [c for c in cfg["candidates"] if c not in exclude]
     if ids is None:
-        model = cfg["candidates"][0]          # 一覧が取れないときは先頭を試す
+        model = cands[0] if cands else None   # 一覧が取れないときは先頭を試す
     else:
-        for c in cfg["candidates"]:
+        for c in cands:
             if c in ids:
                 model = c
                 break

@@ -85,7 +85,8 @@ def groq_transcribe(engine, audio, glossary):
         fields.append(("prompt", prompt))
     ext = os.path.splitext(audio.path)[1] or f".{audio.fmt}"
     body, ctype = net.multipart(fields, [("file", f"chunk{ext}", audio.read(), MIME[audio.fmt])])
-    lim = net.limiter(f"groq:{engine['model']}", config.RPM["groq"])
+    # 1分あたりの回数の上限は、Groq のプロジェクト全体で共有(Whisper 2つで分け合う)
+    lim = net.limiter("groq:audio", config.RPM.get("groq_audio", 18))
     try:
         _, _, raw = net.request("POST", GROQ_URL, data=body, limit=lim, what=engine["name"],
                                 headers={"Authorization": f"Bearer {key}", "Content-Type": ctype})

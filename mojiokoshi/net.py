@@ -16,7 +16,7 @@ import config
 
 # 名乗り。Python 標準の「Python-urllib/3.x」のままだと、Groq の前段(Cloudflare)に
 # 機械アクセスとして弾かれる(HTTP 403 error code: 1010)
-USER_AGENT = "mojiokoshi/1.2 (Termux; +https://github.com/othermarrow/Claude)"
+USER_AGENT = "mojiokoshi/1.3 (Termux; +https://github.com/othermarrow/Claude)"
 
 # Ctrl-C で全スレッドを止めるときに立てる
 STOP = threading.Event()
@@ -191,7 +191,9 @@ def request(method, url, *, headers=None, data=None, timeout=None, limit=None,
                 if (wait is not None and wait > config.MAX_WAIT_SEC) or (daily and (wait is None or wait > 60)):
                     raise QuotaExhausted(429, msg, what)
                 attempt += 1
-                if attempt > retries + 4:          # 混んでいるだけなら多めに待つ
+                per_minute = "per minute" in msg.lower() or "(rpm)" in msg.lower() or "(tpm)" in msg.lower()
+                # 1分あたりの上限は待てば戻るので、多めに待つ(混んでいるだけのときも)
+                if attempt > (40 if per_minute else retries + 4):
                     raise QuotaExhausted(429, msg, what)
                 pause = (wait if wait is not None else min(60, 5 * 2 ** min(attempt, 4))) + random.uniform(0.5, 2)
                 if pause > 60:
