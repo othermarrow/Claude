@@ -39,7 +39,7 @@ import llm
 import net
 import textproc as tp
 
-VERSION = "1.0"
+VERSION = "1.1"
 LABELS = "ABCDEFGHIJ"
 _print_lock = threading.Lock()
 
@@ -967,7 +967,10 @@ def cmd_check(args):
         try:
             m = llm.resolve(n)
             tag = ("統合" if n in config.MERGE_MODELS else "") + ("・校正" if n in config.PROOF_MODELS else "")
-            say(f"  ✓ {n}: {m['model']} {('(' + tag.strip('・') + ')') if tag else '(未使用)'}")
+            mark = "?" if m.get("unverified") else "✓"
+            say(f"  {mark} {n}: {m['model']} {('(' + tag.strip('・') + ')') if tag else '(未使用)'}")
+            if m.get("unverified"):
+                say(f"      モデル一覧が取れないので、候補の先頭を仮に使う — {llm.LIST_ERRORS.get(m['provider'], '')}")
             if args.deep:
                 t0 = time.time()
                 out, _ = llm.chat(m, "短く答える。", "「はい」とだけ答えてください。", max_tokens=200)

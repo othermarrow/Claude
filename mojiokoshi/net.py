@@ -14,6 +14,10 @@ import urllib.request
 
 import config
 
+# 名乗り。Python 標準の「Python-urllib/3.x」のままだと、Groq の前段(Cloudflare)に
+# 機械アクセスとして弾かれる(HTTP 403 error code: 1010)
+USER_AGENT = "mojiokoshi/1.1 (Termux; +https://github.com/othermarrow/Claude)"
+
 # Ctrl-C で全スレッドを止めるときに立てる
 STOP = threading.Event()
 
@@ -170,7 +174,9 @@ def request(method, url, *, headers=None, data=None, timeout=None, limit=None,
             raise Stopped()
         if limit is not None:
             limit.wait()
-        req = urllib.request.Request(url, data=data, method=method, headers=headers or {})
+        h = {"User-Agent": USER_AGENT}
+        h.update(headers or {})
+        req = urllib.request.Request(url, data=data, method=method, headers=h)
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 body = r.read()

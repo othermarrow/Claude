@@ -220,6 +220,7 @@ TEACCH, ティーチ, 構造化
 | 症状 | 対処 |
 |---|---|
 | `✗ nv-whisper: gRPC 5` / `HTTP 404` | function-id が違う。上の「4. 確かめる」 |
+| `HTTP 403: error code: 1010`(Groq) | 前段の Cloudflare に機械アクセスとして弾かれた。1.1 で名乗り(User-Agent)を付けて直した。古い版なら `mojiup` で更新 |
 | `この curl は HTTP/2 に対応していません` | `pkg upgrade curl` |
 | `pykakasi が無いので…` | `pip install pykakasi`(無くても動く) |
 | 小さい声の所が抜ける | `VAD_MARGIN_DB=4 moji --fresh 名前`(声の検出をゆるめる) |
@@ -234,9 +235,11 @@ TEACCH, ティーチ, 構造化
   通しの動き、curl(HTTP/2・暗号化あり/なし)と grpcio の両方での NVIDIA への送受信、
   一括→ストリーミングへの自動切り替え、上限に達したときの代わりのモデルへの切り替え、
   途中経過の使い回し
-- 未確認: 実際の Groq・NVIDIA・Gemini の API での動作(開発環境から届かないため)、Termux 上での動作、
-  実際の録音での精度。gemini-3.5-transcribe の送り方は公式 SDK(google-genai 2.33)の定義に合わせた。
-  NVIDIA の Whisper の function-id は記憶による値なので、`mojicheck` で確かめること
+- 実機の `mojicheck`(2026-10、Xperia 1 IV の Termux): parakeet・gemini-transcribe・nv-whisper が
+  1.5 秒の音に応答した(nv-whisper の function-id は合っていた。nv-whisper は 440Hz の音に
+  「ご視聴ありがとうございました」と書いた。無音・雑音で Whisper が書く典型的な幻覚で、照合の段で消す対象)。
+  Groq の 2 つは HTTP 403(error code: 1010)で、1.1 で直した(直したあとの実機での確認はまだ)
+- 未確認: 実際の録音での通しの動作と精度、Groq の LLM(gpt-oss・qwen)への問い合わせ
 
 ## ファイル構成
 

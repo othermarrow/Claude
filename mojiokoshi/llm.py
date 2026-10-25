@@ -29,6 +29,7 @@ class ModelUnavailable(Exception):
 # モデル一覧と候補の解決
 # ------------------------------------------
 _models_lock = threading.Lock()
+LIST_ERRORS = {}              # モデル一覧が取れなかったサービス → 理由
 
 
 def list_models(provider, use_cache=True):
@@ -62,7 +63,8 @@ def list_models(provider, use_cache=True):
                 j = net.request_json("GET", PROVIDERS[provider] + "/models",
                                      headers={"Authorization": f"Bearer {key}"}, retries=2, what="モデル一覧")
                 ids = [m["id"] for m in j.get("data", [])]
-        except (net.ApiError, KeyError, TypeError):
+        except (net.ApiError, KeyError, TypeError) as e:
+            LIST_ERRORS[provider] = str(e)[:160]
             return None
         data[provider] = {"t": time.time(), "ids": ids}
         os.makedirs(config.WORK_DIR, exist_ok=True)
@@ -82,6 +84,7 @@ def resolve(name):
         raise ModelUnavailable(f"{net.KEY_NAMES[prov]} がありません")
     ids = list_models(prov)
     model = None
+    unverified = ids is None
     if ids is None:
         model = cfg["candidates"][0]          # 一覧が取れないときは先頭を試す
     else:
@@ -91,7 +94,7 @@ def resolve(name):
                 break
     if not model:
         raise ModelUnavailable(f"{prov} に候補のモデルがありません: {', '.join(cfg['candidates'])}")
-    return dict(cfg, name=name, model=model)
+    return dict(cfg, name=name, model=model, unverified=unverified)
 
 
 # ------------------------------------------
