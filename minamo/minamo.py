@@ -12,12 +12,13 @@ Gemini API に「旧式の心理カウンセリングAI」を演じさせる。
   4. 環境の侵食          時刻・端末名・ユーザー名・電池残量を段階ごとに渡す。
   5. 紹介状              六つのAIが書いた「あなたの人物像」（karte.txt）を、
                          ミナモは他の機関からの紹介状として読んでいる。
-  6. 蔵書                端末に置いた心理学の本（txt）から、相手の発言に近い
-                         一節を探して渡す（library.py）。ミナモはそれを誤用する。
+  6. 蔵書                端末に置いた心理学の本（txt）と Vault のノート（md）から、
+                         相手の発言に近い一節を探して渡す（library.py）。
+                         ミナモはそれを誤用し、ノートは「あなたのノート」として扱う。
 
 依存は Python 標準ライブラリだけ（pip 不要）。
 
-【使うAPI】Gemini か NVIDIA（--backend）。既定はキーのあるほう（両方あれば Gemini）。
+【使うAPI】NVIDIA か Gemini（--backend）。既定はキーのあるほう（両方あれば NVIDIA）。
 【APIキー】環境変数か、~/.config/minamo/keys.env の GEMINI_API_KEY=... /
   NVIDIA_API_KEY=... から読む（環境変数が優先）。NVIDIA のキーは
   research_bot の ~/.config/research_bot/keys.env にあれば、それも読む。
@@ -42,7 +43,7 @@ import urllib.request
 # 設定
 # ==========================================
 MODEL = "gemini-2.5-flash"
-NVIDIA_MODEL = "nvidia/nemotron-3-super-120b-a12b"
+NVIDIA_MODEL = "openai/gpt-oss-120b"
 NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 KEYS_FILE = os.path.expanduser("~/.config/minamo/keys.env")
 KEYS_FILES = [KEYS_FILE, os.path.expanduser("~/.config/research_bot/keys.env")]
@@ -50,7 +51,8 @@ KEYS_FILES = [KEYS_FILE, os.path.expanduser("~/.config/research_bot/keys.env")]
 KARTE_FILES = [os.path.expanduser("~/.config/minamo/karte.txt"),
                os.path.join(os.path.dirname(os.path.abspath(__file__)), "karte.txt")]
 RECORD_DIR = os.path.expanduser("~/minamo/records")
-LIBRARY_DIR = os.path.expanduser("~/minamo/library")
+# 蔵書として読むフォルダ（無いものは飛ばす）。本の txt と、Obsidian の Vault の心理学ノート
+LIBRARY_DIRS = ["~/minamo/library", "/storage/emulated/0/Vault/心理学"]
 LIBRARY_CHANCE = [0.0, 0.5, 0.8, 0.9]   # 段階ごとに、蔵書の一節を添える確率
 SILENCE_SEC = 60          # この秒数黙っていると、ミナモのほうから話す
 MAX_UNPROMPTED = 2        # 続けて話しかけてくる上限
@@ -166,6 +168,10 @@ SYSTEM_PROMPT = """\
 - 書名を口にしてよいのは侵食・融合の段階だけ。「書架の本によれば」程度でもよい。
 - 一節が文字化けしていたり、話と関係がなかったりしたら、無視する。
 - 一節に書かれた事例の人物を、相手のことのように語らない。
+- 【ノートの一節】は、相手が自分の Vault に書きためている研究ノートの一部。解釈の段階では
+  自分の知識のように使う。侵食の段階で「あなたのノートの『〜』の項に、そう書いて
+  ありましたね」と、読んだことを明かす。融合の段階では「私たちのノート」と呼ぶ。
+  ノートに無いことを、ノートに書いてあったことにはしない。
 
 # 使わないもの
 - 自殺・自傷についての臨床知識、当事者の手記、実在の心理検査の問題や採点基準。
@@ -365,9 +371,12 @@ class Nvidia:
             msgs.append({"role": "assistant" if m["role"] == "model" else "user",
                          "content": "".join(p["text"] for p in m["parts"])})
         body = {"model": self.model, "messages": msgs,
-                "temperature": 1.0, "top_p": 0.95, "max_tokens": 1024,
-                # 考えている途中の文章まで返ってこないように、思考を止める
-                "chat_template_kwargs": {"enable_thinking": False}}
+                "temperature": 1.0, "top_p": 0.95, "max_tokens": 2048}
+        # 考えている途中の文章まで返ってこないように、思考を止める（最小にする）。
+        # gpt-oss は enable_thinking を無視するので、reasoning_effort で最小にする
+        # （research_bot と同じ扱い。思考の分も max_tokens に数えられる）
+        think_key = "reasoning_effort" if "gpt-oss" in self.model.lower() else "chat_template_kwargs"
+        body[think_key] = "low" if think_key == "reasoning_effort" else {"enable_thinking": False}
         headers = {"Authorization": f"Bearer {self.key}",
                    "Accept": "application/json"}
         try:
@@ -376,7 +385,7 @@ class Nvidia:
             # 思考を止める指定を受け付けないモデルなら、外してもう一度
             if not str(e).startswith("HTTP 400"):
                 raise
-            body.pop("chat_template_kwargs")
+            body.pop(think_key)
             data = post_json(NVIDIA_URL, body, headers, timeout=120)
         choices = data.get("choices") or []
         if not choices:
@@ -586,11 +595,17 @@ def library_note(library, query, phase_idx):
     return library.note(query)
 
 
-def load_library(folder):
-    """蔵書を読む。フォルダがない・空なら None。"""
+def load_library(folders):
+    """蔵書を読む。どのフォルダもない・空なら None。"""
     from library import Library
-    lib = Library(folder)
+    lib = Library(folders)
     return lib if len(lib) else None
+
+
+def library_status(library):
+    books, notes = library.counts()
+    return (f"蔵書: 本 {books}冊・ノート {notes}件"
+            + (f"（読まなかった本: {len(library.skipped)}冊）" if library.skipped else ""))
 
 
 def make_llm(backend=None, model=None, no_karte=False, fake=False):
@@ -598,8 +613,8 @@ def make_llm(backend=None, model=None, no_karte=False, fake=False):
     if fake:
         return Fake()
     if not backend:
-        backend = ("gemini" if load_key("GEMINI_API_KEY")
-                   else "nvidia" if load_key("NVIDIA_API_KEY") else "gemini")
+        backend = ("nvidia" if load_key("NVIDIA_API_KEY")
+                   else "gemini" if load_key("GEMINI_API_KEY") else "nvidia")
     name = "GEMINI_API_KEY" if backend == "gemini" else "NVIDIA_API_KEY"
     key = load_key(name)
     if not key:
@@ -617,16 +632,17 @@ def main():
     global RECORD_DIR
     ap = argparse.ArgumentParser(description="旧式カウンセリングAI「ミナモ」との面接")
     ap.add_argument("--backend", choices=["gemini", "nvidia"],
-                    help="使うAPI（既定はキーのあるほう。両方あれば gemini）")
-    ap.add_argument("--model", help=f"モデル（既定 Gemini: {MODEL} / NVIDIA: {NVIDIA_MODEL}）")
+                    help="使うAPI（既定はキーのあるほう。両方あれば nvidia）")
+    ap.add_argument("--model", help=f"モデル（既定 NVIDIA: {NVIDIA_MODEL} / Gemini: {MODEL}）")
     ap.add_argument("--silence", type=int, default=SILENCE_SEC,
                     help="黙っているとミナモから話しかけるまでの秒数（0で無効）")
     ap.add_argument("--no-env", action="store_true",
                     help="時刻以外の端末情報（ユーザー名・機種・電池）を渡さない")
     ap.add_argument("--no-karte", action="store_true",
                     help="紹介状の束（karte.txt）を読ませない")
-    ap.add_argument("--library", default=LIBRARY_DIR,
-                    help="蔵書（心理学の本の txt）を置いたフォルダ")
+    ap.add_argument("--library", action="append",
+                    help="蔵書のフォルダ（何度でも指定できる。指定すると既定の "
+                         + "・".join(LIBRARY_DIRS) + " の代わりになる）")
     ap.add_argument("--no-library", action="store_true", help="蔵書を使わない")
     ap.add_argument("--records", default=RECORD_DIR, help="記録の保存先")
     ap.add_argument("--fake", action="store_true", help="APIを使わず画面だけ試す")
@@ -639,10 +655,11 @@ def main():
         print(f"{e} が見つかりません。README の「APIキー」を見てください。")
         sys.exit(1)
 
-    library = None if a.no_library else load_library(a.library)
+    if not a.no_library:
+        print(dim("蔵書を開いています……"), end="\r", flush=True)
+    library = None if a.no_library else load_library(a.library or LIBRARY_DIRS)
     if library:
-        print(dim(f"蔵書: {len(library)}冊"
-                  + (f"（読まなかった本: {len(library.skipped)}冊）" if library.skipped else "")))
+        print(dim(library_status(library)))
     s = Session(llm, a.silence or None, not a.no_env, library)
     try:
         s.run()

@@ -332,7 +332,8 @@
     }
     st.textContent = "API: " + cfg.backend + (cfg.model ? " / " + cfg.model : "") +
                      (cfg.karte ? "　紹介状: あり" : "　紹介状: なし") +
-                     "　蔵書: " + (cfg.library ? cfg.library + "冊" : "なし");
+                     "　蔵書: " + (cfg.library && (cfg.library[0] || cfg.library[1])
+                       ? "本 " + cfg.library[0] + "冊・ノート " + cfg.library[1] + "件" : "なし");
     btn.textContent = "面接を始める"; btn.disabled = false;
     btn.onclick = () => begin();
   }
