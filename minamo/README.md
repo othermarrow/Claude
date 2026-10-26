@@ -33,7 +33,7 @@ PWA 版の起動画面で「話し手：端末内モデルだけ」にすると�
 | 順 | 話し手 | 中身 |
 |---|---|---|
 | 1 | クラウドの AI | NVIDIA / Gemini。いちばん自由に話す |
-| 2 | 端末の中の AI | llama.cpp の `llama-server` が `127.0.0.1:8090` で動いていれば使う（下の「端末の中の AI」）。動いていなければ飛ばす |
+| 2 | 端末の中の AI | `--local-mode full` のときだけ、全部を話す。既定（補助）では、3 の端末内モデルが話し、打ち明けへのひとことだけを頼む（下の「端末の中の AI」）。動いていなければ飛ばす |
 | 3 | 端末内モデル | 2026 年版（`modern.py`、既定）か 1996 年版（`classic.py`）。決まったセリフと規則で話す。電波も AI のモデルも要らず、熱も持たない |
 
 - つながらなかった話し手は 60 秒（`OFFLINE_RETRY`）試さないので、オフラインのあいだ毎回待たされることはない。60 秒たつとまた試し、つながれば「（回線が戻りました）」と出て戻る。
@@ -98,19 +98,34 @@ python ~/Claude/minamo/tools/offline_sim.py --library                  # 本・V
 
 **メモリ**：`~/minamo/memory.json` に保存する（端末の中だけ。リポジトリにも API にも、記憶そのものは送らない。クラウドの AI が話すときだけ、面接の始まりに直近 6 件を渡す）。PWA 版は、メモリの知らせの「管理」から一覧を見て、「すべて消去」で本当に消せる。CUI 版は `rm ~/minamo/memory.json`。
 
-### 端末の中の AI（任意）
+### 端末の中の AI（任意・補助）
 
-小さい AI をスマホの中で動かすと、オフラインでも旧式より自由に話す。ただし敬語が崩れやすく、遅く（1 秒に数文字）、熱を持つ。モデルは 2GB ほどある。**この手順は実機で確かめていない。**
+電波の悪いところでは、スマホの中で小さい AI（llama.cpp）を動かしておくと、端末内モデルの返事が少し豊かになる。
+既定では**補助**として使う：返事はいつもどおり端末内モデル（2026 年版・1996 年版）が組み立て、相手が何かを打ち明けたときだけ、端末の中の AI に「その言葉にふれるひとこと」（一、二文・60 字まで、段階に合った調子）を頼んで、見立ての代わりに入れる。
+
+- 待つのは最大 15 秒（`ASSIST_TIMEOUT`）。間に合わなければ、その回は端末内モデルだけで話し、60 秒は頼まない。
+- 返ってきたひとことは確かめてから使う：敬語でない・英語が混ざる・問いになっている・「AI」「設定」などのメタな言葉・暴力や自傷の言葉・相手の言葉の写しだけ、のものは捨てる。
+- 端末の中の AI が動いていなければ、何も待たずに端末内モデルだけで話す（いままでどおり）。
+- 端末の中の AI に全部話させたいときは `--local-mode full`（`sh ~/Claude/minamo/serve.sh --local-mode full`、`minamo --local-mode full`）。敬語が崩れやすく、遅い（1 秒に数文字）。使わないときは `--no-local`。
+- 送るのは、いまの発言（200 字まで）と、短い指示だけ。端末の外には出ない。
+
+**この手順と速さは、実機で確かめていない。** 補助のひとことは短いので、小さいモデル（1.5B）でも足りるはず。モデルは 1GB ほど。
 
 ```bash
 pkg install llama-cpp
 mkdir -p ~/models
-curl -L -o ~/models/qwen2.5-3b-instruct-q4_k_m.gguf \
-  https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf
+curl -L -o ~/models/qwen2.5-1.5b-instruct-q4_k_m.gguf \
+  https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf
 ```
 
-遊ぶときは、Termux でセッションを二つ開き（左端から引き出して「NEW SESSION」）、片方で `sh ~/Claude/minamo/local.sh`、もう片方で `minamo` か `sh ~/Claude/minamo/serve.sh`。
-端末の中の AI には、短い指示（`LOCAL_PROMPT`）と直近の会話だけを送る（小さいモデルは長い指示を覚えきれないため）。
+遊ぶときは、Termux でセッションを二つ開き（左端から引き出して「NEW SESSION」）、片方で
+
+```bash
+sh ~/Claude/minamo/local.sh ~/models/qwen2.5-1.5b-instruct-q4_k_m.gguf
+```
+
+もう片方で `minamo` か `sh ~/Claude/minamo/serve.sh`。サーバーの起動時の表示に「端末の中の AI が動いていれば、ひとことを添える」と出る。
+どんなひとことが返るかは、`python ~/Claude/minamo/tools/offline_sim.py --local` で、手で打たずに確かめられる。
 
 ## 紹介状（karte.txt）
 
@@ -358,7 +373,8 @@ minamo --count-silence --silence 30   # 数えるとき、30秒黙るとミナ�
 minamo --offline           # クラウドの AI を使わない（端末の中の AI か端末内モデルで話す）
 minamo --offline --no-local   # 端末内モデルだけで話す
 minamo --version 1996      # 端末内モデルを 1996 年版にする（既定 2026）
-minamo --no-local          # 端末の中の AI を試さない
+minamo --no-local          # 端末の中の AI を使わない
+minamo --local-mode full   # 電波がないとき、端末の中の AI に全部話させる（既定は、ひとことだけ頼む補助）
 minamo --no-probe          # 起動時の AI の一括チェックをしない
 minamo --no-env            # ユーザー名・機種・電池を渡さない（時刻は渡す）
 minamo --no-karte          # 紹介状を読ませない
@@ -405,6 +421,8 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 | `COUNT_SILENCE` | `False` | 沈黙の秒数を数えるか（`--count-silence` で数える） |
 | `SILENCE_SEC` | 60 | 数えるとき、黙っているとミナモが話しかけるまでの秒数 |
 | `LOCAL_URL` | `http://127.0.0.1:8090/v1/chat/completions` | 端末の中の AI |
+| `LOCAL_MODE` | `assist` | 端末の中の AI の使い方（assist：ひとことだけ頼む・full：全部話させる・off：使わない） |
+| `ASSIST_TIMEOUT` | 15 | 補助のひとことを待つ秒数 |
 | `OFFLINE_RETRY` | 60 | つながらなかった話し手を試さない秒数 |
 | `MAX_UNPROMPTED` | 2 | 続けて話しかけてくる上限 |
 | `PHASES` | — | 段階が変わるターン数・印字の速さ・長考の確率 |
@@ -425,4 +443,5 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 - `--all` と `--save` は、開発環境で、模した一覧（会話用でないものを外す）と模した応答（合格・英語・見つからない・受け付けない・時間切れ）で、6 個ずつの送信・1 個ごとの時間切れ・速い順の書き出しと .bak を確かめた。
 - `--list` は、開発環境で API の応答を模したテスト（会話に使えないものを外す・Gemini の複数ページ・言葉で絞る）で確かめた。実際の一覧はまだ見ていない。
 - AI の一括チェックは、Xperia の Termux で実際に動いた（利用者の報告：lightning 5.6 秒・ultra 7.0 秒が合格、gpt-oss-20b と gemma-4 は 30 秒で返事なし、Gemini 2.5 の 2 つ・nemotron-3-super は見つからない、llama-3.3 は提供終了）。開発環境では API の応答を模したテスト（速くて的確・速いが英語・マークダウン・提供終了・遅すぎ・つながらない）で、合否の判定、いちばん速い合格の選択、途中で答えなくなったときの次への切り替え、電波がないときにいつもの設定で始めること、PWA の起動画面への表示を確かめた。**実際の NVIDIA・Gemini の候補で、どれが合格し何秒かかるかは、まだ確かめていない**（候補の名前は research_bot の一覧に合わせた）。
+- 端末の中の AI の補助は、開発環境で、llama-server を模したサーバー（よいひとこと・英語・問い・20 秒かかる・動いていない）で、よいものだけが入り、だめなものは捨てて端末内モデルだけで話すこと、遅いときは 15 秒で切り上げて 60 秒は頼まないこと、動いていなければ待たないことを確かめた。本物の llama.cpp と小さいモデルで、どんなひとことが何秒で返るかは試していない。
 - **実際の Gemini API・NVIDIA API と Termux 実機、Xperia の Chrome での PWA インストールはまだ確かめていない。** gpt-oss-20b が日本語の敬語や `[間]` の使い方をどこまで守るかも未確認。

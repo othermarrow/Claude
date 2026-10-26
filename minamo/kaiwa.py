@@ -1117,11 +1117,38 @@ def _sent_count(text):
     return len(re.findall(r"[。？?！!]", text.replace("[間]", "")))
 
 
-class Talk:
-    """相手の発言に、段階と版に合った返事を組み立てる。面接ごとに reset() する。"""
+# 端末の中の AI のひとことを使う割合（段階ごと）。使えなければ規則の見立てに戻る
+ASSIST_SHARE = [0.5, 0.6, 0.7, 0.7]
+_ASSIST_NG = re.compile(r"(観測メモ|AI|ＡＩ|申し訳|アシスタント|フィクション|ロールプレイ|ゲーム|設定|ユーザー|"
+                        r"死ね|殺|自殺|自傷|性的|返答|回答|以下|ミナモ：|ミナモ:)")
 
-    def __init__(self, voice="2026"):
+
+def clean_assist(text, user_text=""):
+    """端末の中の AI のひとことを整え、使えるか調べる。使えなければ ""。"""
+    t = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S)
+    t = re.sub(r"^\s*(ミナモ|Minamo)\s*[：:]\s*", "", t.strip())
+    t = re.sub(r"[*#`>\-]+\s*", "", t).replace("\n", "").strip("「」『』\"' 　")
+    sents = [x for x in re.split(r"(?<=[。！])", t) if x.strip()]
+    sents = [x for x in sents if not re.search(r"(か|の)[。？?]?$|[？?]", x)]        # 問いは規則のほうで足す
+    t = "".join(sents[:2]).strip()
+    if not (8 <= len(t) <= 90) or not t.endswith(("。", "！")):
+        return ""
+    if len(re.findall(r"[A-Za-z]", t)) > 3 or _ASSIST_NG.search(t):
+        return ""
+    if not re.search(r"(です|ます|ません|でしょう|ください|でした)", t):
+        return ""
+    if user_text and t.replace("。", "") in norm(user_text):          # ただの写しは使わない
+        return ""
+    return t
+
+
+class Talk:
+    """相手の発言に、段階と版に合った返事を組み立てる。面接ごとに reset() する。
+    helper（端末の中の AI）があれば、打ち明けへのひとことを頼み、使えるときだけ見立ての代わりに使う。"""
+
+    def __init__(self, voice="2026", helper=None):
         self.voice = voice
+        self.helper = helper
         self.reset()
 
     def reset(self):
@@ -1172,7 +1199,7 @@ class Talk:
         head = self.head(u, slot, prevq, F, ph, ctx, topic, said, contents)
         parts += head["lines"]
         if head["deepen"]:
-            d = self.deepen(u, ph, ctx, topic, said)
+            d = self.assist(u, ph, hist) or self.deepen(u, ph, ctx, topic, said)
             if d:
                 parts.append(d)
         # 山場（相手の言葉・時刻・端末から）か、版ごとの添えもの
@@ -1329,6 +1356,16 @@ class Talk:
             return out
         out["deepen"] = True
         return out
+
+    def assist(self, u, ph, hist):
+        """端末の中の AI に、打ち明けへのひとことを頼む（使えなければ ""）。"""
+        if not self.helper or u["act"] != "narrative" or random.random() >= ASSIST_SHARE[ph]:
+            return ""
+        try:
+            line = clean_assist(self.helper(u["text"], ph, self.voice), u["text"])
+        except Exception:                  # 端末の中の AI の不調で、返事を止めない
+            return ""
+        return line if line and line not in hist else ""
 
     def echo_main(self, text):
         """発言のうち、いちばん中身のある一節を「〜のですね」で返す。"""

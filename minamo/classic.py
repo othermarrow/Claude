@@ -204,11 +204,11 @@ class Classic:
 
     model = "旧式（1996）"
 
-    def __init__(self, karte="", library=None):
+    def __init__(self, karte="", library=None, helper=None):
         self.karte = _karte_lines(karte)
         self.library = library
         self.recent = []
-        self.talk = Talk("1996")
+        self.talk = Talk("1996", helper)
 
     def pick(self, pool):
         """最近使っていないものを優先して選ぶ。"""

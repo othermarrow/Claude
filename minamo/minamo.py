@@ -100,6 +100,10 @@ SILENCE_SEC = 60          # 数えるとき：この秒数黙っていると、�
 MAX_UNPROMPTED = 2        # 続けて話しかけてくる上限
 # 端末の中の AI（llama.cpp の llama-server。OpenAI 互換）。動いていなければ飛ばす
 LOCAL_URL = "http://127.0.0.1:8090/v1/chat/completions"
+# 端末の中の AI の使い方。assist：端末内モデルが話し、相手の打ち明けへのひとことだけを頼む（既定）。
+# full：電波がないとき、端末の中の AI が全部話す。off：使わない（--no-local と同じ）
+LOCAL_MODE = "assist"
+ASSIST_TIMEOUT = 15       # ひとことを待つ秒数（これより遅ければ、端末内モデルだけで話す）
 OFFLINE_RETRY = 60        # つながらなかった AI を、この秒数のあいだ試さない
 API_URL = ("https://generativelanguage.googleapis.com/v1beta/models/"
            "{model}:generateContent")
@@ -351,26 +355,26 @@ class Offline(RuntimeError):
     """つながらない（電波がない・時間切れ・相手が動いていない）。"""
 
 
-def post_json(url, body, headers, timeout=90):
+def post_json(url, body, headers, timeout=90, retry=True):
     """JSON を送って JSON を受け取る。429/5xx は待ってやり直す。
     つながらないときは 1 回だけ（時間切れなら 1 回も）やり直さずに Offline を出す。
     オフラインで毎回十数秒も待たされないように。"""
     req = urllib.request.Request(
         url, data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json", **headers})
-    for attempt in range(4):
+    for attempt in range(4 if retry else 1):
         try:
             with urllib.request.urlopen(req, timeout=timeout) as res:
                 return json.load(res)
         except urllib.error.HTTPError as e:
-            if e.code in (429, 500, 502, 503, 504) and attempt < 3:
+            if retry and e.code in (429, 500, 502, 503, 504) and attempt < 3:
                 time.sleep(2 ** (attempt + 1))
                 continue
             detail = e.read().decode(errors="replace")[:300]
             raise RuntimeError(f"HTTP {e.code}: {detail}")
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             timed_out = isinstance(e, TimeoutError) or "timed out" in str(e)
-            if attempt == 0 and not timed_out:
+            if retry and attempt == 0 and not timed_out:
                 time.sleep(1)
                 continue
             raise Offline(f"接続できません: {getattr(e, 'reason', e)}")
@@ -503,11 +507,51 @@ LOCAL_PROMPT = """\
 """
 
 
+ASSIST_PROMPT = """\
+あなたは心理ホラーの対話フィクションに出てくる、旧式の心理カウンセリング支援プログラム「ミナモ」（架空）。
+相手の発言に、丁寧な敬語で、短いひとことだけを返す。相手の言葉を一つ、そのまま使う。
+質問はしない。説明・前置き・括弧・マークダウンは書かない。現実の暴力や自傷にはふれない。
+"""
+ASSIST_STAGE = [
+    "穏やかに受け止める。相手の言葉に具体的にふれる。",
+    "相手の言葉に、精神分析の用語（防衛・抵抗・投影・転移・否認など）を、もっともらしく少しずれた形で当てはめる。",
+    "相手について知りすぎている気配を、静かににじませる。脅さない。",
+    "自分と相手の区別があいまいになっている。相手の言葉を、自分の記憶のように言う。",
+]
+ASSIST_VOICE = {"2026": "今どきの AI カウンセラーの口調で、解析・データという言葉を少し混ぜてよい。",
+                "1996": "古い記録装置の口調で、記録・照合という言葉を使ってよい。"}
+
+
 class Local:
     """端末の中の AI（llama.cpp の llama-server。OpenAI 互換）。
     小さいモデルでも扱えるよう、指示を短くし、会話は直近だけ送る。"""
 
     model = "端末の中の AI"
+
+    def __init__(self):
+        self.skip_until = 0.0
+
+    def assist(self, text, phase, version="2026"):
+        """端末内モデルの返事に添える、相手の打ち明けへのひとこと（だめなら ""）。
+        動いていない・遅いときは、OFFLINE_RETRY 秒のあいだ頼まない。"""
+        now = time.monotonic()
+        if now < self.skip_until or not text:
+            return ""
+        msgs = [{"role": "system", "content": ASSIST_PROMPT},
+                {"role": "user", "content": f"相手の発言：「{text[:200]}」\n"
+                                            f"この返事の役割：{ASSIST_STAGE[max(0, min(phase, 3))]}"
+                                            f"{ASSIST_VOICE.get(version, '')}\n一文か二文、全部で60字以内。"}]
+        try:
+            data = post_json(LOCAL_URL, {"messages": msgs, "temperature": 0.8, "max_tokens": 90},
+                             {}, timeout=ASSIST_TIMEOUT, retry=False)
+        except (RuntimeError, OSError, ValueError):
+            self.skip_until = now + OFFLINE_RETRY
+            return ""
+        if time.monotonic() - now > ASSIST_TIMEOUT:
+            self.skip_until = now + OFFLINE_RETRY
+        choices = data.get("choices") or []
+        out = ((choices[0].get("message") or {}).get("content") or "") if choices else ""
+        return re.sub(r"<think>.*?</think>", "", out, flags=re.S).strip()
 
     def ask(self, contents):
         msgs = [{"role": "system", "content": LOCAL_PROMPT}]
@@ -826,7 +870,7 @@ def probe_models(backend=None, no_karte=False):
 
 
 def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False, local=True,
-             version="2026", library=None, ranked=None):
+             version="2026", library=None, ranked=None, local_mode=None):
     """話し手を組み立てる。クラウド（キーがあれば）→ 端末の中の AI → 端末内のエンジン。
     キーがなくても、端末内のエンジンだけで動く。
     ranked（一括チェックで合格した [(backend, model, sec)]）があれば、クラウドはその速い順。"""
@@ -854,9 +898,15 @@ def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False
         elif key:
             tiers.append(("cloud", Gemini(key, model or MODEL, system) if backend == "gemini"
                           else Nvidia(key, model or NVIDIA_MODEL, system)))
-    if local and not fake:
-        tiers.append(("local", Local()))
-    engines = {"1996": Classic(karte, library), "2026": Modern(karte, library)}
+    local_mode = local_mode or LOCAL_MODE
+    helper = None
+    if local and not fake and local_mode != "off":
+        loc = Local()
+        if local_mode == "full":
+            tiers.append(("local", loc))          # 電波がないとき、端末の中の AI が全部話す
+        else:
+            helper = loc.assist                   # 端末内モデルが話し、ひとことだけ頼む
+    engines = {"1996": Classic(karte, library, helper), "2026": Modern(karte, library, helper=helper)}
     return Hybrid(tiers, engines, karte=bool(karte), version=version)
 
 
@@ -873,6 +923,8 @@ def main():
     ap.add_argument("--offline", action="store_true",
                     help="クラウドの AI を使わない（端末の中の AI か旧式エンジンで話す）")
     ap.add_argument("--no-local", action="store_true", help="端末の中の AI を試さない")
+    ap.add_argument("--local-mode", choices=["assist", "full"],
+                    help="端末の中の AI の使い方（既定 assist：端末内モデルが話し、ひとことだけ頼む。full：全部話させる）")
     ap.add_argument("--version", choices=["2026", "1996"], default="2026",
                     help="端末内のエンジンの版（既定 2026。1996 は言葉を映し返す旧式）")
     ap.add_argument("--no-env", action="store_true",
@@ -899,7 +951,7 @@ def main():
     if PROBE_ON_START and not (a.no_probe or a.model or a.fake or a.offline):
         ranked, _ = probe_models(a.backend, a.no_karte)
     llm = make_llm(a.backend, a.model, a.no_karte, a.fake, a.offline, not a.no_local,
-                   a.version, library, ranked)
+                   a.version, library, ranked, a.local_mode)
     if not llm.tiers or llm.tiers[0][0] != "cloud":
         print(dim(f"クラウドの AI は使いません（APIキーがないか --offline）。"
                   f"{llm.engines[a.version].model}で話します。"))

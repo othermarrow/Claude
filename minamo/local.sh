@@ -1,6 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/sh
 # 端末の中の AI（llama.cpp の llama-server）を 127.0.0.1:8090 で動かす。止めるときは Ctrl+C。
-# ミナモは、クラウドにつながらないとき、ここが動いていれば使う（動いていなければ旧式エンジン）。
+# ミナモは、クラウドにつながらないとき、ここが動いていれば、端末内モデルの返事に添えるひとことを頼む
+# （--local-mode full なら全部話させる）。動いていなければ、端末内モデルだけで話す。
 # 使い方: sh ~/Claude/minamo/local.sh [モデルの .gguf]
 MODEL="${1:-$HOME/models/qwen2.5-3b-instruct-q4_k_m.gguf}"
 if [ ! -f "$MODEL" ]; then
