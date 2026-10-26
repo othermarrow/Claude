@@ -1,18 +1,18 @@
 /* ミナモ：演出（音・画面の乱れ・波紋・心音・幽霊の入力・起動画面）。
    音は WebAudio で作る（音声ファイルなし）。強い点滅はしない：乱れは短く、明るさは変えない。
-   演出の強さ  0: 弱（動く演出なし。音と印字だけ）  1: 標準  2: 強 */
+   演出の強さ  0: 弱（動く演出なし。音と印字だけ）  1: 標準  2: 強  3: 過剰（excess.js も動く） */
 (function () {
   "use strict";
 
   const FX = {};
   const rand = (a, b) => a + Math.random() * (b - a);
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  let level = 2, soundOn = true, calm = false, ver = "2026";
+  let level = 2, soundOn = true, calm = false, ver = "2026", phaseNow = 0;
   let ac = null, master = null, drone = null, clickBuf = null;
 
   FX.configure = o => {
     level = o.level; soundOn = o.sound;
-    document.body.dataset.fx = ["low", "mid", "high"][level];
+    document.body.dataset.fx = ["low", "mid", "high", "excess"][level];
     if (!soundOn && ac) ac.suspend().catch(() => {});
   };
   FX.level = () => level;
@@ -90,10 +90,16 @@
     s.connect(bp); bp.connect(g); g.connect(master); s.start(t); s.stop(t + 0.04);
   };
 
-  // 心音：低い二つの鼓動。強さは沈黙の深さ（0〜1）
+  // 心音：低い二つの鼓動。強さは沈黙の深さ（0〜1）。過剰では左右の耳を行き来する
   FX.heartbeat = strength => {
     if (!live()) return;
     const t = ac.currentTime;
+    let out = master;
+    if (level >= 3 && ac.createStereoPanner) {
+      out = ac.createStereoPanner();
+      out.pan.value = Math.sin(t * 1.3) * 0.9;
+      out.connect(master);
+    }
     [0, 0.28].forEach((dt, i) => {
       const o = ac.createOscillator(), g = ac.createGain();
       o.frequency.setValueAtTime(60, t + dt); o.frequency.exponentialRampToValueAtTime(32, t + dt + 0.18);
@@ -101,8 +107,54 @@
       g.gain.setValueAtTime(0.0001, t + dt);
       g.gain.exponentialRampToValueAtTime(peak, t + dt + 0.02);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.25);
-      o.connect(g); g.connect(master); o.start(t + dt); o.stop(t + dt + 0.3);
+      o.connect(g); g.connect(out); o.start(t + dt); o.stop(t + dt + 0.3);
     });
+  };
+
+  // 低い衝撃音（過剰）
+  function boom(gain) {
+    const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(24, t + 1.2);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 1.7);
+    const s = ac.createBufferSource(); s.buffer = noise(1.2, true);
+    const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 140;
+    const ng = ac.createGain(); ng.gain.setValueAtTime(gain * 0.8, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+    s.connect(lp); lp.connect(ng); ng.connect(master); s.start(t); s.stop(t + 1.2);
+  }
+
+  // ジャンプスケアの音（過剰）：雑音の叫びと、ずり落ちる不協和音と、衝撃
+  FX.scream = () => {
+    if (!live()) return;
+    const t = ac.currentTime, s = ac.createBufferSource(); s.buffer = noise(1.0, false);
+    const bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 0.9;
+    bp.frequency.setValueAtTime(2600, t); bp.frequency.exponentialRampToValueAtTime(500, t + 0.9);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.45, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.95);
+    s.connect(bp); bp.connect(g); g.connect(master); s.start(t); s.stop(t + 1);
+    [233, 247, 349, 370, 523].forEach(f => {
+      const o = ac.createOscillator(), og = ac.createGain();
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.45, t + 0.9);
+      og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.05, t + 0.02);
+      og.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+      o.connect(og); og.connect(master); o.start(t); o.stop(t + 0.95);
+    });
+    boom(0.5);
+  };
+
+  // うなりが突然消えて、少しの無音のあと、低い衝撃とともに戻る（過剰）
+  FX.dropout = () => {
+    if (!drone || !live()) return;
+    drone.g.gain.cancelScheduledValues(ac.currentTime);
+    drone.g.gain.setTargetAtTime(0, ac.currentTime, 0.015);
+    setTimeout(() => {
+      if (!live()) return;
+      boom(0.35);
+      FX.setPhase(phaseNow);
+    }, rand(1800, 2800));
   };
 
   // 段階が変わるとき：雑音が膨らんで、切れる
@@ -136,6 +188,7 @@
 
   // ---------- 段階 ----------
   FX.setPhase = idx => {
+    phaseNow = idx;
     document.body.dataset.phase = String(idx);
     if (!drone || !ac) return;
     const t = ac.currentTime;

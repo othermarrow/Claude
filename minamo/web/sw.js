@@ -1,12 +1,13 @@
 /* ミナモ：サーバーを止めていても画面だけは開けるようにする。
    まずネットワーク（Termux のサーバー）から取り、取れないときは前に取っておいたものを返す。
    /api/ は取っておかない。ファイルを足したら FILES に足し、VERSION を上げる。 */
-const VERSION = "minamo-v6";
+const VERSION = "minamo-v7";
 const FILES = [
   "./",
   "./index.html",
   "./app.js",
   "./fx.js",
+  "./excess.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -44,5 +45,16 @@ self.addEventListener("fetch", e => {
       if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
       return res;
     }).catch(() => caches.match(req, { ignoreSearch: true }).then(hit => hit || caches.match("./index.html")))
+  );
+});
+
+// 過剰の演出の通知（「まだ話の途中です」）を押したら、ミナモの画面に戻る
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+      for (const c of list) if ("focus" in c) return c.focus();
+      return self.clients.openWindow("./");
+    })
   );
 });

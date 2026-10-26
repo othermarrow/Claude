@@ -74,7 +74,7 @@ header button { flex: none; background: none; border: none; color: var(--dim); p
   overscroll-behavior: contain; word-break: break-word;
   opacity: calc(1 - .35 * var(--silence)); transition: opacity .8s linear;
 }
-body[data-fx="high"][data-phase="3"] #log { animation: breathe 6s ease-in-out infinite; }
+body[data-fx="high"][data-phase="3"] #log, body[data-fx="excess"][data-phase="3"] #log { animation: breathe 6s ease-in-out infinite; }
 @keyframes breathe { 50% { opacity: calc(.94 - .35 * var(--silence)); } }
 .wrap { max-width: 640px; margin: 0 auto; }
 .sys { color: var(--dim); font-size: 0.82em; margin: 0 0 1em; white-space: pre-wrap; }
@@ -94,7 +94,7 @@ body[data-phase="3"] .msg.ai .body { text-shadow: 0 0 8px rgba(200,255,215,.3), 
 s.strike { text-decoration: line-through; text-decoration-color: var(--blood); text-decoration-thickness: 2px; opacity: .65; }
 .annot { color: var(--blood); font-size: .7em; margin-left: .3em; font-family: var(--mincho); }
 .jit { display: inline-block; }
-body[data-fx="mid"] .jit, body[data-fx="high"] .jit { animation: jit .22s steps(2) infinite; }
+body[data-fx="mid"] .jit, body[data-fx="high"] .jit, body[data-fx="excess"] .jit { animation: jit .22s steps(2) infinite; }
 @keyframes jit { 50% { transform: translate(.6px, -.6px); } }
 
 /* 画面の乱れ（短く、明るさは変えない） */
@@ -317,6 +317,77 @@ body[data-ver="2026"] #input.ghost { font-family: var(--sans); }
 #notify .tx { font-size: .9em; }
 body[data-ver="2026"] #ending { font-family: var(--sans); }
 body[data-ver="2026"] #ending .ai { font-family: var(--sans); text-shadow: none; }
+/* ===== 過剰（excess.js）：水位・水鏡・水の中の目・ジャンプスケア・応答なしの画面 ===== */
+#water {
+  position: fixed; left: 0; right: 0; bottom: 0; height: var(--water, 0px); z-index: 1; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(12,26,30,.5), rgba(2,6,8,.94) 85%);
+  -webkit-backdrop-filter: blur(2px) saturate(.5); backdrop-filter: blur(2px) saturate(.5);
+  transition: height 3s cubic-bezier(.3,.1,.2,1);
+}
+#water::before {
+  content: ""; position: absolute; left: -100px; right: -100px; top: -7px; height: 14px;
+  background: radial-gradient(ellipse at 50% 100%, rgba(169,201,176,.28), transparent 70%) 0 0 / 100px 14px repeat-x;
+  animation: wave 7s linear infinite;
+}
+@keyframes wave { to { transform: translateX(100px); } }
+body[data-ver="2026"] #water { background: linear-gradient(to bottom, rgba(14,22,32,.5), rgba(3,5,8,.94) 85%); }
+body[data-fx="excess"] #log { padding-bottom: calc(.5em + var(--water, 0px) * .75); transition: padding-bottom 3s; }
+#mirrorwrap { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: center; overflow: hidden; height: 100%; }
+#mirror {
+  width: min(78vw, 360px); opacity: 0; transition: opacity 6s; mix-blend-mode: screen;
+  filter: grayscale(1) contrast(1.4) brightness(.75) blur(1.2px);
+  transform: scale(-1, -1); animation: sway 7s ease-in-out infinite;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 40%, #000 25%, transparent 68%);
+          mask-image: radial-gradient(ellipse at 50% 40%, #000 25%, transparent 68%);
+}
+#mirror.on { opacity: .3; }
+@keyframes sway { 50% { transform: scale(-1, -1.05) skewX(3deg); } }
+#eye {
+  position: fixed; left: 50%; bottom: calc(var(--water, 0px) - 78px); z-index: 1; pointer-events: none;
+  transform: translateX(-50%); opacity: 0; transition: opacity 5s, bottom 3s cubic-bezier(.3,.1,.2,1);
+  filter: blur(.7px);
+}
+#eye.on { opacity: .5; }
+#eye svg { display: block; transition: transform .08s; }
+#eye.blink svg { transform: scaleY(.06); }
+#scare {
+  position: fixed; inset: 0; z-index: 36; background: #000;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+#scare svg { width: 96vmin; animation: lunge .9s cubic-bezier(.1,.9,.2,1) both; }
+#scareword { display: none; font-family: var(--mincho); color: #a4413e; font-size: 24vmin; line-height: 1;
+  writing-mode: vertical-rl; letter-spacing: .05em; animation: lunge .9s cubic-bezier(.1,.9,.2,1) both;
+  text-shadow: 3px 0 rgba(255,0,60,.4), -3px 0 rgba(0,255,220,.25); }
+#scare.word svg { display: none; }
+#scare .pup { transform-origin: 0 0; animation: dilate .9s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes dilate { 0% { transform: scale(.4); } 30% { transform: scale(1.9); } 100% { transform: scale(1.7); } }
+#scare.word #scareword { display: block; }
+@keyframes lunge {
+  0% { transform: scale(1.5) translate(0, 2%); }
+  12% { transform: scale(1.04) translate(-1%, 0); }
+  20% { transform: scale(1.06) translate(1%, -.5%); }
+  100% { transform: scale(1.12); }
+}
+#anr { position: fixed; inset: 0; z-index: 35; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+#anr .dlg { width: 100%; max-width: 340px; background: #2b2d31; color: #e6e6e6; border-radius: 26px; padding: 1.4em 1.4em .8em;
+  font-family: system-ui, "Noto Sans JP", sans-serif; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+#anr .dlg p { margin: 0 0 1.2em; font-size: 1.05em; }
+#anr .dlg button { display: block; width: 100%; text-align: left; background: none; border: none; color: #a8c7fa;
+  padding: .7em 0; font-size: .95em; cursor: pointer; }
+#anr.old .dlg { background: #c0c0c0; color: #000; border-radius: 0; font-family: "MS UI Gothic", system-ui, sans-serif;
+  border: 2px outset #fff; box-shadow: none; padding: 0 0 .6em; }
+#anr.old .dlg p { background: #000080; color: #fff; font-size: .9em; padding: .25em .5em; margin: 0 0 1em; }
+#anr.old .dlg button { display: inline-block; width: auto; margin: 0 .5em; padding: .2em 1.2em; color: #000;
+  background: #c0c0c0; border: 2px outset #fff; text-align: center; }
+#blackout { position: fixed; inset: 0; z-index: 35; background: #000; display: flex; align-items: center; justify-content: center;
+  color: #6b7480; font-family: var(--mincho); font-size: 1.05em; letter-spacing: .1em; }
+/* 覆いが出ているあいだも「面接をやめる」は押せる */
+body.trap header { z-index: 40; background: rgba(0,0,0,.6); }
+.msg.phantom .body { opacity: .92; }
+.msg.deleted .body { font-style: italic; opacity: .5; background: transparent !important;
+  border: 1px dashed var(--line); color: var(--dim) !important; }
+body[data-calm] #water, body[data-calm] #eye { display: none; }
+#start .warn { color: var(--warn); }
 </style>
 </head>
 <body data-phase="0" data-fx="high">
@@ -352,7 +423,7 @@ body[data-ver="2026"] #ending .ai { font-family: var(--sans); text-shadow: none;
     </div>
     <div class="setting"><span>演出</span>
       <div class="seg" id="seg-level">
-        <button type="button" data-v="2">強</button><button type="button" data-v="1">標準</button><button type="button" data-v="0">弱</button>
+        <button type="button" data-v="3">過剰</button><button type="button" data-v="2">強</button><button type="button" data-v="1">標準</button><button type="button" data-v="0">弱</button>
       </div>
     </div>
     <div class="setting"><span>音</span>
@@ -365,7 +436,13 @@ body[data-ver="2026"] #ending .ai { font-family: var(--sans); text-shadow: none;
         <button type="button" data-v="0">数えない</button><button type="button" data-v="1">秒数を数える</button>
       </div>
     </div>
+    <div class="setting"><span>水鏡</span>
+      <div class="seg" id="seg-mirror">
+        <button type="button" data-v="0">なし</button><button type="button" data-v="1">カメラを使う</button>
+      </div>
+    </div>
     <p class="small">強い点滅はありません。「弱」は画面の乱れ・波紋・揺れを止めます。イヤホン推奨。</p>
+    <p class="small warn" id="excess-note" hidden>「過剰」は、急な暗転・大きな音・強い振動があります。通知の許可を聞きます（任意）。水鏡で「カメラを使う」と、侵食の段階から水面に自分の顔が映ります（映像は保存も送信もしません）。右上の「面接をやめる」は、いつでも効きます。</p>
     <div class="btns">
       <button id="begin" class="main" type="button" disabled>面接を始める</button>
     </div>
@@ -389,6 +466,41 @@ body[data-ver="2026"] #ending .ai { font-family: var(--sans); text-shadow: none;
 </div>
 <div id="ending" class="full" hidden></div>
 
+<div id="water" aria-hidden="true"><div id="mirrorwrap"><video id="mirror" muted playsinline autoplay></video></div></div>
+<div id="eye" aria-hidden="true"><svg viewBox="-70 -32 140 64" width="150" height="69">
+  <defs><clipPath id="eyeclip"><path d="M-64 0 Q0 -40 64 0 Q0 40 -64 0Z"/></clipPath></defs>
+  <path d="M-64 0 Q0 -40 64 0 Q0 40 -64 0Z" fill="#b9c2bb"/>
+  <g clip-path="url(#eyeclip)">
+    <path d="M-60 4 q14 -3 22 4 M58 -3 q-12 4 -20 -2 M-50 -10 q10 4 16 0" stroke="#7a2a2a" stroke-width="1.2" fill="none" opacity=".6"/>
+    <g id="pupil"><circle r="19" fill="#2c3a35"/><circle r="9" fill="#000"/><circle cx="-6" cy="-6" r="2.6" fill="#fff" opacity=".6"/></g>
+  </g>
+  <path d="M-64 0 Q0 -40 64 0" fill="none" stroke="#000" stroke-width="3"/>
+</svg></div>
+<div id="scare" hidden aria-hidden="true"><svg viewBox="-70 -40 140 80">
+  <defs>
+    <clipPath id="scareclip"><path d="M-66 0 Q0 -46 66 0 Q0 46 -66 0Z"/></clipPath>
+    <radialGradient id="sclera" cx="0" cy="0" r="66" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b3ada0"/><stop offset=".55" stop-color="#8e877a"/><stop offset="1" stop-color="#2a2420"/></radialGradient>
+    <radialGradient id="iris" cx="0" cy="0" r="24" gradientUnits="userSpaceOnUse">
+      <stop offset=".4" stop-color="#5a4430"/><stop offset=".85" stop-color="#2e2018"/><stop offset="1" stop-color="#0c0806"/></radialGradient>
+  </defs>
+  <path d="M-66 0 Q0 -46 66 0 Q0 46 -66 0Z" fill="url(#sclera)"/>
+  <g clip-path="url(#scareclip)">
+    <path d="M-66 6 q16 -4 24 5 q6 6 12 2 M64 -4 q-14 5 -22 -3 q-5 -4 -10 0 M-56 -14 q12 5 18 0 M50 14 q-10 -6 -18 -1 M-30 26 q8 -8 16 -4 M-62 -2 q8 -2 12 3 M60 6 q-8 1 -12 -3"
+      stroke="#8a1f1f" stroke-width="1.3" fill="none" opacity=".8"/>
+    <circle r="24" fill="url(#iris)"/>
+    <path d="M0 -23 L0 -12 M12 -20 L6 -10 M20 -12 L10 -5 M23 2 L12 1 M18 15 L9 7 M6 22 L3 11 M-8 21 L-4 11 M-19 13 L-10 6 M-23 -2 L-12 -1 M-17 -16 L-9 -8"
+      stroke="#7a5a3c" stroke-width=".8" opacity=".7"/>
+    <circle class="pup" r="9" fill="#000"/>
+    <ellipse cx="-7" cy="-8" rx="3.2" ry="2.2" fill="#fff" opacity=".35"/>
+    <path d="M-66 0 Q0 -46 66 0 L66 -46 L-66 -46Z" fill="#000" opacity=".35" transform="translate(0 6)"/>
+  </g>
+  <path d="M-66 0 Q0 -46 66 0" fill="none" stroke="#000" stroke-width="4"/>
+</svg><div id="scareword"></div></div>
+<div id="anr" hidden><div class="dlg"><p id="anr-title">ミナモ が応答していません</p>
+  <button id="anr-close" type="button">アプリを閉じる</button><button id="anr-wait" type="button">待機</button></div></div>
+<div id="blackout" hidden></div>
+
 <div id="crisis" class="overlay" hidden>
   <div class="box">
     <p><b>ここで、いったん演出を止めます。</b></p>
@@ -402,6 +514,7 @@ body[data-ver="2026"] #ending .ai { font-family: var(--sans); text-shadow: none;
 </div>
 
 <script src="fx.js"></script>
+<script src="excess.js"></script>
 <script src="app.js"></script>
 <script>
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
