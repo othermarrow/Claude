@@ -6,6 +6,9 @@
 
 単独でも動かせる（面接は始めず、結果の表だけ出す）：
   python ~/Claude/minamo/probe.py
+いま使えるモデルの一覧を API に問い合わせる（PROBE_MODELS を直すとき）：
+  python ~/Claude/minamo/probe.py --list            # 全部
+  python ~/Claude/minamo/probe.py --list gemini     # 名前に gemini を含むものだけ
 """
 
 import json
@@ -14,6 +17,9 @@ import re
 import sys
 import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 
 import minamo
 
@@ -152,13 +158,84 @@ def save(results):
         pass
 
 
+# 会話に使えないもの（埋め込み・画像・音声など）は一覧から外す
+NOT_CHAT = ["embed", "rerank", "retriev", "clip", "ocr", "parse", "tts", "asr", "whisper", "speech",
+            "audio", "image", "vision-", "imagen", "veo", "sdxl", "diffusion-xl", "flux", "segment",
+            "detect", "guard", "safety", "reward", "aqa", "cosmos", "fastpitch", "riva"]
+
+
+def _get(url, headers):
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as res:
+            return json.load(res)
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"HTTP {e.code}: {e.read().decode(errors='replace')[:200]}")
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise minamo.Offline(f"接続できません: {getattr(e, 'reason', e)}")
+
+
+def list_models(backend):
+    """API に、いま使えるモデルの名前を問い合わせる（会話に使えないものは外す）。"""
+    if backend == "nvidia":
+        key = minamo.load_key("NVIDIA_API_KEY")
+        data = _get(minamo.NVIDIA_URL.replace("/chat/completions", "/models"),
+                    {"Authorization": f"Bearer {key}", "Accept": "application/json"})
+        names = [m.get("id", "") for m in data.get("data") or []]
+    else:
+        key = minamo.load_key("GEMINI_API_KEY")
+        names, token = [], ""
+        while True:
+            url = "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000"
+            if token:
+                url += "&pageToken=" + urllib.parse.quote(token)
+            data = _get(url, {"x-goog-api-key": key})
+            for m in data.get("models") or []:
+                if "generateContent" in (m.get("supportedGenerationMethods") or []):
+                    names.append(m.get("name", "").removeprefix("models/"))
+            token = data.get("nextPageToken") or ""
+            if not token:
+                break
+    return sorted(n for n in set(names) if n and not any(w in n.lower() for w in NOT_CHAT))
+
+
+def show_list(word=""):
+    keys = {"nvidia": minamo.load_key("NVIDIA_API_KEY"), "gemini": minamo.load_key("GEMINI_API_KEY")}
+    now = {(b, m) for b, m in minamo.PROBE_MODELS}
+    for b in ("nvidia", "gemini"):
+        if not keys[b]:
+            print(f"\n[{b}] APIキーがないので問い合わせません。")
+            continue
+        try:
+            names = list_models(b)
+        except (RuntimeError, minamo.Offline) as e:
+            print(f"\n[{b}] 一覧を取れませんでした：{str(e)[:120]}")
+            continue
+        if word:
+            names = [n for n in names if word.lower() in n.lower()]
+        print(f"\n[{b}] 会話に使えるモデル {len(names)} 個" + (f"（「{word}」を含むもの）" if word else ""))
+        for n in names:
+            print(("  ★ " if (b, n) in now else "    ") + n)
+        gone = [m for bb, m in minamo.PROBE_MODELS if bb == b and m not in names and (not word or word.lower() in m.lower())]
+        if gone and not word:
+            print(f"  （PROBE_MODELS にあるが一覧にない：{'・'.join(gone)}）")
+    print("\n★ は、いまの PROBE_MODELS に入っているもの。")
+    print("候補を変えるときは ~/.config/minamo/models.txt に、1行に「nvidia 名前」か「gemini 名前」で書く"
+          "（このファイルがあれば minamo.py の PROBE_MODELS の代わりに使う）。"
+          + ("\nいまは models.txt を使っています。" if os.path.exists(minamo.MODELS_FILE) else ""))
+
+
 def main():
     import argparse
     ap = argparse.ArgumentParser(description="ミナモで使う AI を一括チェックする（面接は始めない）")
     ap.add_argument("--backend", choices=["gemini", "nvidia"], help="この API の候補だけ試す")
     ap.add_argument("--timeout", type=int, default=minamo.PROBE_TIMEOUT, help="待つ秒数")
     ap.add_argument("--show", action="store_true", help="合格した返事の書き出しも見る")
+    ap.add_argument("--list", nargs="?", const="", metavar="言葉",
+                    help="チェックはせず、いま使えるモデルの一覧を API に問い合わせる（言葉で絞れる）")
     a = ap.parse_args()
+    if a.list is not None:
+        return show_list(a.list)
     if not candidates(a.backend):
         print("APIキーが見つかりません（README の「APIキー」）。")
         return
