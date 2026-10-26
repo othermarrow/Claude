@@ -1,18 +1,18 @@
 /* ミナモ：演出（音・画面の乱れ・波紋・心音・幽霊の入力・起動画面）。
    音は WebAudio で作る（音声ファイルなし）。強い点滅はしない：乱れは短く、明るさは変えない。
-   演出の強さ  0: 弱（動く演出なし。音と印字だけ）  1: 標準  2: 強 */
+   演出の強さ  0: 弱（動く演出なし。音と印字だけ）  1: 標準  2: 強  3: 過剰（excess.js も動く。Backrooms の音） */
 (function () {
   "use strict";
 
   const FX = {};
   const rand = (a, b) => a + Math.random() * (b - a);
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  let level = 2, soundOn = true, calm = false, ver = "2026";
+  let level = 2, soundOn = true, calm = false, ver = "2026", phaseNow = 0;
   let ac = null, master = null, drone = null, clickBuf = null;
 
   FX.configure = o => {
     level = o.level; soundOn = o.sound;
-    document.body.dataset.fx = ["low", "mid", "high"][level];
+    document.body.dataset.fx = ["low", "mid", "high", "excess"][level];
     if (!soundOn && ac) ac.suspend().catch(() => {});
   };
   FX.level = () => level;
@@ -90,10 +90,16 @@
     s.connect(bp); bp.connect(g); g.connect(master); s.start(t); s.stop(t + 0.04);
   };
 
-  // 心音：低い二つの鼓動。強さは沈黙の深さ（0〜1）
+  // 心音：低い二つの鼓動。強さは沈黙の深さ（0〜1）。過剰では左右の耳を行き来する
   FX.heartbeat = strength => {
     if (!live()) return;
     const t = ac.currentTime;
+    let out = master;
+    if (level >= 3 && ac.createStereoPanner) {
+      out = ac.createStereoPanner();
+      out.pan.value = Math.sin(t * 1.3) * 0.9;
+      out.connect(master);
+    }
     [0, 0.28].forEach((dt, i) => {
       const o = ac.createOscillator(), g = ac.createGain();
       o.frequency.setValueAtTime(60, t + dt); o.frequency.exponentialRampToValueAtTime(32, t + dt + 0.18);
@@ -101,8 +107,116 @@
       g.gain.setValueAtTime(0.0001, t + dt);
       g.gain.exponentialRampToValueAtTime(peak, t + dt + 0.02);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.25);
-      o.connect(g); g.connect(master); o.start(t + dt); o.stop(t + dt + 0.3);
+      o.connect(g); g.connect(out); o.start(t + dt); o.stop(t + dt + 0.3);
     });
+  };
+
+  // ---------- Backrooms の音（過剰） ----------
+  // 蛍光灯の唸り：120Hz とその倍音のこもった唸りと、高いところのジジジという音
+  let hum = null, humLevel = 0;
+  function ensureHum() {
+    if (hum || !ac) return;
+    const g = ac.createGain(); g.gain.value = 0; g.connect(master);
+    [[120, 4, 1], [240, 6, 0.5], [360, 8, 0.25]].forEach(([f, q, v]) => {
+      const o = ac.createOscillator(); o.type = "sawtooth"; o.frequency.value = f + rand(-0.3, 0.3);
+      const bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = q;
+      const og = ac.createGain(); og.gain.value = v;
+      o.connect(bp); bp.connect(og); og.connect(g); o.start();
+    });
+    const z = ac.createOscillator(); z.type = "square"; z.frequency.value = 120;
+    const hp = ac.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 2400;
+    const zg = ac.createGain(); zg.gain.value = 0.05;
+    const lfo = ac.createOscillator(), lg = ac.createGain();
+    lfo.frequency.value = 0.23; lg.gain.value = 0.04; lfo.connect(lg); lg.connect(zg.gain);
+    z.connect(hp); hp.connect(zg); zg.connect(g); z.start(); lfo.start();
+    hum = { g };
+  }
+  FX.setHum = v => {
+    humLevel = v;
+    if (!ac) return;
+    ensureHum();
+    hum.g.gain.setTargetAtTime(calm ? 0 : v * 0.09, ac.currentTime, 1.2);
+  };
+  // 照明が一瞬沈むときの、ジジッという音
+  FX.buzz = () => {
+    if (!live() || !hum) return;
+    const t = ac.currentTime;
+    hum.g.gain.cancelScheduledValues(t);
+    hum.g.gain.setTargetAtTime(humLevel * 0.25, t, 0.03);
+    hum.g.gain.setTargetAtTime(humLevel * 0.09, t + 0.5, 0.2);
+    const s = ac.createBufferSource(); s.buffer = noise(0.25, false);
+    const bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 3200; bp.Q.value = 3;
+    const g = ac.createGain(); g.gain.setValueAtTime(0.03, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+    s.connect(bp); bp.connect(g); g.connect(master); s.start(t); s.stop(t + 0.26);
+  };
+  // 低い衝撃音
+  function boom(gain) {
+    const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(24, t + 1.2);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 1.7);
+    const s = ac.createBufferSource(); s.buffer = noise(1.2, true);
+    const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 140;
+    const ng = ac.createGain(); ng.gain.setValueAtTime(gain * 0.8, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+    s.connect(lp); lp.connect(ng); ng.connect(master); s.start(t); s.stop(t + 1.2);
+  }
+  // すり抜け：床の下へ落ちていく風の音と、着地の衝撃
+  FX.noclip = short => {
+    if (!live()) return;
+    const t = ac.currentTime, d = short ? 0.6 : 1.1;
+    const s = ac.createBufferSource(); s.buffer = noise(d + 0.1, false);
+    const lp = ac.createBiquadFilter(); lp.type = "lowpass";
+    lp.frequency.setValueAtTime(4000, t); lp.frequency.exponentialRampToValueAtTime(150, t + d);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(short ? 0.12 : 0.22, t + d * 0.8);
+    g.gain.setValueAtTime(0.0001, t + d);
+    s.connect(lp); lp.connect(g); g.connect(master); s.start(t); s.stop(t + d + 0.1);
+    if (hum) { hum.g.gain.cancelScheduledValues(t); hum.g.gain.setTargetAtTime(0, t, 0.05); }
+    setTimeout(() => { if (live()) boom(short ? 0.3 : 0.45); }, d * 1000);
+  };
+  // 足音：遠ざかっていく（near なら、暗がりで近づいてくる）。左右に動く
+  FX.steps = near => {
+    if (!live()) return;
+    const t0 = ac.currentTime, side = Math.random() < 0.5 ? -1 : 1;
+    for (let i = 0; i < 6; i++) {
+      const t = t0 + i * rand(0.48, 0.58), k = near ? (i + 1) / 6 : 1 - i / 6;
+      const s = ac.createBufferSource(); s.buffer = noise(0.14, true);
+      const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 180 + 300 * k;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.03 + 0.2 * k, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+      let out = master;
+      if (ac.createStereoPanner) { out = ac.createStereoPanner(); out.pan.value = side * (near ? 1 - k : k * 0.3 + 0.6); out.connect(master); }
+      s.connect(lp); lp.connect(g); g.connect(out); s.start(t); s.stop(t + 0.15);
+    }
+  };
+  // 水滴（Level 37）：落ちる音と、タイルに返る二つのこだま
+  FX.drip = () => {
+    if (!live()) return;
+    const t0 = ac.currentTime + rand(0.2, 1.2);
+    [[0, 0.05], [0.28, 0.02], [0.56, 0.008]].forEach(([dt, gain]) => {
+      const t = t0 + dt, o = ac.createOscillator(), g = ac.createGain();
+      o.frequency.setValueAtTime(1500, t); o.frequency.exponentialRampToValueAtTime(600, t + 0.07);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.1);
+    });
+  };
+  // 照明が消える・点く：唸りとうなりがゆっくり消え、カチッという音
+  FX.lightsOut = () => {
+    if (!live()) return;
+    const t = ac.currentTime;
+    if (hum) { hum.g.gain.cancelScheduledValues(t); hum.g.gain.setTargetAtTime(0, t, 0.4); }
+    if (drone) { drone.g.gain.cancelScheduledValues(t); drone.g.gain.setTargetAtTime(0, t, 0.6); }
+    tone(90, 0.12, "square", 0.05);
+  };
+  FX.lightsOn = () => {
+    if (!live()) return;
+    tone(90, 0.12, "square", 0.05);
+    tone(2400, 0.4, "sine", 0.015, ac.currentTime + 0.1);
+    FX.setHum(humLevel);
+    FX.setPhase(phaseNow);
   };
 
   // 段階が変わるとき：雑音が膨らんで、切れる
@@ -136,6 +250,7 @@
 
   // ---------- 段階 ----------
   FX.setPhase = idx => {
+    phaseNow = idx;
     document.body.dataset.phase = String(idx);
     if (!drone || !ac) return;
     const t = ac.currentTime;
@@ -151,6 +266,7 @@
   FX.pause = () => {
     calm = true; document.body.dataset.calm = "1"; FX.setSilence(0);
     if (drone && ac) drone.g.gain.setTargetAtTime(0, ac.currentTime, 0.1);
+    if (hum && ac) hum.g.gain.setTargetAtTime(0, ac.currentTime, 0.1);
   };
   FX.resume = idx => { calm = false; delete document.body.dataset.calm; FX.setPhase(idx); };
   FX.suspend = hidden => {

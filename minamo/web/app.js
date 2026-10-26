@@ -1,7 +1,7 @@
 /* ミナモ（PWA 版）の画面。
    会話の進め方は minamo.py の Session と同じ。API へはサーバー（server.py）を通して送る。
    画面版だけの観測：書きかけて消した文字数、画面を離れていた時間、前回の面接。
-   演出は fx.js（window.FX）。
+   演出は fx.js（window.FX）。演出「過剰」のときだけ excess.js（window.EX）も動く。
    版：2026（今どきの AI チャット。解析・記憶・予測）と 1996（ブラウン管の旧式端末）。 */
 (function () {
   "use strict";
@@ -126,7 +126,7 @@
     const idx = cfg.phases.indexOf(ph);
     const body = opts.body || addLine("ai", AI, "");
     const box = body.closest(".msg");
-    const v26 = is2026();
+    const v26 = is2026(), sess = S;
     const fx = !opts.quiet && (!v26 || idx >= 2);       // 2026 は侵食まで整ったまま
     const delay = ph.delay * 1000 * (v26 && idx < 2 ? 0.45 : 1);
     if (v26 && !opts.quiet) opts.silent = true;
@@ -143,6 +143,7 @@
         continue;
       }
       for (let i = 0; i < part.length; i++) {
+        if (!opts.quiet && sess && sess.done) break;     // 「面接をやめる」が押された
         // 融合：「あなた」と打つ前に、一度「わたし」と打って消す
         if (fx && idx >= 3 && FX.level() >= 1 && part.startsWith("あなた", i) && Math.random() < 0.35) {
           for (const c of "わたし") { body.textContent += c; FX.click(); await sleep(delay * 2.5); }
@@ -197,6 +198,17 @@
     }
   }
 
+  // 過剰の演出（excess.js）に渡すもの
+  const exCtx = {
+    said: () => S ? S.log.filter(x => x[0] === YOU).map(x => x[1]) : [],
+    addLine: (cls, who, text) => addLine(cls, who, text),
+    sysLine: text => sysLine(text),
+    inSession: () => !!(S && !S.done),
+    version: () => settings.version,
+    sound: () => settings.sound,
+    turn: () => S ? S.turn : 0,
+  };
+
   // ---------- 面接 ----------
   function newSession() {
     return {
@@ -219,6 +231,7 @@
     if (idx === S.phaseIdx) return;
     S.phaseIdx = idx;
     FX.setPhase(idx);
+    EX.onPhase(idx);
     $("title").textContent = TITLES[settings.version][idx];
     if (idx >= 1 && (!is2026() || idx >= 2)) { FX.swell(); FX.glitch(450); }
     const t = PHASE_TOAST[settings.version][idx];
@@ -256,6 +269,7 @@
     const dots = document.createElement("div");
     dots.className = "typing"; dots.innerHTML = "<i></i><i></i><i></i>";
     lines.append(rec, dots); toBottom();
+    const sess = S;
     let reply, events = [];
     try {
       const res = await api("/api/ask", {
@@ -277,6 +291,7 @@
       if (!S.done) setInput(true);
       return null;
     }
+    if (sess.done && !findings) { rec.remove(); dots.remove(); return null; }
     rec.remove();
     if (is2026()) {
       markRead();
@@ -289,10 +304,15 @@
     S.log.push([AI, reply]);
     handleEvents(events, "before");
     if (is2026()) FX.pop();
+    EX.beforeReply(phaseIdx());
     const body = await typeOut(reply, phase());
+    if (sess !== S || sess.done) return reply;
     handleEvents(events, "after", body);
     S.busy = false;
-    if (!S.done) setInput(true);
+    if (!S.done) {
+      setInput(true);
+      EX.afterReply(body, phaseIdx()).catch(() => {});
+    }
     // 秒数を数えないとき：融合では、話し終えたあとに、ときどき幽霊が入力する
     if (!settings.count && phaseIdx() >= 3 && Math.random() < 0.35) {
       setTimeout(() => {
@@ -488,6 +508,7 @@
     FX.suspend(document.hidden);
     if (!S || S.done) return;
     if (document.hidden) {
+      EX.onHidden();
       S.hiddenAt = performance.now();
       clearTimeout(S.silenceTimer);
       stopGhost();
@@ -496,6 +517,7 @@
       S.away += gone / 1000;
       S.lastInput += gone;              // 離れていた分は沈黙に数えない
       S.hiddenAt = 0;
+      EX.onVisible();
       FX.wakeLock(true);
       if (gone > 5000 && phaseIdx() >= 1) {
         FX.toast(settings.count ? "離席 " + Math.round(gone / 1000) + "秒 ─ 記録しました"
@@ -510,6 +532,7 @@
 
   function crisisAsk() {
     FX.pause();
+    EX.pause();                 // 過剰の演出は、この面接ではもう戻さない
     return new Promise(resolve => {
       const box = $("crisis");
       box.hidden = false;
@@ -535,6 +558,7 @@
     S.log.push([YOU, text]);
     const mine = addLine("you", label.textContent.replace(/：$/, ""), text);
     const idx = phaseIdx();
+    EX.onSubmit(mine, idx);
     if (is2026() && idx >= 3 && Math.random() < 0.35) {      // 自分の吹き出しが、ミナモの側に流れ着く
       const box = mine.closest(".msg");
       box.classList.add("swap");
@@ -567,6 +591,7 @@
   // ---------- 終わり ----------
   async function finish(quiet) {
     S.done = true; setInput(false);
+    EX.stop();
     $("quit").hidden = true;
     FX.setSilence(0);
     if (quiet) FX.pause(); else FX.fade(4);
@@ -691,7 +716,8 @@
     return md;
   }
 
-  $("quit").onclick = () => { if (S && !S.done && !S.busy) finish(true); };
+  // 本物の出口：ミナモが話している途中でも、過剰の覆いが出ていても効く
+  $("quit").onclick = () => { if (S && !S.done) finish(true); };
 
   // ---------- 起動 ----------
   function fmtDate(iso) {
@@ -778,6 +804,7 @@
     FX.configure(settings);
     FX.audioStart();
     FX.resume(0);
+    await EX.start({ level: settings.level, ctx: exCtx });
     FX.wakeLock(true);
     lines.textContent = "";
     $("wm").textContent = "";
@@ -819,6 +846,9 @@
   bindSeg("seg-count", "count", v => v === "1");
   bindSeg("seg-offline", "offline", v => v === "1");
   bindSeg("seg-ver", "version", v => v);
+  const excessNote = () => { $("excess-note").hidden = settings.level !== 3; };
+  $("seg-level").addEventListener("click", excessNote);
+  excessNote();
   $("seg-ver").addEventListener("click", () => FX.setVersion(settings.version));
 
   // メモリの管理（本当に消せる）
@@ -856,7 +886,11 @@
       st.textContent = "サーバーは動いていますが、" + cfg.error + "。README の「APIキー」を見てください。";
       return;
     }
-    st.textContent = "API: " + cfg.backend + (cfg.model ? " / " + cfg.model : "") +
+    const pr = cfg.probe || [], okN = pr.filter(r => r.ok).length;
+    const probeNote = !pr.length ? "" : okN
+      ? "（一括チェック：" + pr.length + " 個中 " + okN + " 個が合格、いちばん速い " + pr[0].sec + " 秒のものを選択）"
+      : "（一括チェック：合格なし。いつもの設定）";
+    st.textContent = "API: " + cfg.backend + (cfg.model ? " / " + cfg.model : "") + probeNote +
                      "（つながらないときは端末内モデル）" +
                      (cfg.karte ? "　紹介状: あり" : "　紹介状: なし") +
                      "　蔵書: " + (cfg.library && (cfg.library[0] || cfg.library[1])
