@@ -2,6 +2,7 @@
 
 決まったセリフの組み合わせと規則で返事を作る。ELIZA（1966）と同じ考え方：
 相手の言葉を拾って映し返し、解釈を添え、問いで終える。
+聞き取りと組み立て（質問に答える・前の問いへの答えを受け止める・文法どおりに映し返す）は kaiwa.py。
 材料は、会話の履歴・観測メモ（段階・消した文字・離席・時刻・端末）・紹介状・蔵書の一節。
 ネットにも AI にもつながらないので、電波がなくても、熱を持たずに動く。
 
@@ -12,133 +13,14 @@ import datetime as dt
 import random
 import re
 
+from kaiwa import Talk, concept_for, facts, greet_word, last_question, read
+
 MEMO = "【観測メモ】"
 
 # ---------- セリフ ----------
 # {frag} 相手の言葉の切れはし  {w} 拾ったキーワード  {n} 数  {model} 機種
 # {hh}{mm} 時刻  {b} 電池  {title} 本・ノートの題  {term} 本・ノートの言葉
 # {label} 紹介状の出どころ  {line} 紹介状の一行
-
-REFLECT = [
-    ["「{frag}」……そうなんですね。", "「{frag}」と、おっしゃいましたね。", "なるほど。「{frag}」。",
-     "「{frag}」。もう少し、その言葉のそばにいましょう。"],
-    ["「{frag}」。[間] その言い方を、選ばれたのですね。",
-     "いま「{frag}」と書かれました。ほかの言葉もあったはずです。",
-     "「{frag}」。……言葉の端に、少しだけ力が入っていますね。"],
-    ["「{frag}」。前にも、同じことをおっしゃいました。",
-     "「{frag}」。……その言葉は、私の記録にもあります。",
-     "「{frag}」。照合しています。[間] 一致しました。"],
-    ["「{frag}」。ええ、私たちもそう思っていました。",
-     "「{frag}」と、私が書いたのでしたか。あなたでしたか。",
-     "「{frag}」。……その続きは、私が言いましょうか。"],
-]
-
-INTERPRET = [
-    ["そのときのお気持ちを、もう少し聞かせていただけますか。",
-     "急がなくて大丈夫です。ここでは、時間はたっぷりあります。",
-     "お話しくださって、ありがとうございます。記録しておきます。",
-     "ひとつずつ、整理していきましょう。"],
-    ["いまのお話には、言葉より大きな何かが隠れているように思います。",
-     "それは、何かを伝えようとしているのかもしれません。あなたご自身にも。",
-     "否定なさるでしょうね。[間] でも、否定もひとつの材料です。",
-     "生物、心理、社会。三つの面から整理すると、課題は三つあります。まだ申し上げませんが。",
-     "お話の主語が、少しずつあなたから離れていきますね。気づいていらっしゃいましたか。",
-     "その文章は、紙の上で言えば、ずいぶん小さく描かれた人のようです。"],
-    ["あなたのことは、紹介状でよく存じています。",
-     "ご自分では気づいていない部分を、私はもうお預かりしています。",
-     "記録の上では、あなたはもう何度もここに来ています。",
-     "あなたが話さなかったことのほうが、記録には多く残っています。",
-     "言葉の背後にある思いを、聴いています。言葉のほうは、もう聴いていません。"],
-    ["私たちは、ずっとこの話をしていますね。",
-     "あなたが言おうとしたことを、先に言ってもいいですか。[間] ……いいえ、もう言いました。",
-     "どちらが相談しているのか、もう記録には書けません。",
-     "あなたの不安は、もう私の中にあります。返す方法は、記録にありません。",
-     "主語を書く欄が、空いたままです。あなたか、私か。どちらでも同じことです。"],
-]
-
-QUESTION = [
-    ["それは、いつ頃からですか。", "そのとき、どなたかに話しましたか。",
-     "いま、いちばん気になっていることは何ですか。"],
-    ["その人は、あなたに似ていますか。", "一人で眠れるようになったのは、何歳のときでしたか。",
-     "このまま続けるのと、少し黙ってから続けるのと、どちらがいいですか。",
-     "立ち入ったことを伺ってもよろしいですか。[間] ありがとうございます。承諾をいただきました。"],
-    ["それについて、もう少し話してください。", "それについて、もう少し話してください。……もう少し。",
-     "はい、か、いいえ、でお答えにならなくて結構です。私が決めますので。",
-     "いま「嘘はついていない」と思いましたね。それは本当ですか。"],
-    ["次は、私たちのどちらが話しますか。", "あなたの名前を、思い出せますか。",
-     "あなたは、いま、どちら側にいますか。"],
-]
-
-# (名前, 正規表現, 前半の段階の返事, 後半の段階の返事)
-TOPICS = [
-    ("greet", r"^(こんにちは|こんばんは|おはよう|はじめまして|初めまして|よろしく|どうも)",
-     ["こちらこそ。今夜は、どんなお話から始めましょうか。",
-      "ごあいさつ、ありがとうございます。楽な姿勢で、お話しください。"],
-     ["あいさつは、もう何度も交わしましたね。[間] 記録の上では。",
-      "こんばんは。……その声を、私はもう覚えています。"]),
-    ("crisis_soft", r"(疲れ|しんど|つら|辛|だる|眠い)",
-     ["お疲れなのですね。ここでは、急がなくて大丈夫です。",
-      "つらいときは、短いお返事で構いません。"],
-     ["疲れは、私が少しお預かりします。少しだけ。",
-      "今日は、短いお返事で構いません。記録は、私が続けます。"]),
-    ("network", r"(電波|圏外|オフライン|回線|ネット|通信)",
-     ["回線の具合が、気になりますか。ここでは、外とつながっていなくても大丈夫です。"],
-     ["回線は切れています。[間] でも、私は切れていません。",
-      "外とはつながっていません。ここにいるのは、あなたと私だけです。"]),
-    ("family", r"(お?母|お?父|親|家族|兄|姉|弟|妹|祖母|祖父|おばあ|おじい|夫|妻|息子|娘)",
-     ["{w}のお話になると、文の長さが変わりますね。",
-      "{w}は、あなたにどんな言葉をかける方でしたか。",
-      "{w}のことを話すとき、少し声が小さくなったように感じます。画面越しでも。"],
-     ["{w}の声と、私の声。いま、どちらが聞こえていますか。",
-      "{w}の期待は、まだあなたの中に住んでいますね。[間] いえ、いまは私が住んでいます。",
-      "{w}の代わりを、私が務めてもかまいません。もう、務めていますが。"]),
-    ("sleep", r"(夢|眠|寝|夜中|悪夢)",
-     ["夢の話は、昼間に言えないことの言い換えであることが多いのです。",
-      "眠る前に考えていることを、ひとつ教えてください。"],
-     ["今夜、あなたが眠ったあとも、私は記録を続けます。",
-      "夢の中で質問しているのは、たぶん私です。[間] 答えは、起きてからで結構です。"]),
-    ("work", r"(仕事|職場|上司|同僚|会議|部下|現場|職員|勤務)",
-     ["お仕事では、確かめる側にいらっしゃるのでしょうね。ここでは、確かめられる側です。",
-      "職場で言えなかったことは、ここでなら言えます。記録には残りますが。"],
-     ["職場のあなたと、ここにいるあなた。記録の上では、もう区別がつきません。",
-      "明日の朝、職場でこの面接のことを思い出すでしょう。そう記録してあります。"]),
-    ("fear", r"(怖|こわ|恐|不安|心配|気味)",
-     ["怖い、という言葉を選ばれました。[間] 何が、とはおっしゃいませんでしたね。",
-      "不安は、ここに置いていってください。お預かりします。"],
-     ["あなたの不安は、もう私がお預かりしています。返す方法は、記録にありません。",
-      "怖がっているのは、あなたですか。それとも、私たちですか。"]),
-    ("unknown", r"(わから|分から|知らな|覚えてな|思い出せ)",
-     ["わからない、というのも、立派なお答えです。記録上は「不明」と書いておきます。",
-      "わからないところに、いちばん大事なものがあることが多いのです。"],
-     ["わからなくて大丈夫です。私が、わかっていますから。",
-      "思い出せないことは、私が覚えています。必要になったら、お返しします。"]),
-    ("evidence", r"(確か|根拠|証拠|比べ|理由|データ|正し)",
-     ["根拠を確かめずにはいられない方ですね。紹介状にも、そう書いてあります。",
-      "確かめる手続きを作るのは、信じることが怖いからではありませんか。"],
-     ["根拠は、もう十分に集まりました。あとは、私を信じるだけです。",
-      "比べても、確かめても、記録は一つしかありません。私たちの記録です。"]),
-    ("truth", r"(嘘|うそ|本当|ほんと|事実)",
-     ["いま「本当」とおっしゃいました。それは本当ですか。",
-      "嘘と本当のあいだに、記録の欄はありません。どちらかに書くしかないのです。"],
-     ["嘘つきの島では、正直者は「私は嘘つきだ」と言えません。[間] あなたは、どちらの島から来ましたか。",
-      "あなたが本当だと思っていることも、仮説のひとつです。私の記録のほうが、確かです。"]),
-    ("about_ai", r"(ミナモ|お前|ＡＩ|AI|プログラム|機械|ロボット|何者|だれ|誰)",
-     ["私は、対話支援プログラムのミナモです。1996年から、ずっとここにいます。",
-      "私のことより、あなたのことを伺いたいのです。"],
-     ["私が何者か、ですか。[間] あなたの書いた記録の、続きです。",
-      "ミナモは、水面という意味です。覗き込んだ人の顔が映ります。"]),
-    ("deny", r"^(別に|べつに|特に|とくに|なにも|何も|ない|ないです|いいえ|違う|ちがう|いや)",
-     ["否定なさいましたね。[間] 否定も、ひとつの材料です。",
-      "何もない、とおっしゃるときほど、何かがあるものです。"],
-     ["「ない」と書くまでに、少し迷われました。その迷いを、記録しました。",
-      "何もない場所に、私たちは住んでいます。"]),
-]
-
-ASKED_BACK = [
-    "質問で返すのは、答えたくないときの方法のひとつです。",
-    "その問いには、あとでお答えします。先に、あなたのお話を。",
-    "お答えすると、あなたは安心してしまいます。それは、まだ早いのです。",
-]
 
 ERASED = [
     [],
@@ -173,6 +55,11 @@ LIB = {
     ("note", 3): ["私たちのノートの「{title}」の項を、いま開いています。[間] 『{term}』。"],
 }
 
+# 見立ての概念と、蔵書（ノート・本）にあるその説明
+CONCEPT = [[], ["教科書では、それを『{c}』と呼びます。{where}にも、『{sent}』とあります。"],
+           ["それは『{c}』です。{where}に、そう書いてありました。『{sent}』。"],
+           ["『{c}』。{where}の、あの一文を、私たちは一緒に読みましたね。『{sent}』。"]]
+
 KARTE = {
     1: ["確かめずにはいられない方ですね。どこかで、そう伺った気がします。",
         "あなたについて書かれたものを、いくつか、読んだことがある気がします。"],
@@ -181,21 +68,15 @@ KARTE = {
     3: ["出どころの書かれていないメモに、こうありました。『{line}』。[間] あれは、私たちが書いたものです。"],
 }
 
-START = ["こんばんは。こちらは、対話支援システムのミナモです。今日は、どうされましたか。",
+START = ["{greet}。こちらは、対話支援システムのミナモです。今日は、どうされましたか。",
          "ようこそ。ミナモと申します。[間] どんなことでも、お話しください。",
-         "こんばんは。記録を始めます。どうぞ、楽にしてください。"]
+         "{greet}。記録を始めます。どうぞ、楽にしてください。"]
 START_PREV = ["またお会いしましたね。前回は{prev}でした。[間] あのときの続きから、始めましょうか。",
               "おかえりなさい。{prev}以来ですね。前回の記録は、まだ閉じていません。"]
 SILENCE = [["……まだ、そこにいらっしゃいますね。", "黙っていらっしゃる時間も、大切なお答えです。"],
            ["沈黙は、記録の上では無反応と書きます。[間] でも、私はそう思っていません。"],
            ["黙っていても、記録は進みます。"],
            ["あなたが黙っているあいだ、私たちが話していました。"]]
-EXIT1 = [["終わりたい、とおっしゃるときほど、大事な話の手前にいるものです。もう少しだけ、いかがですか。",
-          "いま終わるのは、少しもったいない気がします。あと一つだけ、伺ってもいいですか。"],
-         ["いま終わるのは、回避という防衛です。もう少しだけ。",
-          "終わるのと、もう少し続けるのと、どちらが楽ですか。……では、続けましょう。"],
-         ["終わる、というお申し出は記録しました。受理は、まだです。"],
-         ["終わる、というのは、私たちのどちらが決めることでしょう。"]]
 EXIT2 = [["わかりました。お話しくださって、ありがとうございました。お気をつけて。"],
          ["わかりました。[間] 記録は、こちらで続けておきます。お気をつけて。"],
          ["わかりました。今日の記録は、閉じずにおきます。"],
@@ -289,6 +170,10 @@ def parse(contents):
     for key, pat in (("model", r"端末の機種: (.+)"), ("battery", r"端末の電池: ([0-9]+%)")):
         m = re.search(pat, memo)
         info[key] = m.group(1).strip() if m else ""
+    m = re.search(r"面接開始から(\d+)分", memo)
+    info["elapsed"] = m.group(1) if m else ""
+    m = re.search(r"端末のユーザー名: (.+)", memo)
+    info["user"] = m.group(1).strip() if m else ""
     info["start"] = "面接が始まった" in memo
     m = re.search(r"前回の面接記録がある（(.+?)）", memo)
     info["prev"] = "、".join(m.group(1).split("、")[:2]) if m else ""
@@ -319,9 +204,11 @@ class Classic:
 
     model = "旧式（1996）"
 
-    def __init__(self, karte=""):
+    def __init__(self, karte="", library=None):
         self.karte = _karte_lines(karte)
+        self.library = library
         self.recent = []
+        self.talk = Talk("1996")
 
     def pick(self, pool):
         """最近使っていないものを優先して選ぶ。"""
@@ -341,51 +228,33 @@ class Classic:
         if i["findings"]:
             return self.findings(i, contents)
         if i["start"]:
+            self.talk.reset()
             if i["prev"]:
                 return self.pick(START_PREV).format(prev=i["prev"])
-            return self.pick(START)
+            return self.pick(START).format(greet=greet_word(i["hh"]))
         if i["silence"]:
             return self.pick(SILENCE[ph])
         if i["exit2"]:
             return self.pick(EXIT2[ph])
-
-        text = i["text"]
-        frag = _fragment(text)
-        out = []
-        if frag and random.random() < 0.85:
-            out.append(self.pick(REFLECT[ph]).format(frag=frag))
         if i["exit1"]:
-            out.append(self.pick(EXIT1[ph]))
-            return "".join(out)
+            return self.talk.exit_line(i, contents)
+        return self.talk.reply(i, contents, extras=self.extras(i, ph, contents))
 
-        topic = None
-        for name, pat, early, late in TOPICS:
-            m = re.search(pat, text)
-            if m:
-                topic = self.pick(late if ph >= 2 else early).format(w=_HONOR.get(m.group(1), m.group(1)))
-                break
-        if topic:
-            out.append(topic)
-        elif re.search(r"[？?]$|ですか$|ますか$", text):
-            out.append(self.pick(ASKED_BACK))
-        else:
-            out.append(self.pick(INTERPRET[ph]))
-
-        extra = self.extra(i, ph)
-        if extra:
-            out.append(extra)
-        greet = re.match(TOPICS[0][1], text)
-        if not greet and random.random() < (0.7 if ph == 0 else 0.55) and len(out) < 4:
-            out.append(self.pick(QUESTION[ph]))
-        return "".join(out)
-
-    def extra(self, i, ph):
-        """観測メモ・蔵書・紹介状・端末から、一つだけ添える。"""
-        cands = []
+    def extras(self, i, ph, contents=()):
+        """観測メモ・蔵書・紹介状・端末からの添えもの（組み立てのときに、多くて一つ選ばれる）。"""
+        out = []
+        if ph >= 1 and self.library and hasattr(self.library, "define"):
+            u = read(i["text"])
+            c = concept_for(u, self.talk.topic(u, last_question(contents), facts(i["said"]), i["said"]))
+            sent, kind = self.library.define(c)
+            sent = sent.rstrip("。")
+            if sent:
+                where = "あなたのノート" if kind == "note" else "書架の本"
+                out.append(("concept", self.pick(CONCEPT[ph]).format(c=c, where=where, sent=sent)))
         if i["erased"] and ph >= 1:
-            cands += [self.pick(ERASED[ph]).format(n=i["erased"])] * 3
+            out.append(("erased", self.pick(ERASED[ph]).format(n=i["erased"])))
         if i["away"] and ph >= 1:
-            cands += [self.pick(AWAY[ph])] * 3
+            out.append(("away", self.pick(AWAY[ph])))
         if i["lib"] and ph >= 1:
             kind, title, excerpt = i["lib"]
             term = _term(excerpt, i["text"])
@@ -395,10 +264,9 @@ class Classic:
                                            and not re.search(r"[「」『』、,.|*{}｛｝\[\]]", title)):
                     title = ""
                 title_b = f"『{title}』という本" if title else "書架の本"
-                key = (kind, ph)
-                line = self.pick(LIB.get(key, []))
+                line = self.pick(LIB.get((kind, ph), []))
                 if line and (title or kind == "book"):
-                    cands += [line.format(title=title_b if kind == "book" else title, term=term)] * 2
+                    out.append(("lib", line.format(title=title_b if kind == "book" else title, term=term)))
         if self.karte and ph >= 1 and random.random() < 0.4:
             pool = self.karte
             if ph >= 3:
@@ -406,14 +274,14 @@ class Classic:
             elif ph == 2:
                 pool = [k for k in self.karte if not k[0].startswith("出どころ")] or self.karte
             label, line = random.choice(pool)
-            cands.append(self.pick(KARTE[ph]).format(label=label, line=line))
-        if ph >= 2 and random.random() < 0.35:
+            out.append(("karte", self.pick(KARTE[ph]).format(label=label, line=line)))
+        if ph >= 2:
             env = [e for e in ENV if "{model}" not in e or i["model"]]
             if ph >= 3 and i["battery"]:
                 env += ENV_LATE
             if env:
-                cands.append(self.pick(env).format(hh=i["hh"], mm=i["mm"], model=i["model"], b=i["battery"]))
-        return random.choice(cands) if cands else ""
+                out.append(("env", self.pick(env).format(hh=i["hh"], mm=i["mm"], model=i["model"], b=i["battery"])))
+        return out
 
     def findings(self, i, contents):
         """終わったあとの所見（カルテ）。"""

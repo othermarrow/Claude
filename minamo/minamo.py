@@ -856,7 +856,7 @@ def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False
                           else Nvidia(key, model or NVIDIA_MODEL, system)))
     if local and not fake:
         tiers.append(("local", Local()))
-    engines = {"1996": Classic(karte), "2026": Modern(karte, library)}
+    engines = {"1996": Classic(karte, library), "2026": Modern(karte, library)}
     return Hybrid(tiers, engines, karte=bool(karte), version=version)
 
 
