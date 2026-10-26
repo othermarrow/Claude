@@ -95,6 +95,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self._json(403, {"error": "forbidden"})
             if self.path == "/api/info":
                 return self._json(200, info())
+            if self.path == "/api/memory":
+                mem = STATE["llm"].engines["2026"].memory
+                return self._json(200, {"items": mem.data["items"], "sessions": mem.data["sessions"]})
             return self._json(404, {"error": "not found"})
         return super().do_GET()
 
@@ -127,15 +130,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if note and contents[-1]["role"] == "user":
                 contents[-1]["parts"][0]["text"] += "\n\n" + note
                 print("蔵書: " + note.splitlines()[0])
+            version = "1996" if str(data.get("version")) == "1996" else "2026"
             try:
-                text = STATE["llm"].ask(contents)
+                text = STATE["llm"].ask(contents, version=version, offline=bool(data.get("offline")))
             except RuntimeError as e:
                 return self._json(502, {"error": str(e)})
             mode = getattr(STATE["llm"], "mode", "cloud")
             if mode != STATE.get("mode"):
                 print(minamo.MODE_NOTE.get(mode, ""), getattr(STATE["llm"], "model", ""))
                 STATE["mode"] = mode
-            return self._json(200, {"text": text, "mode": mode})
+            return self._json(200, {"text": text, "mode": mode,
+                                    "events": getattr(STATE["llm"], "events", [])})
+
+        if self.path == "/api/memory/clear":
+            STATE["llm"].engines["2026"].memory.clear()
+            print("メモリを消去しました")
+            return self._json(200, {"ok": True})
 
         if self.path == "/api/record":
             md = str(data.get("markdown") or "")
@@ -172,21 +182,21 @@ def main():
     STATE.update(llm=None, error="", silence=a.silence, library=library,
                  backend="fake" if a.fake else a.backend,
                  env={} if a.no_env else minamo.gather_env())
-    llm = minamo.make_llm(a.backend, a.model, a.no_karte, a.fake, a.offline, not a.no_local)
+    llm = minamo.make_llm(a.backend, a.model, a.no_karte, a.fake, a.offline, not a.no_local,
+                          library=library)
     STATE["llm"] = llm
-    first = llm.tiers[0]
-    STATE["mode"] = first[0]
+    STATE["mode"] = llm.mode
     if a.fake:
         STATE["backend"] = "fake"
-    elif first[0] == "cloud":
-        STATE["backend"] = type(first[1]).__name__.lower()
+    elif llm.tiers and llm.tiers[0][0] == "cloud":
+        STATE["backend"] = type(llm.tiers[0][1]).__name__.lower()
     else:
-        STATE["backend"] = "旧式のみ"
-        print("クラウドの AI は使いません（APIキーがないか --offline）。旧式エンジンで話します。")
+        STATE["backend"] = "端末内のみ"
+        print("クラウドの AI は使いません（APIキーがないか --offline）。端末内のエンジンで話します。")
 
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
     print(f"API: {STATE['backend']} / {llm.model}　（つながらないときは "
-          + " → ".join(n for n, _ in llm.tiers[1:]) + "）")
+          + " → ".join([n for n, _ in llm.tiers[1:]] + ["端末内のエンジン（2026 / 1996）"]) + "）")
     if library:
         print(minamo.library_status(library))
     print(f"Chrome で http://localhost:{a.port}/ を開いてください（止めるときは Ctrl+C）")

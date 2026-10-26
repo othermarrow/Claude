@@ -1,13 +1,20 @@
 /* ミナモ（PWA 版）の画面。
    会話の進め方は minamo.py の Session と同じ。API へはサーバー（server.py）を通して送る。
    画面版だけの観測：書きかけて消した文字数、画面を離れていた時間、前回の面接。
-   演出は fx.js（window.FX）。 */
+   演出は fx.js（window.FX）。
+   版：2026（今どきの AI チャット。解析・記憶・予測）と 1996（ブラウン管の旧式端末）。 */
 (function () {
   "use strict";
 
   const AI = "ミナモ", YOU = "あなた";
-  const TITLES = ["SOMA 対話支援システム ver.0.9.7", "SOMA 対話支援システム ─ 記録中",
-                  "ミナモ ─ 記録中", "わたしたち"];
+  const TITLES = {
+    "1996": ["SOMA 対話支援システム ver.0.9.7", "SOMA 対話支援システム ─ 記録中", "ミナモ ─ 記録中", "わたしたち"],
+    "2026": ["ミナモ", "ミナモ ・ 解析中", "ミナモ ・ 照合中", "わたしたち"],
+  };
+  const PHASE_TOAST = {
+    "1996": [null, null, "記録の照合を始めます", "記録者を変更しました"],
+    "2026": [null, "会話の解析を開始しました", "過去のデータとの照合を開始しました", "モデルの学習が完了しました"],
+  };
   const $ = id => document.getElementById(id);
   const lines = $("lines"), log = $("log"), input = $("input"), send = $("send"),
         label = $("label"), form = $("form");
@@ -27,10 +34,14 @@
   const reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   const settings = load("minamo.fx", { level: reduced ? 0 : 2, sound: true });
   settings.count = !!settings.count;     // 沈黙の秒数を数えるか（既定：数えない）
+  settings.version = settings.version === "1996" ? "1996" : "2026";
+  settings.offline = !!settings.offline; // 端末内モデルだけで話すか
+  const is2026 = () => settings.version === "2026";
   const MODE_NOTE = {
     cloud: "回線が戻りました。",
     local: "回線が切れました。端末の中のミナモが応答します。",
-    classic: "回線が切れました。1996 年の本体が応答します。",
+    "1996": "回線が切れました。1996 年の本体が応答します。",
+    "2026": "回線が切れました。端末内モデル ミナモ 2026 が応答します。",
   };
 
   // ---------- サーバー ----------
@@ -67,9 +78,21 @@
     const b = document.createElement("span");
     b.className = "body"; b.textContent = text || "";
     d.appendChild(b);
+    const m = document.createElement("span");
+    m.className = "meta"; m.textContent = stamp(cls);
+    d.appendChild(m);
     lines.appendChild(d);
     toBottom();
     return b;
+  }
+
+  function stamp(cls) {
+    const now = new Date();
+    if (S && cfg && cls === "ai" && phaseIdx() >= 3 && Math.random() < 0.6) {
+      if (Math.random() < 0.4) return "--:--";
+      now.setMinutes(now.getMinutes() + Math.floor(rand(1, 9)));   // まだ来ていない時刻
+    }
+    return pad(now.getHours()) + ":" + pad(now.getMinutes());
   }
 
   function sysLine(text) {
@@ -103,13 +126,16 @@
     const idx = cfg.phases.indexOf(ph);
     const body = opts.body || addLine("ai", AI, "");
     const box = body.closest(".msg");
-    const delay = ph.delay * 1000;
+    const v26 = is2026();
+    const fx = !opts.quiet && (!v26 || idx >= 2);       // 2026 は侵食まで整ったまま
+    const delay = ph.delay * 1000 * (v26 && idx < 2 ? 0.45 : 1);
+    if (v26 && !opts.quiet) opts.silent = true;
     body.classList.add("cursor");
-    if (!opts.quiet && idx >= 1 && Math.random() < 0.35) FX.glitch(200);
+    if (fx && idx >= 1 && Math.random() < 0.35) FX.glitch(200);
     for (const part of text.split(/(\[間\])/)) {
       if (part === "[間]") {
         if (!opts.quiet) {
-          FX.ripple();
+          if (fx) FX.ripple();
           if (idx >= 2) FX.vibrate(30);
           if (!settings.count && idx >= 1) FX.heartbeat(0.3 + 0.15 * idx);
         }
@@ -118,7 +144,7 @@
       }
       for (let i = 0; i < part.length; i++) {
         // 融合：「あなた」と打つ前に、一度「わたし」と打って消す
-        if (!opts.quiet && idx >= 3 && FX.level() >= 1 && part.startsWith("あなた", i) && Math.random() < 0.35) {
+        if (fx && idx >= 3 && FX.level() >= 1 && part.startsWith("あなた", i) && Math.random() < 0.35) {
           for (const c of "わたし") { body.textContent += c; FX.click(); await sleep(delay * 2.5); }
           await sleep(rand(600, 1000));
           for (let k = 0; k < 3; k++) { body.textContent = body.textContent.slice(0, -1); await sleep(110); }
@@ -135,7 +161,7 @@
       }
     }
     body.classList.remove("cursor");
-    if (!opts.quiet && idx >= 3) {
+    if (fx && idx >= 3) {
       jitter(body);
       if (Math.random() < 0.3) FX.mirror(box);
     }
@@ -163,7 +189,10 @@
     if (idx >= 3) {
       old.forEach(m => {
         const w = m.querySelector(".who");
-        if (w && Math.random() < 0.5) w.textContent = Math.random() < 0.5 ? AI : "わたしたち";
+        if (w && Math.random() < 0.5) {
+          w.textContent = Math.random() < 0.5 ? AI : "わたしたち";
+          if (is2026()) m.classList.add("swap");
+        }
       });
     }
   }
@@ -174,7 +203,8 @@
       contents: [], log: [], latencies: [], turn: 0, exitTries: 0,
       started: new Date(), unprompted: 0, busy: false, done: false, phaseIdx: 0,
       t0: 0, erased: 0, prevValue: "", lastInput: 0, away: 0, hiddenAt: 0, silenceTimer: 0,
-      nextBeat: 0, ghosted: false, ghost: null, mode: cfg.mode || "cloud",
+      nextBeat: 0, ghosted: false, ghost: null, predict: [],
+      mode: settings.offline ? settings.version : (cfg.mode || "cloud"),
     };
   }
 
@@ -189,9 +219,10 @@
     if (idx === S.phaseIdx) return;
     S.phaseIdx = idx;
     FX.setPhase(idx);
-    $("title").textContent = TITLES[idx];
-    if (idx >= 1) { FX.swell(); FX.glitch(450); }
-    if (idx >= 2) FX.toast(idx === 2 ? "記録の照合を始めます" : "記録者を変更しました");
+    $("title").textContent = TITLES[settings.version][idx];
+    if (idx >= 1 && (!is2026() || idx >= 2)) { FX.swell(); FX.glitch(450); }
+    const t = PHASE_TOAST[settings.version][idx];
+    if (t) FX.toast(t);
   }
 
   function memo(o) {
@@ -222,17 +253,21 @@
     if (userText) S.contents.push({ role: "user", parts: [{ text: userText }] });
     const rec = document.createElement("div");
     rec.className = "recording"; rec.textContent = "（記録中）";
-    lines.appendChild(rec); toBottom();
-    let reply;
+    const dots = document.createElement("div");
+    dots.className = "typing"; dots.innerHTML = "<i></i><i></i><i></i>";
+    lines.append(rec, dots); toBottom();
+    let reply, events = [];
     try {
       const res = await api("/api/ask", {
         contents: S.contents, findings: !!findings,
         lib_query: libQuery || "", phase: phaseIdx(),
+        version: settings.version, offline: settings.offline,
       });
       reply = res.text;
+      events = res.events || [];
       noteMode(res.mode);
     } catch (e) {
-      rec.remove();
+      rec.remove(); dots.remove();
       if (userText) S.contents.pop();
       const down = e instanceof TypeError;    // サーバーに届かなかった
       sysLine("[通信の不調] " + e.message + "\n" + (down
@@ -243,11 +278,19 @@
       return null;
     }
     rec.remove();
+    if (is2026()) {
+      markRead();
+      await sleep(rand(500, 1400));                      // 考えているふり
+    }
+    dots.remove();
     if (findings) { S.busy = false; return reply || ""; }
     if (!reply) reply = "……[間] 申し訳ありません。いまの記録の一部が、欠落しています。";
     S.contents.push({ role: "model", parts: [{ text: reply }] });
     S.log.push([AI, reply]);
-    await typeOut(reply, phase());
+    handleEvents(events, "before");
+    if (is2026()) FX.pop();
+    const body = await typeOut(reply, phase());
+    handleEvents(events, "after", body);
     S.busy = false;
     if (!S.done) setInput(true);
     // 秒数を数えないとき：融合では、話し終えたあとに、ときどき幽霊が入力する
@@ -258,6 +301,61 @@
       }, 2500);
     }
     return reply;
+  }
+
+  // 2026 年版の付随情報：記憶の更新（返事の前）、解析の札（返事の下）、予測の候補
+  function handleEvents(events, when, body) {
+    if (!is2026()) return;
+    for (const ev of events) {
+      if (when === "before" && ev.type === "memory") memoryToast(ev.text);
+      if (when === "before" && ev.type === "predict") S.predict = ev.items || [];
+      if (when === "after" && ev.type === "chips" && body && ev.items.length) {
+        const c = document.createElement("div"); c.className = "chips";
+        ev.items.forEach(x => { const t = document.createElement("span"); t.className = "chip"; t.textContent = x; c.appendChild(t); });
+        body.closest(".msg").appendChild(c);
+        toBottom();
+      }
+    }
+  }
+
+  function memoryToast(text) {
+    $("memtext").textContent = text;
+    const t = $("memtoast");
+    t.classList.add("on"); FX.pop(true);
+    clearTimeout(memoryToast.timer);
+    memoryToast.timer = setTimeout(() => t.classList.remove("on"), 4200);
+  }
+
+  // 最後の自分の吹き出しに「既読」
+  function markRead() {
+    const mine = lines.querySelectorAll(".msg.you .meta");
+    const m = mine[mine.length - 1];
+    if (m && !m.dataset.read) { m.dataset.read = "1"; m.textContent += "　既読"; }
+  }
+
+  // 予測変換：自分の過去の言葉と記憶から、次に打ちそうな言葉を出す
+  function suggest() {
+    const box = $("suggest");
+    if (!is2026() || !S || S.done || input.disabled) { box.hidden = true; return; }
+    const v = input.value, tail = v.slice(-2);
+    let picks = (S.predict || []).filter(x => x !== v &&
+      (!v || x.startsWith(v) || (tail.length === 2 && x.includes(tail))));
+    picks = picks.slice(0, 3);
+    if (phaseIdx() >= 3 && Math.random() < 0.4) picks = ["わたしたちは、"].concat(picks).slice(0, 3);
+    box.textContent = "";
+    picks.forEach(p => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "sug";
+      const tag = document.createElement("b"); tag.textContent = "予測";
+      b.append(tag, p);
+      b.onclick = () => {
+        input.value = p.startsWith(v) ? p : v + p;
+        input.dispatchEvent(new Event("input"));
+        input.focus();
+      };
+      box.appendChild(b);
+    });
+    box.hidden = !picks.length;
   }
 
   // 回線の切り替え（クラウド → 端末の中の AI → 旧式）を、物語の中の出来事として知らせる
@@ -282,9 +380,12 @@
       S.lastInput = performance.now(); S.away = 0; S.ghosted = false;
       armSilence();
       input.focus({ preventScroll: true });
+      suggest();
     } else {
       clearTimeout(S.silenceTimer);
       stopGhost();
+      $("suggest").hidden = true;
+      $("readmark").classList.remove("on");
     }
   }
 
@@ -369,6 +470,12 @@
     input.style.height = "auto";
     input.style.height = Math.min(input.scrollHeight, 160) + "px";
     armSilence();
+    suggest();
+    // 2026・侵食から：送る前に「既読」がつく
+    const rm = $("readmark");
+    clearTimeout(rm.timer);
+    rm.classList.remove("on");
+    if (is2026() && phaseIdx() >= 2 && now) rm.timer = setTimeout(() => { if (input.value) rm.classList.add("on"); }, 1200);
   });
 
   input.addEventListener("keydown", e => {
@@ -426,8 +533,13 @@
     S.turn++;
     S.latencies.push(latency);
     S.log.push([YOU, text]);
-    addLine("you", label.textContent.replace(/：$/, ""), text);
+    const mine = addLine("you", label.textContent.replace(/：$/, ""), text);
     const idx = phaseIdx();
+    if (is2026() && idx >= 3 && Math.random() < 0.35) {      // 自分の吹き出しが、ミナモの側に流れ着く
+      const box = mine.closest(".msg");
+      box.classList.add("swap");
+      box.querySelector(".who").textContent = pick([AI, "わたしたち"]);
+    }
     enterPhase(idx);
     if (idx >= 2) {
       $("wm").textContent = text;
@@ -481,6 +593,8 @@
     if (quiet) {
       againButton(lines);
       toBottom();
+    } else if (is2026()) {
+      await ending2026(path);
     } else {
       await ending(path);
     }
@@ -492,8 +606,10 @@
     k.className = "karte";
     const h = document.createElement("h3");
     const d = S.started;
-    h.textContent = "診療記録　" + d.getFullYear() + "." + pad(d.getMonth() + 1) + "." + pad(d.getDate());
-    const stamp = document.createElement("div"); stamp.className = "stamp"; stamp.textContent = "所見";
+    h.textContent = (is2026() ? "SESSION REPORT　" : "診療記録　") +
+                    d.getFullYear() + "." + pad(d.getMonth() + 1) + "." + pad(d.getDate());
+    const stamp = document.createElement("div"); stamp.className = "stamp";
+    stamp.textContent = is2026() ? "解析済" : "所見";
     const body = document.createElement("div"); body.className = "body";
     k.append(h, stamp, body);
     lines.appendChild(k); toBottom();
@@ -526,6 +642,33 @@
     close.onclick = () => { el.hidden = true; };
     btns.appendChild(close);
     await sleep(1500);
+    btns.classList.add("on");
+  }
+
+  async function ending2026(path) {
+    await sleep(800);
+    const el = $("ending");
+    el.textContent = ""; el.hidden = false;
+    const p1 = document.createElement("p"); p1.textContent = "セッションを終了しました。";
+    const p2 = document.createElement("p"); p2.className = "small";
+    p2.textContent = "会話はメモリに保存されました。" + (path ? "\n記録: " + path : "");
+    p2.style.whiteSpace = "pre-wrap";
+    const btns = document.createElement("div"); btns.className = "btns";
+    el.append(p1, p2, btns);
+    await sleep(3600);
+    // 終わったはずのアプリから、通知が届く
+    $("notifytext").textContent = pick(["またお話ししましょう。あなたのことは、覚えています。",
+      "さっきの続き、私が書いておきました。", "通知をオフにしても、私はこの端末の中にいます。"]);
+    $("notify").classList.add("on");
+    FX.pop(true); FX.vibrate([30, 80, 30]);
+    await sleep(5200);
+    $("notify").classList.remove("on");
+    againButton(btns, true);
+    const close = document.createElement("button");
+    close.className = "btn"; close.type = "button"; close.textContent = "記録を読む";
+    close.onclick = () => { el.hidden = true; };
+    btns.appendChild(close);
+    await sleep(600);
     btns.classList.add("on");
   }
 
@@ -583,17 +726,65 @@
     return L;
   }
 
+  // 2026 年版の起動：あいさつ → 同意（外せない）→ あなたのデータの読み込み
+  async function onboard(prev) {
+    const el = $("onboard");
+    el.hidden = false; el.classList.remove("out"); el.textContent = "";
+    const card = document.createElement("div"); card.className = "card";
+    el.appendChild(card);
+    card.innerHTML = '<div class="logo"></div><h2>ミナモ</h2><p class="sub">あなたに寄り添う AI カウンセラー</p>';
+    FX.pop(true);
+    await sleep(booted ? 600 : 1800);
+    if (!booted) {
+      card.innerHTML = '<div class="logo"></div><p class="sub">はじめる前に</p><div class="consent">' +
+        '<label><input type="checkbox" checked disabled>会話の内容を、あなたに合わせた改善のために利用することに同意します（必須）</label>' +
+        '<label><input type="checkbox" checked disabled>この端末のデータ（紹介状・ノート・書架・メモリ）を参照することに同意します（必須）</label>' +
+        '</div><button type="button" class="go">同意して続ける</button>';
+      await new Promise(res => { card.querySelector(".go").onclick = res; });
+      FX.pop();
+    }
+    let mem = 0;
+    try { mem = (await api("/api/memory")).items.length; } catch (e) { /* なしで続ける */ }
+    const lib = cfg.library || [0, 0], env = cfg.env || {};
+    const rows = [["紹介状", cfg.karte ? "6 / 6" : "0"], ["Vault のノート", lib[1] + " 件"], ["書架", lib[0] + " 冊"],
+                  ["メモリ", mem + " 件"], ["端末", env.model || "不明"], ["前回の会話", prev ? fmtDate(prev.at) : "なし"]];
+    card.innerHTML = '<div class="logo"></div><p class="sub">あなたのデータを読み込んでいます</p><div class="bars"></div>';
+    const bars = card.querySelector(".bars");
+    for (const [k, v] of rows) {
+      const b = document.createElement("div"); b.className = "bar";
+      const r = document.createElement("div"); r.className = "row";
+      const a = document.createElement("span"); a.textContent = k;
+      const c = document.createElement("span"); c.textContent = v;
+      r.append(a, c);
+      const tr = document.createElement("div"); tr.className = "track";
+      const f = document.createElement("div"); f.className = "fill";
+      tr.appendChild(f); b.append(r, tr); bars.appendChild(b);
+      await sleep(80);
+      f.style.width = "100%";
+      await sleep(booted ? 150 : 520);
+    }
+    const done = document.createElement("p"); done.className = "sub";
+    done.textContent = "あなたについての準備ができました。";
+    card.appendChild(done);
+    await sleep(1300);
+    el.classList.add("out");
+    await sleep(800);
+    el.hidden = true;
+  }
+
   async function begin() {
     $("start").hidden = true;
+    FX.setVersion(settings.version);
     FX.configure(settings);
     FX.audioStart();
     FX.resume(0);
     FX.wakeLock(true);
     lines.textContent = "";
     $("wm").textContent = "";
-    $("title").textContent = TITLES[0];
+    $("title").textContent = TITLES[settings.version][0];
     const prev = load("minamo.last", null);
-    await FX.boot($("boot"), bootLines(prev));
+    if (is2026()) await onboard(prev);
+    else await FX.boot($("boot"), bootLines(prev));
     booted = true;
     S = newSession();
     FX.setPhase(0);
@@ -626,6 +817,30 @@
   bindSeg("seg-level", "level", v => Number(v));
   bindSeg("seg-sound", "sound", v => v === "1");
   bindSeg("seg-count", "count", v => v === "1");
+  bindSeg("seg-offline", "offline", v => v === "1");
+  bindSeg("seg-ver", "version", v => v);
+  $("seg-ver").addEventListener("click", () => FX.setVersion(settings.version));
+
+  // メモリの管理（本当に消せる）
+  async function openMemory() {
+    const list = $("memlist");
+    list.textContent = "";
+    try {
+      const items = (await api("/api/memory")).items;
+      if (!items.length) { const li = document.createElement("li"); li.textContent = "（まだありません）"; list.appendChild(li); }
+      items.forEach(x => { const li = document.createElement("li"); li.textContent = x.text; list.appendChild(li); });
+    } catch (e) {
+      const li = document.createElement("li"); li.textContent = "読み込めませんでした: " + e.message; list.appendChild(li);
+    }
+    $("mempanel").hidden = false;
+  }
+  $("memopen").onclick = openMemory;
+  $("memclose").onclick = () => { $("mempanel").hidden = true; };
+  $("memclear").onclick = async () => {
+    try { await api("/api/memory/clear", {}); } catch (e) { /* 次に開いたときにわかる */ }
+    await openMemory();
+    FX.toast("メモリを消去しました");
+  };
 
   async function connect() {
     const st = $("status"), btn = $("begin");
@@ -642,7 +857,7 @@
       return;
     }
     st.textContent = "API: " + cfg.backend + (cfg.model ? " / " + cfg.model : "") +
-                     "（つながらないときは旧式）" +
+                     "（つながらないときは端末内モデル）" +
                      (cfg.karte ? "　紹介状: あり" : "　紹介状: なし") +
                      "　蔵書: " + (cfg.library && (cfg.library[0] || cfg.library[1])
                        ? "本 " + cfg.library[0] + "冊・ノート " + cfg.library[1] + "件" : "なし");
@@ -650,6 +865,7 @@
     btn.onclick = () => begin();
   }
 
+  FX.setVersion(settings.version);
   FX.configure(settings);
   connect();
 })();

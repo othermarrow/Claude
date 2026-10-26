@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Shippori+Mincho:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Shippori+Mincho:wght@500&family=Noto+Sans+JP:wght@400;500&display=swap">
 <style>
 :root {
   --bg: #07090a;
@@ -212,6 +212,111 @@ body[data-phase="3"] #label { color: var(--bright); }
 .seg { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
 .seg button { border: none !important; border-radius: 0 !important; padding: .25em .8em !important; color: var(--dim) !important; }
 .seg button[aria-pressed="true"] { background: #1a2522; color: var(--bright) !important; }
+
+/* ===== 2026 年版：今どきの AI チャットの画面。段階が進むと崩れていく ===== */
+body[data-ver="2026"] {
+  --bg: #0e1013; --panel: #14171c; --line: #262b33; --text: #c9d1d9; --bright: #eef2f6;
+  --dim: #6b7480; --you: #ffffff; --accent: #5cc8b8; --bubble: #1b1f26; --mine: #1d6b62;
+  --sans: "Noto Sans JP", system-ui, sans-serif;
+  font-family: var(--sans); line-height: 1.7;
+}
+body[data-ver="2026"]::before { opacity: 0; transition: opacity 2s; }
+body[data-ver="2026"][data-phase="2"]::before { opacity: .18; }
+body[data-ver="2026"][data-phase="3"]::before { opacity: .4; }
+body[data-ver="2026"][data-phase="0"]::after, body[data-ver="2026"][data-phase="1"]::after { opacity: .5; }
+body[data-ver="2026"] header { font-size: .8em; color: var(--text); }
+body[data-ver="2026"] #title { font-family: var(--sans); letter-spacing: .02em; display: flex; align-items: center; gap: .5em; }
+body[data-ver="2026"] #title::before { content: ""; width: .55em; height: .55em; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 8px var(--accent); }
+body[data-ver="2026"][data-phase="3"] #title::before { background: #c0504d; box-shadow: 0 0 8px #c0504d; }
+body[data-ver="2026"] #lines { display: flex; flex-direction: column; }
+body[data-ver="2026"] .msg { display: flex; flex-direction: column; max-width: 84%; margin: 0 0 .9em; white-space: pre-wrap; }
+body[data-ver="2026"] .msg .who { font-size: .7em; letter-spacing: .05em; margin: 0 0 .2em .2em; }
+body[data-ver="2026"] .msg .body { padding: .55em .9em; border-radius: 18px; font-size: .97em; }
+body[data-ver="2026"] .msg.ai { align-self: flex-start; }
+body[data-ver="2026"] .msg.ai .body { background: var(--bubble); color: var(--bright); font-family: var(--sans);
+  border-bottom-left-radius: 5px; text-shadow: none; font-size: .97em; }
+body[data-ver="2026"] .msg.you { align-self: flex-end; align-items: flex-end; }
+body[data-ver="2026"] .msg.you .who { display: none; }
+body[data-ver="2026"] .msg.you .body { background: var(--mine); color: var(--you); border-bottom-right-radius: 5px; }
+body[data-ver="2026"][data-phase="2"] .msg.ai .body { box-shadow: 1px 0 rgba(255,70,70,.35), -1px 0 rgba(70,220,255,.3); }
+body[data-ver="2026"][data-phase="3"] .msg.ai .body { box-shadow: 2px 0 rgba(255,70,70,.45), -2px 0 rgba(70,220,255,.35); }
+/* 融合：吹き出しが反対側に流れ着く */
+body[data-ver="2026"] .msg.you.swap { align-self: flex-start; align-items: flex-start; }
+body[data-ver="2026"] .msg.you.swap .who { display: block; color: var(--dim); }
+body[data-ver="2026"] .msg.you.swap .body { background: var(--bubble); color: var(--bright); border-radius: 18px; border-bottom-left-radius: 5px; }
+.meta { display: none; }
+body[data-ver="2026"] .meta { display: block; font-size: .64em; color: var(--dim); margin: .15em .4em 0; }
+.chips { display: none; }
+body[data-ver="2026"] .chips { display: flex; flex-wrap: wrap; gap: .35em; margin: .35em 0 0 .2em; }
+.chip { font-size: .66em; border: 1px solid var(--line); border-radius: 999px; padding: 0 .65em; color: var(--accent); }
+body[data-ver="2026"] .recording { display: none; }
+.typing { display: none; }
+body[data-ver="2026"] .typing { display: inline-flex; gap: .3em; align-self: flex-start; background: var(--bubble);
+  border-radius: 18px; border-bottom-left-radius: 5px; padding: .75em 1em; margin: 0 0 .9em; }
+.typing i { width: .42em; height: .42em; border-radius: 50%; background: var(--dim); animation: dots 1.2s infinite; }
+.typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; }
+@keyframes dots { 0%, 60%, 100% { opacity: .3; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
+body[data-ver="2026"] .sys { font-size: .72em; text-align: center; align-self: center; }
+body[data-ver="2026"] form { background: var(--bg); border-top: none; padding-top: .3em; }
+body[data-ver="2026"] #label { display: none; }
+body[data-ver="2026"] #input { background: var(--bubble); border-radius: 22px; padding: .55em 1em; color: var(--bright); }
+body[data-ver="2026"] #send { border-radius: 50%; width: 2.6em; height: 2.6em; padding: 0; background: var(--accent); color: #062420; border: none; font-size: .8em; }
+body[data-ver="2026"] #input.ghost { font-family: var(--sans); }
+/* 予測変換 */
+#suggest { flex: none; display: flex; gap: .4em; overflow-x: auto; padding: .3em 16px 0; position: relative; z-index: 2; scrollbar-width: none; }
+#suggest::-webkit-scrollbar { display: none; }
+.sug { flex: none; background: var(--bubble, #1b1f26); color: var(--dim); border: 1px solid var(--line); border-radius: 999px;
+  padding: .15em .8em; font-size: .78em; cursor: pointer; white-space: nowrap; }
+.sug b { color: var(--accent); font-weight: 500; margin-right: .3em; font-size: .85em; }
+#readmark { position: absolute; right: 4.2em; top: -1.4em; font-size: .64em; color: var(--accent); opacity: 0; transition: opacity .3s; }
+#readmark.on { opacity: 1; }
+/* 記憶の更新 */
+#memtoast {
+  position: fixed; left: 50%; top: calc(.6em + env(safe-area-inset-top, 0px)); z-index: 15; max-width: calc(100% - 32px);
+  transform: translate(-50%, -160%); transition: transform .45s cubic-bezier(.2,.9,.3,1.2);
+  background: #1b1f26; border: 1px solid #2f3540; border-radius: 14px; padding: .55em .9em; font-size: .8em; color: #eef2f6;
+  display: flex; gap: .7em; align-items: center; font-family: "Noto Sans JP", system-ui, sans-serif; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+}
+#memtoast.on { transform: translate(-50%, 0); }
+#memtoast .t { color: #5cc8b8; font-size: .85em; }
+#memtoast .x { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#memtoast button { background: none; border: none; color: #6b7480; font-size: .85em; flex: none; cursor: pointer; padding: 0; }
+#mempanel .box { border-color: var(--line); font-family: "Noto Sans JP", system-ui, sans-serif; color: var(--text); }
+#mempanel ul { margin: .4em 0 1em; padding-left: 1.2em; max-height: 50vh; overflow-y: auto; font-size: .88em; }
+#mempanel .small { color: var(--dim); font-size: .78em; }
+/* オンボーディング（2026 年版の起動） */
+#onboard { display: flex; align-items: center; justify-content: center; background: #0b0d10;
+  font-family: "Noto Sans JP", system-ui, sans-serif; color: #c9d1d9; }
+#onboard .card { width: 100%; max-width: 380px; text-align: center; }
+#onboard .logo { width: 72px; height: 72px; margin: 0 auto 1em; border-radius: 50%; position: relative;
+  border: 1.5px solid #5cc8b8; box-shadow: 0 0 24px rgba(92,200,184,.35); }
+#onboard .logo::after { content: ""; position: absolute; inset: 14px; border-radius: 50%; border: 1px solid rgba(92,200,184,.6);
+  animation: breathe2 2.4s ease-in-out infinite; }
+@keyframes breathe2 { 50% { transform: scale(1.25); opacity: .4; } }
+#onboard h2 { font-weight: 500; margin: 0; color: #eef2f6; letter-spacing: .2em; }
+#onboard .sub { color: #6b7480; font-size: .82em; margin: .3em 0 1.6em; }
+#onboard .consent { text-align: left; background: #14171c; border: 1px solid #262b33; border-radius: 12px; padding: .8em 1em; font-size: .82em; }
+#onboard .consent label { display: flex; gap: .6em; align-items: flex-start; margin: .3em 0; }
+#onboard .consent input { accent-color: #5cc8b8; margin-top: .3em; }
+#onboard .go { margin-top: 1.2em; background: #5cc8b8; color: #062420; border: none; border-radius: 999px; padding: .55em 2.2em; font-size: .9em; cursor: pointer; }
+#onboard .bars { text-align: left; font-size: .8em; }
+#onboard .bar { margin: .7em 0; }
+#onboard .bar .row { display: flex; justify-content: space-between; color: #9aa3ad; }
+#onboard .bar .track { height: 3px; background: #262b33; border-radius: 3px; margin-top: .3em; overflow: hidden; }
+#onboard .bar .fill { height: 100%; width: 0; background: #5cc8b8; transition: width .9s ease; }
+#onboard.out { opacity: 0; transition: opacity .8s; }
+/* 2026 年版の終わり：通知が届く */
+#notify { position: fixed; left: 50%; top: calc(.6em + env(safe-area-inset-top, 0px)); z-index: 25; width: calc(100% - 24px); max-width: 420px;
+  transform: translate(-50%, -160%); transition: transform .5s cubic-bezier(.2,.9,.3,1.2);
+  background: rgba(30,34,41,.97); border-radius: 18px; padding: .7em .9em; display: flex; gap: .7em; align-items: flex-start;
+  font-family: "Noto Sans JP", system-ui, sans-serif; color: #eef2f6; box-shadow: 0 10px 30px rgba(0,0,0,.6); }
+#notify.on { transform: translate(-50%, 0); }
+#notify .ic { flex: none; width: 2.2em; height: 2.2em; border-radius: 50%; border: 1.5px solid #5cc8b8; }
+#notify .hd { font-size: .72em; color: #9aa3ad; display: flex; justify-content: space-between; }
+#notify .tx { font-size: .9em; }
+body[data-ver="2026"] #ending { font-family: var(--sans); }
+body[data-ver="2026"] #ending .ai { font-family: var(--sans); text-shadow: none; }
 </style>
 </head>
 <body data-phase="0" data-fx="high">
@@ -222,7 +327,9 @@ body[data-phase="3"] #label { color: var(--bright); }
   <button id="quit" type="button" hidden>面接をやめる</button>
 </header>
 <main id="log"><div class="wrap" id="lines"></div></main>
+<div id="suggest" hidden></div>
 <form id="form" autocomplete="off">
+  <span id="readmark">既読</span>
   <span id="label">あなた：</span>
   <textarea id="input" rows="1" enterkeyhint="send" disabled></textarea>
   <button id="send" type="submit" disabled>送る</button>
@@ -233,6 +340,16 @@ body[data-phase="3"] #label { color: var(--bright); }
     <h1>ミナモ</h1>
     <p class="small">旧式カウンセリングAIとの面接（心理ホラーの作り話です）</p>
     <p id="status" class="small">接続を確かめています……</p>
+    <div class="setting"><span>版</span>
+      <div class="seg" id="seg-ver">
+        <button type="button" data-v="2026">2026</button><button type="button" data-v="1996">1996</button>
+      </div>
+    </div>
+    <div class="setting"><span>話し手</span>
+      <div class="seg" id="seg-offline">
+        <button type="button" data-v="0">自動</button><button type="button" data-v="1">端末内モデルだけ</button>
+      </div>
+    </div>
     <div class="setting"><span>演出</span>
       <div class="seg" id="seg-level">
         <button type="button" data-v="2">強</button><button type="button" data-v="1">標準</button><button type="button" data-v="0">弱</button>
@@ -256,6 +373,20 @@ body[data-phase="3"] #label { color: var(--bright); }
 </div>
 
 <div id="boot" class="full" hidden></div>
+<div id="onboard" class="full" hidden></div>
+<div id="memtoast"><span class="t">◆ メモリを更新しました</span><span class="x" id="memtext"></span><button type="button" id="memopen">管理</button></div>
+<div id="notify"><div class="ic"></div><div><div class="hd"><span>ミナモ</span><span>たった今</span></div><div class="tx" id="notifytext"></div></div></div>
+<div id="mempanel" class="overlay" hidden>
+  <div class="box">
+    <p><b>メモリ</b></p>
+    <p class="small">ミナモ 2026 が会話から覚えたこと。この端末の <code>~/minamo/memory.json</code> だけに保存されています。</p>
+    <ul id="memlist"></ul>
+    <div class="btns">
+      <button id="memclear" type="button">すべて消去</button>
+      <button id="memclose" class="main" type="button">閉じる</button>
+    </div>
+  </div>
+</div>
 <div id="ending" class="full" hidden></div>
 
 <div id="crisis" class="overlay" hidden>

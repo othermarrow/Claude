@@ -7,7 +7,7 @@
   const FX = {};
   const rand = (a, b) => a + Math.random() * (b - a);
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  let level = 2, soundOn = true, calm = false;
+  let level = 2, soundOn = true, calm = false, ver = "2026";
   let ac = null, master = null, drone = null, clickBuf = null;
 
   FX.configure = o => {
@@ -16,6 +16,8 @@
     if (!soundOn && ac) ac.suspend().catch(() => {});
   };
   FX.level = () => level;
+  // 版：2026 はうなりを控えめに明るく（段階が進むと 1996 と同じ濃さに近づく）
+  FX.setVersion = v => { ver = v; document.body.dataset.ver = v; };
 
   // ---------- 音 ----------
   function noise(sec, brown) {
@@ -70,6 +72,13 @@
     o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.02);
   }
   FX.beep = () => tone(880, 0.06, "square", 0.03);
+  // 2026 年版の通知音（メッセージの着信・記憶の更新）
+  FX.pop = (high) => {
+    if (!live()) return;
+    const t = ac.currentTime;
+    tone(high ? 1320 : 990, 0.09, "sine", 0.05, t);
+    tone(high ? 1760 : 1320, 0.12, "sine", 0.04, t + 0.07);
+  };
 
   FX.click = () => {
     if (!live()) return;
@@ -130,8 +139,9 @@
     document.body.dataset.phase = String(idx);
     if (!drone || !ac) return;
     const t = ac.currentTime;
-    drone.g.gain.setTargetAtTime(calm ? 0 : [0.05, 0.07, 0.09, 0.11][idx], t, 1.5);
-    drone.lp.frequency.setTargetAtTime([180, 240, 320, 420][idx], t, 2);
+    const soft = ver === "2026" ? [0.35, 0.5, 0.8, 1][idx] : 1;
+    drone.g.gain.setTargetAtTime(calm ? 0 : [0.05, 0.07, 0.09, 0.11][idx] * soft, t, 1.5);
+    drone.lp.frequency.setTargetAtTime([180, 240, 320, 420][idx] * (ver === "2026" ? 1.6 : 1), t, 2);
     drone.g3.gain.setTargetAtTime(idx >= 3 ? 0.35 : 0, t, 3);
   };
   FX.fade = sec => {

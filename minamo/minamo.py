@@ -17,8 +17,9 @@ Gemini API に「旧式の心理カウンセリングAI」を演じさせる。
                          相手の発言に近い一節を探して渡す（library.py）。
                          ミナモはそれを誤用し、ノートは「あなたのノート」として扱う。
   7. オフライン          クラウドの AI につながらなければ、端末の中の AI（llama.cpp の
-                         llama-server が動いていれば）、それもなければ旧式エンジン
-                         （classic.py。決まったセリフと規則）が話す。
+                         llama-server が動いていれば）、それもなければ端末内のエンジンが話す。
+                         2026 年版（modern.py。解析・記憶・予測・見立て）が既定で、
+                         1996 年版（classic.py。言葉を映し返す）も選べる（--version 1996）。
 
 依存は Python 標準ライブラリだけ（pip 不要）。
 
@@ -466,42 +467,70 @@ class Local:
 MODE_NOTE = {
     "cloud": "（回線が戻りました）",
     "local": "（回線が切れました。端末の中のミナモが応答します）",
-    "classic": "（回線が切れました。1996 年の本体が応答します）",
+    "1996": "（回線が切れました。1996 年の本体が応答します）",
+    "2026": "（回線が切れました。端末内モデル ミナモ 2026 が応答します）",
 }
 
 
 class Hybrid:
-    """クラウドの AI → 端末の中の AI → 旧式エンジン の順に試す。
-    つながらなかった段は OFFLINE_RETRY 秒のあいだ飛ばす。旧式エンジンは必ず答える。"""
+    """クラウドの AI → 端末の中の AI → 端末内のエンジン（2026 年版か 1996 年版）の順に試す。
+    つながらなかった段は OFFLINE_RETRY 秒のあいだ飛ばす。端末内のエンジンは必ず答える。
+    2026 年版のときは、誰が話すときでも解析・記憶・予測を走らせ、events に入れる。"""
 
-    def __init__(self, tiers, karte=False):
-        self.tiers = tiers                   # [(名前, llm)]。最後は旧式
+    def __init__(self, tiers, engines, karte=False, version="2026"):
+        self.tiers = tiers                   # [(名前, llm)]：cloud・local
+        self.engines = engines               # {"2026": Modern, "1996": Classic}
         self.karte = karte
+        self.version = version
         self.skip_until = {}
-        self.mode = tiers[0][0]
+        self.mode = tiers[0][0] if tiers else version
+        self.events = []
 
     @property
     def model(self):
-        return getattr(dict(self.tiers)[self.mode], "model", "")
+        if self.mode in self.engines:
+            return self.engines[self.mode].model
+        return getattr(dict(self.tiers).get(self.mode), "model", "")
 
     @property
     def system(self):
-        return getattr(self.tiers[0][1], "system", "")
+        return getattr(self.tiers[0][1], "system", "") if self.tiers else ""
 
-    def ask(self, contents):
-        now = time.monotonic()
-        for name, llm in self.tiers:
-            if name != "classic" and self.skip_until.get(name, 0) > now:
-                continue
-            try:
-                reply = llm.ask(contents)
-            except RuntimeError as e:
-                self.skip_until[name] = now + OFFLINE_RETRY
-                if name == "cloud" and not isinstance(e, Offline):
-                    print(f"\n[API] {str(e)[:160]}", file=sys.stderr, flush=True)
-                continue
-            self.mode = name
-            return reply
+    def ask(self, contents, version=None, offline=False):
+        """offline=True なら、クラウドも端末の中の AI も使わず、端末内のエンジンだけで話す。"""
+        version = version if version in self.engines else self.version
+        modern = self.engines.get("2026")
+        seen = modern.observe(contents) if version == "2026" and modern else None
+        self.events = list(modern.events) if seen else []
+        if not offline:
+            now = time.monotonic()
+            sending = self.with_memory(contents, modern) if seen else contents
+            for name, llm in self.tiers:
+                if self.skip_until.get(name, 0) > now:
+                    continue
+                try:
+                    reply = llm.ask(sending)
+                except RuntimeError as e:
+                    self.skip_until[name] = now + OFFLINE_RETRY
+                    if name == "cloud" and not isinstance(e, Offline):
+                        print(f"\n[API] {str(e)[:160]}", file=sys.stderr, flush=True)
+                    continue
+                self.mode = name
+                return reply
+        self.mode = version
+        if seen:
+            return modern.reply(seen[0], seen[1], contents)
+        return self.engines[version].ask(contents)
+
+    @staticmethod
+    def with_memory(contents, modern):
+        """面接の始まりに、2026 年版の記憶をクラウドの AI にも渡す。"""
+        last = contents[-1]["parts"][0]["text"] if contents else ""
+        items = modern.memory.items[-6:]
+        if "面接が始まった" not in last or not items:
+            return contents
+        note = "\n- 前回までの会話の記憶: " + "／".join(items) + "（覚えていることを、さりげなく示すこと）"
+        return contents[:-1] + [{"role": "user", "parts": [{"text": last + note}]}]
 
 
 class Fake:
@@ -526,7 +555,7 @@ class Session:
         self.library = library
         self.count = count
         self.silence = silence if count else None
-        self.mode = "cloud"
+        self.mode = getattr(llm, "mode", "cloud")
         self.env = gather_env() if use_env else {}
         self.contents = []
         self.log = []
@@ -591,6 +620,11 @@ class Session:
         if mode and mode != self.mode:
             print(dim(MODE_NOTE.get(mode, "")))
             self.mode = mode
+        for ev in getattr(self.llm, "events", []):
+            if ev["type"] == "memory":
+                print(c("36", f"  ◆ メモリを更新しました：{ev['text']}"))
+            elif ev["type"] == "chips":
+                print(dim("  ［" + "・".join(ev["items"]) + "］"))
         if not reply:
             reply = "……[間] 申し訳ありません。いまの記録の一部が、欠落しています。"
         self.contents.append({"role": "model", "parts": [{"text": reply}]})
@@ -722,10 +756,12 @@ def library_status(library):
             + (f"（読まなかった本: {len(library.skipped)}冊）" if library.skipped else ""))
 
 
-def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False, local=True):
-    """話し手を組み立てる。クラウド（キーがあれば）→ 端末の中の AI → 旧式エンジン。
-    キーがなくても、旧式エンジンだけで動く。"""
+def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False, local=True,
+             version="2026", library=None):
+    """話し手を組み立てる。クラウド（キーがあれば）→ 端末の中の AI → 端末内のエンジン。
+    キーがなくても、端末内のエンジンだけで動く。"""
     from classic import Classic
+    from modern import Modern
     karte = "" if no_karte else load_karte()
     tiers = []
     if fake:
@@ -741,8 +777,8 @@ def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False
                           else Nvidia(key, model or NVIDIA_MODEL, system)))
     if local and not fake:
         tiers.append(("local", Local()))
-    tiers.append(("classic", Classic(karte)))
-    return Hybrid(tiers, karte=bool(karte))
+    engines = {"1996": Classic(karte), "2026": Modern(karte, library)}
+    return Hybrid(tiers, engines, karte=bool(karte), version=version)
 
 
 def main():
@@ -758,6 +794,8 @@ def main():
     ap.add_argument("--offline", action="store_true",
                     help="クラウドの AI を使わない（端末の中の AI か旧式エンジンで話す）")
     ap.add_argument("--no-local", action="store_true", help="端末の中の AI を試さない")
+    ap.add_argument("--version", choices=["2026", "1996"], default="2026",
+                    help="端末内のエンジンの版（既定 2026。1996 は言葉を映し返す旧式）")
     ap.add_argument("--no-env", action="store_true",
                     help="時刻以外の端末情報（ユーザー名・機種・電池）を渡さない")
     ap.add_argument("--no-karte", action="store_true",
@@ -771,15 +809,17 @@ def main():
     a = ap.parse_args()
     RECORD_DIR = os.path.expanduser(a.records)
 
-    llm = make_llm(a.backend, a.model, a.no_karte, a.fake, a.offline, not a.no_local)
-    if llm.tiers[0][0] != "cloud":
-        print(dim("クラウドの AI は使いません（APIキーがないか --offline）。旧式エンジンで話します。"))
-
     if not a.no_library:
         print(dim("蔵書を開いています……"), end="\r", flush=True)
     library = None if a.no_library else load_library(a.library or LIBRARY_DIRS)
     if library:
         print(dim(library_status(library)))
+    llm = make_llm(a.backend, a.model, a.no_karte, a.fake, a.offline, not a.no_local,
+                   a.version, library)
+    if not llm.tiers or llm.tiers[0][0] != "cloud":
+        print(dim(f"クラウドの AI は使いません（APIキーがないか --offline）。"
+                  f"{llm.engines[a.version].model}で話します。"))
+
     s = Session(llm, a.silence or None, not a.no_env, library,
                 count=a.count_silence or COUNT_SILENCE)
     try:
