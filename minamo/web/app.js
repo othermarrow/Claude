@@ -26,6 +26,12 @@
   }
   const reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   const settings = load("minamo.fx", { level: reduced ? 0 : 2, sound: true });
+  settings.count = !!settings.count;     // 沈黙の秒数を数えるか（既定：数えない）
+  const MODE_NOTE = {
+    cloud: "回線が戻りました。",
+    local: "回線が切れました。端末の中のミナモが応答します。",
+    classic: "回線が切れました。1996 年の本体が応答します。",
+  };
 
   // ---------- サーバー ----------
   async function api(path, body) {
@@ -102,7 +108,11 @@
     if (!opts.quiet && idx >= 1 && Math.random() < 0.35) FX.glitch(200);
     for (const part of text.split(/(\[間\])/)) {
       if (part === "[間]") {
-        if (!opts.quiet) { FX.ripple(); if (idx >= 2) FX.vibrate(30); }
+        if (!opts.quiet) {
+          FX.ripple();
+          if (idx >= 2) FX.vibrate(30);
+          if (!settings.count && idx >= 1) FX.heartbeat(0.3 + 0.15 * idx);
+        }
         await sleep(rand(2000, 3500));
         continue;
       }
@@ -164,7 +174,7 @@
       contents: [], log: [], latencies: [], turn: 0, exitTries: 0,
       started: new Date(), unprompted: 0, busy: false, done: false, phaseIdx: 0,
       t0: 0, erased: 0, prevValue: "", lastInput: 0, away: 0, hiddenAt: 0, silenceTimer: 0,
-      nextBeat: 0, ghosted: false, ghost: null,
+      nextBeat: 0, ghosted: false, ghost: null, mode: cfg.mode || "cloud",
     };
   }
 
@@ -188,13 +198,14 @@
     o = o || {};
     const ph = phase(), idx = cfg.phases.indexOf(ph), now = new Date(), env = cfg.env || {};
     const L = ["- 面接段階: " + ph.name + "（" + (idx + 1) + "/4）、" + S.turn + "回目"];
-    if (o.latency != null) {
+    if (o.latency != null && settings.count) {
       const avg = S.latencies.reduce((a, b) => a + b, 0) / S.latencies.length;
       L.push("- 返答までの時間: " + o.latency.toFixed(1) + "秒（これまでの平均 " + avg.toFixed(1) + "秒）");
     }
     if (o.chars != null) L.push("- 入力した文字数: " + o.chars);
     if (o.erased) L.push("- 書きかけて消した文字数: " + o.erased);
-    if (o.away) L.push("- 返答の途中で、この画面を" + Math.round(o.away) + "秒間離れていた");
+    if (o.away) L.push(settings.count ? "- 返答の途中で、この画面を" + Math.round(o.away) + "秒間離れていた"
+                                      : "- 返答の途中で、この画面を一度離れていた");
     if (idx >= 1) {
       const min = Math.floor((now - S.started) / 60000);
       L.push("- 現在時刻: " + pad(now.getHours()) + "時" + pad(now.getMinutes()) + "分（面接開始から" + min + "分）");
@@ -214,10 +225,12 @@
     lines.appendChild(rec); toBottom();
     let reply;
     try {
-      reply = (await api("/api/ask", {
+      const res = await api("/api/ask", {
         contents: S.contents, findings: !!findings,
         lib_query: libQuery || "", phase: phaseIdx(),
-      })).text;
+      });
+      reply = res.text;
+      noteMode(res.mode);
     } catch (e) {
       rec.remove();
       if (userText) S.contents.pop();
@@ -237,7 +250,23 @@
     await typeOut(reply, phase());
     S.busy = false;
     if (!S.done) setInput(true);
+    // 秒数を数えないとき：融合では、話し終えたあとに、ときどき幽霊が入力する
+    if (!settings.count && phaseIdx() >= 3 && Math.random() < 0.35) {
+      setTimeout(() => {
+        if (S && !S.busy && !S.done && !S.ghost && !input.value &&
+            performance.now() - S.lastInput > 2000) ghost();
+      }, 2500);
+    }
     return reply;
+  }
+
+  // 回線の切り替え（クラウド → 端末の中の AI → 旧式）を、物語の中の出来事として知らせる
+  function noteMode(mode) {
+    if (!mode || mode === S.mode) return;
+    S.mode = mode;
+    sysLine("（" + (MODE_NOTE[mode] || "") + "）");
+    FX.toast(mode === "cloud" ? "回線：接続" : "回線：切断");
+    FX.glitch(350);
   }
 
   function promptLabel() {
@@ -262,7 +291,7 @@
   // 黙っている：最後に何か打ってから cfg.silence 秒（画面を離れている間は数えない）
   function armSilence() {
     clearTimeout(S.silenceTimer);
-    if (!cfg.silence || S.unprompted >= cfg.max_unprompted || S.done || document.hidden) return;
+    if (!settings.count || !cfg.silence || S.unprompted >= cfg.max_unprompted || S.done || document.hidden) return;
     const left = cfg.silence * 1000 - (performance.now() - S.lastInput);
     S.silenceTimer = setTimeout(onSilence, Math.max(0, left));
   }
@@ -289,6 +318,10 @@
     if (!S || S.done || !cfg) return;
     const waiting = !S.busy && !input.disabled && !document.hidden;
     if (!waiting) { FX.setSilence(0); return; }
+    if (!settings.count) {                // 秒数を数えないとき：暗がりは段階で決まる
+      FX.setSilence([0, 0.12, 0.25, 0.38][phaseIdx()] || 0);
+      return;
+    }
     const sec = (performance.now() - S.lastInput) / 1000;
     const s = Math.min(1, sec / (cfg.silence || 60));
     FX.setSilence(s);
@@ -358,7 +391,8 @@
       S.hiddenAt = 0;
       FX.wakeLock(true);
       if (gone > 5000 && phaseIdx() >= 1) {
-        FX.toast("離席 " + Math.round(gone / 1000) + "秒 ─ 記録しました");
+        FX.toast(settings.count ? "離席 " + Math.round(gone / 1000) + "秒 ─ 記録しました"
+                                : "離席 ─ 記録しました");
         FX.glitch(300);
       }
       if (!S.busy) armSilence();
@@ -440,7 +474,8 @@
     }
     if (S.turn > 1) {
       store("minamo.last", { at: S.started.toISOString(), turns: S.turn,
-        silence: Math.round(S.latencies.reduce((a, b) => a + b, 0)), findings: findings.slice(0, 160) });
+        silence: settings.count ? Math.round(S.latencies.reduce((a, b) => a + b, 0)) : null,
+        findings: findings.slice(0, 160) });
     }
     FX.wakeLock(false);
     if (quiet) {
@@ -508,7 +543,7 @@
     let md = "# 面接記録 " + d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
              " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + "\n\n";
     for (const [who, text] of S.log) md += "**" + who + "**：" + text.replace(/\[間\]/g, "……") + "\n\n";
-    if (S.latencies.length) md += "## 沈黙\n\n" + S.latencies.map(x => x.toFixed(1) + "秒").join(", ") + "\n\n";
+    if (settings.count && S.latencies.length) md += "## 沈黙\n\n" + S.latencies.map(x => x.toFixed(1) + "秒").join(", ") + "\n\n";
     if (findings) md += "## 所見\n\n" + findings.replace(/\[間\]/g, "……") + "\n";
     return md;
   }
@@ -533,14 +568,15 @@
       ["音声合成装置 ................ 未接続", "beep"],
       ["患者記録 .................... " + (prev ? "1件（終了処理：未完了）" : "0件"), "beep"],
     ];
-    if (prev) L.push(["  前回の面接 ................ " + fmtDate(prev.at) + "　沈黙 " + prev.silence + "秒", "beep"]);
+    if (prev) L.push(["  前回の面接 ................ " + fmtDate(prev.at) +
+                      (settings.count && prev.silence != null ? "　沈黙 " + prev.silence + "秒" : ""), "beep"]);
     L.push(
       ["紹介状 ...................... " + (cfg.karte ? "6通（未開封）" : "なし"), "beep"],
       ["蔵書 ........................ 本 " + lib[0] + "冊 ／ ノート " + lib[1] + "件", "beep"],
       ["端末 ........................ " + (env.model || "不明") + "　応答あり", "beep"],
       ["", 0],
       ["回線を接続しています ", "modem"],
-      ["接続しました。", 400],
+      cfg.mode === "cloud" ? ["接続しました。", 400] : ["応答がありません。内蔵の応答で起動します。", 600],
       ["", 0],
       ["ミナモを起動します。", "beep"],
     );
@@ -568,7 +604,8 @@
     if (prev) {
       const days = Math.floor((Date.now() - new Date(prev.at)) / 86400000);
       extra = "面接が始まった。前回の面接記録がある（" + (days ? days + "日前" : "今日") + "、" +
-              fmtDate(prev.at) + "、" + prev.turns + "回のやりとり、沈黙の合計" + prev.silence + "秒）。" +
+              fmtDate(prev.at) + "、" + prev.turns + "回のやりとり" +
+              (settings.count && prev.silence != null ? "、沈黙の合計" + prev.silence + "秒" : "") + "）。" +
               (prev.findings ? "前回の所見の書き出し：「" + prev.findings.replace(/\s+/g, " ") + "」。" : "") +
               "初対面のふりはせず、前回のことを覚えていると、あいさつの中でさりげなく示すこと。";
     }
@@ -588,6 +625,7 @@
   }
   bindSeg("seg-level", "level", v => Number(v));
   bindSeg("seg-sound", "sound", v => v === "1");
+  bindSeg("seg-count", "count", v => v === "1");
 
   async function connect() {
     const st = $("status"), btn = $("begin");
@@ -604,6 +642,7 @@
       return;
     }
     st.textContent = "API: " + cfg.backend + (cfg.model ? " / " + cfg.model : "") +
+                     "（つながらないときは旧式）" +
                      (cfg.karte ? "　紹介状: あり" : "　紹介状: なし") +
                      "　蔵書: " + (cfg.library && (cfg.library[0] || cfg.library[1])
                        ? "本 " + cfg.library[0] + "冊・ノート " + cfg.library[1] + "件" : "なし");
