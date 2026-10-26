@@ -180,6 +180,17 @@ def main():
     a = ap.parse_args()
     minamo.RECORD_DIR = os.path.expanduser(a.records)
 
+    # 先にポートを取る（前のサーバーが動いていたら、蔵書の読み込みや AI の一括チェックの前に知らせる）
+    try:
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
+    except OSError as e:
+        if e.errno in (98, 48):          # Address already in use
+            print(f"ポート {a.port} は、もう使われています（前に起動したミナモのサーバーが動いたままかもしれません）。\n"
+                  "そのまま Chrome で開けば、前のサーバーで遊べます。新しく起動し直すなら、止めてからもう一度：\n"
+                  "  pkill -f \"minamo/server.py\"")
+            sys.exit(1)
+        raise
+
     if not a.no_library:
         print("蔵書を開いています……")
     library = None if a.no_library else minamo.load_library(a.library or minamo.LIBRARY_DIRS)
@@ -203,7 +214,6 @@ def main():
         STATE["backend"] = "端末内のみ"
         print("クラウドの AI は使いません（APIキーがないか --offline）。端末内のエンジンで話します。")
 
-    srv = http.server.ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
     print(f"API: {STATE['backend']} / {llm.model}　（つながらないときは "
           + " → ".join([n for n, _ in llm.tiers[1:]] + ["端末内のエンジン（2026 / 1996）"]) + "）")
     if library:
