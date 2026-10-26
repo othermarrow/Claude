@@ -886,7 +886,11 @@
       st.textContent = "サーバーは動いていますが、" + cfg.error + "。README の「APIキー」を見てください。";
       return;
     }
-    st.textContent = "API: " + cfg.backend + (cfg.model ? " / " + cfg.model : "") +
+    const pr = cfg.probe || [], okN = pr.filter(r => r.ok).length;
+    const probeNote = !pr.length ? "" : okN
+      ? "（一括チェック：" + pr.length + " 個中 " + okN + " 個が合格、いちばん速い " + pr[0].sec + " 秒のものを選択）"
+      : "（一括チェック：合格なし。いつもの設定）";
+    st.textContent = "API: " + cfg.backend + (cfg.model ? " / " + cfg.model : "") + probeNote +
                      "（つながらないときは端末内モデル）" +
                      (cfg.karte ? "　紹介状: あり" : "　紹介状: なし") +
                      "　蔵書: " + (cfg.library && (cfg.library[0] || cfg.library[1])

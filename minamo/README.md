@@ -178,6 +178,42 @@ chmod 600 ~/.config/minamo/keys.env
 
 環境変数 `GEMINI_API_KEY` / `NVIDIA_API_KEY` があれば、そちらが優先される。
 
+### AI の一括チェック（起動時）
+
+サーバー（`serve.sh`）と CUI 版は、起動するときに、候補の AI（`PROBE_MODELS`）へ同じ短い面接の一場面を同時に送り、
+**速さと的確さ**を一度に調べて、合格したうちでいちばん速いものを使う。キーのある API の候補だけを試す（NVIDIA と Gemini の両方のキーがあれば両方）。
+
+的確さの合格の条件：
+
+- 日本語で答える（英語が混ざらない）
+- 敬語で話す
+- 2〜7 文（25〜420 字）
+- マークダウン・箇条書きを使わない
+- 考えている途中の文章（`<think>` など）が漏れない
+- 「観測メモ」や【】の書式を口にしない
+- 相手の話（眠れない・仕事・夜・消した文字など）に触れている
+
+```
+AI の一括チェック：8 個に同時に送ります（最大 30 秒）
+  ✓   3.1秒  nvidia openai/gpt-oss-20b
+  △   1.2秒  nvidia google/gemma-4-31b-it  （マークダウン）
+  ×    ──   nvidia meta/llama-3.3-70b-instruct  （提供終了）
+  ...
+→ いちばん速く的確だった openai/gpt-oss-20b（3.1秒）を使います。答えないときは ○○・△△ の順に替えます。
+```
+
+（上は表示の例。実際の秒数や合否は、そのときの API しだい）
+
+- 「✓」は合格、「△」は返事は来たが条件に合わない、「×」は返事がない（提供終了・見つからない・混雑・時間切れ・つながらない）。
+- 合格したほかの AI は、速い順に代わりになる。面接の途中で使っている AI が答えなくなったら、次へ替えて続け、Termux の画面に「[モデル] ○○ が答えません。△△ に切り替えます。」と出す。
+- 電波がないときは、どれにもつながらないとわかった時点で、いつもの設定のまま始める（つながらなければ端末内モデルが話す）。
+- 待つのは最大 `PROBE_TIMEOUT`（30 秒）。それより遅い AI は使わない。
+- PWA の起動画面にも「一括チェック：8 個中 3 個が合格、いちばん速い 3.1 秒のものを選択」と出る。
+- 結果は `~/.cache/minamo/probe.json` に残る（返事の書き出しつき）。
+- しないときは `--no-probe`（`sh ~/Claude/minamo/serve.sh --no-probe`）。`--model` でモデルを指定したときもしない。
+- 面接を始めずに表だけ見るなら：`python ~/Claude/minamo/probe.py`（`--show` で合格した返事の書き出しも出る。`--backend nvidia` でその API の候補だけ）。
+- 候補は `minamo.py` の `PROBE_MODELS` で、並べ替え・追加・削除できる。一回のチェックは 1 回ずつの応答で決めるので、たまたま長すぎた等で落ちることもある。
+
 ### 起動用のコマンド
 
 ```bash
@@ -277,6 +313,7 @@ minamo --offline           # クラウドの AI を使わない（端末の中�
 minamo --offline --no-local   # 端末内モデルだけで話す
 minamo --version 1996      # 端末内モデルを 1996 年版にする（既定 2026）
 minamo --no-local          # 端末の中の AI を試さない
+minamo --no-probe          # 起動時の AI の一括チェックをしない
 minamo --no-env            # ユーザー名・機種・電池を渡さない（時刻は渡す）
 minamo --no-karte          # 紹介状を読ませない
 minamo --library DIR       # 蔵書のフォルダ（何度でも。既定 ~/minamo/library と Vault/心理学 と Vault/Support）
@@ -298,6 +335,7 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 | `classic.py` | 端末内モデル 1996 年版（言葉を映し返す旧式） |
 | `local.sh` | 端末の中の AI（llama.cpp）を 8090 番で動かす |
 | `karte.txt` | 紹介状の束 |
+| `probe.py` | 起動時の AI の一括チェック（単独でも動く） |
 | `library.py` | 蔵書（本の txt・ノートの md）の読み込みと検索（標準ライブラリだけ） |
 | `server.py` `serve.sh` | PWA 版のサーバー（画面を配り、API に中継し、記録を保存する） |
 | `web/` | PWA 版の画面（`index.html` `app.js` `fx.js`（演出）`excess.js`（演出：過剰）`sw.js` `manifest.webmanifest` `icons/`）。ファイルを足したら `sw.js` の `FILES` に足し、`VERSION` を上げる |
@@ -311,6 +349,9 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 |---|---|---|
 | `MODEL` | `gemini-2.5-flash` | Gemini で使うモデル。`--model` でも変えられる |
 | `NVIDIA_MODEL` | `openai/gpt-oss-20b` | NVIDIA で使うモデル。gpt-oss は思考を止められないので `reasoning_effort: low` で最小にして送る（research_bot と同じ扱い）。ほかのモデルは `enable_thinking: false` |
+| `PROBE_MODELS` | NVIDIA 6 個・Gemini 2 個 | 起動時の一括チェックで試す候補 |
+| `PROBE_ON_START` | `True` | 起動時に一括チェックするか（`--no-probe` で止める） |
+| `PROBE_TIMEOUT` | 30 | 一括チェックで待つ秒数 |
 | `NVIDIA_FALLBACKS` | `nemotron-3-super-120b-a12b`・`nemotron-3-ultra-550b-a55b` | 既定のモデルが使えないときに、順に試す代わり |
 | `LIBRARY_DIRS` | `~/minamo/library`・`/storage/emulated/0/Vault/心理学`・`/storage/emulated/0/Vault/Support` | 蔵書として読むフォルダ |
 | `COUNT_SILENCE` | `False` | 沈黙の秒数を数えるか（`--count-silence` で数える） |
@@ -332,4 +373,5 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 - オフラインは、開発環境で、API キーなし・無効なキー（つながらない）の両方で、旧式エンジンに替わって最後まで（所見と記録まで）話せることを、CUI 版と PWA 版で確かめた。秒数を数えない設定で、観測メモに秒数が入らないことも確かめた。端末の中の AI（llama.cpp）は試していない。
 - 2026 年版は、開発環境で、CUI 版（端末内モデルだけ）と PWA 版（Chromium と Playwright、つながらないキーで端末内モデルへ）で、同意画面・読み込み表示・解析の札・メモリの更新と保存・予測変換・既読・融合の吹き出しの移動・セッションレポート・終わりの通知まで、エラーなしで確かめた。1996 年版に切り替えて「端末内モデルだけ」で話せることも確かめた。
 - 演出「過剰」（Backrooms）は、開発環境の Chromium（Playwright、時間を 8 倍速にしたテスト）と端末内モデルで、2026 年版・1996 年版とも 21 回目まで進めた。照明が沈む・状態行と部屋の見出し・終わらない記録・非常口の札・M.E.G. の記録・反響の呼び出し・すり抜け（Level 0 → 1 → 37）・Level 37 の水位・照明が消える・書いていない吹き出しが、エラーなしで動くことを確かめた。「面接をやめる」で、壁紙・状態行・覆いが片づき、上の階の記録が戻ることも確かめた。**蛍光灯の唸り・すり抜けの音・足音・水滴・振動・読み上げの声・本物の通知は、実機（Xperia の Chrome）でまだ聞いて・確かめていない。**
+- AI の一括チェックは、開発環境で API の応答を模したテスト（速くて的確・速いが英語・マークダウン・提供終了・遅すぎ・つながらない）で、合否の判定、いちばん速い合格の選択、途中で答えなくなったときの次への切り替え、電波がないときにいつもの設定で始めること、PWA の起動画面への表示を確かめた。**実際の NVIDIA・Gemini の候補で、どれが合格し何秒かかるかは、まだ確かめていない**（候補の名前は research_bot の一覧に合わせた）。
 - **実際の Gemini API・NVIDIA API と Termux 実機、Xperia の Chrome での PWA インストールはまだ確かめていない。** gpt-oss-20b が日本語の敬語や `[間]` の使い方をどこまで守るかも未確認。

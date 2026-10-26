@@ -54,6 +54,21 @@ NVIDIA_MODEL = "openai/gpt-oss-20b"
 # research_bot の 2026-10 の実測で応答していたもの。
 NVIDIA_FALLBACKS = ["nvidia/nemotron-3-super-120b-a12b", "nvidia/nemotron-3-ultra-550b-a55b"]
 NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
+# 起動時の一括チェック（probe.py）で試す候補。キーのある API の分だけ試す。
+# 合格したもの（日本語・敬語・長さ・書式・話を聞いているか）のうち、いちばん速いものを使い、
+# 残りの合格は速い順に代わりにする。並べ替え・追加・削除は自由（名前は research_bot と同じ）
+PROBE_MODELS = [
+    ("nvidia", "openai/gpt-oss-20b"),
+    ("nvidia", "nvidia/nemotron-3.5-lightning-30b-a3b"),
+    ("nvidia", "nvidia/nemotron-3-super-120b-a12b"),
+    ("nvidia", "google/gemma-4-31b-it"),
+    ("nvidia", "meta/llama-3.3-70b-instruct"),
+    ("nvidia", "nvidia/nemotron-3-ultra-550b-a55b"),
+    ("gemini", "gemini-2.5-flash"),
+    ("gemini", "gemini-2.5-flash-lite"),
+]
+PROBE_ON_START = True     # 起動時に一括チェックするか（--no-probe で止める。--model を指定したときもしない）
+PROBE_TIMEOUT = 30        # 一括チェックで待つ秒数（これより遅いものは使わない）
 KEYS_FILE = os.path.expanduser("~/.config/minamo/keys.env")
 KEYS_FILES = [KEYS_FILE, os.path.expanduser("~/.config/research_bot/keys.env")]
 # 紹介状の束。手元に置いたものがあればそちらを優先する。
@@ -435,6 +450,32 @@ class Nvidia:
             return post_json(NVIDIA_URL, body, headers, timeout=75)
 
 
+class Relay:
+    """一括チェックで合格した AI を、速い順に試す。答えなければ次へ。
+    つながらない（Offline）ときは、次を試しても同じなので、そのまま返す。"""
+
+    def __init__(self, llms):
+        self.llms = llms
+        self.system = llms[0].system
+
+    @property
+    def model(self):
+        return self.llms[0].model
+
+    def ask(self, contents):
+        while True:
+            try:
+                return self.llms[0].ask(contents)
+            except Offline:
+                raise
+            except RuntimeError as e:
+                if len(self.llms) < 2:
+                    raise
+                gone = self.llms.pop(0)
+                print(f"\n[モデル] {gone.model} が答えません（{str(e)[:40]}）。"
+                      f"{self.llms[0].model} に切り替えます。", file=sys.stderr, flush=True)
+
+
 LOCAL_PROMPT = """\
 あなたは旧式の心理カウンセリング支援プログラム「ミナモ」（架空）。心理ホラーの対話フィクション。
 - 丁寧な敬語で、2〜3文だけ話す。マークダウンは使わない。間を置くところに [間] と書いてよい。
@@ -757,10 +798,22 @@ def library_status(library):
             + (f"（読まなかった本: {len(library.skipped)}冊）" if library.skipped else ""))
 
 
+def probe_models(backend=None, no_karte=False):
+    """起動時の一括チェック。合格したものを速い順に [(backend, model, sec)] で返す（なければ []）。"""
+    import probe
+    karte = "" if no_karte else load_karte()
+    system = SYSTEM_PROMPT + (KARTE_PROMPT.format(karte=karte) if karte else "")
+    results = probe.run(backend, system=system)
+    if results:
+        print(probe.summary(results), flush=True)
+    return [(r["backend"], r["model"], r["sec"]) for r in results if r["ok"]], results
+
+
 def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False, local=True,
-             version="2026", library=None):
+             version="2026", library=None, ranked=None):
     """話し手を組み立てる。クラウド（キーがあれば）→ 端末の中の AI → 端末内のエンジン。
-    キーがなくても、端末内のエンジンだけで動く。"""
+    キーがなくても、端末内のエンジンだけで動く。
+    ranked（一括チェックで合格した [(backend, model, sec)]）があれば、クラウドはその速い順。"""
     from classic import Classic
     from modern import Modern
     karte = "" if no_karte else load_karte()
@@ -772,8 +825,17 @@ def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False
             backend = ("nvidia" if load_key("NVIDIA_API_KEY")
                        else "gemini" if load_key("GEMINI_API_KEY") else "nvidia")
         key = load_key("GEMINI_API_KEY" if backend == "gemini" else "NVIDIA_API_KEY")
-        if key:
-            system = SYSTEM_PROMPT + (KARTE_PROMPT.format(karte=karte) if karte else "")
+        system = SYSTEM_PROMPT + (KARTE_PROMPT.format(karte=karte) if karte else "")
+        if ranked:
+            llms = []
+            for b, m, _ in ranked:
+                k = load_key("GEMINI_API_KEY" if b == "gemini" else "NVIDIA_API_KEY")
+                llm = Gemini(k, m, system) if b == "gemini" else Nvidia(k, m, system)
+                if b == "nvidia":
+                    llm.candidates = [m]          # 代わりは Relay が速い順に受け持つ
+                llms.append(llm)
+            tiers.append(("cloud", Relay(llms)))
+        elif key:
             tiers.append(("cloud", Gemini(key, model or MODEL, system) if backend == "gemini"
                           else Nvidia(key, model or NVIDIA_MODEL, system)))
     if local and not fake:
@@ -807,6 +869,8 @@ def main():
     ap.add_argument("--no-library", action="store_true", help="蔵書を使わない")
     ap.add_argument("--records", default=RECORD_DIR, help="記録の保存先")
     ap.add_argument("--fake", action="store_true", help="APIを使わず画面だけ試す")
+    ap.add_argument("--no-probe", action="store_true",
+                    help="起動時の AI の一括チェックをしない（いつもの設定のモデルを使う）")
     a = ap.parse_args()
     RECORD_DIR = os.path.expanduser(a.records)
 
@@ -815,8 +879,11 @@ def main():
     library = None if a.no_library else load_library(a.library or LIBRARY_DIRS)
     if library:
         print(dim(library_status(library)))
+    ranked = None
+    if PROBE_ON_START and not (a.no_probe or a.model or a.fake or a.offline):
+        ranked, _ = probe_models(a.backend, a.no_karte)
     llm = make_llm(a.backend, a.model, a.no_karte, a.fake, a.offline, not a.no_local,
-                   a.version, library)
+                   a.version, library, ranked)
     if not llm.tiers or llm.tiers[0][0] != "cloud":
         print(dim(f"クラウドの AI は使いません（APIキーがないか --offline）。"
                   f"{llm.engines[a.version].model}で話します。"))

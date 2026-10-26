@@ -43,6 +43,8 @@ def info():
         "exit_words": minamo.EXIT_WORDS,
         "records": minamo.RECORD_DIR,
         "library": STATE["library"].counts() if STATE["library"] else [0, 0],
+        # 起動時の一括チェックの結果（返事の中身は渡さない）
+        "probe": [{k: r[k] for k in ("backend", "model", "sec", "ok", "why")} for r in STATE.get("probe") or []],
     }
 
 
@@ -173,6 +175,8 @@ def main():
     ap.add_argument("--fake", action="store_true")
     ap.add_argument("--offline", action="store_true", help="クラウドの AI を使わない")
     ap.add_argument("--no-local", action="store_true", help="端末の中の AI を試さない")
+    ap.add_argument("--no-probe", action="store_true",
+                    help="起動時の AI の一括チェックをしない（いつもの設定のモデルを使う）")
     a = ap.parse_args()
     minamo.RECORD_DIR = os.path.expanduser(a.records)
 
@@ -182,14 +186,19 @@ def main():
     STATE.update(llm=None, error="", silence=a.silence, library=library,
                  backend="fake" if a.fake else a.backend,
                  env={} if a.no_env else minamo.gather_env())
+    ranked, probed = None, []
+    if minamo.PROBE_ON_START and not (a.no_probe or a.model or a.fake or a.offline):
+        ranked, probed = minamo.probe_models(a.backend, a.no_karte)
+    STATE["probe"] = probed
     llm = minamo.make_llm(a.backend, a.model, a.no_karte, a.fake, a.offline, not a.no_local,
-                          library=library)
+                          library=library, ranked=ranked)
     STATE["llm"] = llm
     STATE["mode"] = llm.mode
     if a.fake:
         STATE["backend"] = "fake"
     elif llm.tiers and llm.tiers[0][0] == "cloud":
-        STATE["backend"] = type(llm.tiers[0][1]).__name__.lower()
+        cloud = llm.tiers[0][1]
+        STATE["backend"] = type(cloud.llms[0] if isinstance(cloud, minamo.Relay) else cloud).__name__.lower()
     else:
         STATE["backend"] = "端末内のみ"
         print("クラウドの AI は使いません（APIキーがないか --offline）。端末内のエンジンで話します。")
