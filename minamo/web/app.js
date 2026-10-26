@@ -36,7 +36,6 @@
   settings.count = !!settings.count;     // 沈黙の秒数を数えるか（既定：数えない）
   settings.version = settings.version === "1996" ? "1996" : "2026";
   settings.offline = !!settings.offline; // 端末内モデルだけで話すか
-  settings.mirror = !!settings.mirror;   // 過剰：水面にカメラの映像を映すか
   const is2026 = () => settings.version === "2026";
   const MODE_NOTE = {
     cloud: "回線が戻りました。",
@@ -207,6 +206,7 @@
     inSession: () => !!(S && !S.done),
     version: () => settings.version,
     sound: () => settings.sound,
+    turn: () => S ? S.turn : 0,
   };
 
   // ---------- 面接 ----------
@@ -304,6 +304,7 @@
     S.log.push([AI, reply]);
     handleEvents(events, "before");
     if (is2026()) FX.pop();
+    EX.beforeReply(phaseIdx());
     const body = await typeOut(reply, phase());
     if (sess !== S || sess.done) return reply;
     handleEvents(events, "after", body);
@@ -557,7 +558,7 @@
     S.log.push([YOU, text]);
     const mine = addLine("you", label.textContent.replace(/：$/, ""), text);
     const idx = phaseIdx();
-    EX.onUserBubble(mine, idx);
+    EX.onSubmit(mine, idx);
     if (is2026() && idx >= 3 && Math.random() < 0.35) {      // 自分の吹き出しが、ミナモの側に流れ着く
       const box = mine.closest(".msg");
       box.classList.add("swap");
@@ -803,7 +804,7 @@
     FX.configure(settings);
     FX.audioStart();
     FX.resume(0);
-    await EX.start({ level: settings.level, mirror: settings.mirror, ctx: exCtx });
+    await EX.start({ level: settings.level, ctx: exCtx });
     FX.wakeLock(true);
     lines.textContent = "";
     $("wm").textContent = "";
@@ -845,7 +846,6 @@
   bindSeg("seg-count", "count", v => v === "1");
   bindSeg("seg-offline", "offline", v => v === "1");
   bindSeg("seg-ver", "version", v => v);
-  bindSeg("seg-mirror", "mirror", v => v === "1");
   const excessNote = () => { $("excess-note").hidden = settings.level !== 3; };
   $("seg-level").addEventListener("click", excessNote);
   excessNote();

@@ -61,7 +61,8 @@ KARTE_FILES = [os.path.expanduser("~/.config/minamo/karte.txt"),
                os.path.join(os.path.dirname(os.path.abspath(__file__)), "karte.txt")]
 RECORD_DIR = os.path.expanduser("~/minamo/records")
 # 蔵書として読むフォルダ（無いものは飛ばす）。本の txt と、Obsidian の Vault の心理学ノート
-LIBRARY_DIRS = ["~/minamo/library", "/storage/emulated/0/Vault/心理学"]
+LIBRARY_DIRS = ["~/minamo/library", "/storage/emulated/0/Vault/心理学",
+                "/storage/emulated/0/Vault/Support"]
 LIBRARY_CHANCE = [0.0, 0.5, 0.8, 0.9]   # 段階ごとに、蔵書の一節を添える確率
 COUNT_SILENCE = False     # 沈黙の秒数を数えるか（--count-silence で数える）
 SILENCE_SEC = 60          # 数えるとき：この秒数黙っていると、ミナモのほうから話す
