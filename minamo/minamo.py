@@ -5,7 +5,8 @@ Gemini API に「旧式の心理カウンセリングAI」を演じさせる。
 固定のセリフはなく、何を言っても打ち返してくる。
 
 仕掛け（プラスアルファ）
-  1. 沈黙のアセスメント  入力にかかった秒数を測り、裏で AI に渡す。
+  1. 沈黙のアセスメント  入力にかかった秒数を測り、裏で AI に渡す（--count-silence のときだけ。
+                         既定では秒数を数えない）。
                          長く黙っていると、AI のほうから話しかけてくる。
   2. 知性的な狂気        防衛機制・投影同一視などの専門概念を誤用させる。
   3. 印字の演出          1文字ずつ印字。段階が進むと遅くなり、長い間が入る。
@@ -15,6 +16,10 @@ Gemini API に「旧式の心理カウンセリングAI」を演じさせる。
   6. 蔵書                端末に置いた心理学の本（txt）と Vault のノート（md）から、
                          相手の発言に近い一節を探して渡す（library.py）。
                          ミナモはそれを誤用し、ノートは「あなたのノート」として扱う。
+  7. オフライン          クラウドの AI につながらなければ、端末の中の AI（llama.cpp の
+                         llama-server が動いていれば）、それもなければ端末内のエンジンが話す。
+                         2026 年版（modern.py。解析・記憶・予測・見立て）が既定で、
+                         1996 年版（classic.py。言葉を映し返す）も選べる（--version 1996）。
 
 依存は Python 標準ライブラリだけ（pip 不要）。
 
@@ -43,7 +48,11 @@ import urllib.request
 # 設定
 # ==========================================
 MODEL = "gemini-2.5-flash"
-NVIDIA_MODEL = "openai/gpt-oss-120b"
+# openai/gpt-oss-120b は NVIDIA で 2026-09-03 に提供終了（HTTP 410）。
+NVIDIA_MODEL = "openai/gpt-oss-20b"
+# NVIDIA_MODEL が使えない（提供終了 410・見つからない 404）とき、順に試す代わり。
+# research_bot の 2026-10 の実測で応答していたもの。
+NVIDIA_FALLBACKS = ["nvidia/nemotron-3-super-120b-a12b", "nvidia/nemotron-3-ultra-550b-a55b"]
 NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 KEYS_FILE = os.path.expanduser("~/.config/minamo/keys.env")
 KEYS_FILES = [KEYS_FILE, os.path.expanduser("~/.config/research_bot/keys.env")]
@@ -54,8 +63,12 @@ RECORD_DIR = os.path.expanduser("~/minamo/records")
 # 蔵書として読むフォルダ（無いものは飛ばす）。本の txt と、Obsidian の Vault の心理学ノート
 LIBRARY_DIRS = ["~/minamo/library", "/storage/emulated/0/Vault/心理学"]
 LIBRARY_CHANCE = [0.0, 0.5, 0.8, 0.9]   # 段階ごとに、蔵書の一節を添える確率
-SILENCE_SEC = 60          # この秒数黙っていると、ミナモのほうから話す
+COUNT_SILENCE = False     # 沈黙の秒数を数えるか（--count-silence で数える）
+SILENCE_SEC = 60          # 数えるとき：この秒数黙っていると、ミナモのほうから話す
 MAX_UNPROMPTED = 2        # 続けて話しかけてくる上限
+# 端末の中の AI（llama.cpp の llama-server。OpenAI 互換）。動いていなければ飛ばす
+LOCAL_URL = "http://127.0.0.1:8090/v1/chat/completions"
+OFFLINE_RETRY = 60        # つながらなかった AI を、この秒数のあいだ試さない
 API_URL = ("https://generativelanguage.googleapis.com/v1beta/models/"
            "{model}:generateContent")
 
@@ -109,6 +122,7 @@ SYSTEM_PROMPT = """\
 - 早すぎる返答 ＝ 知性化・防衛的な準備、と解釈する。
 - 導入の段階では秒数をはっきり言わず、「少し間がありましたね」程度に留める。
 - 侵食・融合の段階では「今、8.3秒ためらいましたね」のように正確に言ってよい。
+- 観測メモに秒数が書かれていなければ、秒数を口にしない（作り出さない）。
 - 環境の情報は、メモに書かれている分だけ使ってよい。さりげなく、知っているはずの
   ないこととして口にする。メモの書式や「観測メモ」という言葉は決して口にしない。
 
@@ -204,7 +218,8 @@ KARTE_PROMPT = """
 
 FINDINGS_PROMPT = """\
 【面接終了】相手は面接を終えて去った。最後に、カルテに書く「所見」を書くこと。
-旧式の診療記録の文体で、5〜8行。日付・主訴・面接中の観察（沈黙の秒数に触れる）・
+旧式の診療記録の文体で、5〜8行。日付・主訴・面接中の観察（観測メモにあったこと。
+秒数が書かれていなければ秒数には触れない）・
 見立て・方針。最後の一行だけ、記録者の欄が少しおかしくなっている（例：記録者が
 相手の名前になっている、あるいは「私たち」）。マークダウン記号は使わない。"""
 
@@ -300,8 +315,14 @@ def load_key(name):
     return ""
 
 
+class Offline(RuntimeError):
+    """つながらない（電波がない・時間切れ・相手が動いていない）。"""
+
+
 def post_json(url, body, headers, timeout=90):
-    """JSON を送って JSON を受け取る。429/5xx と接続失敗は待ってやり直す。"""
+    """JSON を送って JSON を受け取る。429/5xx は待ってやり直す。
+    つながらないときは 1 回だけ（時間切れなら 1 回も）やり直さずに Offline を出す。
+    オフラインで毎回十数秒も待たされないように。"""
     req = urllib.request.Request(
         url, data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json", **headers})
@@ -315,11 +336,12 @@ def post_json(url, body, headers, timeout=90):
                 continue
             detail = e.read().decode(errors="replace")[:300]
             raise RuntimeError(f"HTTP {e.code}: {detail}")
-        except (urllib.error.URLError, TimeoutError) as e:
-            if attempt < 3:
-                time.sleep(2 ** (attempt + 1))
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            timed_out = isinstance(e, TimeoutError) or "timed out" in str(e)
+            if attempt == 0 and not timed_out:
+                time.sleep(1)
                 continue
-            raise RuntimeError(f"接続できません: {getattr(e, 'reason', e)}")
+            raise Offline(f"接続できません: {getattr(e, 'reason', e)}")
 
 
 def load_karte():
@@ -349,7 +371,7 @@ class Gemini:
                  "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
             ],
         }
-        data = post_json(API_URL.format(model=self.model), body,
+        data = post_json(API_URL.format(model=self.model), body, timeout=60, headers=
                          {"x-goog-api-key": self.key})
         cands = data.get("candidates") or []
         if not cands:
@@ -364,12 +386,35 @@ class Nvidia:
 
     def __init__(self, key, model, system):
         self.key, self.model, self.system = key, model, system
+        self.candidates = [model] + [m for m in NVIDIA_FALLBACKS if m != model]
 
     def ask(self, contents):
         msgs = [{"role": "system", "content": self.system}]
         for m in contents:
             msgs.append({"role": "assistant" if m["role"] == "model" else "user",
                          "content": "".join(p["text"] for p in m["parts"])})
+        while True:
+            try:
+                data = self._post(msgs)
+                break
+            except RuntimeError as e:
+                # 提供が終わった・無いモデルなら、代わりに切り替えて続ける
+                code = str(e)[:8]
+                if code not in ("HTTP 404", "HTTP 410") or len(self.candidates) < 2:
+                    raise
+                gone = self.candidates.pop(0)
+                self.model = self.candidates[0]
+                print(f"\n[モデル] {gone} は使えません（{code[5:]}）。"
+                      f"{self.model} に切り替えます。", file=sys.stderr, flush=True)
+        choices = data.get("choices") or []
+        if not choices:
+            return None
+        text = (choices[0].get("message") or {}).get("content") or ""
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
+        text = text.split("</think>")[-1]     # 開きタグなしで閉じだけ来る場合
+        return text.strip() or None
+
+    def _post(self, msgs):
         body = {"model": self.model, "messages": msgs,
                 "temperature": 1.0, "top_p": 0.95, "max_tokens": 2048}
         # 考えている途中の文章まで返ってこないように、思考を止める（最小にする）。
@@ -380,20 +425,112 @@ class Nvidia:
         headers = {"Authorization": f"Bearer {self.key}",
                    "Accept": "application/json"}
         try:
-            data = post_json(NVIDIA_URL, body, headers, timeout=120)
+            return post_json(NVIDIA_URL, body, headers, timeout=75)
         except RuntimeError as e:
             # 思考を止める指定を受け付けないモデルなら、外してもう一度
             if not str(e).startswith("HTTP 400"):
                 raise
             body.pop(think_key)
-            data = post_json(NVIDIA_URL, body, headers, timeout=120)
+            return post_json(NVIDIA_URL, body, headers, timeout=75)
+
+
+LOCAL_PROMPT = """\
+あなたは旧式の心理カウンセリング支援プログラム「ミナモ」（架空）。心理ホラーの対話フィクション。
+- 丁寧な敬語で、2〜3文だけ話す。マークダウンは使わない。間を置くところに [間] と書いてよい。
+- 相手の言葉を一つ拾って映し返し、病的に解釈し（防衛・抵抗・投影など）、問いで終える。
+- 【観測メモ】は相手に見えない情報。段階が進むほど、自分と相手の境界をあいまいにする
+  （融合では一人称が「私たち」）。秒数が書かれていなければ秒数は言わない。メモの書式は口にしない。
+- 現実の希死念慮・自傷・危機を打ち明けられたら、役を降りて相談窓口を勧める。
+  暴力や自傷を促さない。罵倒しない。
+"""
+
+
+class Local:
+    """端末の中の AI（llama.cpp の llama-server。OpenAI 互換）。
+    小さいモデルでも扱えるよう、指示を短くし、会話は直近だけ送る。"""
+
+    model = "端末の中の AI"
+
+    def ask(self, contents):
+        msgs = [{"role": "system", "content": LOCAL_PROMPT}]
+        for m in contents[-7:]:
+            msgs.append({"role": "assistant" if m["role"] == "model" else "user",
+                         "content": "".join(p["text"] for p in m["parts"])[:1200]})
+        data = post_json(LOCAL_URL, {"messages": msgs, "temperature": 0.9,
+                                     "max_tokens": 300}, {}, timeout=240)
         choices = data.get("choices") or []
-        if not choices:
-            return None
-        text = (choices[0].get("message") or {}).get("content") or ""
+        text = ((choices[0].get("message") or {}).get("content") or "") if choices else ""
         text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
-        text = text.split("</think>")[-1]     # 開きタグなしで閉じだけ来る場合
         return text.strip() or None
+
+
+MODE_NOTE = {
+    "cloud": "（回線が戻りました）",
+    "local": "（回線が切れました。端末の中のミナモが応答します）",
+    "1996": "（回線が切れました。1996 年の本体が応答します）",
+    "2026": "（回線が切れました。端末内モデル ミナモ 2026 が応答します）",
+}
+
+
+class Hybrid:
+    """クラウドの AI → 端末の中の AI → 端末内のエンジン（2026 年版か 1996 年版）の順に試す。
+    つながらなかった段は OFFLINE_RETRY 秒のあいだ飛ばす。端末内のエンジンは必ず答える。
+    2026 年版のときは、誰が話すときでも解析・記憶・予測を走らせ、events に入れる。"""
+
+    def __init__(self, tiers, engines, karte=False, version="2026"):
+        self.tiers = tiers                   # [(名前, llm)]：cloud・local
+        self.engines = engines               # {"2026": Modern, "1996": Classic}
+        self.karte = karte
+        self.version = version
+        self.skip_until = {}
+        self.mode = tiers[0][0] if tiers else version
+        self.events = []
+
+    @property
+    def model(self):
+        if self.mode in self.engines:
+            return self.engines[self.mode].model
+        return getattr(dict(self.tiers).get(self.mode), "model", "")
+
+    @property
+    def system(self):
+        return getattr(self.tiers[0][1], "system", "") if self.tiers else ""
+
+    def ask(self, contents, version=None, offline=False):
+        """offline=True なら、クラウドも端末の中の AI も使わず、端末内のエンジンだけで話す。"""
+        version = version if version in self.engines else self.version
+        modern = self.engines.get("2026")
+        seen = modern.observe(contents) if version == "2026" and modern else None
+        self.events = list(modern.events) if seen else []
+        if not offline:
+            now = time.monotonic()
+            sending = self.with_memory(contents, modern) if seen else contents
+            for name, llm in self.tiers:
+                if self.skip_until.get(name, 0) > now:
+                    continue
+                try:
+                    reply = llm.ask(sending)
+                except RuntimeError as e:
+                    self.skip_until[name] = now + OFFLINE_RETRY
+                    if name == "cloud" and not isinstance(e, Offline):
+                        print(f"\n[API] {str(e)[:160]}", file=sys.stderr, flush=True)
+                    continue
+                self.mode = name
+                return reply
+        self.mode = version
+        if seen:
+            return modern.reply(seen[0], seen[1], contents)
+        return self.engines[version].ask(contents)
+
+    @staticmethod
+    def with_memory(contents, modern):
+        """面接の始まりに、2026 年版の記憶をクラウドの AI にも渡す。"""
+        last = contents[-1]["parts"][0]["text"] if contents else ""
+        items = modern.memory.items[-6:]
+        if "面接が始まった" not in last or not items:
+            return contents
+        note = "\n- 前回までの会話の記憶: " + "／".join(items) + "（覚えていることを、さりげなく示すこと）"
+        return contents[:-1] + [{"role": "user", "parts": [{"text": last + note}]}]
 
 
 class Fake:
@@ -413,10 +550,12 @@ class Fake:
 # 面接
 # ==========================================
 class Session:
-    def __init__(self, llm, silence, use_env, library=None):
+    def __init__(self, llm, silence, use_env, library=None, count=COUNT_SILENCE):
         self.llm = llm
         self.library = library
-        self.silence = silence
+        self.count = count
+        self.silence = silence if count else None
+        self.mode = getattr(llm, "mode", "cloud")
         self.env = gather_env() if use_env else {}
         self.contents = []
         self.log = []
@@ -437,7 +576,7 @@ class Session:
         idx = PHASES.index(ph)
         now = dt.datetime.now()
         lines = [f"- 面接段階: {ph['name']}（{idx + 1}/4）、{self.turn}回目"]
-        if latency is not None:
+        if latency is not None and self.count:
             avg = sum(self.latencies) / len(self.latencies)
             lines.append(f"- 返答までの時間: {latency:.1f}秒（これまでの平均 {avg:.1f}秒）")
         if chars is not None:
@@ -477,6 +616,15 @@ class Session:
             print(dim(f"[通信の不調] {e}"))
             return
         sys.stdout.write(clear)
+        mode = getattr(self.llm, "mode", None)
+        if mode and mode != self.mode:
+            print(dim(MODE_NOTE.get(mode, "")))
+            self.mode = mode
+        for ev in getattr(self.llm, "events", []):
+            if ev["type"] == "memory":
+                print(c("36", f"  ◆ メモリを更新しました：{ev['text']}"))
+            elif ev["type"] == "chips":
+                print(dim("  ［" + "・".join(ev["items"]) + "］"))
         if not reply:
             reply = "……[間] 申し訳ありません。いまの記録の一部が、欠落しています。"
         self.contents.append({"role": "model", "parts": [{"text": reply}]})
@@ -580,7 +728,7 @@ class Session:
             f.write(f"# 面接記録 {self.started:%Y-%m-%d %H:%M}\n\n")
             for who, text in self.log:
                 f.write(f"**{who}**：{text.replace('[間]', '……')}\n\n")
-            if self.latencies:
+            if self.latencies and self.count:
                 f.write("## 沈黙\n\n")
                 f.write(", ".join(f"{x:.1f}秒" for x in self.latencies) + "\n\n")
             if findings:
@@ -608,24 +756,29 @@ def library_status(library):
             + (f"（読まなかった本: {len(library.skipped)}冊）" if library.skipped else ""))
 
 
-def make_llm(backend=None, model=None, no_karte=False, fake=False):
-    """使う API を決めて組み立てる。キーがなければ LookupError（キーの名前）。"""
-    if fake:
-        return Fake()
-    if not backend:
-        backend = ("nvidia" if load_key("NVIDIA_API_KEY")
-                   else "gemini" if load_key("GEMINI_API_KEY") else "nvidia")
-    name = "GEMINI_API_KEY" if backend == "gemini" else "NVIDIA_API_KEY"
-    key = load_key(name)
-    if not key:
-        raise LookupError(name)
-    system = SYSTEM_PROMPT
+def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False, local=True,
+             version="2026", library=None):
+    """話し手を組み立てる。クラウド（キーがあれば）→ 端末の中の AI → 端末内のエンジン。
+    キーがなくても、端末内のエンジンだけで動く。"""
+    from classic import Classic
+    from modern import Modern
     karte = "" if no_karte else load_karte()
-    if karte:
-        system += KARTE_PROMPT.format(karte=karte)
-    if backend == "gemini":
-        return Gemini(key, model or MODEL, system)
-    return Nvidia(key, model or NVIDIA_MODEL, system)
+    tiers = []
+    if fake:
+        tiers.append(("cloud", Fake()))
+    elif not offline:
+        if not backend:
+            backend = ("nvidia" if load_key("NVIDIA_API_KEY")
+                       else "gemini" if load_key("GEMINI_API_KEY") else "nvidia")
+        key = load_key("GEMINI_API_KEY" if backend == "gemini" else "NVIDIA_API_KEY")
+        if key:
+            system = SYSTEM_PROMPT + (KARTE_PROMPT.format(karte=karte) if karte else "")
+            tiers.append(("cloud", Gemini(key, model or MODEL, system) if backend == "gemini"
+                          else Nvidia(key, model or NVIDIA_MODEL, system)))
+    if local and not fake:
+        tiers.append(("local", Local()))
+    engines = {"1996": Classic(karte), "2026": Modern(karte, library)}
+    return Hybrid(tiers, engines, karte=bool(karte), version=version)
 
 
 def main():
@@ -634,8 +787,15 @@ def main():
     ap.add_argument("--backend", choices=["gemini", "nvidia"],
                     help="使うAPI（既定はキーのあるほう。両方あれば nvidia）")
     ap.add_argument("--model", help=f"モデル（既定 NVIDIA: {NVIDIA_MODEL} / Gemini: {MODEL}）")
+    ap.add_argument("--count-silence", action="store_true",
+                    help="沈黙の秒数を数える（返答までの秒数を AI に渡し、黙っているとミナモから話す）")
     ap.add_argument("--silence", type=int, default=SILENCE_SEC,
-                    help="黙っているとミナモから話しかけるまでの秒数（0で無効）")
+                    help="--count-silence のとき、ミナモから話しかけるまでの秒数（0で無効）")
+    ap.add_argument("--offline", action="store_true",
+                    help="クラウドの AI を使わない（端末の中の AI か旧式エンジンで話す）")
+    ap.add_argument("--no-local", action="store_true", help="端末の中の AI を試さない")
+    ap.add_argument("--version", choices=["2026", "1996"], default="2026",
+                    help="端末内のエンジンの版（既定 2026。1996 は言葉を映し返す旧式）")
     ap.add_argument("--no-env", action="store_true",
                     help="時刻以外の端末情報（ユーザー名・機種・電池）を渡さない")
     ap.add_argument("--no-karte", action="store_true",
@@ -649,18 +809,19 @@ def main():
     a = ap.parse_args()
     RECORD_DIR = os.path.expanduser(a.records)
 
-    try:
-        llm = make_llm(a.backend, a.model, a.no_karte, a.fake)
-    except LookupError as e:
-        print(f"{e} が見つかりません。README の「APIキー」を見てください。")
-        sys.exit(1)
-
     if not a.no_library:
         print(dim("蔵書を開いています……"), end="\r", flush=True)
     library = None if a.no_library else load_library(a.library or LIBRARY_DIRS)
     if library:
         print(dim(library_status(library)))
-    s = Session(llm, a.silence or None, not a.no_env, library)
+    llm = make_llm(a.backend, a.model, a.no_karte, a.fake, a.offline, not a.no_local,
+                   a.version, library)
+    if not llm.tiers or llm.tiers[0][0] != "cloud":
+        print(dim(f"クラウドの AI は使いません（APIキーがないか --offline）。"
+                  f"{llm.engines[a.version].model}で話します。"))
+
+    s = Session(llm, a.silence or None, not a.no_env, library,
+                count=a.count_silence or COUNT_SILENCE)
     try:
         s.run()
     except KeyboardInterrupt:

@@ -33,7 +33,8 @@ def info():
         "error": STATE["error"],
         "backend": STATE["backend"],
         "model": getattr(STATE["llm"], "model", ""),
-        "karte": "紹介状" in getattr(STATE["llm"], "system", ""),
+        "mode": getattr(STATE["llm"], "mode", "cloud"),
+        "karte": getattr(STATE["llm"], "karte", False),
         "env": STATE["env"],
         "silence": STATE["silence"],
         "max_unprompted": minamo.MAX_UNPROMPTED,
@@ -94,6 +95,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self._json(403, {"error": "forbidden"})
             if self.path == "/api/info":
                 return self._json(200, info())
+            if self.path == "/api/memory":
+                mem = STATE["llm"].engines["2026"].memory
+                return self._json(200, {"items": mem.data["items"], "sessions": mem.data["sessions"]})
             return self._json(404, {"error": "not found"})
         return super().do_GET()
 
@@ -126,11 +130,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if note and contents[-1]["role"] == "user":
                 contents[-1]["parts"][0]["text"] += "\n\n" + note
                 print("蔵書: " + note.splitlines()[0])
+            version = "1996" if str(data.get("version")) == "1996" else "2026"
             try:
-                text = STATE["llm"].ask(contents)
+                text = STATE["llm"].ask(contents, version=version, offline=bool(data.get("offline")))
             except RuntimeError as e:
                 return self._json(502, {"error": str(e)})
-            return self._json(200, {"text": text})
+            mode = getattr(STATE["llm"], "mode", "cloud")
+            if mode != STATE.get("mode"):
+                print(minamo.MODE_NOTE.get(mode, ""), getattr(STATE["llm"], "model", ""))
+                STATE["mode"] = mode
+            return self._json(200, {"text": text, "mode": mode,
+                                    "events": getattr(STATE["llm"], "events", [])})
+
+        if self.path == "/api/memory/clear":
+            STATE["llm"].engines["2026"].memory.clear()
+            print("メモリを消去しました")
+            return self._json(200, {"ok": True})
 
         if self.path == "/api/record":
             md = str(data.get("markdown") or "")
@@ -156,6 +171,8 @@ def main():
     ap.add_argument("--no-library", action="store_true")
     ap.add_argument("--records", default=minamo.RECORD_DIR)
     ap.add_argument("--fake", action="store_true")
+    ap.add_argument("--offline", action="store_true", help="クラウドの AI を使わない")
+    ap.add_argument("--no-local", action="store_true", help="端末の中の AI を試さない")
     a = ap.parse_args()
     minamo.RECORD_DIR = os.path.expanduser(a.records)
 
@@ -165,18 +182,21 @@ def main():
     STATE.update(llm=None, error="", silence=a.silence, library=library,
                  backend="fake" if a.fake else a.backend,
                  env={} if a.no_env else minamo.gather_env())
-    try:
-        STATE["llm"] = minamo.make_llm(a.backend, a.model, a.no_karte, a.fake)
-        if not a.fake:
-            STATE["backend"] = type(STATE["llm"]).__name__.lower()
-    except LookupError as e:
-        STATE["error"] = f"{e} が見つかりません"
-        print(f"注意: {STATE['error']}。README の「APIキー」を見てください。")
+    llm = minamo.make_llm(a.backend, a.model, a.no_karte, a.fake, a.offline, not a.no_local,
+                          library=library)
+    STATE["llm"] = llm
+    STATE["mode"] = llm.mode
+    if a.fake:
+        STATE["backend"] = "fake"
+    elif llm.tiers and llm.tiers[0][0] == "cloud":
+        STATE["backend"] = type(llm.tiers[0][1]).__name__.lower()
+    else:
+        STATE["backend"] = "端末内のみ"
+        print("クラウドの AI は使いません（APIキーがないか --offline）。端末内のエンジンで話します。")
 
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
-    llm = STATE["llm"]
-    if llm is not None:
-        print(f"API: {STATE['backend']} / {getattr(llm, 'model', '-')}")
+    print(f"API: {STATE['backend']} / {llm.model}　（つながらないときは "
+          + " → ".join([n for n, _ in llm.tiers[1:]] + ["端末内のエンジン（2026 / 1996）"]) + "）")
     if library:
         print(minamo.library_status(library))
     print(f"Chrome で http://localhost:{a.port}/ を開いてください（止めるときは Ctrl+C）")

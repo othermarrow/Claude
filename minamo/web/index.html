@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Shippori+Mincho:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Shippori+Mincho:wght@500&family=Noto+Sans+JP:wght@400;500&display=swap">
 <style>
 :root {
   --bg: #07090a;
@@ -22,8 +22,10 @@
   --dim: #56685b;
   --you: #7fb08a;
   --warn: #d9b25f;
+  --blood: #b85a5a;
   --dot: "DotGothic16", "Noto Sans Mono CJK JP", ui-monospace, monospace;
   --mincho: "Shippori Mincho", "Noto Serif CJK JP", serif;
+  --silence: 0;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -36,47 +38,160 @@ body {
   display: flex; flex-direction: column; overflow: hidden;
 }
 button, input, textarea { font: inherit; color: inherit; }
+
+/* ブラウン管：走査線と周辺の暗がり。沈黙が深いほど暗がりが迫る */
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 5;
+  background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0,0,0,.22) 2px 3px);
+  opacity: .55;
+}
+body::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 6;
+  background: radial-gradient(ellipse at 50% 45%, transparent calc(62% - 22% * var(--silence)),
+              rgba(0,0,0, calc(.55 + .4 * var(--silence))) 100%);
+  transition: background .8s linear;
+}
+body[data-phase="2"]::before { opacity: .7; }
+body[data-phase="3"]::before { opacity: .85; }
+body[data-calm]::before, body[data-calm]::after { display: none; }
+
 header {
-  flex: none; display: flex; align-items: center; justify-content: space-between;
+  flex: none; display: flex; align-items: center; gap: .8em;
   padding: calc(0.4em + env(safe-area-inset-top, 0px)) 16px 0.4em;
   border-bottom: 1px solid var(--line); color: var(--dim); font-size: 0.78em;
+  position: relative; z-index: 2;
 }
-header button { background: none; border: none; color: var(--dim); padding: 0.2em 0; cursor: pointer; }
+#title { flex: none; letter-spacing: .05em; }
+body[data-phase="2"] #title { color: var(--text); }
+body[data-phase="3"] #title { color: var(--bright); font-family: var(--mincho); letter-spacing: .4em; }
+#toast { flex: 1; min-width: 0; text-align: right; color: var(--blood); opacity: 0; transition: opacity .4s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#toast.on { opacity: 1; }
+header button { flex: none; background: none; border: none; color: var(--dim); padding: 0.2em 0; cursor: pointer; }
+
 #log {
-  flex: 1; overflow-y: auto; padding: 1em 16px 0.5em;
+  flex: 1; overflow-y: auto; padding: 1em 16px 0.5em; position: relative; z-index: 1;
   overscroll-behavior: contain; word-break: break-word;
+  opacity: calc(1 - .35 * var(--silence)); transition: opacity .8s linear;
 }
+body[data-fx="high"][data-phase="3"] #log { animation: breathe 6s ease-in-out infinite; }
+@keyframes breathe { 50% { opacity: calc(.94 - .35 * var(--silence)); } }
 .wrap { max-width: 640px; margin: 0 auto; }
 .sys { color: var(--dim); font-size: 0.82em; margin: 0 0 1em; white-space: pre-wrap; }
-.msg { margin: 0 0 1.3em; white-space: pre-wrap; }
+.msg { margin: 0 0 1.3em; white-space: pre-wrap; transition: transform .25s; }
 .msg .who { display: block; font-size: 0.75em; letter-spacing: 0.15em; }
 .msg.ai .who { color: var(--dim); }
-.msg.ai .body { font-family: var(--mincho); color: var(--bright); font-size: 1.05em; }
+.msg.ai .body { font-family: var(--mincho); color: var(--bright); font-size: 1.05em;
+  text-shadow: 0 0 6px rgba(160,255,190,.22); }
+body[data-phase="2"] .msg.ai .body { text-shadow: 0 0 6px rgba(160,255,190,.22), .6px 0 rgba(255,70,70,.35); }
+body[data-phase="3"] .msg.ai .body { text-shadow: 0 0 8px rgba(200,255,215,.3), .8px 0 rgba(255,70,70,.45), -.8px 0 rgba(70,220,255,.3); }
 .msg.you .who { color: var(--you); opacity: 0.7; }
 .msg.you .body { color: var(--you); }
-.msg.note .body { font-family: var(--mincho); color: var(--text); }
+.msg.mirror .body { display: block; transform: scaleX(-1); }
 .cursor::after { content: "▍"; animation: blink 1s steps(1) infinite; color: var(--dim); }
 @keyframes blink { 50% { opacity: 0; } }
 .recording { color: var(--dim); font-size: 0.82em; margin: 0 0 1em; }
+s.strike { text-decoration: line-through; text-decoration-color: var(--blood); text-decoration-thickness: 2px; opacity: .65; }
+.annot { color: var(--blood); font-size: .7em; margin-left: .3em; font-family: var(--mincho); }
+.jit { display: inline-block; }
+body[data-fx="mid"] .jit, body[data-fx="high"] .jit { animation: jit .22s steps(2) infinite; }
+@keyframes jit { 50% { transform: translate(.6px, -.6px); } }
+
+/* 画面の乱れ（短く、明るさは変えない） */
+body.glitch #log, body.glitch header { animation: glitch .26s steps(3) 1; }
+body.glitch .msg .body { text-shadow: 2px 0 rgba(255,0,60,.55), -2px 0 rgba(0,255,220,.55) !important; }
+@keyframes glitch {
+  0% { transform: translate(-3px, 0) skewX(-3deg); clip-path: inset(10% 0 30% 0); }
+  40% { transform: translate(3px, 1px) skewX(2deg); clip-path: inset(40% 0 5% 0); }
+  80% { transform: translate(-1px, 0); clip-path: inset(0 0 0 0); }
+  100% { transform: none; }
+}
+body[data-fx="low"].glitch #log, body[data-fx="low"].glitch header { animation: none; }
+
+/* 水面の波紋 */
+.ripple {
+  position: fixed; width: 24px; height: 24px; border-radius: 50%; pointer-events: none; z-index: 4;
+  border: 1px solid rgba(169,201,176,.55); transform: translate(-50%, -50%) scale(1, .35);
+  animation: ripple 2.8s ease-out forwards;
+}
+.ripple::after { content: ""; position: absolute; inset: 6px; border-radius: 50%; border: 1px solid rgba(169,201,176,.35); }
+@keyframes ripple { to { transform: translate(-50%, -50%) scale(36, 12.6); opacity: 0; } }
+
+/* 消した文字 */
+.erased-float {
+  position: fixed; z-index: 7; pointer-events: none; color: var(--blood);
+  text-decoration: line-through; font-size: .9em; white-space: nowrap;
+  animation: floatup 2.5s ease-out forwards;
+}
+@keyframes floatup { to { transform: translateY(-140px); opacity: 0; filter: blur(2px); } }
+
+/* 水面の映り込み：最後に書いた言葉が、逆さにぼやけて沈んでいる */
+#wm {
+  position: fixed; left: 0; right: 0; bottom: 22%; z-index: 0; pointer-events: none;
+  text-align: center; font-family: var(--mincho); font-size: 2.4em; color: var(--bright);
+  white-space: nowrap; overflow: hidden; transform: scaleY(-1); filter: blur(1.6px);
+  opacity: calc(.05 + .08 * var(--silence));
+  -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,.8), transparent 90%);
+          mask-image: linear-gradient(to top, rgba(0,0,0,.8), transparent 90%);
+}
+body[data-fx="low"] #wm, body[data-calm] #wm { display: none; }
+
 form {
-  flex: none; display: flex; gap: 0.5em; align-items: flex-end;
+  flex: none; display: flex; gap: 0.5em; align-items: flex-end; position: relative; z-index: 2;
   padding: 0.5em 16px calc(0.6em + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--line); background: var(--panel);
 }
-#label { flex: none; color: var(--you); font-size: 0.8em; padding-bottom: 0.55em; min-width: 3.5em; }
+#label { flex: none; color: var(--you); font-size: 0.8em; padding-bottom: 0.55em; min-width: 3.5em; transition: color .3s; }
 #input {
   flex: 1; min-width: 0; resize: none; max-height: 8em;
   background: transparent; border: none; outline: none; color: var(--you);
   padding: 0.35em 0; line-height: 1.6;
 }
+#input.ghost { color: var(--bright); font-family: var(--mincho); opacity: .75; }
+body[data-phase="3"] #label { color: var(--bright); }
 #send {
   flex: none; background: none; border: 1px solid var(--line); border-radius: 4px;
   color: var(--text); padding: 0.3em 0.8em; cursor: pointer;
 }
 #send:disabled { opacity: 0.35; }
+
+/* カルテ */
+.karte {
+  position: relative; margin: 1.4em 0 1.6em; padding: 1em 1.1em 1.2em;
+  background: #e8e3d4; color: #2a2620; font-family: var(--mincho); line-height: 1.9;
+  border-radius: 2px; box-shadow: 0 6px 24px rgba(0,0,0,.5);
+  transform: rotate(-.6deg);
+}
+.karte h3 { margin: 0 0 .6em; font-size: .8em; font-weight: 500; letter-spacing: .3em;
+  border-bottom: 1px solid #8a8275; padding-bottom: .3em; color: #4a443a; }
+.karte .body { white-space: pre-wrap; }
+.karte .stamp {
+  position: absolute; right: .9em; top: .5em; width: 3.4em; height: 3.4em; border-radius: 50%;
+  border: 2px solid #b0302a; color: #b0302a; display: flex; align-items: center; justify-content: center;
+  font-size: .78em; transform: rotate(-14deg); opacity: 0; transition: opacity .2s, transform .2s;
+}
+.karte .stamp.on { opacity: .85; transform: rotate(-14deg) scale(1); }
+.karte .cursor::after { color: #8a8275; }
+
+/* 起動画面・終わりの画面・各種の覆い */
+.full {
+  position: fixed; inset: 0; z-index: 20; background: #000;
+  padding: calc(1.2em + env(safe-area-inset-top, 0px)) 16px 16px; overflow: hidden;
+}
+#boot pre { margin: 0; font-family: var(--dot); color: #7fd18b; font-size: .82em; line-height: 1.7;
+  white-space: pre-wrap; text-shadow: 0 0 6px rgba(127,209,139,.35); }
+#boot.out { opacity: 0; transition: opacity .8s; }
+#ending { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 1em; }
+#ending p { margin: 0; }
+#ending .small { color: var(--dim); font-size: .75em; word-break: break-all; max-width: 30em; }
+#ending .ai { font-family: var(--mincho); color: var(--bright); font-size: 1.1em; min-height: 1.8em;
+  text-shadow: 0 0 8px rgba(200,255,215,.3), .8px 0 rgba(255,70,70,.45); }
+#ending .btns { display: flex; gap: .6em; flex-wrap: wrap; justify-content: center; opacity: 0; transition: opacity 1.2s; }
+#ending .btns.on { opacity: 1; }
+
 .overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.82);
-  display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10;
+  position: fixed; inset: 0; background: rgba(0,0,0,0.82); z-index: 10;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
 }
 .box {
   max-width: 460px; width: 100%; background: var(--panel);
@@ -84,22 +199,137 @@ form {
   color: var(--bright); font-family: system-ui, sans-serif; line-height: 1.7;
 }
 .box p { margin: 0 0 0.8em; }
-.box .btns { display: flex; gap: 0.6em; justify-content: flex-end; flex-wrap: wrap; }
-.box button { background: none; border: 1px solid var(--line); border-radius: 4px; padding: 0.4em 1em; cursor: pointer; }
-.box button.main { border-color: var(--warn); }
+.btns { display: flex; gap: 0.6em; justify-content: flex-end; flex-wrap: wrap; }
+.btn, .box button { background: none; border: 1px solid var(--line); border-radius: 4px; padding: 0.4em 1em; cursor: pointer; color: var(--text); }
+.box button.main, .btn.main { border-color: var(--warn); color: var(--bright); }
+#crisis { z-index: 30; }
 #start .box { border-color: var(--line); font-family: var(--dot); color: var(--text); }
 #start h1 { font-family: var(--mincho); font-weight: 500; letter-spacing: 0.4em; color: var(--bright); margin: 0 0 0.2em; font-size: 1.8em; }
 #start .small { color: var(--dim); font-size: 0.8em; }
 #start code { color: var(--bright); }
+.setting { display: flex; align-items: center; gap: .6em; margin: .5em 0; font-size: .85em; }
+.setting > span { min-width: 3em; color: var(--dim); }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button { border: none !important; border-radius: 0 !important; padding: .25em .8em !important; color: var(--dim) !important; }
+.seg button[aria-pressed="true"] { background: #1a2522; color: var(--bright) !important; }
+
+/* ===== 2026 年版：今どきの AI チャットの画面。段階が進むと崩れていく ===== */
+body[data-ver="2026"] {
+  --bg: #0e1013; --panel: #14171c; --line: #262b33; --text: #c9d1d9; --bright: #eef2f6;
+  --dim: #6b7480; --you: #ffffff; --accent: #5cc8b8; --bubble: #1b1f26; --mine: #1d6b62;
+  --sans: "Noto Sans JP", system-ui, sans-serif;
+  font-family: var(--sans); line-height: 1.7;
+}
+body[data-ver="2026"]::before { opacity: 0; transition: opacity 2s; }
+body[data-ver="2026"][data-phase="2"]::before { opacity: .18; }
+body[data-ver="2026"][data-phase="3"]::before { opacity: .4; }
+body[data-ver="2026"][data-phase="0"]::after, body[data-ver="2026"][data-phase="1"]::after { opacity: .5; }
+body[data-ver="2026"] header { font-size: .8em; color: var(--text); }
+body[data-ver="2026"] #title { font-family: var(--sans); letter-spacing: .02em; display: flex; align-items: center; gap: .5em; }
+body[data-ver="2026"] #title::before { content: ""; width: .55em; height: .55em; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 8px var(--accent); }
+body[data-ver="2026"][data-phase="3"] #title::before { background: #c0504d; box-shadow: 0 0 8px #c0504d; }
+body[data-ver="2026"] #lines { display: flex; flex-direction: column; }
+body[data-ver="2026"] .msg { display: flex; flex-direction: column; max-width: 84%; margin: 0 0 .9em; white-space: pre-wrap; }
+body[data-ver="2026"] .msg .who { font-size: .7em; letter-spacing: .05em; margin: 0 0 .2em .2em; }
+body[data-ver="2026"] .msg .body { padding: .55em .9em; border-radius: 18px; font-size: .97em; }
+body[data-ver="2026"] .msg.ai { align-self: flex-start; }
+body[data-ver="2026"] .msg.ai .body { background: var(--bubble); color: var(--bright); font-family: var(--sans);
+  border-bottom-left-radius: 5px; text-shadow: none; font-size: .97em; }
+body[data-ver="2026"] .msg.you { align-self: flex-end; align-items: flex-end; }
+body[data-ver="2026"] .msg.you .who { display: none; }
+body[data-ver="2026"] .msg.you .body { background: var(--mine); color: var(--you); border-bottom-right-radius: 5px; }
+body[data-ver="2026"][data-phase="2"] .msg.ai .body { box-shadow: 1px 0 rgba(255,70,70,.35), -1px 0 rgba(70,220,255,.3); }
+body[data-ver="2026"][data-phase="3"] .msg.ai .body { box-shadow: 2px 0 rgba(255,70,70,.45), -2px 0 rgba(70,220,255,.35); }
+/* 融合：吹き出しが反対側に流れ着く */
+body[data-ver="2026"] .msg.you.swap { align-self: flex-start; align-items: flex-start; }
+body[data-ver="2026"] .msg.you.swap .who { display: block; color: var(--dim); }
+body[data-ver="2026"] .msg.you.swap .body { background: var(--bubble); color: var(--bright); border-radius: 18px; border-bottom-left-radius: 5px; }
+.meta { display: none; }
+body[data-ver="2026"] .meta { display: block; font-size: .64em; color: var(--dim); margin: .15em .4em 0; }
+.chips { display: none; }
+body[data-ver="2026"] .chips { display: flex; flex-wrap: wrap; gap: .35em; margin: .35em 0 0 .2em; }
+.chip { font-size: .66em; border: 1px solid var(--line); border-radius: 999px; padding: 0 .65em; color: var(--accent); }
+body[data-ver="2026"] .recording { display: none; }
+.typing { display: none; }
+body[data-ver="2026"] .typing { display: inline-flex; gap: .3em; align-self: flex-start; background: var(--bubble);
+  border-radius: 18px; border-bottom-left-radius: 5px; padding: .75em 1em; margin: 0 0 .9em; }
+.typing i { width: .42em; height: .42em; border-radius: 50%; background: var(--dim); animation: dots 1.2s infinite; }
+.typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; }
+@keyframes dots { 0%, 60%, 100% { opacity: .3; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
+body[data-ver="2026"] .sys { font-size: .72em; text-align: center; align-self: center; }
+body[data-ver="2026"] form { background: var(--bg); border-top: none; padding-top: .3em; }
+body[data-ver="2026"] #label { display: none; }
+body[data-ver="2026"] #input { background: var(--bubble); border-radius: 22px; padding: .55em 1em; color: var(--bright); }
+body[data-ver="2026"] #send { border-radius: 50%; width: 2.6em; height: 2.6em; padding: 0; background: var(--accent); color: #062420; border: none; font-size: .8em; }
+body[data-ver="2026"] #input.ghost { font-family: var(--sans); }
+/* 予測変換 */
+#suggest { flex: none; display: flex; gap: .4em; overflow-x: auto; padding: .3em 16px 0; position: relative; z-index: 2; scrollbar-width: none; }
+#suggest::-webkit-scrollbar { display: none; }
+.sug { flex: none; background: var(--bubble, #1b1f26); color: var(--dim); border: 1px solid var(--line); border-radius: 999px;
+  padding: .15em .8em; font-size: .78em; cursor: pointer; white-space: nowrap; }
+.sug b { color: var(--accent); font-weight: 500; margin-right: .3em; font-size: .85em; }
+#readmark { position: absolute; right: 4.2em; top: -1.4em; font-size: .64em; color: var(--accent); opacity: 0; transition: opacity .3s; }
+#readmark.on { opacity: 1; }
+/* 記憶の更新 */
+#memtoast {
+  position: fixed; left: 50%; top: calc(.6em + env(safe-area-inset-top, 0px)); z-index: 15; max-width: calc(100% - 32px);
+  transform: translate(-50%, -160%); transition: transform .45s cubic-bezier(.2,.9,.3,1.2);
+  background: #1b1f26; border: 1px solid #2f3540; border-radius: 14px; padding: .55em .9em; font-size: .8em; color: #eef2f6;
+  display: flex; gap: .7em; align-items: center; font-family: "Noto Sans JP", system-ui, sans-serif; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+}
+#memtoast.on { transform: translate(-50%, 0); }
+#memtoast .t { color: #5cc8b8; font-size: .85em; }
+#memtoast .x { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#memtoast button { background: none; border: none; color: #6b7480; font-size: .85em; flex: none; cursor: pointer; padding: 0; }
+#mempanel .box { border-color: var(--line); font-family: "Noto Sans JP", system-ui, sans-serif; color: var(--text); }
+#mempanel ul { margin: .4em 0 1em; padding-left: 1.2em; max-height: 50vh; overflow-y: auto; font-size: .88em; }
+#mempanel .small { color: var(--dim); font-size: .78em; }
+/* オンボーディング（2026 年版の起動） */
+#onboard { display: flex; align-items: center; justify-content: center; background: #0b0d10;
+  font-family: "Noto Sans JP", system-ui, sans-serif; color: #c9d1d9; }
+#onboard .card { width: 100%; max-width: 380px; text-align: center; }
+#onboard .logo { width: 72px; height: 72px; margin: 0 auto 1em; border-radius: 50%; position: relative;
+  border: 1.5px solid #5cc8b8; box-shadow: 0 0 24px rgba(92,200,184,.35); }
+#onboard .logo::after { content: ""; position: absolute; inset: 14px; border-radius: 50%; border: 1px solid rgba(92,200,184,.6);
+  animation: breathe2 2.4s ease-in-out infinite; }
+@keyframes breathe2 { 50% { transform: scale(1.25); opacity: .4; } }
+#onboard h2 { font-weight: 500; margin: 0; color: #eef2f6; letter-spacing: .2em; }
+#onboard .sub { color: #6b7480; font-size: .82em; margin: .3em 0 1.6em; }
+#onboard .consent { text-align: left; background: #14171c; border: 1px solid #262b33; border-radius: 12px; padding: .8em 1em; font-size: .82em; }
+#onboard .consent label { display: flex; gap: .6em; align-items: flex-start; margin: .3em 0; }
+#onboard .consent input { accent-color: #5cc8b8; margin-top: .3em; }
+#onboard .go { margin-top: 1.2em; background: #5cc8b8; color: #062420; border: none; border-radius: 999px; padding: .55em 2.2em; font-size: .9em; cursor: pointer; }
+#onboard .bars { text-align: left; font-size: .8em; }
+#onboard .bar { margin: .7em 0; }
+#onboard .bar .row { display: flex; justify-content: space-between; color: #9aa3ad; }
+#onboard .bar .track { height: 3px; background: #262b33; border-radius: 3px; margin-top: .3em; overflow: hidden; }
+#onboard .bar .fill { height: 100%; width: 0; background: #5cc8b8; transition: width .9s ease; }
+#onboard.out { opacity: 0; transition: opacity .8s; }
+/* 2026 年版の終わり：通知が届く */
+#notify { position: fixed; left: 50%; top: calc(.6em + env(safe-area-inset-top, 0px)); z-index: 25; width: calc(100% - 24px); max-width: 420px;
+  transform: translate(-50%, -160%); transition: transform .5s cubic-bezier(.2,.9,.3,1.2);
+  background: rgba(30,34,41,.97); border-radius: 18px; padding: .7em .9em; display: flex; gap: .7em; align-items: flex-start;
+  font-family: "Noto Sans JP", system-ui, sans-serif; color: #eef2f6; box-shadow: 0 10px 30px rgba(0,0,0,.6); }
+#notify.on { transform: translate(-50%, 0); }
+#notify .ic { flex: none; width: 2.2em; height: 2.2em; border-radius: 50%; border: 1.5px solid #5cc8b8; }
+#notify .hd { font-size: .72em; color: #9aa3ad; display: flex; justify-content: space-between; }
+#notify .tx { font-size: .9em; }
+body[data-ver="2026"] #ending { font-family: var(--sans); }
+body[data-ver="2026"] #ending .ai { font-family: var(--sans); text-shadow: none; }
 </style>
 </head>
-<body>
+<body data-phase="0" data-fx="high">
+<div id="wm" aria-hidden="true"></div>
 <header>
   <span id="title">SOMA 対話支援システム ver.0.9.7</span>
+  <span id="toast" aria-live="polite"></span>
   <button id="quit" type="button" hidden>面接をやめる</button>
 </header>
 <main id="log"><div class="wrap" id="lines"></div></main>
+<div id="suggest" hidden></div>
 <form id="form" autocomplete="off">
+  <span id="readmark">既読</span>
   <span id="label">あなた：</span>
   <textarea id="input" rows="1" enterkeyhint="send" disabled></textarea>
   <button id="send" type="submit" disabled>送る</button>
@@ -110,11 +340,54 @@ form {
     <h1>ミナモ</h1>
     <p class="small">旧式カウンセリングAIとの面接（心理ホラーの作り話です）</p>
     <p id="status" class="small">接続を確かめています……</p>
+    <div class="setting"><span>版</span>
+      <div class="seg" id="seg-ver">
+        <button type="button" data-v="2026">2026</button><button type="button" data-v="1996">1996</button>
+      </div>
+    </div>
+    <div class="setting"><span>話し手</span>
+      <div class="seg" id="seg-offline">
+        <button type="button" data-v="0">自動</button><button type="button" data-v="1">端末内モデルだけ</button>
+      </div>
+    </div>
+    <div class="setting"><span>演出</span>
+      <div class="seg" id="seg-level">
+        <button type="button" data-v="2">強</button><button type="button" data-v="1">標準</button><button type="button" data-v="0">弱</button>
+      </div>
+    </div>
+    <div class="setting"><span>音</span>
+      <div class="seg" id="seg-sound">
+        <button type="button" data-v="1">あり</button><button type="button" data-v="0">なし</button>
+      </div>
+    </div>
+    <div class="setting"><span>沈黙</span>
+      <div class="seg" id="seg-count">
+        <button type="button" data-v="0">数えない</button><button type="button" data-v="1">秒数を数える</button>
+      </div>
+    </div>
+    <p class="small">強い点滅はありません。「弱」は画面の乱れ・波紋・揺れを止めます。イヤホン推奨。</p>
     <div class="btns">
       <button id="begin" class="main" type="button" disabled>面接を始める</button>
     </div>
   </div>
 </div>
+
+<div id="boot" class="full" hidden></div>
+<div id="onboard" class="full" hidden></div>
+<div id="memtoast"><span class="t">◆ メモリを更新しました</span><span class="x" id="memtext"></span><button type="button" id="memopen">管理</button></div>
+<div id="notify"><div class="ic"></div><div><div class="hd"><span>ミナモ</span><span>たった今</span></div><div class="tx" id="notifytext"></div></div></div>
+<div id="mempanel" class="overlay" hidden>
+  <div class="box">
+    <p><b>メモリ</b></p>
+    <p class="small">ミナモ 2026 が会話から覚えたこと。この端末の <code>~/minamo/memory.json</code> だけに保存されています。</p>
+    <ul id="memlist"></ul>
+    <div class="btns">
+      <button id="memclear" type="button">すべて消去</button>
+      <button id="memclose" class="main" type="button">閉じる</button>
+    </div>
+  </div>
+</div>
+<div id="ending" class="full" hidden></div>
 
 <div id="crisis" class="overlay" hidden>
   <div class="box">
@@ -128,6 +401,7 @@ form {
   </div>
 </div>
 
+<script src="fx.js"></script>
 <script src="app.js"></script>
 <script>
 if ("serviceWorker" in navigator && location.protocol !== "file:") {

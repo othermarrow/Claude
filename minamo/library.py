@@ -125,7 +125,11 @@ def _clean_md(text):
             continue
         if in_refs or s.startswith("|") or s.startswith("http"):
             continue
-        s = _CALLOUT.sub("", s)
+        if _CALLOUT.match(s):
+            s = _CALLOUT.sub("", s)
+            if len(s) <= 10 and "。" not in s:      # 囲みの見出しだけの行
+                out.append("")
+                continue
         s = s.lstrip(">").strip()
         s = re.sub(r"^([-*+]|\d+[.)])\s+", "", s)       # 箇条書きの印
         s = _WIKILINK.sub(lambda m: m.group(2) or m.group(1), s)
@@ -192,7 +196,7 @@ class Library:
         if not files:
             return
         sig = hashlib.sha1(json.dumps(
-            [files, EXCLUDE_MARKERS, SKIP_DIRS, CHUNK_MAX, 2]).encode()).hexdigest()
+            [files, EXCLUDE_MARKERS, SKIP_DIRS, CHUNK_MAX, 3]).encode()).hexdigest()
         try:
             with open(CACHE, encoding="utf-8") as f:
                 cached = json.load(f)
@@ -233,8 +237,8 @@ class Library:
         return len(self.books) - notes, notes
 
     # ---------- 探す ----------
-    def search(self, query):
-        """(題, 種類, 一節) を返す。見つからなければ None。"""
+    def search(self, query, kind=None):
+        """(題, 種類, 一節) を返す。見つからなければ None。kind で本・ノートに絞れる。"""
         words = [w for w in dict.fromkeys(_KEYWORD.findall(query or "")) if w != "ー"][:12]
         if not words or not self.books:
             return None
@@ -242,6 +246,8 @@ class Library:
         df = {w: 0 for w in words}
         hits = []                           # (bi, ci, [words])
         for bi, b in enumerate(self.books):
+            if kind and b.get("kind", "book") != kind:
+                continue
             for ci, c in enumerate(b["chunks"]):
                 found = [w for w in words if w in c]
                 if found:
