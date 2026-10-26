@@ -67,6 +67,22 @@ PROBE_MODELS = [
     ("gemini", "gemini-2.5-flash"),
     ("gemini", "gemini-2.5-flash-lite"),
 ]
+# ~/.config/minamo/models.txt があれば、PROBE_MODELS の代わりにそれを使う（1行に「nvidia 名前」か
+# 「gemini 名前」。# から後は無視）。minamo.py を書き換えずに済むので、git pull でぶつからない
+MODELS_FILE = os.path.expanduser("~/.config/minamo/models.txt")
+
+
+def _load_models_file():
+    try:
+        with open(MODELS_FILE, encoding="utf-8") as f:
+            rows = [l.split("#")[0].split() for l in f]
+    except OSError:
+        return None
+    rows = [(r[0].lower(), r[1]) for r in rows if len(r) >= 2 and r[0].lower() in ("nvidia", "gemini")]
+    return rows or None
+
+
+PROBE_MODELS = _load_models_file() or PROBE_MODELS
 PROBE_ON_START = True     # 起動時に一括チェックするか（--no-probe で止める。--model を指定したときもしない）
 PROBE_TIMEOUT = 30        # 一括チェックで待つ秒数（これより遅いものは使わない）
 KEYS_FILE = os.path.expanduser("~/.config/minamo/keys.env")
@@ -840,7 +856,7 @@ def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False
                           else Nvidia(key, model or NVIDIA_MODEL, system)))
     if local and not fake:
         tiers.append(("local", Local()))
-    engines = {"1996": Classic(karte), "2026": Modern(karte, library)}
+    engines = {"1996": Classic(karte, library), "2026": Modern(karte, library)}
     return Hybrid(tiers, engines, karte=bool(karte), version=version)
 
 

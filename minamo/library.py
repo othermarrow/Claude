@@ -170,6 +170,7 @@ class Library:
         self.books = []          # [{"title":, "kind": "book"|"note", "chunks": [...]}]
         self.skipped = []        # 読まなかった本の題
         self.recent = []         # 最近使った (本, 段落)
+        self._defs = {}          # 概念 → それを説明している文（define の覚え）
         self._load()
 
     # ---------- 読み込み ----------
@@ -274,6 +275,35 @@ class Library:
         self.recent = (self.recent + [(bi, ci)])[-20:]
         b = self.books[bi]
         return b["title"], b.get("kind", "book"), b["chunks"][ci][:EXCERPT]
+
+    def define(self, term, limit=60):
+        """term を説明している一文を返す：(文, 種類)。ノートを先に、なければ本から。見つからなければ ("", "")。
+        「〜とは」「〜は、」「〜を…と呼ぶ」の形の文を選び、なければ term を含む短い文を使う。"""
+        if not term or not self.books:
+            return "", ""
+        if term not in self._defs:
+            pools = {"note": ([], []), "book": ([], [])}
+            pat = re.compile(re.escape(term) + r"(とは|は、|は|を|と呼|という|として)")
+            for b in self.books:
+                good, other = pools[b.get("kind", "book")]
+                if len(good) >= 8:
+                    continue
+                for c in b["chunks"]:
+                    if term not in c or any(x in c for x in BLOCK_WORDS):
+                        continue
+                    for sent in re.split(r"(?<=。)", c):
+                        sent = sent.strip()
+                        if term in sent and 10 <= len(sent) <= limit and not re.search(r"[|＊*#\[\]{}]", sent) \
+                                and not re.search(r"(本ノート|本書|本章|この章|本稿|本研究|この本|著者|筆者|ノートでは)", sent) \
+                                and sent.count("「") == sent.count("」") and sent.count("（") == sent.count("）"):
+                            # 概念が文の頭のほうにあり、説明の形をしているものを「よい文」に
+                            (good if pat.search(sent) and sent.find(term) <= 12 else other).append(sent)
+            self._defs[term] = [(x, k) for k in ("note", "book") for x in (pools[k][0] or pools[k][1][:6])]
+        found = self._defs[term]
+        if not found:
+            return "", ""
+        best = [x for x in found if x[1] == found[0][1]]          # ノートがあればノートから
+        return random.choice(best)
 
     def note(self, query):
         """観測メモに添える文。見つからなければ空。"""

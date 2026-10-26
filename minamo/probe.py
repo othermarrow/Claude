@@ -6,6 +6,9 @@
 
 単独でも動かせる（面接は始めず、結果の表だけ出す）：
   python ~/Claude/minamo/probe.py
+いま使えるモデルの一覧を API に問い合わせる（PROBE_MODELS を直すとき）：
+  python ~/Claude/minamo/probe.py --list            # 全部
+  python ~/Claude/minamo/probe.py --list gemini     # 名前に gemini を含むものだけ
 """
 
 import json
@@ -14,6 +17,9 @@ import re
 import sys
 import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 
 import minamo
 
@@ -74,53 +80,61 @@ def candidates(backend=None):
             if keys.get(b) and (not backend or b == backend)]
 
 
-def run(backend=None, timeout=None, system=None, out=sys.stdout):
-    """候補を同時に試す。結果を速い順（合格が先）に返す：
-    [{"backend", "model", "sec", "ok", "why", "sample"}]。"""
+def run(backend=None, timeout=None, system=None, out=sys.stdout, cands=None, workers=None):
+    """候補を試す（既定は全部同時）。1 個ずつ timeout 秒まで待つ。
+    結果を速い順（合格が先）に返す：[{"backend", "model", "sec", "ok", "why", "sample"}]。
+    workers を渡すと、同時に送る数をそこまでに抑える（たくさん調べるとき、回数制限に当たらないように）。"""
     timeout = timeout or minamo.PROBE_TIMEOUT
     system = system or minamo.SYSTEM_PROMPT
-    cands = candidates(backend)
+    cands = cands if cands is not None else candidates(backend)
     if not cands:
         return []
-    results, lock, done = [], threading.Lock(), threading.Event()
-    print(f"AI の一括チェック：{len(cands)} 個に同時に送ります（最大 {timeout} 秒）", file=out, flush=True)
+    workers = min(workers or len(cands), len(cands))
+    results, lock, gate = [], threading.Lock(), threading.Semaphore(workers)
+    n = len(cands)
+    if workers >= n:
+        print(f"AI の一括チェック：{n} 個に同時に送ります（最大 {timeout} 秒）", file=out, flush=True)
+    else:
+        est = max(1, round(n / workers * timeout / 2 / 60))
+        print(f"AI の一括チェック：{n} 個を {workers} 個ずつ送ります（1 個につき最大 {timeout} 秒。"
+              f"全部でおよそ {est}〜{est * 2} 分）", file=out, flush=True)
 
-    def one(b, m, key):
+    def ask(b, m, key, box):
         t0 = time.monotonic()
         try:
             text = _make(b, m, key, system).ask(TEST_CONTENTS)
             sec = time.monotonic() - t0
             issues = grade(text)
-            r = {"backend": b, "model": m, "sec": round(sec, 1), "ok": not issues,
-                 "why": "・".join(issues), "sample": (text or "")[:120]}
+            box.update(sec=round(sec, 1), ok=not issues, why="・".join(issues), sample=(text or "")[:120])
         except minamo.Offline:
-            r = {"backend": b, "model": m, "sec": None, "ok": False, "why": "つながらない", "sample": ""}
+            box.update(why="つながらない")
         except RuntimeError as e:
             code = str(e)[:8]
-            why = {"HTTP 404": "見つからない", "HTTP 410": "提供終了", "HTTP 401": "キーが通らない",
-                   "HTTP 403": "使えない（権限）", "HTTP 429": "混雑・回数制限"}.get(code, str(e)[:60])
-            r = {"backend": b, "model": m, "sec": None, "ok": False, "why": why, "sample": ""}
+            box.update(why={"HTTP 404": "見つからない", "HTTP 410": "提供終了", "HTTP 401": "キーが通らない",
+                            "HTTP 403": "使えない（権限）", "HTTP 429": "混雑・回数制限",
+                            "HTTP 400": "受け付けない（会話用ではない？）"}.get(code, str(e)[:60]))
         except Exception as e:           # 想定外の返り方でも、ほかのチェックは続ける
-            r = {"backend": b, "model": m, "sec": None, "ok": False, "why": f"{type(e).__name__}: {e}"[:60], "sample": ""}
-        with lock:
-            if done.is_set():
-                return                   # 締め切りのあとに届いたものは数えない
-            results.append(r)
-            print("  " + line(r), file=out, flush=True)
-            if len(results) == len(cands):
-                done.set()
+            box.update(why=f"{type(e).__name__}: {e}"[:60])
 
-    for b, m, key in cands:
-        threading.Thread(target=one, args=(b, m, key), daemon=True).start()
-    done.wait(timeout)
-    with lock:
-        done.set()
-        answered = {(r["backend"], r["model"]) for r in results}
-        for b, m, _ in cands:
-            if (b, m) not in answered:
-                r = {"backend": b, "model": m, "sec": None, "ok": False, "why": f"{timeout}秒で返事がない", "sample": ""}
-                results.append(r)
-                print("  " + line(r), file=out, flush=True)
+    def one(b, m, key):
+        with gate:
+            box = {"backend": b, "model": m, "sec": None, "ok": False, "why": "", "sample": ""}
+            t = threading.Thread(target=ask, args=(b, m, key, box), daemon=True)
+            t.start()
+            t.join(timeout)
+            r = dict(box)
+            if t.is_alive():             # 締め切りのあとに届いたものは数えない
+                r.update(sec=None, ok=False, why=f"{timeout}秒で返事がない", sample="")
+        with lock:
+            results.append(r)
+            prog = f"[{len(results)}/{n}] " if workers < n else ""
+            print("  " + prog + line(r), file=out, flush=True)
+
+    threads = [threading.Thread(target=one, args=c, daemon=True) for c in cands]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
     results.sort(key=lambda r: (not r["ok"], r["sec"] if r["sec"] is not None else 1e9))
     save(results)
     return results
@@ -152,18 +166,135 @@ def save(results):
         pass
 
 
+# 会話に使えないもの（埋め込み・画像・音声など）は一覧から外す
+NOT_CHAT = ["embed", "rerank", "retriev", "clip", "ocr", "parse", "tts", "asr", "whisper", "speech",
+            "audio", "image", "vision-", "imagen", "veo", "sdxl", "diffusion-xl", "flux", "segment",
+            "detect", "guard", "safety", "reward", "aqa", "cosmos", "fastpitch", "riva"]
+
+
+def _get(url, headers):
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as res:
+            return json.load(res)
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"HTTP {e.code}: {e.read().decode(errors='replace')[:200]}")
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise minamo.Offline(f"接続できません: {getattr(e, 'reason', e)}")
+
+
+def list_models(backend):
+    """API に、いま使えるモデルの名前を問い合わせる（会話に使えないものは外す）。"""
+    if backend == "nvidia":
+        key = minamo.load_key("NVIDIA_API_KEY")
+        data = _get(minamo.NVIDIA_URL.replace("/chat/completions", "/models"),
+                    {"Authorization": f"Bearer {key}", "Accept": "application/json"})
+        names = [m.get("id", "") for m in data.get("data") or []]
+    else:
+        key = minamo.load_key("GEMINI_API_KEY")
+        names, token = [], ""
+        while True:
+            url = "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000"
+            if token:
+                url += "&pageToken=" + urllib.parse.quote(token)
+            data = _get(url, {"x-goog-api-key": key})
+            for m in data.get("models") or []:
+                if "generateContent" in (m.get("supportedGenerationMethods") or []):
+                    names.append(m.get("name", "").removeprefix("models/"))
+            token = data.get("nextPageToken") or ""
+            if not token:
+                break
+    return sorted(n for n in set(names) if n and not any(w in n.lower() for w in NOT_CHAT))
+
+
+def show_list(word=""):
+    keys = {"nvidia": minamo.load_key("NVIDIA_API_KEY"), "gemini": minamo.load_key("GEMINI_API_KEY")}
+    now = {(b, m) for b, m in minamo.PROBE_MODELS}
+    for b in ("nvidia", "gemini"):
+        if not keys[b]:
+            print(f"\n[{b}] APIキーがないので問い合わせません。")
+            continue
+        try:
+            names = list_models(b)
+        except (RuntimeError, minamo.Offline) as e:
+            print(f"\n[{b}] 一覧を取れませんでした：{str(e)[:120]}")
+            continue
+        if word:
+            names = [n for n in names if word.lower() in n.lower()]
+        print(f"\n[{b}] 会話に使えるモデル {len(names)} 個" + (f"（「{word}」を含むもの）" if word else ""))
+        for n in names:
+            print(("  ★ " if (b, n) in now else "    ") + n)
+        gone = [m for bb, m in minamo.PROBE_MODELS if bb == b and m not in names and (not word or word.lower() in m.lower())]
+        if gone and not word:
+            print(f"  （PROBE_MODELS にあるが一覧にない：{'・'.join(gone)}）")
+    print("\n★ は、いまの PROBE_MODELS に入っているもの。")
+    print("候補を変えるときは ~/.config/minamo/models.txt に、1行に「nvidia 名前」か「gemini 名前」で書く"
+          "（このファイルがあれば minamo.py の PROBE_MODELS の代わりに使う）。"
+          + ("\nいまは models.txt を使っています。" if os.path.exists(minamo.MODELS_FILE) else ""))
+
+
+def save_models(ok, limit=10):
+    """合格したものを速い順に models.txt へ。次の起動から、この順で一括チェックする。"""
+    if not ok:
+        print("合格したものがないので、models.txt は変えません。")
+        return
+    path = minamo.MODELS_FILE
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    if os.path.exists(path):
+        os.replace(path, path + ".bak")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(f"# probe.py --save が {time.strftime('%Y-%m-%d %H:%M')} に書いた（合格したものを速い順に）\n")
+        for r in ok[:limit]:
+            f.write(f"{r['backend']} {r['model']}    # {r['sec']}秒\n")
+    print(f"\n{path} に {min(len(ok), limit)} 個書きました。次の起動から、これを一括チェックします。"
+          + ("（前のものは models.txt.bak）" if os.path.exists(path + ".bak") else ""))
+
+
 def main():
     import argparse
     ap = argparse.ArgumentParser(description="ミナモで使う AI を一括チェックする（面接は始めない）")
     ap.add_argument("--backend", choices=["gemini", "nvidia"], help="この API の候補だけ試す")
     ap.add_argument("--timeout", type=int, default=minamo.PROBE_TIMEOUT, help="待つ秒数")
     ap.add_argument("--show", action="store_true", help="合格した返事の書き出しも見る")
+    ap.add_argument("--list", nargs="?", const="", metavar="言葉",
+                    help="チェックはせず、いま使えるモデルの一覧を API に問い合わせる（言葉で絞れる）")
+    ap.add_argument("--all", nargs="?", const="", metavar="言葉",
+                    help="API の一覧にある会話用のモデルを全部調べる（言葉で絞れる）")
+    ap.add_argument("--workers", type=int, default=6, help="--all のとき、同時に送る数（既定 6）")
+    ap.add_argument("--save", action="store_true",
+                    help="合格したものを速い順に ~/.config/minamo/models.txt に書く（前のものは .bak に残す）")
     a = ap.parse_args()
-    if not candidates(a.backend):
-        print("APIキーが見つかりません（README の「APIキー」）。")
-        return
-    results = run(a.backend, a.timeout)
+    if a.list is not None:
+        return show_list(a.list)
+    if a.all is not None:
+        cands = []
+        for b in ("nvidia", "gemini"):
+            key = minamo.load_key("NVIDIA_API_KEY" if b == "nvidia" else "GEMINI_API_KEY")
+            if not key or (a.backend and a.backend != b):
+                continue
+            try:
+                names = list_models(b)
+            except (RuntimeError, minamo.Offline) as e:
+                print(f"[{b}] 一覧を取れませんでした：{str(e)[:120]}")
+                continue
+            cands += [(b, m, key) for m in names if a.all.lower() in m.lower()]
+        if not cands:
+            print("調べるモデルがありません（APIキーか、絞り込みの言葉を確かめてください）。")
+            return
+        results = run(timeout=a.timeout, cands=cands, workers=a.workers)
+    else:
+        if not candidates(a.backend):
+            print("APIキーが見つかりません（README の「APIキー」）。")
+            return
+        results = run(a.backend, a.timeout)
     print(summary(results))
+    ok = [r for r in results if r["ok"]]
+    if a.all is not None and ok:
+        print("\n合格（速い順）：")
+        for r in ok:
+            print(f"  {r['sec']:5.1f}秒  {r['backend']} {r['model']}")
+    if a.save:
+        save_models(ok)
     if a.show:
         for r in results:
             if r["sample"]:
