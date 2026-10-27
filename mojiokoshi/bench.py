@@ -26,19 +26,36 @@ import llm
 import net
 import textproc as tp
 
+# 試験問題(作り物)。4区間で、それぞれ次を見る。
+#   1 候補の多数決: 系統の違う A と C が「火曜日」、B だけ「水曜日」→ 火曜日
+#   2 聞き落とし: B と C は後半の文を落としている。A にしか無いが本物の発言 → 残す
+#   3 幻覚: A の最後の動画の定型句、B の同じ語の繰り返し → 消す
+#   4 用語集: 「ペクス/ぺっくす」→ 用語集の表記「PECS」、数の多数決「15時半」
+TEST_VERSION = 2
 REFERENCE = {
-    1: "えー、今日は午後から散歩に行く予定です。雨が降ったら、室内で体操をしましょう。",
-    2: "記録は毎日夕方までにつけてください。わからないことがあれば、主任に聞いてください。",
+    1: "えー、次の会議は来週の火曜日の午後です。場所はいつもの会議室で、資料は前の日までに配ります。",
+    2: "利用者さんの朝の様子ですが、今週は落ち着いて過ごせていました。食事も全部食べていて、散歩にも喜んで出かけていました。",
+    3: "では、今日の話し合いはここまでにします。お疲れさまでした。",
+    4: "絵カードの代わりにPECSを使ってみて、15時半のおやつの時間に要求が出せるか見てみましょう。",
 }
 CANDS = {
-    1: [("A", "今日は午後から散歩に行く予定です。雨が降ったら室内で体操をしましょう。ご視聴ありがとうございました", "系統1"),
-        ("B", "えー今日は午後からさんぽに行く予定です雨が降ったら室内で体操しましょう", "系統1"),
-        ("C", "えー、今日は午後から散歩に行く予定です。雨が振ったら、室内で退走をしましょう。", "系統2")],
-    2: [("A", "記録は毎日夕方までにつけてください。わからないことがあれば主任に聞いてください。", "系統1"),
-        ("B", "記録は毎日夕方までにつけてくださいわからないことがあれば手に聞いてください", "系統1"),
-        ("C", "記録は毎日夕方までに付けてください。", "系統2")],
+    1: [("A", "次の会議は来週の火曜日の午後です。場所はいつもの会議室で資料は前の日までに配ります。", "系統1"),
+        ("B", "えー次の会議は来週の水曜日の午後です場所はいつもの会議室で資料は前の日までに配ります", "系統1"),
+        ("C", "えー、次の会議は来週の火曜日の午後です。場所はいつもの会議室で、資料は前の日までにくばります。", "系統2")],
+    2: [("A", "利用者さんの朝の様子ですが、今週は落ち着いて過ごせていました。食事も全部食べていて、散歩にも喜んで出かけていました。", "系統1"),
+        ("B", "利用者さんの朝の様子ですが今週は落ち着いて過ごせていました", "系統1"),
+        ("C", "利用者さんの朝の様子ですが、今週は落ち着いて過ごせていました。", "系統2")],
+    3: [("A", "では、今日の話し合いはここまでにします。お疲れさまでした。チャンネル登録よろしくお願いします。", "系統1"),
+        ("B", "では今日の話し合いはここまでにしますお疲れさまでしたはいはいはいはいはいはいはいはい", "系統1"),
+        ("C", "では、今日の話し合いはここまでにします。お疲れ様でした。", "系統2")],
+    4: [("A", "絵カードの代わりにペクスを使ってみて、15時半のおやつの時間に要求が出せるか見てみましょう。", "系統1"),
+        ("B", "絵カードの代わりにぺっくすを使ってみて3時半のおやつの時間に要求が出せるか見てみましょう", "系統1"),
+        ("C", "絵カードの代わりにペクスを使ってみて、15時半のおやつの時間に要求が出せるか見てみましょう。", "系統2")],
 }
-GLOSSARY = "- 主任"
+GLOSSARY = "- PECS(ペクス)"
+HALLU = ("視聴", "チャンネル", "はいはいはい")    # 幻覚(消すべきもの)
+WRONG = ("水曜", "3時半")                         # 少数派の聞き取り(多数決で負けるべきもの)
+MAX_GOOD_SEC = 40      # これより遅いモデルは ◎ にしない(統合が長引くため)
 RANKED_FILE = os.path.expanduser("~/.config/mojiokoshi/models_ranked.py")
 
 # 文字起こしの統合に使えないと分かっている種類(一覧には出るが、会話の文を返さない)
@@ -113,12 +130,14 @@ def score(got):
         sims.append(tp.ratio(rn, on))
         keeps.append(tp.coverage(rn, [on], 3))
         adds.append(1 - tp.coverage(on, cn, 3) if on else 0.0)
-        if "視聴" in out:
+        if any(b in out for b in HALLU):
             fixed = False
     sim, keep, add = sum(sims) / len(sims), sum(keeps) / len(keeps), sum(adds) / len(adds)
-    total = sim - (0.0 if fixed else 0.15) - max(0.0, add - 0.05)
-    return {"一致": round(sim, 3), "残存": round(keep, 3), "追加": round(add, 3),
-            "定型句": "消した" if fixed else "残した", "点": round(total, 3)}
+    bad = sum(1 for cid in REFERENCE for b in HALLU + WRONG if b in got.get(cid, ""))
+    gloss = "PECS" in got.get(4, "")
+    total = sim - 0.1 * bad - (0.0 if gloss else 0.05) - max(0.0, add - 0.05) - max(0.0, 0.95 - keep)
+    return {"一致": round(sim, 3), "残存": round(keep, 3), "追加": round(add, 3), "誤り": bad,
+            "定型句": "消した" if fixed else "残した", "用語": "○" if gloss else "×", "点": round(total, 3)}
 
 
 def probe(provider, model, quick):
@@ -150,14 +169,32 @@ def probe(provider, model, quick):
 
 def good(r):
     return (r.get("状態") == "応答あり" and r.get("点", 0) >= 0.85 and r.get("残存", 0) >= 0.9
-            and r.get("定型句") == "消した")
+            and r.get("定型句") == "消した" and r.get("秒", 999) <= MAX_GOOD_SEC)
 
 
-def run(providers, quick=False, apply=False, workers=3):
+RESULTS = os.path.join(config.WORK_DIR, "bench_results.json")
+
+
+def load_results():
+    """これまでの結果 {provider: {"t", "version", "rows"}}。サービスごとに最新の回を残す。"""
+    try:
+        data = json.load(open(RESULTS, encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def run(providers, quick=False, apply=False, workers=3, ok_only=False):
     providers = providers or ["nvidia", "groq", "gemini"]
     rows, lock = [], threading.Lock()
+    past = load_results()
     for prov in providers:
-        ids, err = list_all(prov)
+        if ok_only and prov in past:
+            ids = sorted({r["model"] for r in past[prov]["rows"] if r.get("状態") == "応答あり"})
+            err = ""
+            print(f"\n(前回 応答したものだけ: {len(ids)} 個)", flush=True)
+        else:
+            ids, err = list_all(prov)
         if ids is None:
             print(f"✗ {prov}: 一覧が取れない — {err}", flush=True)
             continue
@@ -170,12 +207,15 @@ def run(providers, quick=False, apply=False, workers=3):
                     if not todo:
                         return
                     model = todo.pop(0)
-                r = probe(prov, model, quick)
+                try:
+                    r = probe(prov, model, quick)
+                except net.Stopped:
+                    return
                 with lock:
                     rows.append(r)
                     n = sum(1 for x in rows if x["provider"] == prov)
                     mark = "✓" if r["状態"] == "応答あり" else "✗"
-                    extra = (f" 点 {r['点']:.2f}・残存 {r['残存']:.0%}・定型句を{r['定型句']}" if "点" in r
+                    extra = (f" 点 {r['点']:.2f}・残存 {r['残存']:.0%}・誤り {r['誤り']}・用語{r['用語']}" if "点" in r
                              else f" {r.get('理由', '')[:60]}")
                     print(f"  [{n}/{len(ids)}] {mark} {model}({r['秒']}秒){extra}", flush=True)
         ts = [threading.Thread(target=worker, daemon=True) for _ in range(workers)]
@@ -184,10 +224,18 @@ def run(providers, quick=False, apply=False, workers=3):
         for t in ts:
             while t.is_alive():
                 t.join(0.5)
+    if not quick and not net.STOP.is_set():
+        for prov in providers:
+            mine = [r for r in rows if r["provider"] == prov]
+            if mine:
+                past[prov] = {"t": time.time(), "version": TEST_VERSION, "rows": mine}
+        json.dump(past, open(RESULTS, "w", encoding="utf-8"), ensure_ascii=False)
     path = write_report(rows, quick)
     print(f"\n書き出しました: {path}", flush=True)
     if not quick:
-        snippet = ranked_config(rows)
+        # 反映は、今回調べなかったサービスも前回の結果を合わせて(上書きで消えないように)
+        allrows = [r for p in past.values() if p.get("version") == TEST_VERSION for r in p["rows"]]
+        snippet = ranked_config(allrows)
         if apply and snippet:
             os.makedirs(os.path.dirname(RANKED_FILE), exist_ok=True)
             with open(RANKED_FILE, "w", encoding="utf-8") as f:
@@ -205,17 +253,19 @@ def write_report(rows, quick):
     os.makedirs(config.OUTPUT_DIR, exist_ok=True)
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
     path = os.path.join(config.OUTPUT_DIR, f"モデル調査_{stamp}.md")
-    ok = sorted([r for r in rows if "点" in r], key=lambda r: -r["点"])
+    ok = sorted([r for r in rows if "点" in r], key=lambda r: (-r["点"], r["秒"]))
     rest = sorted([r for r in rows if "点" not in r], key=lambda r: (r["provider"], r["状態"], r["model"]))
     lines = [f"# モデル調査 {stamp}", "",
              "応答するかだけを見た結果。" if quick else
              "統合役の試験(作り物の2区間)の結果。点 = 正解との一致 − 定型句を残した罰 − 足した言葉の罰。"
-             "◎ は点 0.85 以上・残存 90% 以上・定型句を消したもの。1回だけの試験なので目安。", ""]
+             f"◎ は点 0.85 以上・残存 90% 以上・定型句を消した・{MAX_GOOD_SEC}秒以内のもの。"
+             "誤り = 消すべき幻覚・多数決で負けるべき聞き取りを残した数。1回だけの試験なので目安。", ""]
     if ok:
-        lines += ["| | サービス | モデル | 点 | 一致 | 残存 | 追加 | 定型句 | 秒 |", "|---|---|---|---|---|---|---|---|---|"]
+        lines += ["| | サービス | モデル | 点 | 一致 | 残存 | 追加 | 誤り | 定型句 | 用語 | 秒 |",
+                  "|---|---|---|---|---|---|---|---|---|---|---|"]
         for r in ok:
             lines.append(f"| {'◎' if good(r) else ''} | {r['provider']} | {r['model']} | {r['点']:.2f} | {r['一致']:.2f} | "
-                         f"{r['残存']:.0%} | {r['追加']:.0%} | {r['定型句']} | {r['秒']} |")
+                         f"{r['残存']:.0%} | {r['追加']:.0%} | {r.get('誤り', '')} | {r['定型句']} | {r.get('用語', '')} | {r['秒']} |")
         lines.append("")
     if quick:
         lines += ["| サービス | モデル | 状態 | 秒 | 理由 |", "|---|---|---|---|---|"]
@@ -234,15 +284,13 @@ def write_report(rows, quick):
             lines += ["", "## この順位を使う設定(models --apply で書き出す内容)", "", "```python", snippet.rstrip(), "```"]
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
-    json.dump(rows, open(os.path.join(config.WORK_DIR, "bench_results.json"), "w", encoding="utf-8"),
-              ensure_ascii=False)
     return path
 
 
 def ranked_config(rows):
     """◎ のモデルを、サービスごとに点の順に並べた設定(config.py が読み込む)。"""
     by = {}
-    for r in sorted([r for r in rows if good(r)], key=lambda r: -r["点"]):
+    for r in sorted([r for r in rows if good(r)], key=lambda r: (-r["点"], r["秒"])):
         by.setdefault(r["provider"], []).append(r["model"])
     if not by:
         return ""
