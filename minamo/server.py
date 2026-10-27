@@ -175,6 +175,8 @@ def main():
     ap.add_argument("--fake", action="store_true")
     ap.add_argument("--offline", action="store_true", help="クラウドの AI を使わない")
     ap.add_argument("--no-local", action="store_true", help="端末の中の AI を試さない")
+    ap.add_argument("--local-share", type=float, metavar="0〜1",
+                    help="端末の中の AI にひとことを頼む割合（既定 0.8〜0.9。1 ならいつも頼む）")
     ap.add_argument("--local-mode", choices=["assist", "full"],
                     help="端末の中の AI の使い方（既定 assist：ひとことだけ頼む。full：全部話させる）")
     ap.add_argument("--no-probe", action="store_true",
@@ -199,6 +201,7 @@ def main():
     STATE.update(llm=None, error="", silence=a.silence, library=library,
                  backend="fake" if a.fake else a.backend,
                  env={} if a.no_env else minamo.gather_env())
+    minamo.set_local_share(a.local_share)
     ranked, probed = None, []
     if minamo.PROBE_ON_START and not (a.no_probe or a.model or a.fake or a.offline):
         ranked, probed = minamo.probe_models(a.backend, a.no_karte)

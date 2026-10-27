@@ -76,12 +76,17 @@ def main():
     ap.add_argument("--seed", type=int, help="乱数の種（同じ種なら同じ返事）")
     ap.add_argument("--library", action="store_true", help="蔵書（本・Vault のノート）も使う")
     ap.add_argument("--local", action="store_true", help="端末の中の AI（local.sh）に、ひとことを頼む")
+    ap.add_argument("--local-share", type=float, metavar="0〜1", help="--local のとき、頼む割合（既定 0.8〜0.9）")
     a = ap.parse_args()
     if a.seed is not None:
         random.seed(a.seed)
     lib = minamo.load_library(minamo.LIBRARY_DIRS) if a.library else None
     karte = minamo.load_karte()
     mem = Memory(os.path.join(tempfile.mkdtemp(), "memory.json"))
+    minamo.set_local_share(a.local_share)
+    if minamo.ASSIST_SHARE is not None:
+        import kaiwa
+        kaiwa.ASSIST_SHARE = list(minamo.ASSIST_SHARE)
     helper = minamo.Local().assist if a.local else None
     eng = Modern(karte, lib, mem, helper) if a.version == "2026" else Classic(karte, lib, helper)
 

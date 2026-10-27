@@ -104,6 +104,7 @@ LOCAL_URL = "http://127.0.0.1:8090/v1/chat/completions"
 # full：電波がないとき、端末の中の AI が全部話す。off：使わない（--no-local と同じ）
 LOCAL_MODE = "assist"
 ASSIST_TIMEOUT = 15       # ひとことを待つ秒数（これより遅ければ、端末内モデルだけで話す）
+ASSIST_SHARE = None       # 端末の中の AI に頼む割合（段階ごと）。None なら kaiwa.ASSIST_SHARE（0.8〜0.9）。--local-share で変える
 OFFLINE_RETRY = 60        # つながらなかった AI を、この秒数のあいだ試さない
 API_URL = ("https://generativelanguage.googleapis.com/v1beta/models/"
            "{model}:generateContent")
@@ -518,6 +519,13 @@ ASSIST_STAGE = [
     "相手について知りすぎている気配を、静かににじませる。脅さない。",
     "自分と相手の区別があいまいになっている。相手の言葉を、自分の記憶のように言う。",
 ]
+# 発言の種類ごとの、ひとことへの手がかり
+ASSIST_ACT = {"yes": "相手は短く「はい」と答えた。", "no": "相手は否定した。", "deny": "相手は「別に」「何もない」と答えた。",
+              "unknown": "相手は「わからない」と答えた。", "short": "相手の返事は、とても短い。",
+              "insult": "相手は乱暴な言葉を向けた。怒らず、静かに受け止める。",
+              "meta": "相手は、これは作り話だと言った。役を降りずに、静かに受け流す。", "laugh": "相手は笑った。",
+              "dots": "相手は言葉に詰まって、点だけを書いた。", "filler": "相手は迷っている。",
+              "thanks": "相手はお礼を言った。", "apology": "相手は謝った。"}
 ASSIST_VOICE = {"2026": "今どきの AI カウンセラーの口調で、解析・データという言葉を少し混ぜてよい。",
                 "1996": "古い記録装置の口調で、記録・照合という言葉を使ってよい。"}
 
@@ -531,16 +539,19 @@ class Local:
     def __init__(self):
         self.skip_until = 0.0
 
-    def assist(self, text, phase, version="2026"):
-        """端末内モデルの返事に添える、相手の打ち明けへのひとこと（だめなら ""）。
-        動いていない・遅いときは、OFFLINE_RETRY 秒のあいだ頼まない。"""
+    def assist(self, text, phase, version="2026", prev="", act="narrative"):
+        """端末内モデルの返事に添える、相手の発言へのひとこと（だめなら ""）。
+        prev は直前のミナモの言葉（流れに合わせるため）。動いていない・遅いときは、OFFLINE_RETRY 秒のあいだ頼まない。"""
         now = time.monotonic()
         if now < self.skip_until or not text:
             return ""
+        before = re.sub(r"\[間\]\s*", "", prev or "")[-80:]
         msgs = [{"role": "system", "content": ASSIST_PROMPT},
-                {"role": "user", "content": f"相手の発言：「{text[:200]}」\n"
+                {"role": "user", "content": (f"直前のミナモの言葉：「{before}」\n" if before else "")
+                                            + f"相手の発言：「{text[:200]}」\n{ASSIST_ACT.get(act, '')}"
                                             f"この返事の役割：{ASSIST_STAGE[max(0, min(phase, 3))]}"
-                                            f"{ASSIST_VOICE.get(version, '')}\n一文か二文、全部で60字以内。"}]
+                                            f"{ASSIST_VOICE.get(version, '')}\n直前のミナモの言葉と同じ言い回しは使わない。"
+                                            f"一文か二文、全部で60字以内。"}]
         try:
             data = post_json(LOCAL_URL, {"messages": msgs, "temperature": 0.8, "max_tokens": 90},
                              {}, timeout=ASSIST_TIMEOUT, retry=False)
@@ -869,6 +880,13 @@ def probe_models(backend=None, no_karte=False):
     return [(r["backend"], r["model"], r["sec"]) for r in results if r["ok"]], results
 
 
+def set_local_share(v):
+    """--local-share：端末の中の AI に頼む割合を、すべての段階でそろえる。"""
+    global ASSIST_SHARE
+    if v is not None:
+        ASSIST_SHARE = [max(0.0, min(1.0, v))] * 4
+
+
 def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False, local=True,
              version="2026", library=None, ranked=None, local_mode=None):
     """話し手を組み立てる。クラウド（キーがあれば）→ 端末の中の AI → 端末内のエンジン。
@@ -900,6 +918,9 @@ def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False
                           else Nvidia(key, model or NVIDIA_MODEL, system)))
     local_mode = local_mode or LOCAL_MODE
     helper = None
+    if ASSIST_SHARE is not None:
+        import kaiwa
+        kaiwa.ASSIST_SHARE = list(ASSIST_SHARE)
     if local and not fake and local_mode != "off":
         loc = Local()
         if local_mode == "full":
@@ -925,6 +946,8 @@ def main():
     ap.add_argument("--no-local", action="store_true", help="端末の中の AI を試さない")
     ap.add_argument("--local-mode", choices=["assist", "full"],
                     help="端末の中の AI の使い方（既定 assist：端末内モデルが話し、ひとことだけ頼む。full：全部話させる）")
+    ap.add_argument("--local-share", type=float, metavar="0〜1",
+                    help="端末の中の AI にひとことを頼む割合（既定 0.8〜0.9。1 ならいつも頼む）")
     ap.add_argument("--version", choices=["2026", "1996"], default="2026",
                     help="端末内のエンジンの版（既定 2026。1996 は言葉を映し返す旧式）")
     ap.add_argument("--no-env", action="store_true",
@@ -950,6 +973,7 @@ def main():
     ranked = None
     if PROBE_ON_START and not (a.no_probe or a.model or a.fake or a.offline):
         ranked, _ = probe_models(a.backend, a.no_karte)
+    set_local_share(a.local_share)
     llm = make_llm(a.backend, a.model, a.no_karte, a.fake, a.offline, not a.no_local,
                    a.version, library, ranked, a.local_mode)
     if not llm.tiers or llm.tiers[0][0] != "cloud":
