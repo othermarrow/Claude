@@ -16,7 +16,7 @@ import config
 
 # 名乗り。Python 標準の「Python-urllib/3.x」のままだと、Groq の前段(Cloudflare)に
 # 機械アクセスとして弾かれる(HTTP 403 error code: 1010)
-USER_AGENT = "mojiokoshi/1.11 (Termux; +https://github.com/othermarrow/Claude)"
+USER_AGENT = "mojiokoshi/1.12 (Termux; +https://github.com/othermarrow/Claude)"
 
 # Ctrl-C で全スレッドを止めるときに立てる
 STOP = threading.Event()

@@ -40,7 +40,7 @@ import net
 import preflight
 import textproc as tp
 
-VERSION = "1.11"
+VERSION = "1.12"
 LABELS = "ABCDEFGHIJ"
 _print_lock = threading.Lock()
 
@@ -322,12 +322,22 @@ def realign_untimed(results, engines, chunks):
         stream = "".join(tp.join_units(u.get("text", "") for u in ch[str(k)]) for k in have)
         refs = [tp.clean_asr_text(tp.join_units(u.get("text", "") for u in rch.get(str(k), []))) for k in have]
         parts = tp.split_by_reference(stream, refs)
+        # 切り直した方が参照とよく合うときだけ使う(合わないなら、元の比による切り分けのまま)
+        old = [tp.join_units(u.get("text", "") for u in ch[str(k)]) for k in have]
+
+        def fit(ps):
+            pairs = [(tp.norm(p), tp.norm(r)) for p, r in zip(ps, refs) if r]
+            return sum(tp.ratio(a, b) for a, b in pairs) / len(pairs) if pairs else 0.0
+        before, after = fit(old), fit(parts)
+        if after <= before:
+            out[e["name"]] = dict(results[e["name"]], realign_skipped=f"{after:.2f} ≤ {before:.2f}")
+            continue
         by_id = {c["id"]: c for c in chunks}
         new = dict(ch)
         for k, p in zip(have, parts):
             new[str(k)] = ([{"start": by_id[k]["start"], "end": by_id[k]["end"], "text": p, "timed": False,
                              "realigned": ref["name"]}] if p.strip() else [])
-        out[e["name"]] = dict(results[e["name"]], chunks=new, realigned=ref["name"])
+        out[e["name"]] = dict(results[e["name"]], chunks=new, realigned=f"{ref['name']}・一致 {before:.2f} → {after:.2f}")
     return out
 
 
@@ -1228,7 +1238,9 @@ def cmd_diag(args):
                 reasons[why] = reasons.get(why, 0) + 1
         chars0 = sum(len(before[n].get(c, "")) for c in ids)
         chars1 = sum(len(table[c]["norms"].get(n, "")) for c in ids if table[c].get("norms"))
-        extra = f"・切り直し(参照 {realigned[n].get('realigned')})" if realigned[n].get("realigned") else ""
+        extra = (f"・切り直し(参照 {realigned[n].get('realigned')})" if realigned[n].get("realigned") else
+                 f"・切り直さない(参照との一致 {realigned[n].get('realign_skipped')})"
+                 if realigned[n].get("realign_skipped") else "")
         say(f"  {n:18s} 文のある区間 {len(got):3d} → {len(after):3d}・字数 {chars0:6d} → {chars1:6d}"
             f"・Gemini の送り方 {results[n].get('variant', '-')}{extra}")
         if reasons:
