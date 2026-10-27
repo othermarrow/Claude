@@ -40,7 +40,7 @@ import net
 import preflight
 import textproc as tp
 
-VERSION = "1.10"
+VERSION = "1.11"
 LABELS = "ABCDEFGHIJ"
 _print_lock = threading.Lock()
 
@@ -213,7 +213,8 @@ def distribute(units, grp, layout):
         parts = tp.split_proportional(text, [c["speech"] for c in grp]) if len(grp) > 1 else [text]
         for k, p in enumerate(parts):
             if p.strip():
-                out[k].append({"start": grp[k]["start"], "end": grp[k]["end"], "text": p, "timed": False})
+                out[k].append({"start": grp[k]["start"], "end": grp[k]["end"], "text": p, "timed": False,
+                               "split": len(grp) > 1})
     return out
 
 
@@ -265,6 +266,8 @@ def asr_worker(e, ctx, glossary, label):
             cache["chunks"][str(c["id"])] = units
         if res.get("prompt"):
             cache["prompt"] = res["prompt"]
+        if res.get("variant") is not None:
+            cache["variant"] = res["variant"]
         save_json(path, cache)
         if time.time() - last_t > 20 or gi == len(groups) - 1:
             last_t = time.time()
@@ -287,6 +290,45 @@ def run_asr(ctx, engines, glossary):
 # ==========================================
 def _speech_frac(vad, s, e):
     return audio.speech_seconds(vad["raw"], s, e) / max(e - s, 1e-6)
+
+
+def realign_untimed(results, engines, chunks):
+    """時刻が返らず長さの比で切り分けたエンジン(Gemini の文字起こし)の文を、別のエンジンの
+    区間ごとの文に合わせて切り分け直す。results は書き換えず、新しい dict を返す。
+
+    実機で gemini-transcribe は単語の時刻を返さず、比で切った区間の4分の1ほどが隣の区間とずれた。
+    """
+    out = dict(results)
+    trust = {e["name"]: e.get("trust", 0.5) for e in engines}
+    ids = [c["id"] for c in chunks if not c["silent"]]
+    for e in engines:
+        if not e.get("max_request_sec"):
+            continue
+        ch = (results.get(e["name"]) or {}).get("chunks") or {}
+        have = [k for k in ids if str(k) in ch]
+        untimed = [k for k in have if ch[str(k)] and all(u.get("timed") is False for u in ch[str(k)])]
+        if len(have) < 2 or len(untimed) < len(have) / 2:
+            continue
+        ref = None
+        for o in sorted(engines, key=lambda o: -trust[o["name"]]):
+            rch = (results.get(o["name"]) or {}).get("chunks") or {}
+            if o["name"] != e["name"] and not o.get("max_request_sec") and \
+                    sum(1 for k in have if str(k) in rch) >= 0.9 * len(have):
+                ref = o
+                break
+        if not ref:
+            continue
+        rch = results[ref["name"]]["chunks"]
+        stream = "".join(tp.join_units(u.get("text", "") for u in ch[str(k)]) for k in have)
+        refs = [tp.clean_asr_text(tp.join_units(u.get("text", "") for u in rch.get(str(k), []))) for k in have]
+        parts = tp.split_by_reference(stream, refs)
+        by_id = {c["id"]: c for c in chunks}
+        new = dict(ch)
+        for k, p in zip(have, parts):
+            new[str(k)] = ([{"start": by_id[k]["start"], "end": by_id[k]["end"], "text": p, "timed": False,
+                             "realigned": ref["name"]}] if p.strip() else [])
+        out[e["name"]] = dict(results[e["name"]], chunks=new, realigned=ref["name"])
+    return out
 
 
 def assemble(ctx, engines, results, glossary):
@@ -913,6 +955,7 @@ def process_file(src, out_stem, engines, merge_models, proof_models, glossary, f
         say("  声が見つかりませんでした。")
     say("  [文字起こし] " + ", ".join(f"{LABELS[i]}={e['name']}" for i, e in enumerate(engines)))
     results = run_asr(ctx, engines, glossary) if voiced else {}
+    results = realign_untimed(results, engines, ctx["chunks"])
     table = assemble(ctx, engines, results, glossary)
     merges, items = {}, []
     if config.MERGE_ENABLED and merge_models:
@@ -1130,6 +1173,90 @@ def cmd_check(args):
     say("\n✗ のものは、使わずに残りで動きます。")
 
 
+def _shifted(texts, base, ids):
+    """隣の区間の方が base とよく一致する区間の数 / 比べた区間の数。"""
+    n = shifted = 0
+    for j, k in enumerate(ids):
+        t, b = texts.get(k), base.get(k)
+        if not t or not b:
+            continue
+        n += 1
+        nb = max([tp.ratio(t, base[ids[x]]) for x in (j - 1, j + 1) if 0 <= x < len(ids) and base.get(ids[x])] or [0])
+        if nb > tp.ratio(t, b) + 0.15:
+            shifted += 1
+    return shifted, n
+
+
+def cmd_diag(args):
+    """途中経過から、照合の段で何が起きたかを数字だけで出す(本文は表示しない)。"""
+    import glob
+    stem = args.files[1] if len(args.files) > 1 else ""
+    stem = re.sub(r"[^\w\-]+", "_", os.path.splitext(os.path.basename(stem))[0])[:40]
+    wds = sorted(glob.glob(os.path.join(config.WORK_DIR, f"{stem}*_*")), key=os.path.getmtime)
+    wds = [w for w in wds if os.path.exists(os.path.join(w, "chunks.json"))]
+    if not wds:
+        sys.exit(f"途中経過が見つかりません: {config.WORK_DIR}/{stem}*")
+    wd = wds[-1]
+    glossary = tp.Glossary.load(config.GLOSSARY_FILE)
+    ctx = {"wd": wd, "chunks": load_json(os.path.join(wd, "chunks.json")), "vad": load_json(os.path.join(wd, "vad.json"))}
+    engines = [dict(e) for e in config.ENGINES if e.get("enabled", True)]
+    results = {}
+    for e in engines:
+        p = asr_cache_path(e, ctx, glossary)
+        if not os.path.exists(p):
+            olds = sorted(glob.glob(os.path.join(wd, f"asr_{e['name']}_*.json")), key=os.path.getmtime)
+            p = olds[-1] if olds else p
+        if os.path.exists(p):
+            results[e["name"]] = load_json(p)
+    ids = [c["id"] for c in ctx["chunks"] if not c["silent"]]
+    say(f"作業フォルダ: {os.path.basename(wd)} / 声のある区間: {len(ids)}")
+    before = {n: {c: tp.norm(tp.clean_asr_text(tp.join_units(u.get("text", "") for u in us)))
+                  for c, us in ((int(k), v) for k, v in (r.get("chunks") or {}).items())} for n, r in results.items()}
+    realigned = realign_untimed(results, engines, ctx["chunks"])
+    table = assemble(ctx, engines, realigned, glossary)
+    say("\n[エンジンごと](照合の前 → 後)")
+    for e in engines:
+        n = e["name"]
+        if n not in results:
+            say(f"  {n:18s} 途中経過なし")
+            continue
+        got = [c for c in ids if before[n].get(c)]
+        after = [c for c in ids if table[c]["texts"].get(n)]
+        reasons = {}
+        for c in ids:
+            for why, _t in table[c]["dropped"].get(n, []):
+                reasons[why] = reasons.get(why, 0) + 1
+        chars0 = sum(len(before[n].get(c, "")) for c in ids)
+        chars1 = sum(len(table[c]["norms"].get(n, "")) for c in ids if table[c].get("norms"))
+        extra = f"・切り直し(参照 {realigned[n].get('realigned')})" if realigned[n].get("realigned") else ""
+        say(f"  {n:18s} 文のある区間 {len(got):3d} → {len(after):3d}・字数 {chars0:6d} → {chars1:6d}"
+            f"・Gemini の送り方 {results[n].get('variant', '-')}{extra}")
+        if reasons:
+            say("      捨てた: " + "・".join(f"{k} {v}" for k, v in sorted(reasons.items(), key=lambda x: -x[1])))
+    if ctx.get("junk_engines"):
+        say("  外したエンジン: " + "・".join(f"{k}({v})" for k, v in ctx["junk_engines"].items()))
+    ags = [table[c]["agreement"] for c in ids if table[c].get("agreement") is not None]
+    say(f"\n一致度の平均(書き出しと同じ計算): {sum(ags) / len(ags):.2f}({len(ags)} 区間)" if ags else "\n一致度: -")
+    low = sum(1 for a in ags if a < 0.3)
+    say(f"  0.3 未満の区間: {low}")
+    names = [e["name"] for e in engines if e["name"] in results]
+    say("\n組ごとの一致(照合の後。両方に文がある区間の平均)")
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            both = [c for c in ids if table[c].get("norms", {}).get(a) and table[c]["norms"].get(b)]
+            if both:
+                s = sum(tp.ratio(table[c]["norms"][a], table[c]["norms"][b]) for c in both) / len(both)
+                say(f"  {a} × {b}: {s:.2f}({len(both)} 区間)")
+    base = {c: table[c]["norms"].get("whisper-v3", "") for c in ids if table[c].get("norms")}
+    say("\n区間ずれの疑い(whisper-v3 と比べる。照合の前 → 後)")
+    for n in names:
+        if n == "whisper-v3":
+            continue
+        s0, n0 = _shifted(before[n], before.get("whisper-v3", {}), ids)
+        s1, n1 = _shifted({c: table[c]["norms"].get(n, "") for c in ids if table[c].get("norms")}, base, ids)
+        say(f"  {n}: {s0}/{n0} → {s1}/{n1}")
+
+
 def cmd_selftest(_args):
     import selftest
     sys.exit(0 if selftest.run() else 1)
@@ -1156,7 +1283,7 @@ def main():
     args = ap.parse_args()
     os.makedirs(config.WORK_DIR, exist_ok=True)
     net.start_heartbeat(config.HEARTBEAT_SEC)
-    cmd = args.files[0] if args.files and args.files[0] in ("check", "list", "selftest", "models") else None
+    cmd = args.files[0] if args.files and args.files[0] in ("check", "list", "selftest", "models", "diag") else None
     try:
         if cmd == "check":
             cmd_check(args)
@@ -1164,6 +1291,8 @@ def main():
             cmd_list(args)
         elif cmd == "selftest":
             cmd_selftest(args)
+        elif cmd == "diag":
+            cmd_diag(args)
         elif cmd == "models":
             import bench
             if args.reapply:

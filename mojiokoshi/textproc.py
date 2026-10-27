@@ -439,6 +439,65 @@ def new_unsupported(src: str, out: str, asr_ns, min_chars=None) -> int:
     return len(runs(mask, False, min_chars))
 
 
+def split_by_reference(text: str, refs):
+    """時刻の無い長い書き起こし text を、区間ごとの参照の文 refs(別のエンジンの区間ごとの結果)に
+    合わせて切り分ける。
+
+    区間の境目ごとに、参照の「前の区間の終わり12字+次の区間の始め12字」を text の中で探し
+    (前の切れ目から参照の長さ分だけ進んだ辺り ±300 字)、その継ぎ目で切る。近くに句点があれば
+    そこへ寄せる。見つからない境目は長さの比で決める。
+    """
+    n = len(refs)
+    if n <= 1:
+        return [text]
+    gn, st, _ = norm_map(text, drop_fillers=False)
+    rns = [norm(r or "", drop_fillers=False) for r in refs]
+    if not any(rns):
+        return split_proportional(text, [1] * n)
+    total = sum(len(r) for r in rns)
+    big = len(gn)
+    scale = big / total
+    cuts, prev = [], 0
+    for i in range(n - 1):
+        est = prev + int(len(rns[i]) * scale)
+        tail, head = rns[i][-12:], rns[i + 1][:12]
+        found = None
+        if len(tail) + len(head) >= 8:
+            lo, hi = max(prev, est - 300), min(big, est + 300)
+            s = tail + head
+            junc = len(tail)
+            blocks = [b for b in difflib.SequenceMatcher(None, s, gn[lo:hi], autojunk=False).get_matching_blocks()
+                      if b.size > 0]
+            if sum(b.size for b in blocks) >= 6:
+                for b in blocks:
+                    if b.a <= junc < b.a + b.size:      # 継ぎ目をまたいで一致している
+                        found = lo + b.b + (junc - b.a)
+                        break
+                if found is None:
+                    # 次の区間の始まりを優先する(前の区間の終わりは聞き落としで欠けやすい)
+                    after = [b for b in blocks if b.a >= junc]
+                    before = [b for b in blocks if b.a + b.size <= junc]
+                    if after:
+                        found = lo + after[0].b - (after[0].a - junc)
+                    elif before:
+                        found = lo + before[-1].b + before[-1].size
+        j = max(prev, min(big, found if found is not None else est))
+        cuts.append(j)
+        prev = j
+    ocuts, last = [], 0
+    for j in cuts:
+        pos = st[j] if j < big else len(text)
+        best, bd = pos, 99
+        for k in range(max(last, pos - 12), min(len(text), pos + 12) + 1):
+            if k > 0 and text[k - 1] in "。！？!?" and abs(k - pos) < bd:
+                best, bd = k, abs(k - pos)
+        best = max(last, best)
+        ocuts.append(best)
+        last = best
+    bounds = [0] + ocuts + [len(text)]
+    return [text[bounds[i]:bounds[i + 1]] for i in range(n)]
+
+
 def split_proportional(text: str, weights):
     """時刻の無い文字起こしを、区間の長さに比例して文の切れ目で分ける。"""
     if len(weights) <= 1:

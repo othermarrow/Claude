@@ -594,9 +594,9 @@ def gemini_transcribe(engine, audio, glossary):
     text, words = parse_interaction(j)
     if words:
         units = [{"start": s, "end": e, "text": t, "word": True} for s, e, t in words]
-        return {"units": units, "text": text}
+        return {"units": units, "text": text, "variant": engine.get("_variant", 0)}
     return {"units": [{"start": 0.0, "end": audio.duration, "text": text, "timed": False}] if text.strip() else [],
-            "text": text}
+            "text": text, "variant": engine.get("_variant", 0)}
 
 
 GEMINI_ASR_PROMPT = """この音声を日本語で、話されたとおりに一字一句書き起こしてください。
