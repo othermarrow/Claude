@@ -1,13 +1,16 @@
 /* ミナモ：サーバーを止めていても画面だけは開けるようにする。
    まずネットワーク（Termux のサーバー）から取り、取れないときは前に取っておいたものを返す。
    /api/ は取っておかない。ファイルを足したら FILES に足し、VERSION を上げる。 */
-const VERSION = "minamo-v10";
+const VERSION = "minamo-v11";
 const FILES = [
   "./",
   "./index.html",
   "./app.js",
   "./fx.js",
   "./excess.js",
+  "./archive.html",
+  "./archive.js",
+  "./archive-data.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
