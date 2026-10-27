@@ -77,7 +77,9 @@ body.dread #dread { opacity: 1; }
 #win.deep #wbar { background: #0c2a2e; color: var(--deep-ink); }
 #wtitle { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #wbar button { background: var(--win); color: var(--ink); border: 2px outset var(--win-light); padding: 0 .55em; line-height: 1.4; }
-#wtool { flex: none; display: flex; gap: .3em; align-items: center; padding: .3em; border-bottom: 1px solid var(--win-dark); flex-wrap: wrap; }
+/* ブラウザのボタンは、親指の届く下に */
+#wtool { flex: none; order: 3; display: flex; gap: .3em; align-items: center; padding: .3em; border-top: 1px solid var(--win-dark); flex-wrap: wrap; }
+#wbody { order: 2; }
 #wtool:empty { display: none; }
 #wtool input { flex: 1; min-width: 6em; padding: .2em .4em; border: 2px inset var(--win-light); background: #fff; color: var(--ink); }
 #win.deep #wtool input { flex-basis: 100%; }

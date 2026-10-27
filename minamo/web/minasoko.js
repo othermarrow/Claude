@@ -253,9 +253,9 @@
   function flagAsk(id) {
     const p = pageOf(id);
     if (id in S.flagged) return toast(S.flagged[id] ? "この頁は、通報済みです。" : "この頁の通報は、取り消されています。");
-    $("wbody").insertAdjacentHTML("afterbegin", `<div class="flagbox" id="fbox">この頁を「水面の言葉」で通報しますか？
+    $("wbody").insertAdjacentHTML("beforeend", `<div class="flagbox" id="fbox">この頁を「水面の言葉」で通報しますか？
       <div class="row"><button class="btn" type="button" id="fyes">通報する</button><button class="btn" type="button" id="fno">やめる</button></div></div>`);
-    $("wbody").scrollTop = 0;
+    $("wbody").scrollTop = $("wbody").scrollHeight;
     $("fno").onclick = () => $("fbox").remove();
     $("fyes").onclick = () => {
       S.flagged[id] = !!p.viol;
@@ -492,8 +492,8 @@
     if (!box) return;
     const old = box.querySelector(".addrmsg");
     if (old) old.remove();
-    box.insertAdjacentHTML("afterbegin", `<p class="addrmsg">${esc(t)}</p>`);
-    $("wbody").scrollTop = 0;
+    box.insertAdjacentHTML("beforeend", `<p class="addrmsg">${esc(t)}</p>`);
+    $("wbody").scrollTop = $("wbody").scrollHeight;
     fx("glitch", 150);
   }
   async function openDeep(id) {
@@ -650,7 +650,7 @@
     const w = $("warn");
     w.hidden = false;
     const k = P.t > 6 ? 0 : P.t > 3 ? 1 : 2;
-    w.innerHTML = `${esc(D.presence.warn[k])}<span class="sec">${S.hidOnce ? "" : "画面を伏せて（上の「伏せる」）　"}あと ${P.t} 秒</span>`;
+    w.innerHTML = `${esc(D.presence.warn[k])}<span class="sec">${S.hidOnce ? "" : "「伏せる」で画面を伏せて　"}あと ${P.t} 秒</span>`;
   }
   function nearStart() {
     $("warn").hidden = true;
