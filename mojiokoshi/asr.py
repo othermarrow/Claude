@@ -277,9 +277,10 @@ def riva_transport():
 
 def grpc_call(path, requests, metadata, timeout, streaming=False):
     """gRPC を呼び、応答メッセージ(bytes)の並びを返す。"""
-    if riva_transport() == "grpcio":
-        return _grpc_call_grpcio(path, requests, metadata, timeout, streaming)
-    return _grpc_call_curl(path, requests, metadata, timeout)
+    with net.tracking("NVIDIA 音声認識"):
+        if riva_transport() == "grpcio":
+            return _grpc_call_grpcio(path, requests, metadata, timeout, streaming)
+        return _grpc_call_curl(path, requests, metadata, timeout)
 
 
 _channels = {}

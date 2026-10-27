@@ -252,6 +252,7 @@ TEACCH, ティーチ, 構造化
 | `HTTP 403: The model ... is blocked at the project level`(Groq) | Groq のプロジェクトでそのモデルが止められている。Chrome で console.groq.com を開き、プロジェクトの設定(エラーに出る URL)でモデル(gpt-oss・qwen)を有効にする |
 | `HTTP 404: Function ... Not found for account`(NVIDIA) | 一覧に載っていても、このアカウントでは配信されていないモデル。1.3 から同じ枠の次の候補へ自動で切り替わる |
 | 統合が 1 つも動かない(フロントマターの `merge_models: []`) | `mojilog 300` の「✗ 統合」の行を見る。上限なら時間をおく |
+| 途中で止まったように見える | 1.6 から、応答を待っている問い合わせを 1 分ごとに「… 応答待ち」と表示する。応答しないモデルは 1 回送り直して外す(以前は最悪 30 分以上、何も表示せずに待っていた)。`mojilog 30` で最後の表示を見る |
 | 動きを確かめたい | `python ~/mojiokoshi/mojiokoshi.py selftest`(通信しない自己点検) |
 
 ## 確認状況

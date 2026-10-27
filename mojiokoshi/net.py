@@ -16,7 +16,7 @@ import config
 
 # 名乗り。Python 標準の「Python-urllib/3.x」のままだと、Groq の前段(Cloudflare)に
 # 機械アクセスとして弾かれる(HTTP 403 error code: 1010)
-USER_AGENT = "mojiokoshi/1.5 (Termux; +https://github.com/othermarrow/Claude)"
+USER_AGENT = "mojiokoshi/1.6 (Termux; +https://github.com/othermarrow/Claude)"
 
 # Ctrl-C で全スレッドを止めるときに立てる
 STOP = threading.Event()
@@ -29,6 +29,10 @@ class ApiError(Exception):
         super().__init__(f"{what} HTTP {status}: {message}".strip())
         self.status = status
         self.message = message
+
+
+class NoResponse(ApiError):
+    """時間内に応答が無かった(送り直しても同じだったもの)。そのモデルは今回は使わない。"""
 
 
 class QuotaExhausted(ApiError):
@@ -114,6 +118,38 @@ def limiter(name, rpm):
         return _limiters[name]
 
 
+# 応答待ちの表示。HEARTBEAT_SEC ごとに、長く待っている問い合わせを出す
+# (応答しないモデルを待っている間、画面が止まって見えないように)
+_active = {}
+_active_lock = threading.Lock()
+_active_ids = iter(range(1, 1 << 62))
+
+
+class tracking:
+    def __init__(self, what):
+        self.what = what
+
+    def __enter__(self):
+        with _active_lock:
+            self.id = next(_active_ids)
+            _active[self.id] = (self.what, time.monotonic())
+
+    def __exit__(self, *a):
+        with _active_lock:
+            _active.pop(self.id, None)
+
+
+def start_heartbeat(interval=60):
+    def loop():
+        while not STOP.wait(interval):
+            now = time.monotonic()
+            with _active_lock:
+                rows = [(w, now - t) for w, t in _active.values() if now - t >= interval]
+            for w, sec in rows:
+                print(f"  … 応答待ち: {w or '問い合わせ'}({int(sec // 60)}分{int(sec % 60)}秒)", flush=True)
+    threading.Thread(target=loop, daemon=True).start()
+
+
 def sleep(sec):
     """STOP が立ったらすぐ戻る sleep。"""
     if sec <= 0:
@@ -168,7 +204,7 @@ def request(method, url, *, headers=None, data=None, timeout=None, limit=None,
     """
     timeout = timeout or config.REQUEST_TIMEOUT
     retries = config.MAX_RETRIES if retries is None else retries
-    attempt = 0
+    attempt = timeouts = 0
     while True:
         if STOP.is_set():
             raise Stopped()
@@ -178,7 +214,7 @@ def request(method, url, *, headers=None, data=None, timeout=None, limit=None,
         h.update(headers or {})
         req = urllib.request.Request(url, data=data, method=method, headers=h)
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:
+            with tracking(what), urllib.request.urlopen(req, timeout=timeout) as r:
                 body = r.read()
                 return r.status, {k.lower(): v for k, v in r.headers.items()}, body
         except urllib.error.HTTPError as e:
@@ -208,6 +244,13 @@ def request(method, url, *, headers=None, data=None, timeout=None, limit=None,
                 continue
             raise ApiError(e.code, msg, what)
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+            if isinstance(e, TimeoutError) or "timed out" in str(e):
+                # 応答しないモデルは送り直しても応答しないことが多い。1回だけ送り直す
+                timeouts += 1
+                if timeouts > config.TIMEOUT_RETRIES:
+                    raise NoResponse(0, f"{int(timeout)}秒待っても応答が無い", what)
+                print(f"  … {what}: {int(timeout)}秒待っても応答が無いので、送り直します", flush=True)
+                continue
             attempt += 1
             if attempt > retries:
                 raise ApiError(0, f"通信エラー: {e}", what)

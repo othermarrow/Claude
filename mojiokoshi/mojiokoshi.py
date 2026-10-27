@@ -40,7 +40,7 @@ import net
 import preflight
 import textproc as tp
 
-VERSION = "1.5"
+VERSION = "1.6"
 LABELS = "ABCDEFGHIJ"
 _print_lock = threading.Lock()
 
@@ -491,7 +491,7 @@ def llm_worker_one(stage, model, items, ctx, glossary_text, batch, fn, validate,
         try:
             got, _finish = fn(model, lst, glossary_text)
             state["fails"] = 0
-        except (net.QuotaExhausted, llm.ModelUnavailable) as ex:
+        except (net.QuotaExhausted, net.NoResponse, llm.ModelUnavailable) as ex:
             say(f"  ✗ {stage_ja} {model['name']}({model['model']}): 今回はここまで — {str(ex)[:160]}")
             if isinstance(ex, llm.ModelUnavailable):
                 outer["unavailable"] = True
@@ -1151,6 +1151,7 @@ def main():
     ap.add_argument("--all", action="store_true", help="check で無効のエンジンも確かめる")
     args = ap.parse_args()
     os.makedirs(config.WORK_DIR, exist_ok=True)
+    net.start_heartbeat(config.HEARTBEAT_SEC)
     cmd = args.files[0] if args.files and args.files[0] in ("check", "list", "selftest") else None
     try:
         if cmd == "check":

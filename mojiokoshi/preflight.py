@@ -28,6 +28,20 @@ def _say(*a):
     print(*a, flush=True)
 
 
+class _quick:
+    """確かめの問い合わせは、待ち時間を短くし、送り直しを減らす(応答しないものですぐ止まらないように)。"""
+    NAMES = {"REQUEST_TIMEOUT": 45, "MAX_RETRIES": 1, "MAX_WAIT_SEC": 30, "TIMEOUT_RETRIES": 0}
+
+    def __enter__(self):
+        self.old = {k: getattr(config, k) for k in self.NAMES}
+        for k, v in self.NAMES.items():
+            setattr(config, k, v)
+
+    def __exit__(self, *a):
+        for k, v in self.old.items():
+            setattr(config, k, v)
+
+
 def _load():
     try:
         return json.load(open(_CACHE, encoding="utf-8"))
@@ -46,7 +60,7 @@ def _remembered(cache, key):
     ent = cache.get(key)
     if not ent:
         return None
-    ttl = 3600 if ent["kind"] == "quota" else config.PREFLIGHT_CACHE_HOURS * 3600
+    ttl = 3600 if ent["kind"] in ("quota", "noresponse") else config.PREFLIGHT_CACHE_HOURS * 3600
     if time.time() - ent["t"] > ttl:
         return None
     return ent
@@ -59,13 +73,17 @@ def probe_llm(m, cache, fresh):
     if ent:
         return ent["kind"], ent["why"] + "(確認済み)"
     t0 = time.time()
+    _say(f"    … {m['name']}: {m['model']} に問い合わせ中")
     try:
-        llm.chat(m, "短く答える。", "「はい」とだけ答えてください。", max_tokens=300)
+        with _quick():
+            llm.chat(m, "短く答える。", "「はい」とだけ答えてください。", max_tokens=300)
         kind, why = "ok", f"応答 {time.time() - t0:.1f}秒"
     except llm.ModelUnavailable as ex:
         kind, why = "unavailable", str(ex)[:150]
     except net.QuotaExhausted as ex:
         kind, why = "quota", str(ex)[:150]
+    except net.NoResponse as ex:
+        kind, why = "noresponse", str(ex)[:150]
     except net.ApiError as ex:
         kind, why = "error", str(ex)[:150]
     cache[key] = {"t": time.time(), "kind": kind, "why": why}
@@ -90,7 +108,7 @@ def llm_models(names, label, fresh=False):
                 out.append(m)
                 break
             _say(f"  ✗ {label} {n}: {m['model']} — {why}")
-            if kind == "unavailable":
+            if kind in ("unavailable", "noresponse"):
                 tried.add(m["model"])          # 同じ枠の次の候補へ
                 continue
             break                              # 上限・通信の失敗は、この枠を今回は使わない
@@ -119,14 +137,18 @@ def engines(es, fresh=False):
                 riva = e["kind"].startswith("riva")
                 fmt = ("pcm" if config.RIVA_AUDIO == "pcm" else "flac") if riva else config.UPLOAD_FORMAT
                 t0 = time.time()
+                _say(f"    … {e['name']}: 問い合わせ中")
                 try:
                     fpath, pcm, _ = audio.build_request_audio(wav, [(0, 1.5)], os.path.join(td, "r"), fmt)
-                    asr.transcribe(dict(e), asr.Audio(fpath, fmt, pcm, 1.5), tp.Glossary())
+                    with _quick():
+                        asr.transcribe(dict(e), asr.Audio(fpath, fmt, pcm, 1.5), tp.Glossary())
                     kind, why = "ok", f"応答 {time.time() - t0:.1f}秒"
                 except asr.EngineFatal as ex:
                     kind, why = "unavailable", str(ex)[:150]
                 except net.QuotaExhausted as ex:
                     kind, why = "quota", str(ex)[:150]
+                except net.NoResponse as ex:
+                    kind, why = "noresponse", str(ex)[:150]
                 except (net.ApiError, asr.GrpcError, OSError) as ex:
                     kind, why = "error", str(ex)[:150]
                 cache[key] = {"t": time.time(), "kind": kind, "why": why}
