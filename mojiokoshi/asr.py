@@ -565,18 +565,24 @@ def gemini_transcribe(engine, audio, glossary):
     if engine.get("glossary") and glossary and glossary.vocab():
         tc["custom_vocabulary"] = glossary.vocab()
     # 受け付けない項目があれば外して送り直す(上から順に試す)
-    variants = [
+    # (transcription_config, 出力の上限を大きくするか)。実機で、20分の音声に対して他のエンジンの
+    # 半分ほどの字数しか返らなかった(出力の上限で切れた疑い)ので、まず上限を上げて頼む
+    tcs = [
         dict(tc, mode={"type": "verbatim", "timestamp_granularities": ["word"]}),
         dict(tc, timestamp_granularities=["word"]),
         dict(tc, mode={"type": "verbatim"}),
         {"language_codes": [config.ASR_LANGUAGE_BCP47]},
     ]
+    variants = [(tcs[0], True)] + [(t, False) for t in tcs]
     lim = net.limiter(f"gemini:{engine['model']}", config.RPM["gemini"])
     try:
         i = engine.get("_variant", 0)
         while True:
-            body = {"model": engine["model"], "input": [part], "store": False,
-                    "generation_config": {"transcription_config": variants[i]}}
+            tcfg, big = variants[i]
+            gen = {"transcription_config": tcfg}
+            if big:
+                gen["max_output_tokens"] = 65536
+            body = {"model": engine["model"], "input": [part], "store": False, "generation_config": gen}
             try:
                 j = net.request_json("POST", f"{GEMINI_BASE}/v1beta/interactions", body,
                                      headers=_gemini_headers(), limit=lim, what=what,

@@ -40,7 +40,7 @@ import net
 import preflight
 import textproc as tp
 
-VERSION = "1.12"
+VERSION = "1.13"
 LABELS = "ABCDEFGHIJ"
 _print_lock = threading.Lock()
 
@@ -214,12 +214,16 @@ def distribute(units, grp, layout):
         for k, p in enumerate(parts):
             if p.strip():
                 out[k].append({"start": grp[k]["start"], "end": grp[k]["end"], "text": p, "timed": False,
-                               "split": len(grp) > 1})
+                               "split": len(grp) > 1, "group": f"{grp[0]['id']}-{grp[-1]['id']}"})
     return out
 
 
 def asr_worker(e, ctx, glossary, label):
     path = asr_cache_path(e, ctx, glossary)
+    if e["name"] in ctx.get("redo", ()):
+        if os.path.exists(path):
+            os.remove(path)
+            say(f"  {label} {e['name']}: 途中経過を捨てて取り直します")
     cache = load_json(path) or {"chunks": {}}
     todo = [c for c in ctx["chunks"] if not c["silent"] and str(c["id"]) not in cache["chunks"]]
     total = sum(1 for c in ctx["chunks"] if not c["silent"])
@@ -319,9 +323,19 @@ def realign_untimed(results, engines, chunks):
         if not ref:
             continue
         rch = results[ref["name"]]["chunks"]
-        stream = "".join(tp.join_units(u.get("text", "") for u in ch[str(k)]) for k in have)
+        # 送った単位(group)ごとに切り直す。古い途中経過には group が無いので、全体を1つとして扱う
+        groups = []
+        for k in have:
+            g = next((u.get("group") for u in ch[str(k)] if u.get("group")), None)
+            if groups and groups[-1][0] == g:
+                groups[-1][1].append(k)
+            else:
+                groups.append((g, [k]))
         refs = [tp.clean_asr_text(tp.join_units(u.get("text", "") for u in rch.get(str(k), []))) for k in have]
-        parts = tp.split_by_reference(stream, refs)
+        parts = []
+        for _g, gids in groups:
+            stream = "".join(tp.join_units(u.get("text", "") for u in ch[str(k)]) for k in gids)
+            parts += tp.split_by_reference(stream, [refs[have.index(k)] for k in gids])
         # 切り直した方が参照とよく合うときだけ使う(合わないなら、元の比による切り分けのまま)
         old = [tp.join_units(u.get("text", "") for u in ch[str(k)]) for k in have]
 
@@ -358,6 +372,33 @@ def assemble(ctx, engines, results, glossary):
         bad = sum(1 for t in outs if tp.junk_reason(t, gkanji))
         if len(outs) >= 5 and bad / len(outs) > 0.5:
             junk_engines[e["name"]] = f"{bad}/{len(outs)} 区間が用語・漢字の羅列"
+    # このファイルでは、系統の違う他のエンジンとほとんど合わないエンジンも外す(区間がずれている・
+    # 一部しか書き起こしていない等。実機で gemini-transcribe が他と 0.17 しか合わず、一致度を下げた)
+    pre = {}
+    for e in engines:
+        if e["name"] in junk_engines:
+            continue
+        pre[e["name"]] = {int(k): tp.norm(tp.clean_asr_text(tp.join_units(u.get("text", "") for u in us)))
+                          for k, us in ((results.get(e["name"]) or {}).get("chunks") or {}).items()}
+
+    def pair_sim(a, b):
+        both = [k for k in pre[a] if pre[a][k] and pre[b].get(k)]
+        if len(both) < 10:
+            return None
+        return sum(tp.ratio(pre[a][k], pre[b][k]) for k in both) / len(both)
+    names_all = list(pre)
+    sim = {}
+    for i, a in enumerate(names_all):
+        for b in names_all[i + 1:]:
+            if fam_of[a] != fam_of[b]:
+                v = pair_sim(a, b)
+                if v is not None:
+                    sim[(a, b)] = sim[(b, a)] = v
+    for n in names_all:
+        mine = [v for (a, b), v in sim.items() if a == n]
+        others = [v for (a, b), v in sim.items() if a != n and b != n]
+        if mine and others and max(mine) < config.OUTLIER_ENGINE_SIM and max(others) >= 0.5:
+            junk_engines[n] = f"他のエンジンとの一致が {max(mine):.2f} 以下(他どうしは {max(others):.2f})"
     ctx["junk_engines"] = junk_engines
     for name, why in junk_engines.items():
         say(f"  ✗ {name}: このファイルでは使いません — {why}")
@@ -951,13 +992,14 @@ def write_outputs(ctx, out_stem, engines, results, table, merges, chosen, final,
 # ==========================================
 # 1ファイルの処理
 # ==========================================
-def process_file(src, out_stem, engines, merge_models, proof_models, glossary, fresh=False):
+def process_file(src, out_stem, engines, merge_models, proof_models, glossary, fresh=False, redo=()):
     started = time.time()
     wd = workdir_for(src)
     if fresh:
         shutil.rmtree(wd, ignore_errors=True)
         os.makedirs(wd, exist_ok=True)
     ctx = prepare(src, wd)
+    ctx["redo"] = frozenset(redo)
     voiced = [c for c in ctx["chunks"] if not c["silent"]]
     say(f"  長さ {hms(ctx['duration'])}・区間 {len(voiced)}(無音 {len(ctx['chunks']) - len(voiced)})"
         f"・声の割合 {sum(c['speech'] for c in ctx['chunks']) / max(ctx['duration'], 1) * 100:.0f}%")
@@ -1100,7 +1142,8 @@ def cmd_run(args):
     for i, f in enumerate(todo, 1):
         say(f"\n[{i}/{len(todo)}] {os.path.basename(f)}")
         try:
-            process_file(f, stems[f], engines, merge_models, proof_models, glossary, fresh=args.fresh)
+            process_file(f, stems[f], engines, merge_models, proof_models, glossary, fresh=args.fresh,
+                         redo=args.redo.split(",") if args.redo else ())
         except audio.AudioError as ex:
             say(f"  ✗ 音声を読めませんでした: {ex}")
 
@@ -1279,6 +1322,7 @@ def main():
     ap.add_argument("files", nargs="*", help="ファイル名(省略で入力フォルダのすべて)。check / list / selftest も使える")
     ap.add_argument("--force", action="store_true", help="書き出し済みでも作り直す(途中経過は使い回す)")
     ap.add_argument("--fresh", action="store_true", help="途中経過も捨てて最初から")
+    ap.add_argument("--redo", help="このエンジンの途中経過だけ捨てて取り直す(カンマ区切り。例: gemini-transcribe)")
     ap.add_argument("--engines", help="使うエンジンをカンマ区切りで(例: whisper-v3,parakeet)")
     ap.add_argument("--merge", help="統合に使う LLM をカンマ区切りで(LLMS の名前)")
     ap.add_argument("--proof", help="校正に使う LLM をカンマ区切りで(LLMS の名前)")

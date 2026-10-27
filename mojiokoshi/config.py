@@ -67,7 +67,7 @@ ENGINES = [
     dict(name="parakeet", kind="riva", function_id="71203149-d3b7-4460-8231-1be2543a1fca",
          language_code="ja-JP", family="parakeet", audio="denoise", glossary=False, trust=0.3, enabled=True),
     dict(name="gemini-transcribe", kind="gemini_transcribe", model="gemini-3.5-transcribe",
-         family="gemini", audio="light", glossary=True, max_request_sec=1200, trust=1.0, probe=False,
+         family="gemini", audio="light", glossary=True, max_request_sec=300, trust=1.0, probe=False,
          enabled=True),
     # NVIDIA 上の Whisper large-v3。function-id は build.nvidia.com/openai/whisper-large-v3 の
     # API のページで確かめること(check で ✗ になったら、そのページの値に書き換える)。
@@ -189,6 +189,10 @@ MIN_SPEECH_RATIO = 0.02
 WHISPER_NO_SPEECH_PROB = 0.6    # 無音らしさがこれより高く、
 WHISPER_LOGPROB = -1.0          # 平均対数確率がこれより低ければ捨てる
 WHISPER_COMPRESSION_RATIO = 2.4  # これより高い(同じ文の繰り返し)なら繰り返しを畳む
+# 系統の違うどのエンジンとも、ファイル全体でこれ未満しか合わないエンジンは、そのファイルでは外す
+# (他のエンジンどうしは 0.5 以上合っているとき)。実機で、20分ずつ送った gemini-transcribe が
+# 半分ほどの字数しか返さず、区間がずれて他と 0.17 しか合わなかった
+OUTLIER_ENGINE_SIM = 0.3
 # 1秒あたりの文字数がこれを超える候補は「多すぎる」と注記する(日本語の会話は 4〜10 字/秒)
 MAX_CHARS_PER_SEC = 20
 # 動画由来の定型句(無音や雑音で Whisper が書きがち)。他の系統のエンジンに無ければ消す。
