@@ -40,7 +40,7 @@ import net
 import preflight
 import textproc as tp
 
-VERSION = "1.6"
+VERSION = "1.7"
 LABELS = "ABCDEFGHIJ"
 _print_lock = threading.Lock()
 

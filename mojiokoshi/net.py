@@ -16,7 +16,7 @@ import config
 
 # 名乗り。Python 標準の「Python-urllib/3.x」のままだと、Groq の前段(Cloudflare)に
 # 機械アクセスとして弾かれる(HTTP 403 error code: 1010)
-USER_AGENT = "mojiokoshi/1.6 (Termux; +https://github.com/othermarrow/Claude)"
+USER_AGENT = "mojiokoshi/1.7 (Termux; +https://github.com/othermarrow/Claude)"
 
 # Ctrl-C で全スレッドを止めるときに立てる
 STOP = threading.Event()
@@ -196,7 +196,7 @@ def retry_after(headers, body_text):
 # 送受信
 # ------------------------------------------
 def request(method, url, *, headers=None, data=None, timeout=None, limit=None,
-            what="", retries=None):
+            what="", retries=None, max_wait=None, timeout_retries=None):
     """HTTP で送り、(status, headers(小文字のキー), body bytes) を返す。
 
     429・5xx・通信エラーは待って送り直す。4xx(429 以外)は ApiError を投げる。
@@ -204,6 +204,8 @@ def request(method, url, *, headers=None, data=None, timeout=None, limit=None,
     """
     timeout = timeout or config.REQUEST_TIMEOUT
     retries = config.MAX_RETRIES if retries is None else retries
+    max_wait = config.MAX_WAIT_SEC if max_wait is None else max_wait
+    timeout_retries = config.TIMEOUT_RETRIES if timeout_retries is None else timeout_retries
     attempt = timeouts = 0
     while True:
         if STOP.is_set():
@@ -224,12 +226,12 @@ def request(method, url, *, headers=None, data=None, timeout=None, limit=None,
             msg = _error_message(text)
             if e.code == 429:
                 wait, daily = retry_after(hdrs, text)
-                if (wait is not None and wait > config.MAX_WAIT_SEC) or (daily and (wait is None or wait > 60)):
+                if (wait is not None and wait > max_wait) or (daily and (wait is None or wait > 60)):
                     raise QuotaExhausted(429, msg, what)
                 attempt += 1
                 per_minute = "per minute" in msg.lower() or "(rpm)" in msg.lower() or "(tpm)" in msg.lower()
                 # 1分あたりの上限は待てば戻るので、多めに待つ(混んでいるだけのときも)
-                if attempt > (40 if per_minute else retries + 4):
+                if attempt > (40 if per_minute else retries + 4) or (max_wait < 60 and attempt > retries):
                     raise QuotaExhausted(429, msg, what)
                 pause = (wait if wait is not None else min(60, 5 * 2 ** min(attempt, 4))) + random.uniform(0.5, 2)
                 if pause > 60:
@@ -247,7 +249,7 @@ def request(method, url, *, headers=None, data=None, timeout=None, limit=None,
             if isinstance(e, TimeoutError) or "timed out" in str(e):
                 # 応答しないモデルは送り直しても応答しないことが多い。1回だけ送り直す
                 timeouts += 1
-                if timeouts > config.TIMEOUT_RETRIES:
+                if timeouts > timeout_retries:
                     raise NoResponse(0, f"{int(timeout)}秒待っても応答が無い", what)
                 print(f"  … {what}: {int(timeout)}秒待っても応答が無いので、送り直します", flush=True)
                 continue

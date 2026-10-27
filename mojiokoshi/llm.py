@@ -47,6 +47,11 @@ def list_models(provider, use_cache=True):
         key = net.key(provider)
         if not key:
             return None
+        if provider in LIST_ERRORS:            # この実行で取れなかったものは取り直さない
+            return set(ent["ids"]) if ent else None
+        print(f"    … {provider} のモデル一覧を取得中", flush=True)
+        # 一覧は 20 秒で打ち切る(取れなければ前に取った一覧か、候補の先頭を使う)
+        quick = dict(retries=1, timeout=20, max_wait=10, timeout_retries=0, what=f"{provider} のモデル一覧")
         try:
             if provider == "gemini":
                 ids, token = [], ""
@@ -54,18 +59,19 @@ def list_models(provider, use_cache=True):
                     url = "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000"
                     if token:
                         url += f"&pageToken={token}"
-                    j = net.request_json("GET", url, headers={"x-goog-api-key": key}, retries=2, what="モデル一覧")
+                    j = net.request_json("GET", url, headers={"x-goog-api-key": key}, **quick)
                     ids += [m["name"].removeprefix("models/") for m in j.get("models", [])]
                     token = j.get("nextPageToken")
                     if not token:
                         break
             else:
                 j = net.request_json("GET", PROVIDERS[provider] + "/models",
-                                     headers={"Authorization": f"Bearer {key}"}, retries=2, what="モデル一覧")
+                                     headers={"Authorization": f"Bearer {key}"}, **quick)
                 ids = [m["id"] for m in j.get("data", [])]
         except (net.ApiError, KeyError, TypeError) as e:
             LIST_ERRORS[provider] = str(e)[:160]
-            return None
+            print(f"    … {provider} のモデル一覧が取れない — {str(e)[:100]}", flush=True)
+            return set(ent["ids"]) if ent else None     # 古くても前に取った一覧を使う
         data[provider] = {"t": time.time(), "ids": ids}
         os.makedirs(config.WORK_DIR, exist_ok=True)
         tmp = cache + ".tmp"
