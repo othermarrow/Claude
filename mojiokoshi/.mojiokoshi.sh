@@ -3,7 +3,7 @@
 #   [ -f ~/.mojiokoshi.sh ] && . ~/.mojiokoshi.sh
 # 一覧: mojihelp
 
-unalias moji mojicheck mojilist mojilog mojiup mojihelp mojikeys 2>/dev/null
+unalias moji mojicheck mojilist mojilog mojiup mojihelp mojikeys mojimodels 2>/dev/null
 
 MOJI_DIR="$HOME/mojiokoshi"
 
@@ -22,6 +22,13 @@ moji() {
 
 # キー・モデル・エンジンが今使えるか: mojicheck [--deep] [--all]
 mojicheck() { python "$MOJI_DIR/mojiokoshi.py" check "$@"; }
+
+# モデル調べ: mojimodels [nvidia|groq|gemini] [--quick] [--apply]
+mojimodels() {
+  command -v termux-wake-lock >/dev/null 2>&1 && termux-wake-lock
+  python "$MOJI_DIR/mojiokoshi.py" models "$@"
+  command -v termux-wake-unlock >/dev/null 2>&1 && termux-wake-unlock
+}
 
 # 入力フォルダの音声と、済んだかどうか
 mojilist() { python "$MOJI_DIR/mojiokoshi.py" list; }
@@ -50,6 +57,8 @@ moji --fresh 会議.m4a   途中経過も捨てて最初から
 moji --no-proof        校正しない
 moji --engines whisper-v3,parakeet   エンジンを選ぶ
 mojicheck              キー・モデル・エンジンの確認(--deep で LLM にも問い合わせる)
+mojimodels nvidia      一覧のモデルを全部、統合役として試して順位を付ける(--quick は応答だけ)
+mojimodels --apply     調べ直して、◎ のモデルを点の順に設定へ反映する
 mojilist               入力フォルダの一覧
 mojilog                最新のログ
 mojikeys               API キーの書き換え

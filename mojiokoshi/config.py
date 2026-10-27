@@ -257,6 +257,12 @@ def engine(name):
     raise KeyError(f"ENGINES に {name} がありません")
 
 
+# models --apply で書き出した、モデル調べの順位(config_local.py より先に読む)
+RANKED_CONFIG = os.path.expanduser("~/.config/mojiokoshi/models_ranked.py")
+if os.path.exists(RANKED_CONFIG):
+    with open(RANKED_CONFIG, encoding="utf-8") as _f:
+        exec(compile(_f.read(), RANKED_CONFIG, "exec"))
+
 if os.path.exists(LOCAL_CONFIG):
     with open(LOCAL_CONFIG, encoding="utf-8") as _f:
         exec(compile(_f.read(), LOCAL_CONFIG, "exec"))

@@ -40,7 +40,7 @@ import net
 import preflight
 import textproc as tp
 
-VERSION = "1.7"
+VERSION = "1.8"
 LABELS = "ABCDEFGHIJ"
 _print_lock = threading.Lock()
 
@@ -1145,6 +1145,8 @@ def main():
     ap.add_argument("--proof", help="校正に使う LLM をカンマ区切りで(LLMS の名前)")
     ap.add_argument("--no-proof", action="store_true", help="校正しない")
     ap.add_argument("--no-llm", action="store_true", help="LLM を使わない(音声認識の候補から選ぶだけ)")
+    ap.add_argument("--quick", action="store_true", help="models で、応答するかだけを見る(採点しない)")
+    ap.add_argument("--apply", action="store_true", help="models の結果(◎ のモデル)を設定に反映する")
     ap.add_argument("--no-preflight", action="store_true", help="実行前の確かめをしない")
     ap.add_argument("--recheck", action="store_true", help="実行前の確かめで、前回の結果を使わずに問い合わせ直す")
     ap.add_argument("--deep", action="store_true", help="check で LLM にも実際に問い合わせる")
@@ -1152,7 +1154,7 @@ def main():
     args = ap.parse_args()
     os.makedirs(config.WORK_DIR, exist_ok=True)
     net.start_heartbeat(config.HEARTBEAT_SEC)
-    cmd = args.files[0] if args.files and args.files[0] in ("check", "list", "selftest") else None
+    cmd = args.files[0] if args.files and args.files[0] in ("check", "list", "selftest", "models") else None
     try:
         if cmd == "check":
             cmd_check(args)
@@ -1160,6 +1162,10 @@ def main():
             cmd_list(args)
         elif cmd == "selftest":
             cmd_selftest(args)
+        elif cmd == "models":
+            import bench
+            bench.run([p for p in args.files[1:] if p in ("groq", "nvidia", "gemini")],
+                      quick=args.quick, apply=args.apply)
         else:
             cmd_run(args)
     except KeyboardInterrupt:
