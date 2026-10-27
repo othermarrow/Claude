@@ -160,8 +160,8 @@
            + `<span class="note">${esc(x.desc)}</span><span>${S.owned[x.id] ? "交換済み" + (x.id === "charm" && S.charmUsed ? "（ほどけた）" : "")
              : `<button class="btn" type="button" data-buy="${x.id}" ${S.points < x.price ? "disabled" : ""}>交換する</button>`}</span></li>`).join("")}</ul>`;
     }
-    win(`巡回票 ─ ${S.name}`, tabs + body);
-    $("wbody").querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { fx("click"); openJunkai(b.dataset.tab); });
+    win(`巡回票 ─ ${S.name}`, body, { tool: tabs });
+    $("wtool").querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { fx("click"); openJunkai(b.dataset.tab); });
     $("wbody").querySelectorAll("li[data-id]").forEach(li => li.onclick = () => readMail(li.dataset.id));
     $("wbody").querySelectorAll("[data-buy]").forEach(b => b.onclick = () => {
       const x = D.shop.find(y => y.id === b.dataset.buy);
@@ -297,17 +297,17 @@
          + `</div>`;
   }
   function bindTabs() {
-    $("wbody").querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { fx("click"); b.dataset.tab === "pm" ? openPM() : openKaisen(); });
+    $("wtool").querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { fx("click"); b.dataset.tab === "pm" ? openPM() : openKaisen(); });
   }
   function openKaisen(num) {
     dialed = num || "";
     const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "-", "0", "←"];
-    win("回線 ─ 夢網ダイヤラー 28800bps", kaisenTabs("dial") + `<div class="dial"><div class="disp" id="disp">${esc(dialed)}</div>
+    win("回線 ─ 夢網ダイヤラー 28800bps", `<div class="dial"><div class="disp" id="disp">${esc(dialed)}</div>
       <div class="keys">${keys.map(k => `<button class="btn" type="button" data-k="${k}">${k}</button>`).join("")}</div>
       <div class="row"><button class="btn" id="call" type="button">ダイヤルする</button></div>
       <div class="book"><p>手帳の番号：</p>${S.numbers.length ? S.numbers.map(n => `<button class="btn" type="button" data-n="${n}">${n}</button>`).join("")
                                              : "<p>（まだありません）</p>"}</div>
-      <div class="term" id="term" hidden></div></div>`);
+      <div class="term" id="term" hidden></div></div>`, { tool: kaisenTabs("dial") });
     bindTabs();
     const disp = () => { $("disp").textContent = dialed; };
     $("wbody").querySelectorAll("[data-k]").forEach(b => b.onclick = () => {
@@ -372,10 +372,10 @@
     if ($("dl")) $("dl").outerHTML = '<span class="note">入れてあります</span>';
   }
   function openPM() {
-    win("回線 ─ 私信", kaisenTabs("pm") + `<ul class="list">${S.nagi.slice().reverse().map(id => {
+    win("回線 ─ 私信", `<ul class="list">${S.nagi.slice().reverse().map(id => {
       const m = D.nagi.find(x => x.id === id);
       return `<li data-id="${id}" class="${S.nagiRead[id] ? "" : "unread"}"><span class="d">nagi</span><span>${esc(m.subject)}${S.nagiReplied[id] ? "　<span class=\"note\">（返信済み）</span>" : ""}</span></li>`;
-    }).join("")}</ul>`);
+    }).join("")}</ul>`, { tool: kaisenTabs("pm") });
     bindTabs();
     $("wbody").querySelectorAll("li[data-id]").forEach(li => li.onclick = () => readPM(li.dataset.id));
   }
