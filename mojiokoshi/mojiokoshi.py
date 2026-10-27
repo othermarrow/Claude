@@ -40,7 +40,7 @@ import net
 import preflight
 import textproc as tp
 
-VERSION = "1.4"
+VERSION = "1.5"
 LABELS = "ABCDEFGHIJ"
 _print_lock = threading.Lock()
 
@@ -449,8 +449,8 @@ def merge_items(ctx, engines, table):
     return items
 
 
-MERGE_VERSION = 1
-PROOF_VERSION = 1
+MERGE_VERSION = 2
+PROOF_VERSION = 2
 
 
 def llm_worker(stage, model, items, ctx, glossary_text, batch, fn, validate):
@@ -594,15 +594,24 @@ def choose(ctx, table, merges, items, glossary):
             ent = (cache.get("chunks") or {}).get(str(cid))
             if ent and ent.get("h") == it["h"] and ent.get("text") is not None:
                 cands[name] = ent["text"]
-        info = {"scores": {}, "flags": []}
+        info = {"scores": {}, "flags": [], "keep": {}}
+        base_n = row["norms"].get(row.get("medoid"), "") if row.get("medoid") else ""
         if cands:
             mn = {k: tp.norm(v) for k, v in cands.items()}
             for k in cands:
                 info["scores"][k] = tp.score_merge(mn[k], asr_ns, row["consensus"], [mn[o] for o in mn if o != k])
-            best = max(cands, key=lambda k: info["scores"][k][0])
-            text, by = cands[best], best
-            if asr_ns and info["scores"][best][1] < 0.5:
-                info["flags"].append(f"統合の根拠が薄い(根拠率 {info['scores'][best][1]:.2f})ため音声認識の候補を採用")
+                # 最も信頼できる候補の内容が、統合でどれだけ残ったか
+                info["keep"][k] = tp.coverage(base_n, [mn[k]], 3) if base_n else 1.0
+            kept = [k for k in cands if info["keep"][k] >= config.MERGE_MIN_KEEP]
+            if kept:
+                best = max(kept, key=lambda k: info["scores"][k][0])
+                text, by = cands[best], best
+                if asr_ns and info["scores"][best][1] < 0.5:
+                    info["flags"].append(f"統合の根拠が薄い(根拠率 {info['scores'][best][1]:.2f})ため音声認識の候補を採用")
+                    text, by = row["texts"][row["medoid"]], f"ASR:{row['medoid']}"
+            else:
+                worst = max(info["keep"].values())
+                info["flags"].append(f"統合で言葉が減った(候補の内容の残り {worst:.0%})ため音声認識の候補を採用")
                 text, by = row["texts"][row["medoid"]], f"ASR:{row['medoid']}"
         elif row.get("medoid"):
             text, by = row["texts"][row["medoid"]], f"ASR:{row['medoid']}"
@@ -632,6 +641,8 @@ def proof_ok(src, out, asr_ns):
         return False, f"元の文との一致 {sim:.2f}"
     if len(b) > len(a) * config.PROOF_MAX_GROWTH + 3:
         return False, f"長さ {len(b) / len(a):.2f} 倍"
+    if len(b) < len(a) * config.PROOF_MIN_KEEP - 2:
+        return False, f"言葉が減った(長さ {len(b) / len(a):.2f} 倍)"
     for mark in (config.INAUDIBLE_MARK, config.UNCERTAIN_MARK):
         if out.count(mark) < src.count(mark):
             return False, f"{mark} が消えた"
@@ -740,6 +751,19 @@ def write_outputs(ctx, out_stem, engines, results, table, merges, chosen, final,
     agreements = [table[c["id"]]["agreement"] for c in chunks if table[c["id"]].get("agreement") is not None]
     avg_agree = sum(agreements) / len(agreements) if agreements else None
     body = "\n\n".join(t for _, t in paras)
+    # 残存率: 最も信頼できる音声認識の候補の内容のうち、最終稿に残った割合(読みで比べる)
+    keep_of, base_total, kept_total = {}, 0, 0.0
+    for c in chunks:
+        row = table[c["id"]]
+        med = row.get("medoid")
+        if not med or c["id"] not in final:
+            continue
+        bn = row["norms"][med]
+        k = tp.coverage(bn, [tp.norm(tp.strip_marks(final[c["id"]]["text"]))], 3)
+        keep_of[c["id"]] = k
+        base_total += len(bn)
+        kept_total += k * len(bn)
+    keep_all = kept_total / base_total if base_total else None
     n_unc = body.count(config.UNCERTAIN_MARK)
     n_ina = body.count(config.INAUDIBLE_MARK)
     used = [e["name"] for e in engines if (results.get(e["name"]) or {}).get("chunks")]
@@ -764,6 +788,7 @@ def write_outputs(ctx, out_stem, engines, results, table, merges, chosen, final,
           f"merge_models: {yaml_list(models_used['merge'])}",
           f"proof_models: {yaml_list(models_used['proof'])}",
           f"agreement: {round(avg_agree, 2) if avg_agree is not None else 'null'}",
+          f"kept: {round(keep_all, 2) if keep_all is not None else 'null'}",
           f"uncertain: {n_unc}",
           f"inaudible: {n_ina}",
           f"status: {status}",
@@ -829,6 +854,8 @@ def write_outputs(ctx, out_stem, engines, results, table, merges, chosen, final,
             cmp_lines.append(f"- **採用**({info['by']}): {info['text']}")
             for fl in info["flags"]:
                 cmp_lines.append(f"  - {fl}")
+        if c["id"] in keep_of:
+            cmp_lines.append(f"- 残存率(候補 {row.get('medoid')} の内容のうち最終稿に残った割合): {keep_of[c['id']]:.0%}")
         if fin:
             if fin["proof_by"]:
                 cmp_lines.append(f"- **最終**(校正 {fin['proof_by']}): {fin['text']}")
@@ -841,6 +868,8 @@ def write_outputs(ctx, out_stem, engines, results, table, merges, chosen, final,
         reasons = []
         if ag is not None and ag < config.REVIEW_AGREEMENT:
             reasons.append(f"一致度 {ag:.2f}")
+        if keep_of.get(c["id"], 1.0) < config.MERGE_MIN_KEEP:
+            reasons.append(f"候補の内容の残り {keep_of[c['id']]:.0%}")
         if config.UNCERTAIN_MARK in text or config.INAUDIBLE_MARK in text:
             reasons.append("〔?〕/〔聞き取れず〕あり")
         if info and info["flags"]:
@@ -862,7 +891,8 @@ def write_outputs(ctx, out_stem, engines, results, table, merges, chosen, final,
         f.write("\n".join(review) + "\n")
     took = time.time() - started
     say(f"  ✓ 書き出しました: {os.path.join(config.OUTPUT_DIR, out_stem + '.md')}")
-    say(f"    一致度の平均 {('-' if avg_agree is None else f'{avg_agree:.2f}')}・〔?〕{n_unc}・〔聞き取れず〕{n_ina}・"
+    say(f"    一致度の平均 {('-' if avg_agree is None else f'{avg_agree:.2f}')}・"
+        f"残存率 {('-' if keep_all is None else f'{keep_all:.0%}')}・〔?〕{n_unc}・〔聞き取れず〕{n_ina}・"
         f"所要 {int(took // 60)}分{int(took % 60)}秒" + (f"・欠け: {', '.join(m.split('(')[0] for m in missing)}" if missing else ""))
 
 

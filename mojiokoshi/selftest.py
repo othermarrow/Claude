@@ -93,6 +93,20 @@ def _():
     assert not mj.proof_ok(src, "午後は散歩に行く予定です。記録は〔?〕毎日つけてください。夕方は買い物にも行きます。", [])[0]
 
 
+@check("言葉を削った統合・校正は使わない")
+def _():
+    full = "午後は散歩に行く予定です。記録は毎日つけてください。夕方は買い物に行きます。"
+    assert not mj.proof_ok(full, "午後は散歩に行く予定です。記録は毎日つけてください。", [])[0]
+    assert mj.proof_ok("えー、" + full, full, [])[0]
+    c = {"id": 0, "start": 0, "end": 30, "speech": 20, "ratio": 0.7, "silent": False}
+    row = {"chunk": c, "texts": {"A": full}, "norms": {"A": tp.norm(full)}, "medoid": "A",
+           "consensus": tp.norm(full), "notes": {}, "dropped": {}}
+    it = {"id": 0, "h": "h"}
+    merges = {"m": {"chunks": {"0": {"h": "h", "text": "午後は散歩に行く予定です。"}}}}
+    ch = mj.choose({}, {0: row}, merges, [it], tp.Glossary())
+    assert ch[0]["by"] == "ASR:A" and ch[0]["text"] == full, ch
+
+
 @check("NVIDIA(Riva)の protobuf の組み立てと読み取り")
 def _():
     g = tp.Glossary.parse("強度行動障害")
