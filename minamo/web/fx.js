@@ -72,6 +72,8 @@
     o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.02);
   }
   FX.beep = () => tone(880, 0.06, "square", 0.03);
+  // 一音だけ鳴らす（水底の MIDI 置き場）。delay は秒
+  FX.tone = (freq, dur, type, gain, delay) => { if (live()) tone(freq, dur, type, gain, ac.currentTime + (delay || 0)); };
   // 2026 年版の通知音（メッセージの着信・記憶の更新）
   FX.pop = (high) => {
     if (!live()) return;
