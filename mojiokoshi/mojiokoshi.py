@@ -40,7 +40,7 @@ import net
 import preflight
 import textproc as tp
 
-VERSION = "1.9"
+VERSION = "1.10"
 LABELS = "ABCDEFGHIJ"
 _print_lock = threading.Lock()
 
@@ -1148,6 +1148,7 @@ def main():
     ap.add_argument("--quick", action="store_true", help="models で、応答するかだけを見る(採点しない)")
     ap.add_argument("--apply", action="store_true", help="models の結果(◎ のモデル)を設定に反映する")
     ap.add_argument("--ok-only", action="store_true", help="models で、前回 応答したモデルだけ調べ直す")
+    ap.add_argument("--reapply", action="store_true", help="models で、調べ直さずに前回の結果から設定を作り直す")
     ap.add_argument("--no-preflight", action="store_true", help="実行前の確かめをしない")
     ap.add_argument("--recheck", action="store_true", help="実行前の確かめで、前回の結果を使わずに問い合わせ直す")
     ap.add_argument("--deep", action="store_true", help="check で LLM にも実際に問い合わせる")
@@ -1165,6 +1166,9 @@ def main():
             cmd_selftest(args)
         elif cmd == "models":
             import bench
+            if args.reapply:
+                bench.reapply()
+                return
             bench.run([p for p in args.files[1:] if p in ("groq", "nvidia", "gemini")],
                       quick=args.quick, apply=args.apply, ok_only=args.ok_only)
         else:

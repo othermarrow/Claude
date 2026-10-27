@@ -184,6 +184,21 @@ def load_results():
         return {}
 
 
+def reapply():
+    """調べ直さず、覚えている結果から設定を作り直す。"""
+    past = load_results()
+    allrows = [r for p in past.values() if p.get("version") == TEST_VERSION for r in p["rows"]]
+    snippet = ranked_config(allrows)
+    if not snippet:
+        print("覚えている結果に ◎ のモデルがありません。先に mojimodels を実行してください。", flush=True)
+        return
+    os.makedirs(os.path.dirname(RANKED_FILE), exist_ok=True)
+    with open(RANKED_FILE, "w", encoding="utf-8") as f:
+        f.write(snippet)
+    print(snippet)
+    print(f"設定に反映しました: {RANKED_FILE}", flush=True)
+
+
 def run(providers, quick=False, apply=False, workers=3, ok_only=False):
     providers = providers or ["nvidia", "groq", "gemini"]
     rows, lock = [], threading.Lock()
@@ -257,7 +272,8 @@ def write_report(rows, quick):
     rest = sorted([r for r in rows if "点" not in r], key=lambda r: (r["provider"], r["状態"], r["model"]))
     lines = [f"# モデル調査 {stamp}", "",
              "応答するかだけを見た結果。" if quick else
-             "統合役の試験(作り物の2区間)の結果。点 = 正解との一致 − 定型句を残した罰 − 足した言葉の罰。"
+             "統合役の試験(作り物の4区間)の結果。点 = 正解との一致 − 残した誤り×0.1 − 用語集を使わない罰 0.05"
+             " − 足した言葉・削った言葉の罰。"
              f"◎ は点 0.85 以上・残存 90% 以上・定型句を消した・{MAX_GOOD_SEC}秒以内のもの。"
              "誤り = 消すべき幻覚・多数決で負けるべき聞き取りを残した数。1回だけの試験なので目安。", ""]
     if ok:
@@ -287,17 +303,29 @@ def write_report(rows, quick):
     return path
 
 
+def _size(model):
+    """モデル名の大きさ(例: 550b-a55b → 550、e4b → 4)。分からなければ 0。"""
+    import re
+    nums = [float(x) for x in re.findall(r"(?<![a-z])e?(\d+(?:\.\d+)?)b(?![a-z])", model.lower())]
+    return max(nums) if nums else 0.0
+
+
 def ranked_config(rows):
-    """◎ のモデルを、サービスごとに点の順に並べた設定(config.py が読み込む)。"""
-    by = {}
-    for r in sorted([r for r in rows if good(r)], key=lambda r: (-r["点"], r["秒"])):
+    """◎ のモデルを、サービスごとに順位を付けて並べた設定(config.py が読み込む)。
+
+    点が同じ(小数2桁まで)なら大きいモデルを先に、それも同じなら速い順。試験は短いので、
+    同点のときは長い実際の書き起こしに強い大きいモデルを優先する。
+    """
+    by, gloss = {}, {}
+    for r in sorted([r for r in rows if good(r)], key=lambda r: (-round(r["点"], 2), -_size(r["model"]), r["秒"])):
         by.setdefault(r["provider"], []).append(r["model"])
+        gloss.setdefault(r["model"], r.get("用語") == "○")
     if not by:
         return ""
-    out = ["# models --apply で書き出した設定(モデル調べの ◎ を点の順に)。消せば既定に戻る。",
+    out = ["# models --apply で書き出した設定(モデル調べの ◎ を順位の順に)。消せば既定に戻る。",
            f"# {datetime.datetime.now():%Y-%m-%d %H:%M}"]
-    slots = []
-    for prov in ("nvidia", "groq", "gemini"):
+    firsts, seconds = [], []
+    for prov in ("gemini", "nvidia", "groq"):
         ms = by.get(prov, [])
         if not ms:
             continue
@@ -305,11 +333,17 @@ def ranked_config(rows):
         temp = "None" if prov == "gemini" else "0.0"
         out.append(f'LLMS["{prov}-1"] = dict(provider="{prov}", batch={batch}, temperature={temp}, extra=None, '
                    f'candidates={ms!r})')
-        slots.append(f"{prov}-1")
-        if len(ms) >= 2 and prov != "gemini":
+        firsts.append(f"{prov}-1")
+        if len(ms) >= 2:
             out.append(f'LLMS["{prov}-2"] = dict(provider="{prov}", batch={batch}, temperature={temp}, extra=None, '
                        f'candidates={ms[1:]!r})')
-            slots.append(f"{prov}-2")
-    out.append(f"MERGE_MODELS = {slots[:5]!r}")
-    out.append(f"PROOF_MODELS = {slots!r} + [\"gemini-lite\"]")
+            seconds.append(f"{prov}-2")
+    # 統合: サービスが偏らないよう、各サービスの1番手から並べる(4つまで)
+    merge = (firsts + seconds)[:4]
+    # 校正: 用語集の表記を直せたモデルが先頭の枠を先に
+    slots = firsts + seconds
+    top = {f"{p}-1": by[p][0] for p in by} | {f"{p}-2": by[p][1] for p in by if len(by[p]) >= 2}
+    proof = sorted(slots, key=lambda sl: (not gloss.get(top[sl], False), slots.index(sl)))
+    out.append(f"MERGE_MODELS = {merge!r}")
+    out.append(f"PROOF_MODELS = {proof!r} + [\"gemini-lite\"]")
     return "\n".join(out) + "\n"
