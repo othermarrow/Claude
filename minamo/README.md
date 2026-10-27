@@ -304,7 +304,7 @@ chmod 600 ~/.config/minamo/keys.env
 - 相手の話（眠れない・仕事・夜・消した文字など）に触れている
 
 ```
-AI の一括チェック：8 個に同時に送ります（最大 30 秒）
+AI の一括チェック：8 個に同時に送ります（最大 5 秒）
   ✓   3.1秒  nvidia openai/gpt-oss-20b
   △   1.2秒  nvidia google/gemma-4-31b-it  （マークダウン）
   ×    ──   nvidia meta/llama-3.3-70b-instruct  （提供終了）
@@ -317,7 +317,7 @@ AI の一括チェック：8 個に同時に送ります（最大 30 秒）
 - 「✓」は合格、「△」は返事は来たが条件に合わない、「×」は返事がない（提供終了・見つからない・混雑・時間切れ・つながらない）。
 - 合格したほかの AI は、速い順に代わりになる。面接の途中で使っている AI が答えなくなったら、次へ替えて続け、Termux の画面に「[モデル] ○○ が答えません。△△ に切り替えます。」と出す。
 - 電波がないときは、どれにもつながらないとわかった時点で、いつもの設定のまま始める（つながらなければ端末内モデルが話す）。
-- 待つのは最大 `PROBE_TIMEOUT`（30 秒）。それより遅い AI は使わない。
+- 待つのは最大 `PROBE_TIMEOUT`（5 秒）。それより遅い AI は使わない（会話の返事がもたつかないように。`probe.py --timeout 30` のように、単独で調べるときは延ばせる）。
 - PWA の起動画面にも「一括チェック：8 個中 3 個が合格、いちばん速い 3.1 秒のものを選択」と出る。
 - 結果は `~/.cache/minamo/probe.json` に残る（返事の書き出しつき）。
 - しないときは `--no-probe`（`sh ~/Claude/minamo/serve.sh --no-probe`）。`--model` でモデルを指定したときもしない。
@@ -482,7 +482,7 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 | `NVIDIA_MODEL` | `openai/gpt-oss-20b` | NVIDIA で使うモデル。gpt-oss は思考を止められないので `reasoning_effort: low` で最小にして送る（research_bot と同じ扱い）。ほかのモデルは `enable_thinking: false` |
 | `PROBE_MODELS` | NVIDIA 6 個・Gemini 2 個 | 起動時の一括チェックで試す候補 |
 | `PROBE_ON_START` | `True` | 起動時に一括チェックするか（`--no-probe` で止める） |
-| `PROBE_TIMEOUT` | 30 | 一括チェックで待つ秒数 |
+| `PROBE_TIMEOUT` | 5 | 一括チェックで待つ秒数 |
 | `NVIDIA_FALLBACKS` | `nemotron-3-super-120b-a12b`・`nemotron-3-ultra-550b-a55b` | 既定のモデルが使えないときに、順に試す代わり |
 | `LIBRARY_DIRS` | `~/minamo/library`・`/storage/emulated/0/Vault/心理学`・`/storage/emulated/0/Vault/Support` | 蔵書として読むフォルダ |
 | `COUNT_SILENCE` | `False` | 沈黙の秒数を数えるか（`--count-silence` で数える） |

@@ -84,7 +84,7 @@ def _load_models_file():
 
 PROBE_MODELS = _load_models_file() or PROBE_MODELS
 PROBE_ON_START = True     # 起動時に一括チェックするか（--no-probe で止める。--model を指定したときもしない）
-PROBE_TIMEOUT = 30        # 一括チェックで待つ秒数（これより遅いものは使わない）
+PROBE_TIMEOUT = 5         # 一括チェックで待つ秒数（これより遅いものは使わない）
 KEYS_FILE = os.path.expanduser("~/.config/minamo/keys.env")
 KEYS_FILES = [KEYS_FILE, os.path.expanduser("~/.config/research_bot/keys.env")]
 # 紹介状の束。手元に置いたものがあればそちらを優先する。
