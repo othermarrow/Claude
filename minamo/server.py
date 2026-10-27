@@ -175,6 +175,10 @@ def main():
     ap.add_argument("--fake", action="store_true")
     ap.add_argument("--offline", action="store_true", help="クラウドの AI を使わない")
     ap.add_argument("--no-local", action="store_true", help="端末の中の AI を試さない")
+    ap.add_argument("--local-share", type=float, metavar="0〜1",
+                    help="端末の中の AI にひとことを頼む割合（既定 0.8〜0.9。1 ならいつも頼む）")
+    ap.add_argument("--local-mode", choices=["assist", "full"],
+                    help="端末の中の AI の使い方（既定 assist：ひとことだけ頼む。full：全部話させる）")
     ap.add_argument("--no-probe", action="store_true",
                     help="起動時の AI の一括チェックをしない（いつもの設定のモデルを使う）")
     a = ap.parse_args()
@@ -197,12 +201,13 @@ def main():
     STATE.update(llm=None, error="", silence=a.silence, library=library,
                  backend="fake" if a.fake else a.backend,
                  env={} if a.no_env else minamo.gather_env())
+    minamo.set_local_share(a.local_share)
     ranked, probed = None, []
     if minamo.PROBE_ON_START and not (a.no_probe or a.model or a.fake or a.offline):
         ranked, probed = minamo.probe_models(a.backend, a.no_karte)
     STATE["probe"] = probed
     llm = minamo.make_llm(a.backend, a.model, a.no_karte, a.fake, a.offline, not a.no_local,
-                          library=library, ranked=ranked)
+                          library=library, ranked=ranked, local_mode=a.local_mode)
     STATE["llm"] = llm
     STATE["mode"] = llm.mode
     if a.fake:
@@ -215,7 +220,9 @@ def main():
         print("クラウドの AI は使いません（APIキーがないか --offline）。端末内のエンジンで話します。")
 
     print(f"API: {STATE['backend']} / {llm.model}　（つながらないときは "
-          + " → ".join([n for n, _ in llm.tiers[1:]] + ["端末内のエンジン（2026 / 1996）"]) + "）")
+          + " → ".join([n for n, _ in llm.tiers[1:]] + ["端末内のエンジン（2026 / 1996）"
+            + ("。端末の中の AI が動いていれば、ひとことを添える" if getattr(llm.engines["2026"].talk, "helper", None) else "")])
+          + "）")
     if library:
         print(minamo.library_status(library))
     print(f"Chrome で http://localhost:{a.port}/ を開いてください（止めるときは Ctrl+C）")

@@ -1117,11 +1117,58 @@ def _sent_count(text):
     return len(re.findall(r"[。？?！!]", text.replace("[間]", "")))
 
 
-class Talk:
-    """相手の発言に、段階と版に合った返事を組み立てる。面接ごとに reset() する。"""
+# 端末の中の AI のひとことを使う割合（段階ごと）。使えなければ規則の見立てに戻る
+ASSIST_SHARE = [0.8, 0.85, 0.9, 0.9]
+# 端末の中の AI に頼む発言の種類（質問・頼みごと・名前・あいさつは、正確さのために規則で答える）
+ASSIST_ACTS = {"narrative", "yes", "no", "short", "deny", "unknown", "insult", "meta", "laugh", "dots", "filler",
+               "thanks", "apology"}
+_ASSIST_NG = re.compile(r"(観測メモ|AI|ＡＩ|申し訳|アシスタント|フィクション|ロールプレイ|ゲーム|設定|ユーザー|"
+                        r"死ね|殺|自殺|自傷|性的|返答|回答|以下|ミナモ：|ミナモ:)")
 
-    def __init__(self, voice="2026"):
+
+def _grams(t, n=6):
+    t = re.sub(r"[、。！？!?\s…「」『』\[\]間]", "", t)
+    return {t[k:k + n] for k in range(max(0, len(t) - n + 1))}
+
+
+def too_similar(line, recent):
+    """最近の返事と言い回しが重なりすぎているか（6 文字の並びが半分以上同じ）。"""
+    g = _grams(line)
+    if not g:
+        return False
+    return any(len(g & _grams(r)) / len(g) >= 0.5 for r in recent if r)
+
+
+def clean_assist(text, user_text=""):
+    """端末の中の AI のひとことを整え、使えるか調べる。使えなければ ""。"""
+    t = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S)
+    t = re.sub(r"^\s*(ミナモ|Minamo)\s*[：:]\s*", "", t.strip())
+    t = re.sub(r"[*#`>\-]+\s*", "", t).replace("\n", "").strip("\"' 　")
+    # 全体を囲むかぎ括弧だけを外す（文の中の「〜」は残す）
+    if len(t) >= 2 and t[0] in "「『" and t[-1] in "」』" and t.count(t[0]) == 1:
+        t = t[1:-1]
+    sents = [x for x in re.split(r"(?<=[。！])", t) if x.strip()]
+    sents = [x for x in sents if not re.search(r"(か|の)[。？?]?$|[？?]", x)]        # 問いは規則のほうで足す
+    t = "".join(sents[:2]).strip()
+    if not (8 <= len(t) <= 90) or not t.endswith(("。", "！")):
+        return ""
+    if len(re.findall(r"[A-Za-z]", t)) > 3 or _ASSIST_NG.search(t):
+        return ""
+    if not re.search(r"(です|ます|ません|でしょう|ください|でした)", t):
+        return ""
+    if user_text and t.replace("。", "") in norm(user_text):          # ただの写しは使わない
+        return ""
+    return t
+
+
+class Talk:
+    """相手の発言に、段階と版に合った返事を組み立てる。面接ごとに reset() する。
+    helper（端末の中の AI）があれば、打ち明けへのひとことを頼み、使えるときだけ見立ての代わりに使う。"""
+
+    def __init__(self, voice="2026", helper=None):
         self.voice = voice
+        self.helper = helper
+        self._asked = False
         self.reset()
 
     def reset(self):
@@ -1169,10 +1216,11 @@ class Talk:
             ctx["w"] = topic[2]
 
         parts = [p for p in pre if p]
+        self._asked = False                # 端末の中の AI に頼むのは、一つの返事で一度まで
         head = self.head(u, slot, prevq, F, ph, ctx, topic, said, contents)
         parts += head["lines"]
         if head["deepen"]:
-            d = self.deepen(u, ph, ctx, topic, said)
+            d = self.assist(u, ph, hist) or self.deepen(u, ph, ctx, topic, said)
             if d:
                 parts.append(d)
         # 山場（相手の言葉・時刻・端末から）か、版ごとの添えもの
@@ -1280,7 +1328,7 @@ class Talk:
         simple = {"insult": INSULT, "meta": META, "laugh": LAUGH, "dots": DOTS, "filler": FILLER,
                   "thanks": THANKS, "apology": APOLOGY, "bye": BYE}
         if act in simple:
-            L.append(say(simple[act]))
+            L.append(self.assist(u, ph, ctx["_hist"]) or say(simple[act]))
             out["ask"] = act in ("thanks", "dots", "filler", "laugh") or (ph == 0 and act != "bye")
             return out
 
@@ -1291,19 +1339,19 @@ class Talk:
 
         if act in ("yes", "no", "short"):
             if not ack:
-                L.append(say(YES_ACK if act == "yes" and slot == "yesno" else NO_ACK if act == "no" and slot == "yesno"
+                L.append(self.assist(u, ph, ctx["_hist"]) or say(YES_ACK if act == "yes" and slot == "yesno" else NO_ACK if act == "no" and slot == "yesno"
                               else SHORT))
             out["deepen"] = bool(topic) and random.random() < 0.8
             return out
         if act == "deny":
             n = sum(1 for s in said if DENY_RE.match(norm(s)))
             if not ack:
-                L.append(say(DENY, count=str(n) if n >= 2 else ""))
+                L.append(self.assist(u, ph, ctx["_hist"]) or say(DENY, count=str(n) if n >= 2 else ""))
             out["deepen"] = bool(topic) and random.random() < 0.5
             return out
         if act == "unknown":
             n = sum(1 for s in said if UNKNOWN_RE.search(norm(s)))
-            L.append(say(UNKNOWN, count=str(n) if n >= 2 else ""))
+            L.append(self.assist(u, ph, ctx["_hist"]) or say(UNKNOWN, count=str(n) if n >= 2 else ""))
             out["deepen"] = bool(topic) and random.random() < 0.5
             return out
 
@@ -1329,6 +1377,24 @@ class Talk:
             return out
         out["deepen"] = True
         return out
+
+    def assist(self, u, ph, hist):
+        """端末の中の AI に、相手の発言へのひとことを頼む（使えなければ ""）。一つの返事で一度まで。"""
+        if not self.helper or self._asked or u["act"] not in ASSIST_ACTS or random.random() >= ASSIST_SHARE[ph]:
+            return ""
+        self._asked = True
+        replies = [r for r in hist.split("\n") if r.strip()]
+        prev = replies[-1] if replies else ""
+        try:
+            raw = self.helper(u["text"], ph, self.voice, prev=prev, act=u["act"])
+        except TypeError:                  # 前の形（発言・段階・版だけ）の helper
+            raw = self.helper(u["text"], ph, self.voice)
+        except Exception:                  # 端末の中の AI の不調で、返事を止めない
+            return ""
+        line = clean_assist(raw, u["text"])
+        if not line or line in hist or too_similar(line, replies[-4:]):
+            return ""
+        return line
 
     def echo_main(self, text):
         """発言のうち、いちばん中身のある一節を「〜のですね」で返す。"""

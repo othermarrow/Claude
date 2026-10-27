@@ -146,7 +146,7 @@ class Modern:
 
     model = "ミナモ 2026（端末内モデル）"
 
-    def __init__(self, karte="", library=None, memory=None):
+    def __init__(self, karte="", library=None, memory=None, helper=None):
         self.karte = _karte_lines(karte)
         self.library = library
         self.memory = memory or Memory()
@@ -155,7 +155,7 @@ class Modern:
         self.pred = ""                      # 前の返事で口にした予測
         self.preds = []                     # その言い方の違い（どれかが出れば一致）
         self.missed_last = False
-        self.talk = kaiwa.Talk("2026")
+        self.talk = kaiwa.Talk("2026", helper)
 
     def pick(self, pool):
         pool = [p for p in pool if p]

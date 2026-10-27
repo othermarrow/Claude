@@ -473,10 +473,18 @@
   // 本人が打ち始めたら、幽霊は消える
   input.addEventListener("beforeinput", () => { if (S && S.ghost) stopGhost(); });
 
-  input.addEventListener("input", () => {
+  // 日本語入力の変換（ねむれない → 眠れない）で文字数が減っても、消したとは数えない。
+  // 数えるのは、本当に消したとき（後退キー・切り取りなど inputType が delete〜 のとき）だけ。
+  let composing = false;
+  input.addEventListener("compositionstart", () => { composing = true; });
+  input.addEventListener("compositionend", () => { composing = false; if (S) S.prevValue = input.value; });
+
+  input.addEventListener("input", e => {
     if (!S) return;
     const now = input.value, prev = S.prevValue || "";
-    if (now.length < prev.length) {
+    const type = e.inputType || "";
+    const deleted = type ? type.startsWith("delete") : !composing && !e.isComposing;
+    if (deleted && now.length < prev.length) {
       S.erased += prev.length - now.length;
       let a = 0;
       while (a < now.length && now[a] === prev[a]) a++;

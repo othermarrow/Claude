@@ -7,6 +7,7 @@
   python ~/Claude/minamo/tools/offline_sim.py --version 1996 --script C
   python ~/Claude/minamo/tools/offline_sim.py --library       # 蔵書（本・Vault のノート）も使う
   python ~/Claude/minamo/tools/offline_sim.py --say "眠れない" --say "先月から" --say "あなたは誰？"
+  python ~/Claude/minamo/tools/offline_sim.py --local         # 端末の中の AI（local.sh）にひとことを頼む
 """
 
 import argparse
@@ -74,13 +75,20 @@ def main():
     ap.add_argument("--say", action="append", help="台本の代わりに、この言葉を順に送る（何度でも）")
     ap.add_argument("--seed", type=int, help="乱数の種（同じ種なら同じ返事）")
     ap.add_argument("--library", action="store_true", help="蔵書（本・Vault のノート）も使う")
+    ap.add_argument("--local", action="store_true", help="端末の中の AI（local.sh）に、ひとことを頼む")
+    ap.add_argument("--local-share", type=float, metavar="0〜1", help="--local のとき、頼む割合（既定 0.8〜0.9）")
     a = ap.parse_args()
     if a.seed is not None:
         random.seed(a.seed)
     lib = minamo.load_library(minamo.LIBRARY_DIRS) if a.library else None
     karte = minamo.load_karte()
     mem = Memory(os.path.join(tempfile.mkdtemp(), "memory.json"))
-    eng = Modern(karte, lib, mem) if a.version == "2026" else Classic(karte, lib)
+    minamo.set_local_share(a.local_share)
+    if minamo.ASSIST_SHARE is not None:
+        import kaiwa
+        kaiwa.ASSIST_SHARE = list(minamo.ASSIST_SHARE)
+    helper = minamo.Local().assist if a.local else None
+    eng = Modern(karte, lib, mem, helper) if a.version == "2026" else Classic(karte, lib, helper)
 
     contents = [{"role": "user", "parts": [{"text": memo(1, extra="面接が始まった。最初のあいさつをすること。")[0]}]}]
     r = eng.ask(contents)

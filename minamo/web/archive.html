@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<title>SOMA 記録庫</title>
+<meta name="theme-color" content="#0a0f0d">
+<meta name="description" content="1999 年に閉鎖された研究室の端末に残った、ミナモの記録">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Shippori+Mincho:wght@500&display=swap">
+<style>
+:root {
+  --bg: #0a0f0d; --desk: #12302b; --desk2: #0e2622; --win: #c8c4b8; --win-dark: #8a867b; --win-light: #f2efe6;
+  --title: #1d3a6e; --title-text: #f2efe6; --ink: #1a1a1a; --dim: #5d5a52; --warn: #8c2b24; --green: #7fd18b;
+  --dot: "DotGothic16", "Noto Sans Mono CJK JP", ui-monospace, monospace;
+  --mincho: "Shippori Mincho", "Noto Serif CJK JP", serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--dot); font-size: 15px; line-height: 1.7; overflow: hidden;
+  -webkit-tap-highlight-color: transparent; }
+button, input, textarea { font: inherit; color: inherit; }
+/* ブラウン管 */
+body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 50;
+  background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0,0,0,.18) 2px 3px); }
+body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 51;
+  background: radial-gradient(ellipse at 50% 45%, transparent 60%, rgba(0,0,0,.55) 100%); }
+
+/* 電源を入れる・起動 */
+.full { position: fixed; inset: 0; z-index: 30; background: #000; color: var(--green); padding: calc(1.2em + env(safe-area-inset-top, 0px)) 16px 16px; }
+#power { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.2em; text-align: center; }
+#power h1 { font-family: var(--mincho); font-weight: 500; letter-spacing: .4em; color: #dcefe0; margin: 0; font-size: 1.5em; }
+#power p { margin: 0; color: #56685b; font-size: .85em; max-width: 26em; }
+#power button { background: none; border: 1px solid #2d5a3a; color: var(--green); padding: .5em 1.6em; border-radius: 3px; }
+#power a { color: #56685b; font-size: .8em; }
+#boot pre { margin: 0; white-space: pre-wrap; font-family: var(--dot); font-size: .82em; line-height: 1.7; text-shadow: 0 0 6px rgba(127,209,139,.35); }
+#boot.out { opacity: 0; transition: opacity .8s; }
+
+/* デスクトップ */
+#desk { position: fixed; inset: 0; display: flex; flex-direction: column;
+  background: var(--desk) repeating-linear-gradient(45deg, var(--desk2) 0 2px, transparent 2px 6px); }
+#bar { flex: none; display: flex; gap: .8em; align-items: center; padding: calc(.3em + env(safe-area-inset-top, 0px)) 12px .3em;
+  background: var(--win); border-bottom: 2px solid var(--win-dark); font-size: .78em; }
+#bar .os { font-weight: bold; }
+#bar .user { color: var(--dim); }
+#bar .clock { margin-left: auto; }
+#icons { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); align-content: start; gap: 1.2em .5em; padding: 1.6em 16px; overflow-y: auto; }
+.icon { display: flex; flex-direction: column; align-items: center; gap: .3em; background: none; border: none; color: #e6ecd8; cursor: pointer; position: relative; }
+.icon .g { width: 3.2em; height: 3.2em; display: flex; align-items: center; justify-content: center; font-size: 1.15em;
+  background: var(--win); color: var(--ink); border: 2px outset var(--win-light); box-shadow: 2px 2px 0 rgba(0,0,0,.35); }
+.icon .t { font-size: .78em; text-shadow: 1px 1px 0 #000; }
+.icon .badge { position: absolute; top: -.3em; right: calc(50% - 2.1em); background: var(--warn); color: #fff; font-size: .7em;
+  border-radius: 999px; padding: 0 .45em; min-width: 1.5em; text-align: center; }
+.icon.new .g { animation: nudge 1.6s ease-in-out 2; }
+@keyframes nudge { 50% { transform: translateY(-3px); } }
+#toast { position: fixed; left: 50%; bottom: calc(1.2em + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 40;
+  background: var(--win); border: 2px outset var(--win-light); padding: .3em 1em; font-size: .82em; opacity: 0; transition: opacity .3s; pointer-events: none;
+  max-width: calc(100% - 32px); }
+#toast.on { opacity: 1; }
+
+/* 窓（いつも一つだけ、全面） */
+#win { position: fixed; inset: calc(2.4em + env(safe-area-inset-top, 0px)) 8px calc(8px + env(safe-area-inset-bottom, 0px)); z-index: 20;
+  display: flex; flex-direction: column; background: var(--win); border: 2px outset var(--win-light); box-shadow: 4px 4px 0 rgba(0,0,0,.45); }
+#wbar { flex: none; display: flex; align-items: center; gap: .5em; background: var(--title); color: var(--title-text); padding: .15em .3em .15em .6em; font-size: .85em; }
+#wtitle { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#wbar button { background: var(--win); color: var(--ink); border: 2px outset var(--win-light); padding: 0 .55em; line-height: 1.4; }
+#wbody { flex: 1; overflow-y: auto; padding: .8em; background: var(--win-light); border: 2px inset var(--win-light); margin: 4px; overscroll-behavior: contain; }
+.btn { background: var(--win); border: 2px outset var(--win-light); padding: .2em 1em; cursor: pointer; }
+.btn:active { border-style: inset; }
+.btn[disabled] { color: var(--win-dark); }
+.row { display: flex; gap: .5em; flex-wrap: wrap; margin-top: .8em; }
+.list { margin: 0; padding: 0; list-style: none; }
+.list li { border-bottom: 1px dotted var(--win-dark); padding: .45em .2em; cursor: pointer; display: flex; gap: .6em; align-items: baseline; }
+.list li .d { color: var(--dim); font-size: .78em; flex: none; }
+.list li.unread { font-weight: bold; }
+.list li.locked { color: var(--win-dark); cursor: default; }
+.mail h3 { margin: 0 0 .3em; font-size: 1em; }
+.mail .hd { color: var(--dim); font-size: .78em; margin-bottom: .8em; border-bottom: 1px solid var(--win-dark); padding-bottom: .4em; }
+.mail p { margin: 0 0 .6em; white-space: pre-wrap; }
+.sent { color: var(--dim); font-size: .85em; margin-top: .8em; }
+/* 記録 */
+.rec .hd { color: var(--dim); font-size: .78em; margin-bottom: .6em; }
+.rec table { border-collapse: collapse; width: 100%; font-size: .85em; }
+.rec td { vertical-align: top; padding: .25em .3em; border-bottom: 1px dotted #b9b4a6; }
+.rec td.t { color: var(--dim); white-space: nowrap; font-size: .85em; }
+.rec td.w { white-space: nowrap; font-weight: bold; }
+.rec td.s { color: var(--warn); white-space: nowrap; font-size: .85em; }
+.rec tr.mi td.x { font-family: var(--mincho); }
+.rec .note { color: var(--dim); font-size: .8em; margin-top: .8em; }
+.code input { width: 6em; text-align: center; letter-spacing: .3em; }
+.corrupt { color: #555; }
+/* 通信 */
+.dial .disp { background: #0b1a12; color: var(--green); font-size: 1.2em; padding: .3em .6em; min-height: 1.9em; letter-spacing: .1em; border: 2px inset var(--win-light); }
+.dial .keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4em; margin: .6em 0; }
+.dial .keys button { padding: .5em 0; }
+.dial .book { font-size: .85em; }
+.dial .book button { margin: .2em .3em .2em 0; font-size: .85em; }
+.bbs .post { border-bottom: 1px dotted var(--win-dark); padding: .5em 0; white-space: pre-wrap; }
+.bbs .post .m { color: var(--dim); font-size: .78em; }
+.bbs .post.minamo { color: var(--warn); }
+.term { background: #0b1a12; color: var(--green); padding: .6em; min-height: 6em; white-space: pre-wrap; font-size: .85em; }
+/* アンケート・検査 */
+.survey .q { font-size: 1.05em; margin: .4em 0 .8em; }
+.survey .bar { height: 10px; border: 2px inset var(--win-light); background: #fff; margin-bottom: .8em; }
+.survey .bar i { display: block; height: 100%; background: var(--title); transition: width .6s; }
+.survey .opts button { display: block; width: 100%; text-align: left; margin: .35em 0; }
+.survey input[type=text], .talkform input, .test input { width: 100%; padding: .4em; border: 2px inset var(--win-light); background: #fff; color: var(--ink); }
+.test .word { font-family: var(--mincho); font-size: 3em; text-align: center; margin: .6em 0; min-height: 1.4em; }
+.test .cnt { color: var(--dim); font-size: .8em; text-align: right; }
+.test .remark { color: var(--warn); font-size: .85em; min-height: 1.6em; text-align: center; }
+.test table { width: 100%; border-collapse: collapse; font-size: .85em; }
+.test td { border-bottom: 1px dotted #b9b4a6; padding: .2em .3em; }
+.test td.slow { color: var(--warn); font-weight: bold; }
+/* 面接 */
+.talk { display: flex; flex-direction: column; height: 100%; }
+.talk .log { flex: 1; overflow-y: auto; background: #0b1a12; color: #a9c9b0; padding: .6em; font-size: .92em; }
+.talk .log p { margin: 0 0 .7em; white-space: pre-wrap; }
+.talk .log .m { color: #dcefe0; font-family: var(--mincho); }
+.talk .log .u { color: #7fb08a; }
+.talk .log .s { color: #56685b; font-size: .85em; }
+.talk .state { font-size: .72em; color: var(--dim); padding: .2em 0; }
+.talkform { flex: none; display: flex; gap: .4em; margin-top: .4em; }
+.talkform input { flex: 1; min-width: 0; }
+.choices { display: flex; gap: .5em; margin: .4em 0 .8em; }
+
+/* 終わり・割れる */
+#ending { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1em; text-align: center; color: #dcefe0; }
+#ending h2 { font-family: var(--mincho); font-weight: 500; letter-spacing: .3em; margin: 0; }
+#ending p { margin: 0; max-width: 28em; white-space: pre-wrap; }
+#ending .small { color: #56685b; font-size: .8em; }
+#ending .btns { display: flex; gap: .6em; flex-wrap: wrap; justify-content: center; }
+#ending button, #ending a { background: none; border: 1px solid #2d5a3a; color: var(--green); padding: .4em 1.2em; border-radius: 3px; text-decoration: none; font-size: .9em; }
+body.cracked #desk, body.cracked #win { filter: grayscale(.6) contrast(1.1); }
+#crack { position: fixed; inset: 0; z-index: 25; pointer-events: none; opacity: 0; transition: opacity 1.5s; }
+body.cracked #crack { opacity: .9; }
+.fade-out { opacity: 0 !important; transition: opacity 1.2s; }
+/* 危機 */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.box { max-width: 460px; width: 100%; background: #1a1f1d; color: #eef2f0; border: 1px solid #d9b25f; border-radius: 6px; padding: 1.2em;
+  font-family: system-ui, sans-serif; line-height: 1.7; }
+.box p { margin: 0 0 .8em; }
+.box .row button { background: none; border: 1px solid #555; color: #eee; border-radius: 4px; padding: .4em 1em; }
+@media (prefers-reduced-motion: reduce) { .icon.new .g { animation: none; } }
+</style>
+</head>
+<body>
+<div id="power" class="full">
+  <h1>SOMA</h1>
+  <p>1999 年に閉鎖された、ある大学の臨床心理学研究室の端末。対話支援システム「ミナモ」と、残された記録が入っています。</p>
+  <p>（作り話のホラーです。メール・記録・通信・アンケート・検査から、何が起きたかを拾い集めてください。）</p>
+  <button id="poweron" type="button">電源を入れる</button>
+  <a href="./">ミナモ（面接アプリ）に戻る</a>
+  <a href="minasoko.html">水底（物語その二）へ</a>
+</div>
+<div id="boot" class="full" hidden></div>
+
+<div id="desk" hidden>
+  <div id="bar"><span class="os">SOMA OS 1.0</span><span class="user" id="user">user: guest</span><span class="clock" id="clock"></span></div>
+  <div id="icons"></div>
+</div>
+<div id="win" hidden>
+  <div id="wbar"><span id="wtitle"></span><button id="wclose" type="button" aria-label="閉じる">×</button></div>
+  <div id="wbody"></div>
+</div>
+<svg id="crack" viewBox="0 0 400 800" preserveAspectRatio="none" aria-hidden="true">
+  <g stroke="#e8f2ec" stroke-width="1.2" fill="none" opacity=".8">
+    <path d="M210 380 L150 300 L120 160 L80 40 M150 300 L60 280 L0 300 M210 380 L290 330 L360 260 L400 250 M290 330 L320 180 L340 0
+             M210 380 L230 480 L200 600 L230 800 M230 480 L330 560 L400 610 M210 380 L120 430 L40 520 L0 540 M120 430 L140 620 L110 800"/>
+  </g>
+</svg>
+<div id="toast"></div>
+<div id="ending" class="full" hidden></div>
+
+<div id="crisis" class="overlay" hidden>
+  <div class="box">
+    <p><b>ここで、いったん物語を止めます。</b></p>
+    <p>これは作り話のホラーで、ミナモは実在のカウンセラーではありません。</p>
+    <p>もし今、本当につらい気持ちがあるなら、身近な人や、いのちの電話・よりそいホットラインなどの相談窓口に話してみてください。</p>
+    <div class="row"><button id="crisis-stop" type="button">ここでやめる</button><button id="crisis-go" type="button">続ける</button></div>
+  </div>
+</div>
+
+<script src="fx.js"></script>
+<script src="archive-data.js"></script>
+<script src="archive.js"></script>
+<script>
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  navigator.serviceWorker.register("sw.js").catch(function () {});
+}
+</script>
+</body>
+</html>
