@@ -78,9 +78,12 @@ body.dread #dread { opacity: 1; }
 #wtitle { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #wbar button { background: var(--win); color: var(--ink); border: 2px outset var(--win-light); padding: 0 .55em; line-height: 1.4; }
 /* ブラウザのボタンは、親指の届く下に */
-#wtool { flex: none; order: 3; display: flex; gap: .3em; align-items: center; padding: .3em; border-top: 1px solid var(--win-dark); flex-wrap: wrap; }
-#wbody { order: 2; }
+#wfoot { flex: none; display: flex; align-items: flex-end; gap: .3em; padding: .3em; border-top: 1px solid var(--win-dark); }
+#wtool { flex: 1; min-width: 0; display: flex; gap: .3em; align-items: center; flex-wrap: wrap; }
+#wclose { margin-left: auto; flex: none; background: var(--win); color: var(--ink); border: 2px outset var(--win-light); padding: .1em .9em; font-size: 1.05em; }
+#wclose:active { border-style: inset; }
 #wtool:empty { display: none; }
+#win.deep #wfoot { background: #0c2a2e; border-color: #123236; }
 #wtool input { flex: 1; min-width: 6em; padding: .2em .4em; border: 2px inset var(--win-light); background: #fff; color: var(--ink); }
 #win.deep #wtool input { flex-basis: 100%; }
 #wtool .btn { padding: .05em .6em; font-size: .85em; }
@@ -212,9 +215,9 @@ body.dread #dread { opacity: 1; }
   <div id="icons"></div>
 </div>
 <div id="win" hidden>
-  <div id="wbar"><span id="wtitle"></span><button id="wclose" type="button" aria-label="閉じる">×</button></div>
-  <div id="wtool"></div>
+  <div id="wbar"><span id="wtitle"></span></div>
   <div id="wbody"></div>
+  <div id="wfoot"><div id="wtool"></div><button id="wclose" type="button" aria-label="閉じる">×</button></div>
 </div>
 <div id="warn" hidden></div>
 <div id="dread"></div>
