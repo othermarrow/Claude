@@ -52,12 +52,20 @@ MODEL = "gemini-2.5-flash"
 NVIDIA_MODEL = "openai/gpt-oss-20b"
 # NVIDIA_MODEL が使えない（提供終了 410・見つからない 404）とき、順に試す代わり。
 # research_bot の 2026-10 の実測で応答していたもの。
+GROQ_MODEL = "openai/gpt-oss-120b"     # --backend groq で、一括チェックをしないときのモデル
 NVIDIA_FALLBACKS = ["nvidia/nemotron-3-super-120b-a12b", "nvidia/nemotron-3-ultra-550b-a55b"]
 NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
+# Groq（OpenAI 互換。返事が速い）。キーは GROQ_API_KEY
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+BACKENDS = ("groq", "nvidia", "gemini")
+KEY_NAMES = {"gemini": "GEMINI_API_KEY", "nvidia": "NVIDIA_API_KEY", "groq": "GROQ_API_KEY"}
 # 起動時の一括チェック（probe.py）で試す候補。キーのある API の分だけ試す。
 # 合格したもの（日本語・敬語・長さ・書式・話を聞いているか）のうち、いちばん速いものを使い、
 # 残りの合格は速い順に代わりにする。並べ替え・追加・削除は自由（名前は research_bot と同じ）
 PROBE_MODELS = [
+    ("groq", "openai/gpt-oss-120b"),
+    ("groq", "openai/gpt-oss-20b"),
+    ("groq", "qwen/qwen3.8-27b"),
     ("nvidia", "openai/gpt-oss-20b"),
     ("nvidia", "nvidia/nemotron-3.5-lightning-30b-a3b"),
     ("nvidia", "nvidia/nemotron-3-super-120b-a12b"),
@@ -67,7 +75,7 @@ PROBE_MODELS = [
     ("gemini", "gemini-2.5-flash"),
     ("gemini", "gemini-2.5-flash-lite"),
 ]
-# ~/.config/minamo/models.txt があれば、PROBE_MODELS の代わりにそれを使う（1行に「nvidia 名前」か
+# ~/.config/minamo/models.txt があれば、PROBE_MODELS の代わりにそれを使う（1行に「groq 名前」「nvidia 名前」か
 # 「gemini 名前」。# から後は無視）。minamo.py を書き換えずに済むので、git pull でぶつからない
 MODELS_FILE = os.path.expanduser("~/.config/minamo/models.txt")
 
@@ -78,13 +86,13 @@ def _load_models_file():
             rows = [l.split("#")[0].split() for l in f]
     except OSError:
         return None
-    rows = [(r[0].lower(), r[1]) for r in rows if len(r) >= 2 and r[0].lower() in ("nvidia", "gemini")]
+    rows = [(r[0].lower(), r[1]) for r in rows if len(r) >= 2 and r[0].lower() in BACKENDS]
     return rows or None
 
 
 PROBE_MODELS = _load_models_file() or PROBE_MODELS
 PROBE_ON_START = True     # 起動時に一括チェックするか（--no-probe で止める。--model を指定したときもしない）
-PROBE_TIMEOUT = 30        # 一括チェックで待つ秒数（これより遅いものは使わない）
+PROBE_TIMEOUT = 5         # 一括チェックで待つ秒数（これより遅いものは使わない）
 KEYS_FILE = os.path.expanduser("~/.config/minamo/keys.env")
 KEYS_FILES = [KEYS_FILE, os.path.expanduser("~/.config/research_bot/keys.env")]
 # 紹介状の束。手元に置いたものがあればそちらを優先する。
@@ -362,7 +370,8 @@ def post_json(url, body, headers, timeout=90, retry=True):
     オフラインで毎回十数秒も待たされないように。"""
     req = urllib.request.Request(
         url, data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json", **headers})
+        # User-Agent を付けないと、Groq（Cloudflare の向こう）は Python の既定の名前を 403 で断る
+        headers={"Content-Type": "application/json", "User-Agent": "minamo/1.0", **headers})
     for attempt in range(4 if retry else 1):
         try:
             with urllib.request.urlopen(req, timeout=timeout) as res:
@@ -420,6 +429,7 @@ class Gemini:
 
 class Nvidia:
     """NVIDIA API（OpenAI 互換）。会話の形を Gemini 式から読み替えて送る。"""
+    URL = NVIDIA_URL
 
     def __init__(self, key, model, system):
         self.key, self.model, self.system = key, model, system
@@ -457,18 +467,49 @@ class Nvidia:
         # 考えている途中の文章まで返ってこないように、思考を止める（最小にする）。
         # gpt-oss は enable_thinking を無視するので、reasoning_effort で最小にする
         # （research_bot と同じ扱い。思考の分も max_tokens に数えられる）
-        think_key = "reasoning_effort" if "gpt-oss" in self.model.lower() else "chat_template_kwargs"
-        body[think_key] = "low" if think_key == "reasoning_effort" else {"enable_thinking": False}
+        think_key, think = self.think()
+        if think_key:
+            body[think_key] = think
         headers = {"Authorization": f"Bearer {self.key}",
                    "Accept": "application/json"}
         try:
-            return post_json(NVIDIA_URL, body, headers, timeout=75)
+            return post_json(self.URL, body, headers, timeout=75)
         except RuntimeError as e:
             # 思考を止める指定を受け付けないモデルなら、外してもう一度
-            if not str(e).startswith("HTTP 400"):
+            if not think_key or not str(e).startswith("HTTP 400"):
                 raise
             body.pop(think_key)
-            return post_json(NVIDIA_URL, body, headers, timeout=75)
+            return post_json(self.URL, body, headers, timeout=75)
+
+    def think(self):
+        if "gpt-oss" in self.model.lower():
+            return "reasoning_effort", "low"
+        return "chat_template_kwargs", {"enable_thinking": False}
+
+
+class Groq(Nvidia):
+    """Groq（OpenAI 互換。返事が速い）。代わりのモデルは持たない（Relay が受け持つ）。"""
+    URL = GROQ_URL
+
+    def __init__(self, key, model, system):
+        super().__init__(key, model, system)
+        self.candidates = [model]
+
+    def think(self):
+        m = self.model.lower()
+        if "gpt-oss" in m:
+            return "reasoning_effort", "low"
+        if "qwen" in m:
+            return "reasoning_effort", "none"     # Qwen は Groq では "none" で思考を止める
+        return None, None
+
+
+def make_cloud(backend, key, model, system):
+    """API の名前から話し手を作る。"""
+    if backend == "gemini":
+        return Gemini(key, model, system)
+    llm = (Groq if backend == "groq" else Nvidia)(key, model, system)
+    return llm
 
 
 class Relay:
@@ -874,7 +915,7 @@ def probe_models(backend=None, no_karte=False):
     import probe
     karte = "" if no_karte else load_karte()
     system = SYSTEM_PROMPT + (KARTE_PROMPT.format(karte=karte) if karte else "")
-    results = probe.run(backend, system=system)
+    results = probe.run(backend, timeout=PROBE_TIMEOUT, system=system)   # minamo.py を直接動かしたときも、この値で
     if results:
         print(probe.summary(results), flush=True)
     return [(r["backend"], r["model"], r["sec"]) for r in results if r["ok"]], results
@@ -901,21 +942,21 @@ def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False
     elif not offline:
         if not backend:
             backend = ("nvidia" if load_key("NVIDIA_API_KEY")
+                       else "groq" if load_key("GROQ_API_KEY")
                        else "gemini" if load_key("GEMINI_API_KEY") else "nvidia")
-        key = load_key("GEMINI_API_KEY" if backend == "gemini" else "NVIDIA_API_KEY")
+        key = load_key(KEY_NAMES[backend])
         system = SYSTEM_PROMPT + (KARTE_PROMPT.format(karte=karte) if karte else "")
         if ranked:
             llms = []
             for b, m, _ in ranked:
-                k = load_key("GEMINI_API_KEY" if b == "gemini" else "NVIDIA_API_KEY")
-                llm = Gemini(k, m, system) if b == "gemini" else Nvidia(k, m, system)
-                if b == "nvidia":
+                llm = make_cloud(b, load_key(KEY_NAMES[b]), m, system)
+                if b != "gemini":
                     llm.candidates = [m]          # 代わりは Relay が速い順に受け持つ
                 llms.append(llm)
             tiers.append(("cloud", Relay(llms)))
         elif key:
-            tiers.append(("cloud", Gemini(key, model or MODEL, system) if backend == "gemini"
-                          else Nvidia(key, model or NVIDIA_MODEL, system)))
+            tiers.append(("cloud", make_cloud(backend, key, model or (MODEL if backend == "gemini" else
+                                                                   GROQ_MODEL if backend == "groq" else NVIDIA_MODEL), system)))
     local_mode = local_mode or LOCAL_MODE
     helper = None
     if ASSIST_SHARE is not None:
@@ -932,10 +973,10 @@ def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False
 
 
 def main():
-    global RECORD_DIR
+    global RECORD_DIR, PROBE_TIMEOUT
     ap = argparse.ArgumentParser(description="旧式カウンセリングAI「ミナモ」との面接")
-    ap.add_argument("--backend", choices=["gemini", "nvidia"],
-                    help="使うAPI（既定はキーのあるほう。両方あれば nvidia）")
+    ap.add_argument("--backend", choices=["gemini", "nvidia", "groq"],
+                    help="使うAPI（既定はキーのあるもの。nvidia・groq・gemini の順）")
     ap.add_argument("--model", help=f"モデル（既定 NVIDIA: {NVIDIA_MODEL} / Gemini: {MODEL}）")
     ap.add_argument("--count-silence", action="store_true",
                     help="沈黙の秒数を数える（返答までの秒数を AI に渡し、黙っているとミナモから話す）")
@@ -962,7 +1003,11 @@ def main():
     ap.add_argument("--fake", action="store_true", help="APIを使わず画面だけ試す")
     ap.add_argument("--no-probe", action="store_true",
                     help="起動時の AI の一括チェックをしない（いつもの設定のモデルを使う）")
+    ap.add_argument("--probe-timeout", type=int, metavar="秒",
+                    help=f"起動時の AI の一括チェックで待つ秒数（既定 {PROBE_TIMEOUT}）")
     a = ap.parse_args()
+    if a.probe_timeout:
+        PROBE_TIMEOUT = max(1, a.probe_timeout)
     RECORD_DIR = os.path.expanduser(a.records)
 
     if not a.no_library:

@@ -66,16 +66,15 @@ def grade(text):
 
 
 def _make(backend, model, key, system):
-    if backend == "gemini":
-        return minamo.Gemini(key, model, system)
-    llm = minamo.Nvidia(key, model, system)
-    llm.candidates = [model]             # チェックでは代わりに切り替えない
+    llm = minamo.make_cloud(backend, key, model, system)
+    if backend != "gemini":
+        llm.candidates = [model]         # チェックでは代わりに切り替えない
     return llm
 
 
 def candidates(backend=None):
     """キーのある API の候補だけを返す：[(backend, model, key)]。"""
-    keys = {"nvidia": minamo.load_key("NVIDIA_API_KEY"), "gemini": minamo.load_key("GEMINI_API_KEY")}
+    keys = {b: minamo.load_key(minamo.KEY_NAMES[b]) for b in minamo.BACKENDS}
     return [(b, m, keys[b]) for b, m in minamo.PROBE_MODELS
             if keys.get(b) and (not backend or b == backend)]
 
@@ -111,7 +110,7 @@ def run(backend=None, timeout=None, system=None, out=sys.stdout, cands=None, wor
         except RuntimeError as e:
             code = str(e)[:8]
             box.update(why={"HTTP 404": "見つからない", "HTTP 410": "提供終了", "HTTP 401": "キーが通らない",
-                            "HTTP 403": "使えない（権限）", "HTTP 429": "混雑・回数制限",
+                            "HTTP 403": "使えない（権限）：" + str(e)[10:50], "HTTP 429": "混雑・回数制限",
                             "HTTP 400": "受け付けない（会話用ではない？）"}.get(code, str(e)[:60]))
         except Exception as e:           # 想定外の返り方でも、ほかのチェックは続ける
             box.update(why=f"{type(e).__name__}: {e}"[:60])
@@ -169,7 +168,7 @@ def save(results):
 # 会話に使えないもの（埋め込み・画像・音声など）は一覧から外す
 NOT_CHAT = ["embed", "rerank", "retriev", "clip", "ocr", "parse", "tts", "asr", "whisper", "speech",
             "audio", "image", "vision-", "imagen", "veo", "sdxl", "diffusion-xl", "flux", "segment",
-            "detect", "guard", "safety", "reward", "aqa", "cosmos", "fastpitch", "riva"]
+            "detect", "guard", "safety", "reward", "aqa", "cosmos", "fastpitch", "riva", "playai", "orpheus"]
 
 
 def _get(url, headers):
@@ -185,11 +184,12 @@ def _get(url, headers):
 
 def list_models(backend):
     """API に、いま使えるモデルの名前を問い合わせる（会話に使えないものは外す）。"""
-    if backend == "nvidia":
-        key = minamo.load_key("NVIDIA_API_KEY")
-        data = _get(minamo.NVIDIA_URL.replace("/chat/completions", "/models"),
-                    {"Authorization": f"Bearer {key}", "Accept": "application/json"})
-        names = [m.get("id", "") for m in data.get("data") or []]
+    if backend in ("nvidia", "groq"):
+        key = minamo.load_key(minamo.KEY_NAMES[backend])
+        url = minamo.NVIDIA_URL if backend == "nvidia" else minamo.GROQ_URL
+        data = _get(url.replace("/chat/completions", "/models"),
+                    {"Authorization": f"Bearer {key}", "Accept": "application/json", "User-Agent": "minamo"})
+        names = [m.get("id", "") for m in data.get("data") or [] if m.get("active") is not False]
     else:
         key = minamo.load_key("GEMINI_API_KEY")
         names, token = [], ""
@@ -208,9 +208,9 @@ def list_models(backend):
 
 
 def show_list(word=""):
-    keys = {"nvidia": minamo.load_key("NVIDIA_API_KEY"), "gemini": minamo.load_key("GEMINI_API_KEY")}
+    keys = {b: minamo.load_key(minamo.KEY_NAMES[b]) for b in minamo.BACKENDS}
     now = {(b, m) for b, m in minamo.PROBE_MODELS}
-    for b in ("nvidia", "gemini"):
+    for b in minamo.BACKENDS:
         if not keys[b]:
             print(f"\n[{b}] APIキーがないので問い合わせません。")
             continue
@@ -228,7 +228,7 @@ def show_list(word=""):
         if gone and not word:
             print(f"  （PROBE_MODELS にあるが一覧にない：{'・'.join(gone)}）")
     print("\n★ は、いまの PROBE_MODELS に入っているもの。")
-    print("候補を変えるときは ~/.config/minamo/models.txt に、1行に「nvidia 名前」か「gemini 名前」で書く"
+    print("候補を変えるときは ~/.config/minamo/models.txt に、1行に「groq 名前」「nvidia 名前」か「gemini 名前」で書く"
           "（このファイルがあれば minamo.py の PROBE_MODELS の代わりに使う）。"
           + ("\nいまは models.txt を使っています。" if os.path.exists(minamo.MODELS_FILE) else ""))
 
@@ -253,7 +253,7 @@ def save_models(ok, limit=10):
 def main():
     import argparse
     ap = argparse.ArgumentParser(description="ミナモで使う AI を一括チェックする（面接は始めない）")
-    ap.add_argument("--backend", choices=["gemini", "nvidia"], help="この API の候補だけ試す")
+    ap.add_argument("--backend", choices=["gemini", "nvidia", "groq"], help="この API の候補だけ試す")
     ap.add_argument("--timeout", type=int, default=minamo.PROBE_TIMEOUT, help="待つ秒数")
     ap.add_argument("--show", action="store_true", help="合格した返事の書き出しも見る")
     ap.add_argument("--list", nargs="?", const="", metavar="言葉",
@@ -268,8 +268,8 @@ def main():
         return show_list(a.list)
     if a.all is not None:
         cands = []
-        for b in ("nvidia", "gemini"):
-            key = minamo.load_key("NVIDIA_API_KEY" if b == "nvidia" else "GEMINI_API_KEY")
+        for b in minamo.BACKENDS:
+            key = minamo.load_key(minamo.KEY_NAMES[b])
             if not key or (a.backend and a.backend != b):
                 continue
             try:
