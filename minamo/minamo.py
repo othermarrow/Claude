@@ -370,7 +370,8 @@ def post_json(url, body, headers, timeout=90, retry=True):
     オフラインで毎回十数秒も待たされないように。"""
     req = urllib.request.Request(
         url, data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json", **headers})
+        # User-Agent を付けないと、Groq（Cloudflare の向こう）は Python の既定の名前を 403 で断る
+        headers={"Content-Type": "application/json", "User-Agent": "minamo/1.0", **headers})
     for attempt in range(4 if retry else 1):
         try:
             with urllib.request.urlopen(req, timeout=timeout) as res:

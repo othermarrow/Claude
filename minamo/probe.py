@@ -110,7 +110,7 @@ def run(backend=None, timeout=None, system=None, out=sys.stdout, cands=None, wor
         except RuntimeError as e:
             code = str(e)[:8]
             box.update(why={"HTTP 404": "見つからない", "HTTP 410": "提供終了", "HTTP 401": "キーが通らない",
-                            "HTTP 403": "使えない（権限）", "HTTP 429": "混雑・回数制限",
+                            "HTTP 403": "使えない（権限）：" + str(e)[10:50], "HTTP 429": "混雑・回数制限",
                             "HTTP 400": "受け付けない（会話用ではない？）"}.get(code, str(e)[:60]))
         except Exception as e:           # 想定外の返り方でも、ほかのチェックは続ける
             box.update(why=f"{type(e).__name__}: {e}"[:60])
