@@ -181,7 +181,11 @@ def main():
                     help="端末の中の AI の使い方（既定 assist：ひとことだけ頼む。full：全部話させる）")
     ap.add_argument("--no-probe", action="store_true",
                     help="起動時の AI の一括チェックをしない（いつもの設定のモデルを使う）")
+    ap.add_argument("--probe-timeout", type=int, metavar="秒",
+                    help=f"起動時の AI の一括チェックで待つ秒数（既定 {minamo.PROBE_TIMEOUT}）")
     a = ap.parse_args()
+    if a.probe_timeout:
+        minamo.PROBE_TIMEOUT = max(1, a.probe_timeout)
     minamo.RECORD_DIR = os.path.expanduser(a.records)
 
     # 先にポートを取る（前のサーバーが動いていたら、蔵書の読み込みや AI の一括チェックの前に知らせる）

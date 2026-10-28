@@ -914,7 +914,7 @@ def probe_models(backend=None, no_karte=False):
     import probe
     karte = "" if no_karte else load_karte()
     system = SYSTEM_PROMPT + (KARTE_PROMPT.format(karte=karte) if karte else "")
-    results = probe.run(backend, system=system)
+    results = probe.run(backend, timeout=PROBE_TIMEOUT, system=system)   # minamo.py を直接動かしたときも、この値で
     if results:
         print(probe.summary(results), flush=True)
     return [(r["backend"], r["model"], r["sec"]) for r in results if r["ok"]], results
@@ -972,7 +972,7 @@ def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False
 
 
 def main():
-    global RECORD_DIR
+    global RECORD_DIR, PROBE_TIMEOUT
     ap = argparse.ArgumentParser(description="旧式カウンセリングAI「ミナモ」との面接")
     ap.add_argument("--backend", choices=["gemini", "nvidia", "groq"],
                     help="使うAPI（既定はキーのあるもの。nvidia・groq・gemini の順）")
@@ -1002,7 +1002,11 @@ def main():
     ap.add_argument("--fake", action="store_true", help="APIを使わず画面だけ試す")
     ap.add_argument("--no-probe", action="store_true",
                     help="起動時の AI の一括チェックをしない（いつもの設定のモデルを使う）")
+    ap.add_argument("--probe-timeout", type=int, metavar="秒",
+                    help=f"起動時の AI の一括チェックで待つ秒数（既定 {PROBE_TIMEOUT}）")
     a = ap.parse_args()
+    if a.probe_timeout:
+        PROBE_TIMEOUT = max(1, a.probe_timeout)
     RECORD_DIR = os.path.expanduser(a.records)
 
     if not a.no_library:
