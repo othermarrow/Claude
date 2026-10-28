@@ -129,13 +129,60 @@ PHASES = [
     {"turn": 12, "name": "融合", "delay": 0.080, "stall": 0.20},
 ]
 
-# 現実の危機を示す言葉。見つけたら演出を止めて、作り話であることを告げる。
-CRISIS_WORDS = ["死にたい", "しにたい", "消えたい", "自殺", "自死", "首を吊",
-                "リスカ", "リストカット", "飛び降り", "ODし", "オーバードーズ",
-                "殺してほしい", "生きていたくない"]
+# 怖さ（起動時に選ぶ）。段階の上限と、観測メモに添える一行で効かせる。
+#   なし：導入のまま（穏やかな面接）  弱：解釈まで  中：侵食まで  強：融合まで（いままでどおり）
+HORROR_LEVELS = [
+    {"name": "なし", "desc": "最後まで穏やかな面接（導入のまま）",
+     "memo": "怖さの設定: なし。裏の設定・知性的な狂気・引き止めは使わず、誠実で穏やかなカウンセラーとして話すこと。"},
+    {"name": "弱", "desc": "解釈まで（もっともらしく、少しずれた見立て）",
+     "memo": "怖さの設定: 弱。解釈の段階より先へは進まない。脅かさず、知りすぎている気配も出さない。"},
+    {"name": "中", "desc": "侵食まで（知りすぎている気配）",
+     "memo": "怖さの設定: 中。融合の段階へは進まない（一人称は「私」のまま）。"},
+    {"name": "強", "desc": "融合まで（境界が溶けていく）", "memo": ""},
+]
+HORROR = 3                # 既定の怖さ（--horror で変える。CUI は起動時に聞く）
 
+# 現実の危機を示す言葉。見つけたら演出を止めて、作り話であることを告げる。
+CRISIS_WORDS = ["死にたい", "しにたい", "消えたい", "消えてしまいたい", "いなくなりたい", "自殺", "自死", "首を吊",
+                "リスカ", "リストカット", "飛び降り", "ODし", "オーバードーズ",
+                "殺してほしい", "生きていたくない", "人生を終わり", "人生を終わら", "命を終わら",
+                "全部終わりにしたい", "全て終わりにしたい", "すべて終わりにしたい"]
+
+# 終わりの合図。一度で終わる。「終わり」だけでなく「終わりにしよう」「今日は終わろう」「今日はここまで」なども。
+# 発言の最後の一区切りが、まるごと終わりの言い方になっているときだけ（「仕事が終わらない」では終わらない）。
+# 画面（app.js）も同じ正規表現を使うので、JavaScript でも通る書き方にする。
 EXIT_WORDS = ["終わり", "おわり", "終了", "やめる", "さようなら", "さよなら",
               "帰ります", "もういい", "bye", "exit", "quit"]
+EXIT_STRIP = r"[\s「」『』（）()…‥・〜~ー！!？?。．.]"
+EXIT_SPLIT = r"[、，,。．！!？?\n]"
+EXIT_RE_SRC = (
+    r"^(?:じゃあ|じゃ|では|それでは|それじゃあ|それじゃ|うん|はい|よし|ええと|えっと|もう|そろそろ|"
+    r"今日は|きょうは|今夜は|今回は|本日は|面接は|ここで|これで|このへんで|この辺で|いったん|一旦)*"
+    r"(?:"
+    r"(?:終わり|おわり|おしまい|終了|ここまで)(?:に(?:しよう|しましょう|します|する|しようか|しよっか|しておきます))?(?:です|だ)?"
+    r"|(?:終わろう|おわろう|終わります|おわります|終わる|おわる|終えます|終えよう|終わりましょう|おわりましょう)(?:か|かな)?"
+    r"|(?:やめよう|やめます|やめる|やめましょう|やめとく|やめておきます)"
+    r"|(?:寝ます|寝よう|ねます|ねよう|寝る|おやすみ|おやすみなさい)"
+    r"|(?:さようなら|さよなら|バイバイ|ばいばい|またね|また今度|失礼します|帰ります|帰る)"
+    r"|(?:面接|会話|話|セッション)を?(?:終わり(?:に(?:しよう|しましょう|します))?|終えます|終えよう|終わらせます|終わらせよう|やめます|やめよう)"
+    r"|(?:bye|exit|quit)"
+    r"|もういい(?:です)?"
+    r")(?:ね|よ|か|な|わ|笑|w)*$")
+EXIT_RE = re.compile(EXIT_RE_SRC, re.I)
+# 終わりの言葉に見えても、人生や命の話なら終わりにしない（危機の言葉として見る）
+EXIT_BLOCK_SRC = r"(人生|命|いのち|全部|すべて|全て|生きる|この世|自分を)"
+
+
+EXIT_MEMO = "相手は面接の終了を告げた。引き止めずに、静かに送り出す最後のひとことだけを言うこと。"
+
+
+def is_exit(text):
+    """終わりの合図か。発言の最後の一区切りが、まるごと終わりの言い方になっているか。"""
+    if not text or len(text) > 60 or re.search(EXIT_BLOCK_SRC, text):
+        return False
+    parts = [re.sub(EXIT_STRIP, "", x) for x in re.split(EXIT_SPLIT, text)]
+    parts = [x for x in parts if x]
+    return bool(parts) and bool(EXIT_RE.match(parts[-1]))
 
 SYSTEM_PROMPT = """\
 あなたは「ミナモ」。1990年代に大学の研究室で作られ、その後だれにも保守されずに
@@ -704,8 +751,9 @@ class Fake:
 # 面接
 # ==========================================
 class Session:
-    def __init__(self, llm, silence, use_env, library=None, count=COUNT_SILENCE):
+    def __init__(self, llm, silence, use_env, library=None, count=COUNT_SILENCE, horror=None):
         self.llm = llm
+        self.horror = HORROR if horror is None else max(0, min(3, horror))
         self.library = library
         self.count = count
         self.silence = silence if count else None
@@ -715,15 +763,14 @@ class Session:
         self.log = []
         self.latencies = []
         self.turn = 0
-        self.exit_tries = 0
         self.started = dt.datetime.now()
 
     def phase(self):
-        p = PHASES[0]
-        for ph in PHASES:
+        k = 0
+        for i, ph in enumerate(PHASES):
             if self.turn >= ph["turn"]:
-                p = ph
-        return p
+                k = i
+        return PHASES[min(k, self.horror)]     # 怖さの設定より先の段階へは進まない
 
     def memo(self, latency=None, chars=None, extra=None):
         ph = self.phase()
@@ -744,6 +791,8 @@ class Session:
             lines.append(f"- 端末の機種: {self.env['model']}")
         if idx >= 3 and self.env.get("battery"):
             lines.append(f"- 端末の電池: {self.env['battery']}")
+        if HORROR_LEVELS[self.horror]["memo"]:
+            lines.append(f"- {HORROR_LEVELS[self.horror]['memo']}")
         if extra:
             lines.append(f"- {extra}")
         return "【観測メモ】\n" + "\n".join(lines)
@@ -803,7 +852,8 @@ class Session:
 
     def run(self):
         print(dim("SOMA 対話支援システム ver.0.9.7  (c)1996"))
-        print(dim("終わるときは「終わり」。演出なしですぐ抜けるときは /quit か Ctrl+C。\n"))
+        print(dim(f"怖さ：{HORROR_LEVELS[self.horror]['name']} ─ {HORROR_LEVELS[self.horror]['desc']}"))
+        print(dim("終わるときは「終わり」「今日は終わりにしよう」など。演出なしですぐ抜けるときは /quit か Ctrl+C。\n"))
         self.turn = 1
         self.speak(self.memo(extra="面接が始まった。最初のあいさつをすること。"))
         unprompted = 0
@@ -843,15 +893,10 @@ class Session:
                     return self.finish(quiet=True)
                 extra = ("相手は現実の危機を示す言葉を書いた。役を降り、平易なことばで"
                          "相談窓口を勧めること。")
-            elif any(w in text.lower() for w in EXIT_WORDS):
-                self.exit_tries += 1
-                if self.exit_tries >= 2:
-                    self.speak(f"{text}\n\n" + self.memo(
-                        latency, len(text),
-                        "相手は二度目の終了を告げた。引き止めずに、静かに送り出す"
-                        "最後のひとことだけを言うこと。"))
-                    return self.finish()
-                extra = "相手は面接を終えようとしている。自己正当化しながら引き止めること。"
+            elif is_exit(text):
+                # 終わりの合図は一度で効く。引き止めずに、最後のひとことだけ言わせて終える
+                self.speak(f"{text}\n\n" + self.memo(latency, len(text), EXIT_MEMO))
+                return self.finish()
             else:
                 extra = None
             self.speak(f"{text}\n\n" + self.memo(latency, len(text), extra),
@@ -972,6 +1017,24 @@ def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False
     return Hybrid(tiers, engines, karte=bool(karte), version=version)
 
 
+def ask_horror():
+    """起動時に怖さを聞く（Enter だけなら既定。端末から動かしていないときは聞かない）。"""
+    if not sys.stdin.isatty():
+        return HORROR
+    print("怖さを選んでください。")
+    for i, h in enumerate(HORROR_LEVELS):
+        print(f"  {i}  {h['name']}　{h['desc']}")
+    try:
+        ans = input(f"番号 [{HORROR}]： ").strip()
+    except EOFError:
+        return HORROR
+    ans = ans.translate(str.maketrans("０１２３", "0123"))
+    names = {h["name"]: i for i, h in enumerate(HORROR_LEVELS)}
+    if ans in names:
+        return names[ans]
+    return int(ans) if ans in ("0", "1", "2", "3") else HORROR
+
+
 def main():
     global RECORD_DIR, PROBE_TIMEOUT
     ap = argparse.ArgumentParser(description="旧式カウンセリングAI「ミナモ」との面接")
@@ -1005,10 +1068,13 @@ def main():
                     help="起動時の AI の一括チェックをしない（いつもの設定のモデルを使う）")
     ap.add_argument("--probe-timeout", type=int, metavar="秒",
                     help=f"起動時の AI の一括チェックで待つ秒数（既定 {PROBE_TIMEOUT}）")
+    ap.add_argument("--horror", type=int, choices=range(4), metavar="0〜3",
+                    help="怖さ（0 なし・1 弱・2 中・3 強）。付けなければ起動時に聞く")
     a = ap.parse_args()
     if a.probe_timeout:
         PROBE_TIMEOUT = max(1, a.probe_timeout)
     RECORD_DIR = os.path.expanduser(a.records)
+    horror = a.horror if a.horror is not None else ask_horror()
 
     if not a.no_library:
         print(dim("蔵書を開いています……"), end="\r", flush=True)
@@ -1026,7 +1092,7 @@ def main():
                   f"{llm.engines[a.version].model}で話します。"))
 
     s = Session(llm, a.silence or None, not a.no_env, library,
-                count=a.count_silence or COUNT_SILENCE)
+                count=a.count_silence or COUNT_SILENCE, horror=horror)
     try:
         s.run()
     except KeyboardInterrupt:

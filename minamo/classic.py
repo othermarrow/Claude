@@ -177,7 +177,7 @@ def parse(contents):
     info["start"] = "面接が始まった" in memo
     m = re.search(r"前回の面接記録がある（(.+?)）", memo)
     info["prev"] = "、".join(m.group(1).split("、")[:2]) if m else ""
-    info["exit2"] = "二度目の終了" in memo
+    info["exit2"] = "二度目の終了" in memo or "終了を告げた" in memo
     info["exit1"] = "終えようとしている" in memo
     info["crisis"] = "現実の危機" in memo
     info["silence"] = "何も送っていない" in memo

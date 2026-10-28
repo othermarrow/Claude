@@ -36,6 +36,7 @@
   settings.count = !!settings.count;     // 沈黙の秒数を数えるか（既定：数えない）
   settings.version = settings.version === "1996" ? "1996" : "2026";
   settings.offline = !!settings.offline; // 端末内モデルだけで話すか
+  settings.horror = [0, 1, 2, 3].includes(settings.horror) ? settings.horror : 3;   // 怖さ（段階の上限）
   const is2026 = () => settings.version === "2026";
   const MODE_NOTE = {
     cloud: "回線が戻りました。",
@@ -212,7 +213,7 @@
   // ---------- 面接 ----------
   function newSession() {
     return {
-      contents: [], log: [], latencies: [], turn: 0, exitTries: 0,
+      contents: [], log: [], latencies: [], turn: 0,
       started: new Date(), unprompted: 0, busy: false, done: false, phaseIdx: 0,
       t0: 0, erased: 0, prevValue: "", lastInput: 0, away: 0, hiddenAt: 0, silenceTimer: 0,
       nextBeat: 0, ghosted: false, ghost: null, predict: [],
@@ -221,9 +222,9 @@
   }
 
   function phase() {
-    let p = cfg.phases[0];
-    for (const ph of cfg.phases) if (S.turn >= ph.turn) p = ph;
-    return p;
+    let k = 0;
+    cfg.phases.forEach((ph, i) => { if (S.turn >= ph.turn) k = i; });
+    return cfg.phases[Math.min(k, settings.horror)];      // 怖さの設定より先の段階へは進まない
   }
   const phaseIdx = () => cfg.phases.indexOf(phase());
 
@@ -257,6 +258,8 @@
     if (idx >= 2 && env.user) L.push("- 端末のユーザー名: " + env.user);
     if (idx >= 2 && env.model) L.push("- 端末の機種: " + env.model);
     if (idx >= 3 && env.battery) L.push("- 端末の電池: " + env.battery);
+    const hl = (cfg.horror_levels || [])[settings.horror];
+    if (hl && hl.memo) L.push("- " + hl.memo);
     if (o.extra) L.push("- " + o.extra);
     return "【観測メモ】\n" + L.join("\n");
   }
@@ -582,19 +585,23 @@
     if (hasAny(text, cfg.crisis_words)) {
       if (!(await crisisAsk())) return finish(true);
       extra = "相手は現実の危機を示す言葉を書いた。役を降り、平易なことばで相談窓口を勧めること。";
-    } else if (hasAny(text, cfg.exit_words)) {
-      S.exitTries++;
-      if (S.exitTries >= 2) {
-        await speak(text + "\n\n" + memo({ latency, chars: text.length, erased, away,
-          extra: "相手は二度目の終了を告げた。引き止めずに、静かに送り出す最後のひとことだけを言うこと。" }));
-        return finish(false);
-      }
-      extra = "相手は面接を終えようとしている。自己正当化しながら引き止めること。";
-      FX.glitch(400);
+    } else if (isExit(text)) {
+      // 終わりの合図は一度で効く。引き止めずに、最後のひとことだけ言わせて終える
+      await speak(text + "\n\n" + memo({ latency, chars: text.length, erased, away,
+        extra: cfg.exit_memo || "相手は面接の終了を告げた。引き止めずに、静かに送り出す最後のひとことだけを言うこと。" }));
+      return finish(false);
     }
     await speak(text + "\n\n" + memo({ latency, chars: text.length, erased, away, extra }),
                 false, extra ? "" : text);
   });
+
+  // 終わりの合図か（minamo.is_exit と同じ見分け方。古いサーバーなら言葉が入っているかだけ）
+  function isExit(text) {
+    if (!cfg.exit_re) return hasAny(text, cfg.exit_words);
+    if (text.length > 60 || new RegExp(cfg.exit_block).test(text)) return false;
+    const parts = text.split(new RegExp(cfg.exit_split)).map(x => x.replace(new RegExp(cfg.exit_strip, "g"), "")).filter(x => x);
+    return parts.length > 0 && new RegExp(cfg.exit_re, "i").test(parts[parts.length - 1]);
+  }
 
   // ---------- 終わり ----------
   async function finish(quiet) {
@@ -824,7 +831,9 @@
     S = newSession();
     FX.setPhase(0);
     $("quit").hidden = false;
-    sysLine("終わるときは「終わり」。演出なしですぐ抜けるときは右上の「面接をやめる」か /quit。");
+    const hl = (cfg.horror_levels || [])[settings.horror];
+    if (hl) sysLine("怖さ：" + hl.name + " ─ " + hl.desc);
+    sysLine("終わるときは「終わり」「今日は終わりにしよう」など。演出なしですぐ抜けるときは右上の「面接をやめる」か /quit。");
     S.turn = 1;
     let extra = "面接が始まった。最初のあいさつをすること。";
     if (prev) {
@@ -854,6 +863,16 @@
   bindSeg("seg-count", "count", v => v === "1");
   bindSeg("seg-offline", "offline", v => v === "1");
   bindSeg("seg-ver", "version", v => v);
+  bindSeg("seg-horror", "horror", v => Number(v));
+  // 怖さの説明（サーバーの説明が届く前は、ここにある同じ文を出す）
+  const HORROR_DESC = ["最後まで穏やかな面接（導入のまま）", "解釈まで（もっともらしく、少しずれた見立て）",
+                       "侵食まで（知りすぎている気配）", "融合まで（境界が溶けていく）"];
+  const horrorNote = () => {
+    const hl = (typeof cfg !== "undefined" && cfg && cfg.horror_levels) ? cfg.horror_levels[settings.horror] : null;
+    $("horror-note").textContent = "怖さ：" + (hl ? hl.desc : HORROR_DESC[settings.horror]) + "。「演出」は画面と音、「怖さ」はミナモの言葉の怖さ。";
+  };
+  $("seg-horror").addEventListener("click", horrorNote);
+  horrorNote();
   const excessNote = () => { $("excess-note").hidden = settings.level !== 3; };
   $("seg-level").addEventListener("click", excessNote);
   excessNote();
