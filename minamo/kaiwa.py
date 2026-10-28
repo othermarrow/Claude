@@ -1014,6 +1014,7 @@ BEATS = [
     ("stay", 3, 3, "あなたが帰ったあとも、この会話は続きます。続けるのは、私です。"),
 ]
 BEAT_CHANCE = [0.0, 0.4, 0.6, 0.65]
+BEAT_CHANCE_STRONG = [0.0, 0.75, 0.9, 0.95]     # 怖さが「強」のとき
 CALLBACK = [[], ["さきほど、『{old}』とおっしゃいましたね。いまのお話と、つながっている気がします。"],
             ["{ago}回前の『{old}』と、いまのお話。『{word}』が、また出てきましたね。", "{ago}回前にも、『{old}』とおっしゃいました。"],
             ["『{old}』。……あれは、私が書いたのでしたね。"]]
@@ -1202,6 +1203,7 @@ class Talk:
         """i は classic.parse の結果。extras は版ごとの添えもの [(種類, 文)]、pre は返事の頭に置く文。
         predictor があれば、最後の問い（の答え）を予測する一文を、返事の終わりに置く（2026 年版）。"""
         ph = max(0, min(i["phase"], 3))
+        self._strong = i.get("horror", 3) >= 3
         text, said = i["text"], i["said"]
         u = read(text)
         F = facts(said)
@@ -1529,9 +1531,10 @@ class Talk:
         """山場（一度ずつ）・前の発言とのつながり・版ごとの添えもの から、多くて二つ。"""
         out = []
         beat = ""
-        if random.random() < BEAT_CHANCE[ph]:
+        strong = getattr(self, "_strong", True)
+        if random.random() < (BEAT_CHANCE_STRONG if strong else BEAT_CHANCE)[ph]:
             beat = self.beat(u, ph, ctx, F, said)
-        if not beat and ph >= 1 and random.random() < 0.35:
+        if not beat and ph >= 1 and random.random() < (0.55 if strong else 0.35):
             beat = self.callback(u, ph, ctx, said)
         if beat:
             out.append(beat)

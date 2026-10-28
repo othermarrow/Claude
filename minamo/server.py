@@ -45,6 +45,7 @@ def info():
         "exit_re": minamo.EXIT_RE_SRC, "exit_strip": minamo.EXIT_STRIP, "exit_split": minamo.EXIT_SPLIT,
         "exit_block": minamo.EXIT_BLOCK_SRC, "exit_memo": minamo.EXIT_MEMO,
         "horror_levels": minamo.HORROR_LEVELS, "horror": minamo.HORROR,
+        "horror_tricks": minamo.HORROR_TRICKS, "trick_note": minamo.TRICK_NOTE,
         "records": minamo.RECORD_DIR,
         "library": STATE["library"].counts() if STATE["library"] else [0, 0],
         # 起動時の一括チェックの結果（返事の中身は渡さない）

@@ -180,6 +180,8 @@ def parse(contents):
     info["exit2"] = "二度目の終了" in memo or "終了を告げた" in memo
     info["exit1"] = "終えようとしている" in memo
     info["crisis"] = "現実の危機" in memo
+    m = re.search(r"怖さの設定: (なし|弱|中|強)", memo)
+    info["horror"] = ["なし", "弱", "中", "強"].index(m.group(1)) if m else 3
     info["silence"] = "何も送っていない" in memo
     m = re.search(r"【(蔵書|ノート)の一節】(?:『(.+?)』|「(.+?)」の項)より[^\n]*\n(.+)", last, re.S)
     if m:

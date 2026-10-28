@@ -213,7 +213,7 @@
   // ---------- 面接 ----------
   function newSession() {
     return {
-      contents: [], log: [], latencies: [], turn: 0,
+      contents: [], log: [], latencies: [], turn: 0, tricks: [],
       started: new Date(), unprompted: 0, busy: false, done: false, phaseIdx: 0,
       t0: 0, erased: 0, prevValue: "", lastInput: 0, away: 0, hiddenAt: 0, silenceTimer: 0,
       nextBeat: 0, ghosted: false, ghost: null, predict: [],
@@ -221,10 +221,23 @@
     };
   }
 
+  // 怖さの設定で、段階の進み方と行き止まりが変わる（minamo.horror_phase と同じ）
   function phase() {
+    const hl = (cfg.horror_levels || [])[settings.horror];
     let k = 0;
-    cfg.phases.forEach((ph, i) => { if (S.turn >= ph.turn) k = i; });
-    return cfg.phases[Math.min(k, settings.horror)];      // 怖さの設定より先の段階へは進まない
+    if (hl && hl.turns) hl.turns.forEach((t, i) => { if (S.turn >= t) k = i; });
+    else { cfg.phases.forEach((ph, i) => { if (S.turn >= ph.turn) k = i; }); k = Math.min(k, settings.horror); }
+    return cfg.phases[k];
+  }
+  // 今回の仕掛け（minamo.pick_trick と同じ。続けて同じものは選ばない）
+  function pickTrick(idx, hl) {
+    const pools = cfg.horror_tricks;
+    if (!pools || !pools[idx] || Math.random() >= (hl.trick || 0) || (idx === 0 && settings.horror < 3)) return "";
+    const recent = S.tricks.slice(-2);
+    const pool = pools[idx].filter(t => !recent.includes(t));
+    const t = pick(pool.length ? pool : pools[idx]);
+    S.tricks.push(t);
+    return t;
   }
   const phaseIdx = () => cfg.phases.indexOf(phase());
 
@@ -260,6 +273,11 @@
     if (idx >= 3 && env.battery) L.push("- 端末の電池: " + env.battery);
     const hl = (cfg.horror_levels || [])[settings.horror];
     if (hl && hl.memo) L.push("- " + hl.memo);
+    // 危機の言葉・終わりの合図のときは、仕掛けを入れない
+    if (hl && !(o.extra && /現実の危機|終了を告げた/.test(o.extra))) {
+      const trick = pickTrick(idx, hl);
+      if (trick) L.push("- 今回の仕掛け: " + trick + (cfg.trick_note || ""));
+    }
     if (o.extra) L.push("- " + o.extra);
     return "【観測メモ】\n" + L.join("\n");
   }
@@ -866,7 +884,7 @@
   bindSeg("seg-horror", "horror", v => Number(v));
   // 怖さの説明（サーバーの説明が届く前は、ここにある同じ文を出す）
   const HORROR_DESC = ["最後まで穏やかな面接（導入のまま）", "解釈まで（もっともらしく、少しずれた見立て）",
-                       "侵食まで（知りすぎている気配）", "融合まで（境界が溶けていく）"];
+                       "侵食まで（知りすぎている気配）", "融合まで。最初から違和感があり、早く深くなる"];
   const horrorNote = () => {
     const hl = (typeof cfg !== "undefined" && cfg && cfg.horror_levels) ? cfg.horror_levels[settings.horror] : null;
     $("horror-note").textContent = "怖さ：" + (hl ? hl.desc : HORROR_DESC[settings.horror]) + "。「演出」は画面と音、「怖さ」はミナモの言葉の怖さ。";
