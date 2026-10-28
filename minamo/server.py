@@ -164,7 +164,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 def main():
     ap = argparse.ArgumentParser(description="ミナモ（PWA 版）のサーバー")
     ap.add_argument("--port", type=int, default=PORT)
-    ap.add_argument("--backend", choices=["gemini", "nvidia"])
+    ap.add_argument("--backend", choices=["gemini", "nvidia", "groq"])
     ap.add_argument("--model")
     ap.add_argument("--silence", type=int, default=minamo.SILENCE_SEC)
     ap.add_argument("--no-env", action="store_true")

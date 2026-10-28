@@ -263,7 +263,7 @@ pkg install termux-api
 
 ### APIキー
 
-NVIDIA と Gemini のどちらか一つあればよい。両方あると NVIDIA を使う（`--backend gemini` で切り替え）。
+NVIDIA・Groq・Gemini のどれか一つあればよい。一括チェック（下）が、キーのある API の候補から、いちばん速く的確なものを選ぶ。一括チェックをしないときは NVIDIA → Groq → Gemini の順（`--backend groq` などで切り替え）。
 
 NVIDIA のモデルは提供が終わることがある（`openai/gpt-oss-120b` は 2026-09-03 に終了し、HTTP 410 が返る）。
 既定のモデルが 410（提供終了）か 404（見つからない）を返したら、`NVIDIA_FALLBACKS` の順に切り替えて続け、Termux の画面に「[モデル] ○○ は使えません。△△ に切り替えます。」と出す。
@@ -286,7 +286,17 @@ read -s -p "Gemini APIキー: " K; echo "GEMINI_API_KEY=$K" >> ~/.config/minamo/
 chmod 600 ~/.config/minamo/keys.env
 ```
 
-環境変数 `GEMINI_API_KEY` / `NVIDIA_API_KEY` があれば、そちらが優先される。
+**Groq**：console.groq.com の「API Keys」でキー（`gsk_` で始まる）を作り、同じように保存する。返事がとても速いので、5 秒の一括チェックに向いている。無料枠には 1 分・1 日あたりの回数の上限があり、超えたときは次に速い合格の AI に替わる。
+
+```bash
+mkdir -p ~/.config/minamo
+read -s -p "Groq APIキー: " K; echo "GROQ_API_KEY=$K" >> ~/.config/minamo/keys.env; unset K; echo
+chmod 600 ~/.config/minamo/keys.env
+```
+
+Groq の候補は `openai/gpt-oss-120b`・`openai/gpt-oss-20b`・`qwen/qwen3.8-27b`（2026-10 に利用者の一覧で使えたもの。`allam-2-7b` はアラビア語向けなので外した）。思考は gpt-oss なら `reasoning_effort: low`、Qwen なら `none` で止めて送る。
+
+環境変数 `GEMINI_API_KEY` / `NVIDIA_API_KEY` / `GROQ_API_KEY` があれば、そちらが優先される。
 
 ### AI の一括チェック（起動時）
 
@@ -330,12 +340,14 @@ cat > ~/.config/minamo/models.txt <<'EOF'
 nvidia nvidia/nemotron-3.5-lightning-30b-a3b
 nvidia nvidia/nemotron-3-ultra-550b-a55b
 nvidia openai/gpt-oss-20b
+groq openai/gpt-oss-120b
 # gemini （--list gemini で出た名前）
 EOF
 ```
 
 - 正しい名前は、API に問い合わせて確かめる：`python ~/Claude/minamo/probe.py --list`（全部）、`--list gemini`・`--list nemotron`（その言葉を含むものだけ）。いまの候補には ★ がつき、候補にあるのに一覧にないものも出る（NVIDIA の一覧には、呼べても載っていないモデルがあるかもしれない。迷ったら一括チェックの結果を優先する）。
 - **一覧のモデルを全部調べる**：`python ~/Claude/minamo/probe.py --all --save`。API の一覧にある会話用のモデルを、回数制限に当たらないよう 6 個ずつ（`--workers` で変えられる）同じ条件で調べ、合格したものを速い順に `~/.config/minamo/models.txt` へ 10 個まで書く（前のものは `models.txt.bak`）。次の起動からは、その 10 個だけを一括チェックするので、起動は速いまま。60 個ほどなら数分かかる。`--all nemotron` のように言葉で絞れる。`--save` を付けなければ、表を見るだけで何も書かない。
+- **models.txt があると、そちらが優先される**ので、Groq の候補は自動では入らない。`groq 名前` の行を足すか、`probe.py --all --save` で作り直す。
 - 一括チェックは 1 回ずつの応答で決めるので、たまたま長すぎた等で落ちることもある。
 
 ### 起動用のコマンド
@@ -480,7 +492,7 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 |---|---|---|
 | `MODEL` | `gemini-2.5-flash` | Gemini で使うモデル。`--model` でも変えられる |
 | `NVIDIA_MODEL` | `openai/gpt-oss-20b` | NVIDIA で使うモデル。gpt-oss は思考を止められないので `reasoning_effort: low` で最小にして送る（research_bot と同じ扱い）。ほかのモデルは `enable_thinking: false` |
-| `PROBE_MODELS` | NVIDIA 6 個・Gemini 2 個 | 起動時の一括チェックで試す候補 |
+| `PROBE_MODELS` | Groq 3 個・NVIDIA 6 個・Gemini 2 個 | 起動時の一括チェックで試す候補 |
 | `PROBE_ON_START` | `True` | 起動時に一括チェックするか（`--no-probe` で止める） |
 | `PROBE_TIMEOUT` | 5 | 一括チェックで待つ秒数 |
 | `NVIDIA_FALLBACKS` | `nemotron-3-super-120b-a12b`・`nemotron-3-ultra-550b-a55b` | 既定のモデルが使えないときに、順に試す代わり |
@@ -510,6 +522,7 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 - 端末内モデルの聞き取りと話し方（`kaiwa.py`）は、開発環境で、6 つの台本（眠れない会社員・短い返事・質問ばかり・楽しかった日・敵意とメタ・名前を名のる）を 2026 年版・1996 年版それぞれ 30 通りの乱数で流し（5,460 の返事）、例外・埋まっていない欄・文法の崩れ（「〜だのですね」など）・同じ文の繰り返し・長すぎる返事がないことを確かめ、やりとりを読んで直した。蔵書は GitHub の Vault（`心理学`・`Support`）のノートで試した（本の txt は開発環境にないので、本からの引用は試していない）。PWA 版のサーバーを通した返事（2026・1996）も確かめた。**実機（Termux・Xperia の Chrome）では、まだ話していない。**
 - `--all` と `--save` は、開発環境で、模した一覧（会話用でないものを外す）と模した応答（合格・英語・見つからない・受け付けない・時間切れ）で、6 個ずつの送信・1 個ごとの時間切れ・速い順の書き出しと .bak を確かめた。
 - `--list` は、開発環境で API の応答を模したテスト（会話に使えないものを外す・Gemini の複数ページ・言葉で絞る）で確かめた。実際の一覧はまだ見ていない。
+- Groq は、開発環境で Groq を模したサーバー（速い合格・8 秒かかる・回数制限）で、一括チェックの合否・速い順の選択・一覧の問い合わせ（使えないものと音声用を外す）・思考を止める指定（gpt-oss は low、Qwen は none）を確かめた。本物の Groq には、開発環境からつながらないので試していない。
 - AI の一括チェックは、Xperia の Termux で実際に動いた（利用者の報告：lightning 5.6 秒・ultra 7.0 秒が合格、gpt-oss-20b と gemma-4 は 30 秒で返事なし、Gemini 2.5 の 2 つ・nemotron-3-super は見つからない、llama-3.3 は提供終了）。開発環境では API の応答を模したテスト（速くて的確・速いが英語・マークダウン・提供終了・遅すぎ・つながらない）で、合否の判定、いちばん速い合格の選択、途中で答えなくなったときの次への切り替え、電波がないときにいつもの設定で始めること、PWA の起動画面への表示を確かめた。**実際の NVIDIA・Gemini の候補で、どれが合格し何秒かかるかは、まだ確かめていない**（候補の名前は research_bot の一覧に合わせた）。
 - 端末の中の AI の補助は、開発環境で、頼む割合・発言の種類（はい・別に・笑いなど）・直前の言葉を渡すこと・似た言い回しを捨てること・一つの返事で一度だけ頼むことも含めて、llama-server を模したサーバー（よいひとこと・英語・問い・20 秒かかる・動いていない）で、よいものだけが入り、だめなものは捨てて端末内モデルだけで話すこと、遅いときは 15 秒で切り上げて 60 秒は頼まないこと、動いていなければ待たないことを確かめた。本物の llama.cpp と小さいモデルで、どんなひとことが何秒で返るかは試していない。
 - 水底（物語モード その二）は、開発環境の Chromium（Playwright、時計を進めるテスト・乱数を固定）で、最初から「凪」まで通しで遊び（通報・取り消し・タグ探し・BBS・ファイル・私信の返信・六つの頁の開く時間とかけら・水の音を伏せてやり過ごす・混線を切る）、「巡回」「映り込み」の終わり、お守り・水音計、早く起こしたとき・混線に負けたときにかけらを失うこと、記録庫の終わりにふれること、再読み込みとやり直しを、エラーなしで確かめた。実機の Chrome では、まだ遊んでいない（水の音・足音・振動は、まだ聞いて・確かめていない）。
