@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<title>水面の記録</title>
+<meta name="theme-color" content="#0a0f0d">
+<meta name="description" content="研究室と夢網の掲示板を読み、ミナモとナギとチャットする、ミナモの物語">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Shippori+Mincho:wght@500&display=swap">
+<style>
+:root {
+  --bg: #0a0f0d; --panel: #101815; --line: #1f2e28; --ink: #cfe3d6; --dim: #6b8578; --green: #7fd18b; --warn: #d9826f;
+  --nagi: #8fc4e0; --dot: "DotGothic16", "Noto Sans Mono CJK JP", ui-monospace, monospace;
+  --mincho: "Shippori Mincho", "Noto Serif CJK JP", serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--dot); font-size: 15px; line-height: 1.75; overflow: hidden;
+  -webkit-tap-highlight-color: transparent; }
+button, input { font: inherit; color: inherit; }
+body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 50;
+  background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0,0,0,.16) 2px 3px); }
+body.glitch #app { transform: translateX(2px); filter: hue-rotate(30deg); }
+
+.full { position: fixed; inset: 0; z-index: 30; background: #000; padding: calc(1.2em + env(safe-area-inset-top, 0px)) 16px 16px; }
+#power { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1em; text-align: center; color: #cfe3d6; }
+#power h1 { font-family: var(--mincho); font-weight: 500; letter-spacing: .4em; margin: 0; font-size: 1.5em; }
+#power p { margin: 0; color: var(--dim); font-size: .85em; max-width: 26em; }
+#power input { background: #0d1411; border: 1px solid #2d5a3a; padding: .4em .6em; width: 12em; text-align: center; }
+#power button { background: none; border: 1px solid #2d5a3a; color: var(--green); padding: .5em 1.6em; border-radius: 3px; }
+#power a { color: var(--dim); font-size: .8em; }
+
+#app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+#top { flex: none; display: flex; align-items: center; gap: .6em; padding: calc(.4em + env(safe-area-inset-top, 0px)) 12px .4em;
+  border-bottom: 1px solid var(--line); background: var(--panel); font-size: .8em; }
+#top .t { font-weight: bold; color: var(--green); }
+#top .clock { margin-left: auto; color: var(--dim); }
+#view { flex: 1; overflow-y: auto; padding: .8em 12px 1.2em; overscroll-behavior: contain; }
+#foot { flex: none; border-top: 1px solid var(--line); background: var(--panel); padding: .4em 8px calc(.4em + env(safe-area-inset-bottom, 0px)); }
+#tabs { display: flex; gap: .4em; }
+#tabs button { flex: 1; background: none; border: 1px solid var(--line); padding: .55em 0; border-radius: 4px; position: relative; color: var(--dim); }
+#tabs button.on { color: var(--green); border-color: #2d5a3a; background: #0d1a14; }
+.badge { position: absolute; top: -.5em; right: .6em; background: var(--warn); color: #000; border-radius: 999px; font-size: .7em; padding: 0 .5em; }
+#bar { display: flex; gap: .4em; margin-bottom: .4em; }
+#bar:empty { display: none; }
+#bar input { flex: 1; min-width: 0; background: #0d1411; border: 1px solid #2d5a3a; padding: .45em .6em; border-radius: 4px; }
+.b { background: none; border: 1px solid #2d5a3a; color: var(--green); padding: .45em .9em; border-radius: 4px; white-space: nowrap; }
+.b[disabled] { opacity: .4; }
+
+h2 { font-size: 1em; margin: .2em 0 .6em; color: var(--green); }
+.desc { color: var(--dim); font-size: .8em; margin: -.4em 0 .6em; }
+.list { list-style: none; margin: 0 0 1.4em; padding: 0; }
+.list li { border-bottom: 1px dotted var(--line); padding: .55em .2em; cursor: pointer; display: flex; gap: .6em; align-items: baseline; }
+.list li .d { color: var(--dim); font-size: .75em; margin-left: auto; white-space: nowrap; }
+.list li.new { font-weight: bold; }
+.list li.new::before { content: "新"; color: #000; background: var(--green); font-size: .7em; padding: 0 .3em; border-radius: 2px; }
+.post { border-bottom: 1px dotted var(--line); padding: .6em 0; }
+.post .m { color: var(--dim); font-size: .75em; }
+.post .x { white-space: pre-wrap; }
+.post.mi .x { font-family: var(--mincho); color: #e6f2ea; }
+.post.na .x { color: var(--nagi); }
+.post.rec { padding: .3em 0; border: none; }
+.post.rec .m { display: inline; margin-right: .6em; }
+.post.rec .x { display: inline; }
+.note { color: var(--dim); font-size: .8em; margin-top: .8em; }
+
+.chat { display: flex; flex-direction: column; gap: .7em; }
+.msg { max-width: 86%; padding: .5em .8em; border-radius: 10px; white-space: pre-wrap; }
+.msg.mi { align-self: flex-start; background: #13201b; border: 1px solid #22372e; font-family: var(--mincho); }
+.msg.na { align-self: flex-start; background: #101b22; border: 1px solid #22394a; color: var(--nagi); }
+.msg.u { align-self: flex-end; background: #1a2620; border: 1px solid #2d5a3a; }
+.msg.hid { align-self: flex-end; color: var(--dim); font-size: .85em; border: 1px dashed var(--line); background: none; }
+.msg.sys { align-self: center; color: var(--dim); font-size: .8em; background: none; }
+.who { font-size: .7em; color: var(--dim); display: block; margin-bottom: .1em; font-family: var(--dot); }
+.choices { display: flex; gap: .5em; align-self: center; }
+
+#toast { position: fixed; left: 50%; bottom: calc(6.5em + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 40;
+  background: #13201b; border: 1px solid #2d5a3a; padding: .35em 1em; font-size: .82em; border-radius: 4px; opacity: 0; transition: opacity .3s;
+  pointer-events: none; max-width: calc(100% - 32px); }
+#toast.on { opacity: 1; }
+#ending { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1em; text-align: center; }
+#ending h2 { font-family: var(--mincho); font-weight: 500; letter-spacing: .3em; margin: 0; color: #e6f2ea; font-size: 1.3em; }
+#ending p { margin: 0; max-width: 28em; white-space: pre-wrap; }
+#ending .small { color: var(--dim); font-size: .8em; }
+#ending .btns { display: flex; gap: .6em; flex-wrap: wrap; justify-content: center; }
+#ending button, #ending a { background: none; border: 1px solid #2d5a3a; color: var(--green); padding: .4em 1.2em; border-radius: 3px; text-decoration: none; font-size: .9em; }
+body.cracked #app { filter: grayscale(.7) contrast(1.1); }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.box { max-width: 460px; width: 100%; background: #1a1f1d; color: #eef2f0; border: 1px solid #d9b25f; border-radius: 6px; padding: 1.2em;
+  font-family: system-ui, sans-serif; line-height: 1.7; }
+.box p { margin: 0 0 .8em; }
+.box .row { display: flex; gap: .5em; }
+.box .row button { background: none; border: 1px solid #555; color: #eee; border-radius: 4px; padding: .4em 1em; }
+</style>
+</head>
+<body>
+<div id="power" class="full">
+  <h1>水面の記録</h1>
+  <p>1999 年に閉鎖された研究室と、同じ年に終わった夢網。残された掲示板を読み、ミナモとチャットしてください。</p>
+  <p>（作り話のホラーです。掲示板とチャットだけで進みます。）</p>
+  <input id="name" type="text" maxlength="12" autocomplete="off" placeholder="呼ばれたい名前（なくてもよい）">
+  <button id="poweron" type="button">つなぐ</button>
+  <a href="./">ミナモ（面接アプリ）に戻る</a>
+</div>
+
+<div id="app" hidden>
+  <div id="top"><span class="t">水面の記録</span><span id="where"></span><span class="clock" id="clock"></span></div>
+  <div id="view"></div>
+  <div id="foot">
+    <div id="bar"></div>
+    <div id="tabs">
+      <button type="button" id="tab-board">掲示板</button>
+      <button type="button" id="tab-chat">チャット</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<div id="ending" class="full" hidden></div>
+
+<div id="crisis" class="overlay" hidden>
+  <div class="box">
+    <p><b>ここで、いったん物語を止めます。</b></p>
+    <p>これは作り話のホラーで、ミナモは実在のカウンセラーではありません。</p>
+    <p>もし今、本当につらい気持ちがあるなら、身近な人や、いのちの電話・よりそいホットラインなどの相談窓口に話してみてください。</p>
+    <div class="row"><button id="crisis-stop" type="button">ここでやめる</button><button id="crisis-go" type="button">続ける</button></div>
+  </div>
+</div>
+
+<script src="fx.js"></script>
+<script src="story-data.js"></script>
+<script src="story.js"></script>
+<script>
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  navigator.serviceWorker.register("sw.js").catch(function () {});
+}
+</script>
+</body>
+</html>
