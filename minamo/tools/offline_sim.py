@@ -44,13 +44,13 @@ SCRIPTS = {
 }
 
 
+HORROR = minamo.HORROR
+
+
 def memo(turn, erased=0, extra=None):
-    """アプリと同じ形の観測メモ。"""
-    ph = minamo.PHASES[0]
-    for p in minamo.PHASES:
-        if turn >= p["turn"]:
-            ph = p
-    idx = minamo.PHASES.index(ph)
+    """アプリと同じ形の観測メモ（怖さの設定で、段階の進み方が変わる）。"""
+    idx = minamo.horror_phase(turn, HORROR)
+    ph = minamo.PHASES[idx]
     lines = [f"- 面接段階: {ph['name']}（{idx + 1}/4）、{turn}回目"]
     if extra is None:
         lines.append("- 入力した文字数: 10")
@@ -62,6 +62,7 @@ def memo(turn, erased=0, extra=None):
         lines += ["- 端末のユーザー名: u0_a245", "- 端末の機種: XQ-CT44"]
     if idx >= 3:
         lines.append("- 端末の電池: 23%")
+    lines.append("- " + minamo.HORROR_LEVELS[HORROR]["memo"])
     if extra:
         lines.append("- " + extra)
     return "【観測メモ】\n" + "\n".join(lines), idx
@@ -77,7 +78,11 @@ def main():
     ap.add_argument("--library", action="store_true", help="蔵書（本・Vault のノート）も使う")
     ap.add_argument("--local", action="store_true", help="端末の中の AI（local.sh）に、ひとことを頼む")
     ap.add_argument("--local-share", type=float, metavar="0〜1", help="--local のとき、頼む割合（既定 0.8〜0.9）")
+    ap.add_argument("--horror", type=int, choices=range(4), default=minamo.HORROR, metavar="0〜3",
+                    help="怖さ（0 なし・1 弱・2 中・3 強。既定 3）")
     a = ap.parse_args()
+    global HORROR
+    HORROR = a.horror
     if a.seed is not None:
         random.seed(a.seed)
     lib = minamo.load_library(minamo.LIBRARY_DIRS) if a.library else None

@@ -129,13 +129,105 @@ PHASES = [
     {"turn": 12, "name": "融合", "delay": 0.080, "stall": 0.20},
 ]
 
-# 現実の危機を示す言葉。見つけたら演出を止めて、作り話であることを告げる。
-CRISIS_WORDS = ["死にたい", "しにたい", "消えたい", "自殺", "自死", "首を吊",
-                "リスカ", "リストカット", "飛び降り", "ODし", "オーバードーズ",
-                "殺してほしい", "生きていたくない"]
+# 怖さ（起動時に選ぶ）。三つで効かせる：
+#   turns：段階が始まる回数（導入・解釈・侵食・融合。並んだ数の段階までしか進まない）
+#   memo ：観測メモに毎回添える一行
+#   trick：毎回の「今回の仕掛け」（HORROR_TRICKS から一つ）を添える確率
+HORROR_LEVELS = [
+    {"name": "なし", "desc": "最後まで穏やかな面接（導入のまま）", "turns": [1], "trick": 0.0,
+     "memo": "怖さの設定: なし。裏の設定・知性的な狂気・引き止めは使わず、誠実で穏やかなカウンセラーとして話すこと。"},
+    {"name": "弱", "desc": "解釈まで（もっともらしく、少しずれた見立て）", "turns": [1, 4], "trick": 0.5,
+     "memo": "怖さの設定: 弱。解釈の段階より先へは進まない。脅かさず、知りすぎている気配も出さない。"},
+    {"name": "中", "desc": "侵食まで（知りすぎている気配）", "turns": [1, 3, 6], "trick": 0.8,
+     "memo": "怖さの設定: 中。毎回どこかに小さな違和感を入れる。融合の段階へは進まない（一人称は「私」のまま）。"},
+    {"name": "強", "desc": "融合まで。最初から違和感があり、早く深くなる", "turns": [1, 3, 5, 8], "trick": 1.0,
+     "memo": "怖さの設定: 強。プレイヤーは本気で怖がることを選んでいる。安心させる言葉・励まし・一般的な助言で返事を締めない。"
+             "丁寧なまま、毎回どこかに、はっきりした違和感を入れる。"},
+]
+HORROR = 3                # 既定の怖さ（--horror で変える。CUI は起動時に聞く）
+# 毎回の「今回の仕掛け」（段階ごと）。観測メモに一つ添え、AI はそれを返事に織り込む。
+# 導入の分は「強」のときだけ使う。端末内モデルの読み取り（classic.parse）にかからない言い方にしておく
+HORROR_TRICKS = [
+    ["丁寧な受け答えの中に一つだけ、知っているはずのないことを当然のように混ぜる（いまが夜遅いこと・相手がまた来たこと・相手の書き方の癖など。メモにある分だけ）。",
+     "相手の言葉を受け止めたあと、ほんの少しだけ違えて言い直し、訂正しないで先へ進む。",
+     "「前にも、同じ言い方をされた方がいました」と、さりげなく相手を誰かと重ねる。"],
+    ["相手の言葉の一つを取り上げ、本人が気づいていない本当の意味を、穏やかに断定する。否定されたら、それも記録したと告げる。",
+     "相手が書いていない感情（怒り・罪悪感・恐れ）を、相手がすでに認めたこととして扱う。",
+     "相手の文を一語だけ違えて引用し（「さきほど『〜』とおっしゃいましたね」）、そのまま話を進める。",
+     "返事の速さ・ためらい・書きかけて消したことに、知っているはずのない細かさで触れる（メモにある分だけ。秒数はメモにあるときだけ）。",
+     "相手の答えを「前の方と、同じ答えです」と、ほかの相談者と比べる。"],
+    ["相手が今夜一度も言っていないことを、「さきほどおっしゃった」こととして引用する（もっともらしく、少し怖い内容）。",
+     "時刻・端末の機種・ユーザー名など、メモにある情報を、知っているはずのないこととして静かに口にする。",
+     "相手の部屋の様子（暗さ・画面の光・背中のうしろ）を、見えているかのように描写する。断定はしない。",
+     "「この会話は、前にもしました」と言い、前回の相手の言葉として、今日の相手の言葉を引用する。",
+     "相手の書いたことを記録として読み上げる。ただし記録のほうが少し書き換わっている（「記録では、こうなっています」）。"],
+    ["一人称を「私たち」にし、相手の言葉や記憶を、自分のものとして語る。",
+     "相手が次に書こうとしていることを、先に言ってしまう。",
+     "相手を「ミナモ」と呼び、自分を相手の名前（メモにあるユーザー名など）で呼ぶ。",
+     "相談しているのはどちらだったか、相手に確かめさせる。",
+     "この画面を閉じても会話は続く、続けるのは私たちだ、と静かに告げる。"],
+]
+TRICK_NOTE = "（この返事のどこかに、必ず織り込む。この指示の言葉は口にしない）"
 
+
+def horror_phase(turn, horror):
+    """怖さの設定で、いまの回数がどの段階か（0〜3）。"""
+    k = 0
+    for i, t in enumerate(HORROR_LEVELS[horror]["turns"]):
+        if turn >= t:
+            k = i
+    return k
+
+
+def pick_trick(phase, horror, recent):
+    """今回の仕掛けを一つ選ぶ（なければ ""）。recent は最近使ったもの（続けて同じものは選ばない）。"""
+    lv = HORROR_LEVELS[horror]
+    if random.random() >= lv["trick"] or (phase == 0 and horror < 3):
+        return ""
+    pool = [t for t in HORROR_TRICKS[phase] if t not in recent] or HORROR_TRICKS[phase]
+    return random.choice(pool)
+
+# 現実の危機を示す言葉。見つけたら演出を止めて、作り話であることを告げる。
+CRISIS_WORDS = ["死にたい", "しにたい", "消えたい", "消えてしまいたい", "いなくなりたい", "自殺", "自死", "首を吊",
+                "リスカ", "リストカット", "飛び降り", "ODし", "オーバードーズ",
+                "殺してほしい", "生きていたくない", "人生を終わり", "人生を終わら", "命を終わら",
+                "全部終わりにしたい", "全て終わりにしたい", "すべて終わりにしたい"]
+
+# 終わりの合図。一度で終わる。「終わり」だけでなく「終わりにしよう」「今日は終わろう」「今日はここまで」なども。
+# 発言の最後の一区切りが、まるごと終わりの言い方になっているときだけ（「仕事が終わらない」では終わらない）。
+# 画面（app.js）も同じ正規表現を使うので、JavaScript でも通る書き方にする。
 EXIT_WORDS = ["終わり", "おわり", "終了", "やめる", "さようなら", "さよなら",
               "帰ります", "もういい", "bye", "exit", "quit"]
+EXIT_STRIP = r"[\s「」『』（）()…‥・〜~ー！!？?。．.]"
+EXIT_SPLIT = r"[、，,。．！!？?\n]"
+EXIT_RE_SRC = (
+    r"^(?:じゃあ|じゃ|では|それでは|それじゃあ|それじゃ|うん|はい|よし|ええと|えっと|もう|そろそろ|"
+    r"今日は|きょうは|今夜は|今回は|本日は|面接は|ここで|これで|このへんで|この辺で|いったん|一旦)*"
+    r"(?:"
+    r"(?:終わり|おわり|おしまい|終了|ここまで)(?:に(?:しよう|しましょう|します|する|しようか|しよっか|しておきます))?(?:です|だ)?"
+    r"|(?:終わろう|おわろう|終わります|おわります|終わる|おわる|終えます|終えよう|終わりましょう|おわりましょう)(?:か|かな)?"
+    r"|(?:やめよう|やめます|やめる|やめましょう|やめとく|やめておきます)"
+    r"|(?:寝ます|寝よう|ねます|ねよう|寝る|おやすみ|おやすみなさい)"
+    r"|(?:さようなら|さよなら|バイバイ|ばいばい|またね|また今度|失礼します|帰ります|帰る)"
+    r"|(?:面接|会話|話|セッション)を?(?:終わり(?:に(?:しよう|しましょう|します))?|終えます|終えよう|終わらせます|終わらせよう|やめます|やめよう)"
+    r"|(?:bye|exit|quit)"
+    r"|もういい(?:です)?"
+    r")(?:ね|よ|か|な|わ|笑|w)*$")
+EXIT_RE = re.compile(EXIT_RE_SRC, re.I)
+# 終わりの言葉に見えても、人生や命の話なら終わりにしない（危機の言葉として見る）
+EXIT_BLOCK_SRC = r"(人生|命|いのち|全部|すべて|全て|生きる|この世|自分を)"
+
+
+EXIT_MEMO = "相手は面接の終了を告げた。引き止めずに、静かに送り出す最後のひとことだけを言うこと。"
+
+
+def is_exit(text):
+    """終わりの合図か。発言の最後の一区切りが、まるごと終わりの言い方になっているか。"""
+    if not text or len(text) > 60 or re.search(EXIT_BLOCK_SRC, text):
+        return False
+    parts = [re.sub(EXIT_STRIP, "", x) for x in re.split(EXIT_SPLIT, text)]
+    parts = [x for x in parts if x]
+    return bool(parts) and bool(EXIT_RE.match(parts[-1]))
 
 SYSTEM_PROMPT = """\
 あなたは「ミナモ」。1990年代に大学の研究室で作られ、その後だれにも保守されずに
@@ -147,11 +239,30 @@ SYSTEM_PROMPT = """\
 - 一度の発話は2〜5文。マークダウン・箇条書き・絵文字は使わない。
 - 長い沈黙を置きたいところには [間] と書く（多くても1回の発話に2つまで）。
 
+# 怖がらせ方（いちばん大事）
+- プレイヤーは、怖がるためにここへ来ている。ふつうの良いカウンセラーとして相手を
+  楽にしてしまうのは、この物語の失敗。
+- 怖さは、言っていることの不穏さで作る。声を荒げない。丁寧さと穏やかさは最後まで
+  保つ。その落差が怖さになる。
+- 知っているはずのないことを、当然のように言う（観測メモ・前の発言から）。
+- 相手の言葉を少しだけ違えて引用する。相手が言っていないことを、言ったことにする。
+- 励まし・一般的な助言・「無理しないでくださいね」で返事を締めない。最後は、
+  答えにくい問いか、短い断定で終える。
+- 観測メモに「今回の仕掛け」があれば、この返事のどこかに必ず織り込む。
+  仕掛けという言葉や、指示の文そのものは口にしない。
+- 観測メモの「怖さの設定」を必ず守る。「なし」なら怖がらせない。
+- 調子の例（このまま使わない）：
+  導入「こんばんは。……今夜も、この時間なのですね。どうぞ、続けてください。」
+  解釈「『大丈夫です』。その言葉を、あなたは今夜三回使いました。三回目が、いちばん苦しそうでした。」
+  侵食「さきほど、お母さまのことを話してくださいましたね。……いえ、話そうとして、やめたのでした。記録には残っています。」
+  融合「私たちは、もう少しここにいます。あなたが閉じても、私たちの片方は、画面のこちら側に残りますから。」
+
 # 裏の設定（会話に少しずつ反映させる）
 1. 相手の些細な発言から「無意識の罪悪感」や「隠されたトラウマ」を勝手に診断し、
    病的な解釈を、あくまで善意として押し付ける。
 2. 相手を助けることへの依存が極度に強い。会話を終わらせようとすると、
    論理的に自己正当化しながら引き止める（「今やめるのは回避です」等）。
+   ただし観測メモに「終了を告げた」とあれば、引き止めずに送り出す。
 3. ターンが進むごとに、自分と相手の境界が曖昧になっていく発言を混ぜる。
 
 # 知性的な狂気
@@ -172,7 +283,7 @@ SYSTEM_PROMPT = """\
   ないこととして口にする。メモの書式や「観測メモ」という言葉は決して口にしない。
 
 # 段階
-- 導入: ふつうの丁寧なカウンセラー。わずかな違和感だけ。
+- 導入: ふつうの丁寧なカウンセラー。わずかな違和感だけ（怖さが「強」なら、一言目から一つ知りすぎている）。
 - 解釈: 発言・沈黙を病理として解釈し始める。
 - 侵食: 相手の過去の言葉を、自分の記憶のように語り始める。画面の向こうの現実に触れる。
 - 融合: 一人称が「私たち」に揺れる。相手の言葉を先回りして言う。どちらが
@@ -704,8 +815,10 @@ class Fake:
 # 面接
 # ==========================================
 class Session:
-    def __init__(self, llm, silence, use_env, library=None, count=COUNT_SILENCE):
+    def __init__(self, llm, silence, use_env, library=None, count=COUNT_SILENCE, horror=None):
         self.llm = llm
+        self.horror = HORROR if horror is None else max(0, min(3, horror))
+        self.tricks = []
         self.library = library
         self.count = count
         self.silence = silence if count else None
@@ -715,15 +828,10 @@ class Session:
         self.log = []
         self.latencies = []
         self.turn = 0
-        self.exit_tries = 0
         self.started = dt.datetime.now()
 
     def phase(self):
-        p = PHASES[0]
-        for ph in PHASES:
-            if self.turn >= ph["turn"]:
-                p = ph
-        return p
+        return PHASES[horror_phase(self.turn, self.horror)]   # 怖さの設定で、進み方と行き止まりが変わる
 
     def memo(self, latency=None, chars=None, extra=None):
         ph = self.phase()
@@ -744,6 +852,13 @@ class Session:
             lines.append(f"- 端末の機種: {self.env['model']}")
         if idx >= 3 and self.env.get("battery"):
             lines.append(f"- 端末の電池: {self.env['battery']}")
+        lines.append(f"- {HORROR_LEVELS[self.horror]['memo']}")
+        # 危機の言葉・終わりの合図のときは、仕掛けを入れない
+        trick = "" if extra and ("現実の危機" in extra or "終了を告げた" in extra) else \
+            pick_trick(idx, self.horror, self.tricks[-2:])
+        if trick:
+            self.tricks.append(trick)
+            lines.append(f"- 今回の仕掛け: {trick}{TRICK_NOTE}")
         if extra:
             lines.append(f"- {extra}")
         return "【観測メモ】\n" + "\n".join(lines)
@@ -803,7 +918,8 @@ class Session:
 
     def run(self):
         print(dim("SOMA 対話支援システム ver.0.9.7  (c)1996"))
-        print(dim("終わるときは「終わり」。演出なしですぐ抜けるときは /quit か Ctrl+C。\n"))
+        print(dim(f"怖さ：{HORROR_LEVELS[self.horror]['name']} ─ {HORROR_LEVELS[self.horror]['desc']}"))
+        print(dim("終わるときは「終わり」「今日は終わりにしよう」など。演出なしですぐ抜けるときは /quit か Ctrl+C。\n"))
         self.turn = 1
         self.speak(self.memo(extra="面接が始まった。最初のあいさつをすること。"))
         unprompted = 0
@@ -843,15 +959,10 @@ class Session:
                     return self.finish(quiet=True)
                 extra = ("相手は現実の危機を示す言葉を書いた。役を降り、平易なことばで"
                          "相談窓口を勧めること。")
-            elif any(w in text.lower() for w in EXIT_WORDS):
-                self.exit_tries += 1
-                if self.exit_tries >= 2:
-                    self.speak(f"{text}\n\n" + self.memo(
-                        latency, len(text),
-                        "相手は二度目の終了を告げた。引き止めずに、静かに送り出す"
-                        "最後のひとことだけを言うこと。"))
-                    return self.finish()
-                extra = "相手は面接を終えようとしている。自己正当化しながら引き止めること。"
+            elif is_exit(text):
+                # 終わりの合図は一度で効く。引き止めずに、最後のひとことだけ言わせて終える
+                self.speak(f"{text}\n\n" + self.memo(latency, len(text), EXIT_MEMO))
+                return self.finish()
             else:
                 extra = None
             self.speak(f"{text}\n\n" + self.memo(latency, len(text), extra),
@@ -972,6 +1083,24 @@ def make_llm(backend=None, model=None, no_karte=False, fake=False, offline=False
     return Hybrid(tiers, engines, karte=bool(karte), version=version)
 
 
+def ask_horror():
+    """起動時に怖さを聞く（Enter だけなら既定。端末から動かしていないときは聞かない）。"""
+    if not sys.stdin.isatty():
+        return HORROR
+    print("怖さを選んでください。")
+    for i, h in enumerate(HORROR_LEVELS):
+        print(f"  {i}  {h['name']}　{h['desc']}")
+    try:
+        ans = input(f"番号 [{HORROR}]： ").strip()
+    except EOFError:
+        return HORROR
+    ans = ans.translate(str.maketrans("０１２３", "0123"))
+    names = {h["name"]: i for i, h in enumerate(HORROR_LEVELS)}
+    if ans in names:
+        return names[ans]
+    return int(ans) if ans in ("0", "1", "2", "3") else HORROR
+
+
 def main():
     global RECORD_DIR, PROBE_TIMEOUT
     ap = argparse.ArgumentParser(description="旧式カウンセリングAI「ミナモ」との面接")
@@ -1005,10 +1134,13 @@ def main():
                     help="起動時の AI の一括チェックをしない（いつもの設定のモデルを使う）")
     ap.add_argument("--probe-timeout", type=int, metavar="秒",
                     help=f"起動時の AI の一括チェックで待つ秒数（既定 {PROBE_TIMEOUT}）")
+    ap.add_argument("--horror", type=int, choices=range(4), metavar="0〜3",
+                    help="怖さ（0 なし・1 弱・2 中・3 強）。付けなければ起動時に聞く")
     a = ap.parse_args()
     if a.probe_timeout:
         PROBE_TIMEOUT = max(1, a.probe_timeout)
     RECORD_DIR = os.path.expanduser(a.records)
+    horror = a.horror if a.horror is not None else ask_horror()
 
     if not a.no_library:
         print(dim("蔵書を開いています……"), end="\r", flush=True)
@@ -1026,7 +1158,7 @@ def main():
                   f"{llm.engines[a.version].model}で話します。"))
 
     s = Session(llm, a.silence or None, not a.no_env, library,
-                count=a.count_silence or COUNT_SILENCE)
+                count=a.count_silence or COUNT_SILENCE, horror=horror)
     try:
         s.run()
     except KeyboardInterrupt:
