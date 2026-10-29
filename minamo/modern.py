@@ -243,9 +243,10 @@ class Modern:
             self.talk.reset()
             self.pred, self.preds = "", []
             items = self.memory.items
+            line = kaiwa.outside_line(i, "2026")
             if items and (i["prev"] or self.memory.data["sessions"] > 1):
-                return self.pick(START_MEM).format(mem=random.choice(items[-5:]))
-            return self.pick(START).format(greet=kaiwa.greet_word(i["hh"]))
+                return self.pick(START_MEM).format(mem=random.choice(items[-5:])) + line
+            return self.pick(START).format(greet=kaiwa.greet_word(i["hh"])) + line
         if i["silence"]:
             return self.pick(SILENCE_2026)
         if i["exit2"]:

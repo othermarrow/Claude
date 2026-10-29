@@ -37,6 +37,21 @@
   settings.version = settings.version === "1996" ? "1996" : "2026";
   settings.offline = !!settings.offline; // 端末内モデルだけで話すか
   settings.horror = [0, 1, 2, 3].includes(settings.horror) ? settings.horror : 3;   // 怖さ（段階の上限）
+  settings.outside = settings.outside !== false;   // 画面の外（書き置き・部屋の様子・あとから届く通知）
+
+  // 部屋の様子：端末の向き（置いている・手に持っている・寝転んで掲げている）と、充電中か
+  const room = { pose: "", charging: null };
+  window.addEventListener("deviceorientation", e => {
+    if (e.beta == null) return;
+    const b = Math.abs(e.beta), g = Math.abs(e.gamma || 0);
+    room.pose = b < 20 && g < 20 ? "flat" : b > 120 ? "lying" : "hand";
+  });
+  if (navigator.getBattery) {
+    navigator.getBattery().then(bt => {
+      const up = () => { room.charging = bt.charging; };
+      up(); bt.addEventListener("chargingchange", up);
+    }).catch(() => {});
+  }
   const is2026 = () => settings.version === "2026";
   const MODE_NOTE = {
     cloud: "回線が戻りました。",
@@ -213,7 +228,7 @@
   // ---------- 面接 ----------
   function newSession() {
     return {
-      contents: [], log: [], latencies: [], turn: 0, tricks: [],
+      contents: [], log: [], latencies: [], turn: 0, tricks: [], noted: {}, pending: [], room: [],
       started: new Date(), unprompted: 0, busy: false, done: false, phaseIdx: 0,
       t0: 0, erased: 0, prevValue: "", lastInput: 0, away: 0, hiddenAt: 0, silenceTimer: 0,
       nextBeat: 0, ghosted: false, ghost: null, predict: [],
@@ -278,6 +293,8 @@
       const trick = pickTrick(idx, hl);
       if (trick) L.push("- 今回の仕掛け: " + trick + (cfg.trick_note || ""));
     }
+    if (outsideOn() && idx >= 2) S.room.forEach(x => L.push("- " + x));
+    if (S.pending.length) { S.pending.forEach(x => L.push("- " + x)); S.pending = []; }
     if (o.extra) L.push("- " + o.extra);
     return "【観測メモ】\n" + L.join("\n");
   }
@@ -609,9 +626,29 @@
         extra: cfg.exit_memo || "相手は面接の終了を告げた。引き止めずに、静かに送り出す最後のひとことだけを言うこと。" }));
       return finish(false);
     }
+    if (!extra) await outsideTurn();
     await speak(text + "\n\n" + memo({ latency, chars: text.length, erased, away, extra }),
                 false, extra ? "" : text);
   });
+
+  // ---------- 画面の外（outside.py）：怖さが「中」「強」で、起動画面の「画面の外」が「あり」のときだけ ----------
+  const outsideOn = () => !!(settings.outside && settings.horror >= 2 && cfg && cfg.outside_available);
+  const saidBy = who => S.log.filter(x => x[0] === who).map(x => x[1]);
+  async function outsideTurn() {
+    if (!outsideOn()) return;
+    const idx = phaseIdx();
+    for (const [ph, kind] of (cfg.outside_notes || [])[settings.horror] || []) {
+      if (ph !== idx || S.noted[kind]) continue;
+      S.noted[kind] = true;
+      try {
+        const r = await api("/api/outside", { kind, said: saidBy(YOU), replies: saidBy(AI) });
+        if (r.line) S.pending.push(r.line);
+      } catch (e) { /* 書けなければ、黙って続ける */ }
+    }
+    if (idx >= 2) {
+      try { S.room = (await api("/api/room", { pose: room.pose, charging: room.charging })).lines || []; } catch (e) { S.room = []; }
+    }
+  }
 
   // 終わりの合図か（minamo.is_exit と同じ見分け方。古いサーバーなら言葉が入っているかだけ）
   function isExit(text) {
@@ -636,7 +673,8 @@
     let path = "";
     if (S.log.length) {
       try {
-        path = (await api("/api/record", { markdown: toMarkdown(findings) })).path;
+        path = (await api("/api/record", { markdown: toMarkdown(findings), horror: settings.horror,
+          outside: outsideOn() && !quiet, said: saidBy(YOU), replies: saidBy(AI) })).path;
         sysLine("記録を保存しました: " + path);
       } catch (e) {
         sysLine("記録を保存できませんでした: " + e.message);
@@ -862,6 +900,9 @@
               (prev.findings ? "前回の所見の書き出し：「" + prev.findings.replace(/\s+/g, " ") + "」。" : "") +
               "初対面のふりはせず、前回のことを覚えていると、あいさつの中でさりげなく示すこと。";
     }
+    if (outsideOn()) {
+      try { const o = await api("/api/outside"); if (o.finding) extra += o.finding; } catch (e) { /* なしで始める */ }
+    }
     await speak(memo({ extra }));
   }
 
@@ -882,6 +923,7 @@
   bindSeg("seg-offline", "offline", v => v === "1");
   bindSeg("seg-ver", "version", v => v);
   bindSeg("seg-horror", "horror", v => Number(v));
+  bindSeg("seg-outside", "outside", v => v === "1");
   // 怖さの説明（サーバーの説明が届く前は、ここにある同じ文を出す）
   const HORROR_DESC = ["最後まで穏やかな面接（導入のまま）", "解釈まで（もっともらしく、少しずれた見立て）",
                        "侵食まで（知りすぎている気配）", "融合まで。最初から違和感があり、早く深くなる"];

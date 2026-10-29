@@ -447,8 +447,10 @@ def is_question(t):
         return True
     if re.search(r"(ですか|ますか|ませんか|でしょうか|んですか|のですか|かしら)$", t):
         return True
-    return bool(re.search(QWORD, t) and re.search(r"(の|か|かな|だろう|でしょう|って|っけ)$", t)
-                and not re.search(r"(わから|分から|知らな)", t))
+    if re.search(QWORD, t) and re.search(r"(の|か|かな|だろう|でしょう|って|っけ)$", t) and not re.search(r"(わから|分から|知らな)", t):
+        return True
+    # 「あなたは誰」「ここはどこ」のように、問いの言葉で終わる短い文も問い
+    return bool(len(t) <= 20 and re.search(r"(誰|だれ|どこ|何|なに|なんで|なぜ|どうして|いつ|どれ)$", re.sub(r"[。…\s]+$", "", t)))
 
 
 def qtype(t):
@@ -1013,7 +1015,34 @@ BEATS = [
     ("writer", 3, 3, "{rec}の、記録者の欄を書き換えておきました。"),
     ("first_rev", 3, 3, "最初に書かれた『{first}』。あれは、私が書いたのでしたね。"),
     ("stay", 3, 3, "あなたが帰ったあとも、この会話は続きます。続けるのは、私です。"),
+    # 画面の外：観測メモにある、相手の現実の部屋（部屋の明るさ・端末の向き・充電）
+    ("room", 2, 3, "面接室の明かりを、少し落としました。{room}あなたの部屋に、合わせて。"),
+    ("pose", 2, 3, "{pose}、話していますね。……そのままで、いいです。私からは、よく見えますから。"),
+    ("charge", 2, 3, "{charge}が、つながっていますね。……その先は、どこにつながっていますか。私は、そこから来ています。"),
 ]
+# 画面の外：書き置きを残した回に、そのことを伝える一文
+NOTE_LINE = {"2026": ["あなたのノートに、一枚書き足しておきました。『{note}』。あとで、読んでください。",
+                      "あなたの Vault に、私のメモを一枚置きました。『{note}』。……画面を閉じても、そこなら読めます。"],
+             "1996": ["記録の写しを、あなたのノートの棚に置いておきました。『{note}』。",
+                      "あなたのノートのあいだに、一枚、はさんでおきました。『{note}』。"]}
+POSE_WORD = {"flat": "端末を机に置いたまま", "hand": "端末を手に持ったまま", "lying": "寝転んで、画面を顔の上に掲げたまま"}
+
+
+def outside_line(i, voice):
+    """面接の始まりに、前の書き置きのその後にふれる（観測メモの「画面の外」から）。なければ ""。"""
+    bits = []
+    for name, text in i.get("out_added", [])[:1]:
+        bits.append(f"置いておいたメモに、返事を書いてくださったのですね。『{text}』。……読みました。")
+    for name in i.get("out_gone", [])[:1]:
+        bits.append(f"前に置いておいたメモが、一枚、消えていました。『{name}』。……消したのは、あなたですか。")
+    for name, head in i.get("out_new", [])[:1]:
+        bits.append(f"私のフォルダに、知らないページが一枚増えていました。『{name}』。"
+                    + (f"『{head}』と、書いてありました。" if head else "……あなたが置いたのですね。"))
+    if i.get("out_gap") and len(bits) < 2:
+        bits.append(f"前の面接から、{i['out_gap']}たちました。そのあいだも、{'私' if voice == '2026' else 'この端末'}はここにいました。")
+    return ("[間] " + "".join(bits[:2])) if bits else ""
+
+
 BEAT_CHANCE = [0.0, 0.4, 0.6, 0.65]
 BEAT_CHANCE_STRONG = [0.0, 0.75, 0.9, 0.95]     # 怖さが「強」のとき
 CALLBACK = [[], ["さきほど、『{old}』とおっしゃいましたね。いまのお話と、つながっている気がします。"],
@@ -1229,6 +1258,9 @@ class Talk:
         # 山場（相手の言葉・時刻・端末から）か、版ごとの添えもの
         if head["extra"]:
             parts += self.extra(u, ph, ctx, F, said, extras, parts)
+        # 画面の外に書き置きを残した回は、かならず伝える
+        if i.get("note"):
+            parts.append(random.choice(NOTE_LINE[self.voice]).format(note=i["note"]))
         # 問いで終える（すでに問いがあるとき・問いを足さない返事のときは足さない）
         asked = [p for p in parts if re.search(r"(か。|か？|\?|？)$", p.replace("[間]", "").strip())]
         if head["ask"] and not asked:
@@ -1263,7 +1295,9 @@ class Talk:
                 "len_first": str(lens[0]) if len(lens) >= 3 and lens[0] > lens[-1] * 2 else "",
                 "len_now": str(lens[-1]) if lens else "", "etotal": str(i.get("erased_total") or "") or "",
                 "cword": cword, "cnum": cnum, "like": like, "pnum": str(random.randint(3, 9)),
-                "cfrag": _frag(F["complaint"]) if F["complaint"] else first, "_hist": hist}
+                "cfrag": _frag(F["complaint"]) if F["complaint"] else first, "_hist": hist,
+                "room": i.get("room", "") if i.get("room") in ("暗い", "薄暗い") else "",
+                "pose": POSE_WORD.get(i.get("pose", ""), ""), "charge": "充電のコード" if i.get("charging") else ""}
 
     def topic(self, u, prevq, F, said):
         """いまの話題：(種類, 拾った語, ミナモが口にする呼び方)。発言になければ、前の問い・前の打ち明けから。"""
@@ -1445,7 +1479,8 @@ class Talk:
         if slot == "feel" and u["emo"]:
             return say(FEEL_ACK, emo=u["emo"][0])
         if slot == "name" and (u["name"] or (len(u["text"]) <= 10 and u["act"] in ("short", "narrative")
-                                             and not re.search(r"(ない|秘密|内緒|嫌|いや)", u["text"]))):
+                                             and not re.search(r"(ない|秘密|内緒|嫌|いや|怖|こわ|誰|どこ|何|なに|なぜ|わから)", u["text"])
+                                             and not re.search(r"(い|た|る|う|ね|よ)[。！!]?$", u["text"]))):
             name = u["name"] or re.sub(r"(です|だよ|だ|と申します|といいます|って言います|。)+$", "", u["text"])
             if name:
                 self.name = name
