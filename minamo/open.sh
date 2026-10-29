@@ -4,8 +4,12 @@
 #   sh ~/Claude/minamo/open.sh            # ミナモ（面接）
 #   sh ~/Claude/minamo/open.sh archive    # 記録庫
 #   sh ~/Claude/minamo/open.sh minasoko   # 水底
+#   sh ~/Claude/minamo/open.sh stop       # 止める（stop.sh と同じ）
+#   sh ~/Claude/minamo/open.sh log        # 様子を見る（ログの最後の 20 行）
 cd "$(dirname "$0")" || exit 1
 case "$1" in
+  stop) sh "$PWD/stop.sh"; echo "止めました。"; exit 0 ;;
+  log)  tail -20 "$HOME/minamo/server.log"; exit 0 ;;
   archive)  PAGE="archive.html"; shift ;;
   minasoko) PAGE="minasoko.html"; shift ;;
   *)        PAGE="" ;;

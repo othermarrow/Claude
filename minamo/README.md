@@ -470,11 +470,15 @@ sh ~/Claude/minamo/open.sh archive    # 記録庫
 sh ~/Claude/minamo/open.sh minasoko   # 水底
 ```
 
-短い名前で呼ぶなら（一度だけ）：
+```bash
+sh ~/Claude/minamo/open.sh stop       # 止める
+sh ~/Claude/minamo/open.sh log        # 様子を見る（ログの最後の 20 行）
+```
+
+短い名前で呼ぶなら（一度だけ）。`mo`・`mo minasoko`・`mo stop`・`mo log` のように、一つの名前で全部できる：
 
 ```bash
 echo "alias mo='sh ~/Claude/minamo/open.sh'" >> ~/.bashrc
-echo "alias mstop='sh ~/Claude/minamo/stop.sh'" >> ~/.bashrc
 source ~/.bashrc
 ```
 
