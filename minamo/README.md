@@ -460,6 +460,32 @@ PWA 版だけの観測（CUI 版にはない）：
 
 「沈黙：秒数を数える」にしたときは、沈黙を「最後に何か打ってから 60 秒」で数える。数えないとき（既定）は、暗がりは段階に合わせて深くなり、心音はミナモが間を置いたときに鳴り、幽霊の入力は融合の段階でミナモが話し終えたあとにときどき出る。右上の「面接をやめる」で、演出なしにすぐ抜けられる。
 
+## MacroDroid で一発起動（PWA 版）
+
+`start.sh` は、端末の中の AI（モデルがあれば）とミナモのサーバーを裏で起動し、開けるようになるまで待つ（最大 60 秒）。すでに動いていれば何もしない。`stop.sh` は両方を止める。様子は `~/minamo/server.log`・`~/minamo/llama.log`。
+
+準備（一度だけ）：
+
+```bash
+mkdir -p ~/.termux
+grep -q '^allow-external-apps' ~/.termux/termux.properties 2>/dev/null || echo 'allow-external-apps = true' >> ~/.termux/termux.properties
+termux-reload-settings
+chmod 755 ~/Claude/minamo/start.sh ~/Claude/minamo/stop.sh
+```
+
+Android の設定 → アプリ → MacroDroid → 権限 →「Termux 環境でコマンドを実行」（Run commands in Termux environment）を許可する。Termux の電池の最適化も外しておく。
+
+マクロ「ミナモを開く」：
+
+| 項目 | 中身 |
+|---|---|
+| トリガー | ショートカットの起動（ホーム画面のアイコン）など、好きなもの |
+| アクション 1 | インテントを送信 ─ 送信先：サービス／アクション：`com.termux.RUN_COMMAND`／パッケージ：`com.termux`／クラス：`com.termux.app.RunCommandService`／エクストラ：`com.termux.RUN_COMMAND_PATH`（文字列）＝ `/data/data/com.termux/files/home/Claude/minamo/start.sh`、`com.termux.RUN_COMMAND_BACKGROUND`（真偽値）＝ `true` |
+| アクション 2 | 待機 20 秒（AI の一括チェックと蔵書の読み込みのぶん。足りなければ延ばす） |
+| アクション 3 | ウェブサイトを開く ─ `http://localhost:8082/`（インストールした PWA があれば、そちらで開くことが多い） |
+
+マクロ「ミナモを止める」：アクション 1 だけで、`RUN_COMMAND_PATH` を `.../minamo/stop.sh` にする。
+
 ## 遊び方（CUI 版）
 
 ```bash
