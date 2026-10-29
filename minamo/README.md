@@ -3,6 +3,7 @@
 旧式の心理カウンセリングAI「ミナモ」と面接する、Termux 用の CUI 心理ホラー。
 中身は NVIDIA API（`openai/gpt-oss-20b` など）か Gemini API で、固定のセリフはない。何を書いても、丁寧な敬語のまま打ち返してくる。
 理性的で形式的なカウンセリングの枠が、内側から少しずつ腐っていく。
+ミナモの話し方は、なんとなく女性を思わせる、落ち着いたやわらかい丁寧語（性別は名のらない）。
 
 遊び方は二通り：Termux の中で直接話す CUI 版（`minamo.py`）と、Chrome でインストールする PWA 版（`server.py` + `web/`）。
 
@@ -467,7 +468,7 @@ PWA 版だけの観測（CUI 版にはない）：
 ```bash
 sh ~/Claude/minamo/open.sh            # ミナモ（面接）
 sh ~/Claude/minamo/open.sh archive    # 記録庫
-sh ~/Claude/minamo/open.sh minasoko   # 水底
+sh ~/Claude/minamo/open.sh mina       # 水底
 ```
 
 ```bash
@@ -475,7 +476,7 @@ sh ~/Claude/minamo/open.sh stop       # 止める
 sh ~/Claude/minamo/open.sh log        # 様子を見る（ログの最後の 20 行）
 ```
 
-短い名前で呼ぶなら（一度だけ）。`mo`・`mo minasoko`・`mo stop`・`mo log` のように、一つの名前で全部できる：
+短い名前で呼ぶなら（一度だけ）。`mo`・`mo mina`・`mo stop`・`mo log` のように、一つの名前で全部できる：
 
 ```bash
 echo "alias mo='sh ~/Claude/minamo/open.sh'" >> ~/.bashrc
