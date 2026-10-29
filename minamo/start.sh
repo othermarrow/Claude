@@ -7,6 +7,7 @@
 cd "$(dirname "$0")" || exit 1
 mkdir -p "$HOME/minamo"
 LOG="$HOME/minamo/server.log"
+rm -f "$HOME/minamo/stop"
 MODEL="${MINAMO_MODEL:-$HOME/models/qwen2.5-3b-instruct-q4_k_m.gguf}"
 
 up() { curl -s -o /dev/null --max-time 2 "$1" 2>/dev/null; }
@@ -17,6 +18,9 @@ command -v termux-wake-lock >/dev/null 2>&1 && termux-wake-lock
 if [ -f "$MODEL" ] && command -v llama-server >/dev/null 2>&1 && ! up http://127.0.0.1:8090/health; then
   nohup sh "$PWD/local.sh" "$MODEL" > "$HOME/minamo/llama.log" 2>&1 &
 fi
+
+# 見張り役（サーバーが止まったら起こし直す）。一つだけ動かす
+pgrep -f "minamo/[w]atch.sh" >/dev/null || nohup sh "$PWD/watch.sh" "$@" >/dev/null 2>&1 &
 
 if up http://127.0.0.1:8082/; then
   echo "$(date '+%F %T') すでに動いています" >> "$LOG"
