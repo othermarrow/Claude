@@ -460,6 +460,24 @@ PWA 版だけの観測（CUI 版にはない）：
 
 「沈黙：秒数を数える」にしたときは、沈黙を「最後に何か打ってから 60 秒」で数える。数えないとき（既定）は、暗がりは段階に合わせて深くなり、心音はミナモが間を置いたときに鳴り、幽霊の入力は融合の段階でミナモが話し終えたあとにときどき出る。右上の「面接をやめる」で、演出なしにすぐ抜けられる。
 
+## Termux から一発起動（PWA 版）
+
+`open.sh` は、`start.sh` でサーバーを裏で起動し（動いていれば何もしない）、開けるようになったら Chrome（インストールした PWA があれば、たいていそちら）でミナモを開く。
+
+```bash
+sh ~/Claude/minamo/open.sh            # ミナモ（面接）
+sh ~/Claude/minamo/open.sh archive    # 記録庫
+sh ~/Claude/minamo/open.sh minasoko   # 水底
+```
+
+短い名前で呼ぶなら（一度だけ）：
+
+```bash
+echo "alias mo='sh ~/Claude/minamo/open.sh'" >> ~/.bashrc
+echo "alias mstop='sh ~/Claude/minamo/stop.sh'" >> ~/.bashrc
+source ~/.bashrc
+```
+
 ## MacroDroid で一発起動（PWA 版）
 
 `start.sh` は、端末の中の AI（モデルがあれば）とミナモのサーバーを裏で起動し、開けるようになるまで待つ（最大 60 秒）。すでに動いていれば何もしない。`stop.sh` は両方を止める。様子は `~/minamo/server.log`・`~/minamo/llama.log`。
