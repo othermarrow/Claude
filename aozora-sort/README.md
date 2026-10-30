@@ -48,3 +48,41 @@ python aozora_sort.py /storage/emulated/0/Obsidian/Vault2/aozora_bunko
 ## 注意
 - 外字注記（`※［＃…］`）やルビ記法（`《》`）はそのまま残す。
 - 実機（Xperia / Termux）での動作はまだ確認していない。サンプルの Shift_JIS ファイルと zip で動作を確かめた。
+
+---
+
+# aozora_md.py（Markdown 版と索引）
+
+`aozora_sort.py` で作家別に分けたテキストから、Obsidian で読める Markdown 版を別のフォルダに作る。索引ノートもいっしょに作る。
+
+```sh
+python aozora_md.py                     # 既定: aozora_bunko_作家別 → aozora_bunko_md
+python aozora_md.py --ruby paren        # ルビを「漢字（かんじ）」にする
+python aozora_md.py --index-only        # 索引だけ作り直す
+python aozora_md.py --force             # 作品ノートも上書きして作り直す
+```
+
+## できるもの
+```
+aozora_bunko_md/
+├─ 青空文庫 索引.md          作家一覧（作品数つき）と、全作品の題名順一覧
+├─ 中島敦/
+│   ├─ 中島敦（作品一覧）.md  その作家の作品一覧
+│   └─ 山月記.md
+└─ …
+```
+
+## 作品ノートの中身
+- プロパティ（YAML）: `title` `subtitle` `author` `translator` `source`（底本）`first_published`（初出）`chars`（本文の文字数）`tags: 青空文庫`
+- 冒頭の「テキスト中に現れる記号について」は消す。
+- ルビ `漢字《かんじ》` / `｜文字《もじ》` → `<ruby>` タグ（`--ruby paren` で括弧、`drop` で消す）
+- `［＃「…」は大／中／小見出し］` → `##` / `###` / `####` の見出し
+- `［＃「…」に傍点］` など → 太字
+- `［＃改ページ］` → 区切り線
+- 外字 `※［＃「…」、第3水準1-84-77］` や `U+XXXX` → 実際の文字。変換できないものは `〔てへん＋劣〕` のように説明を残す。
+- そのほかの `［＃…］`（字下げなど）は消す。
+- 末尾の底本・入力者などの情報は「底本・ファイル情報」としてそのまま残す。
+
+二回目以降は、すでにある作品ノートは上書きしない（Obsidian で書き足したものを消さないため）。索引と作品一覧は毎回作り直す。
+
+`<ruby>` タグが Obsidian のスマホ版でルビとして表示されるかは、実機でまだ確かめていない。読みにくければ `--ruby paren` で作り直す。
