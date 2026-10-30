@@ -9,9 +9,11 @@ import csv
 import hashlib
 import io
 import re
+import struct
 import sys
 import unicodedata
 import zipfile
+import zlib
 from pathlib import Path
 
 DEFAULT_SRC = "/storage/emulated/0/Obsidian/Vault2/aozora_bunko"
@@ -23,6 +25,7 @@ BAD_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 SEPARATOR = re.compile(r"^-{5,}")
 PERSON_ID = re.compile(r"^(\d{6})_")  # 青空文庫のファイル名の頭は作家番号（例: 000119 = 中島敦）
 NAME_BYTES = 200  # Android のファイル名は 255 バイトまで
+_warned = set()
 
 
 def decode(data: bytes):
@@ -88,17 +91,61 @@ def clean_author(name: str):
     return clean_name(name, 40)
 
 
-def read_zip(zf, label, sink):
-    for info in zf.infolist():
-        if info.filename.lower().endswith(".txt"):
-            sink.append((f"{label}!{info.filename}", Path(info.filename).stem, zf.read(info)))
-
-
 def open_zip(src):
     try:
         return zipfile.ZipFile(src, metadata_encoding="cp932")
     except TypeError:  # Python 3.10 以前
         return zipfile.ZipFile(src)
+
+
+def salvage_zip(data: bytes):
+    """目次（central directory）が壊れた zip から、各ファイルの頭を直接たどって取り出す。"""
+    pos = 0
+    while (pos := data.find(b"PK\x03\x04", pos)) >= 0 and pos + 30 <= len(data):
+        _, flag, method, _, _, _, csize, _, nlen, xlen = struct.unpack("<HHHHHIIIHH", data[pos + 4:pos + 30])
+        name = data[pos + 30:pos + 30 + nlen].decode("utf-8" if flag & 0x800 else "cp932", errors="replace")
+        start = pos + 30 + nlen + xlen
+        pos = start
+        if not name.lower().endswith(".txt"):
+            continue
+        raw = data[start:start + csize] if csize and not flag & 0x08 else data[start:]
+        try:
+            if method == 0:
+                body = raw
+            elif method == 8:
+                body = zlib.decompressobj(-15).decompress(raw)
+            else:
+                continue
+        except zlib.error:
+            continue
+        if body:
+            yield name, body
+
+
+def warn(msg: str):
+    """同じ警告は一度だけ出す（ファイルを二周するため）。"""
+    if msg not in _warned:
+        _warned.add(msg)
+        print(msg, file=sys.stderr)
+
+
+def read_zip(data: bytes, label: str):
+    """zip の中の .txt を (表示名, 名前の元, バイト列) で返す。壊れていても止まらない。"""
+    items = []
+    try:
+        with open_zip(io.BytesIO(data)) as zf:
+            for info in zf.infolist():
+                if info.filename.lower().endswith(".txt"):
+                    items.append((f"{label}!{info.filename}", Path(info.filename).stem, zf.read(info)))
+        return items
+    except Exception:
+        pass
+    items = [(f"{label}!{n}", Path(n).stem, b) for n, b in salvage_zip(data)]
+    if items:
+        warn(f"  壊れた zip から取り出しました: {label}")
+    else:
+        warn(f"  壊れた zip を飛ばしました: {label}")
+    return items
 
 
 def iter_sources(src: Path, out: Path):
@@ -107,18 +154,16 @@ def iter_sources(src: Path, out: Path):
         if not p.is_file() or out in p.parents or p.suffix.lower() not in (".txt", ".zip"):
             continue
         label = str(p.relative_to(src))
-        data = p.read_bytes()
+        try:
+            data = p.read_bytes()
+        except OSError as e:
+            warn(f"  読めないファイルを飛ばしました: {label} ({e.strerror})")
+            continue
         if data[:4] == b"PK\x03\x04":  # 拡張子が .txt でも中身が zip のことがある
-            items = []
-            try:
-                with open_zip(io.BytesIO(data)) as zf:
-                    read_zip(zf, label, items)
-            except zipfile.BadZipFile:
-                print(f"  壊れた zip を飛ばしました: {label}", file=sys.stderr)
-            yield from items
+            yield from read_zip(data, label)
         elif p.suffix.lower() == ".txt":
             if b"\x00" in data[:2000]:
-                print(f"  文字でないファイルを飛ばしました: {label}", file=sys.stderr)
+                warn(f"  文字でないファイルを飛ばしました: {label}")
                 continue
             yield label, p.stem, data
 
