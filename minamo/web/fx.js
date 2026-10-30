@@ -1,6 +1,6 @@
 /* ミナモ：演出（音・画面の乱れ・波紋・心音・幽霊の入力・起動画面）。
    音は WebAudio で作る（音声ファイルなし）。強い点滅はしない：乱れは短く、明るさは変えない。
-   演出の強さ  0: 弱（動く演出なし。音と印字だけ）  1: 標準  2: 強  3: 過剰（excess.js も動く。Backrooms の音） */
+   演出の強さ  0: 弱（動く演出なし。音と印字だけ）  1: 標準  2: 強  3: 過剰（excess.js も動く。相棒と、画面の中の部屋） */
 (function () {
   "use strict";
 
@@ -80,6 +80,13 @@
     tone(high ? 1760 : 1320, 0.12, "sine", 0.04, t + 0.07);
   };
 
+  // 相棒の明るい音（過剰）：上がっていく四つの音。sad なら、遅く、少し低くずれる
+  FX.jingle = sad => {
+    if (!live()) return;
+    const t = ac.currentTime, notes = [784, 988, 1175, 1568], step = sad ? 0.22 : 0.09;
+    notes.forEach((f, i) => tone(sad ? f * (1 - 0.03 * i) : f, sad ? 0.3 : 0.12, "square", 0.025, t + i * step));
+  };
+
   FX.click = () => {
     if (!live()) return;
     const t = ac.currentTime, s = ac.createBufferSource(); s.buffer = clickBuf;
@@ -111,7 +118,7 @@
     });
   };
 
-  // ---------- Backrooms の音（過剰） ----------
+  // ---------- 過剰の音（唸り・暗転・足音など） ----------
   // 蛍光灯の唸り：120Hz とその倍音のこもった唸りと、高いところのジジジという音
   let hum = null, humLevel = 0;
   function ensureHum() {
