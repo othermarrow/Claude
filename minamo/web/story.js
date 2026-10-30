@@ -179,7 +179,7 @@
     return st;
   }
   let palToken = 0, palTimer = 0, palHigh = 0;
-  // important：書き込みを読み上げるときなど。そのあと 8 秒は、ほかのひとことで上書きしない
+  // important：書き込みをくり返すときなど。そのあと 8 秒は、ほかのひとことで上書きしない
   async function palSay(text, important) {
     if (!text || S.ending) return;
     if (important) palHigh = Date.now();

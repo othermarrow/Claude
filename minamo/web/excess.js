@@ -81,7 +81,6 @@
     $("pal-say").hidden = true;
     document.querySelectorAll(".dlg").forEach(e => e.remove());
     $("input").placeholder = "";
-    try { speechSynthesis.cancel(); } catch (e) { /* なし */ }
     document.title = "ミナモ";
     FX.setHum(0);
   }
@@ -213,7 +212,6 @@
       setTimeout(() => { const t = palLine(idx); if (t && live()) { palSaid++; palSay(t); } }, rand(1500, 3500));
     }
     if (idx >= 2 && Math.random() < 0.3) mojibake();
-    if (idx >= 2 && Math.random() < 0.25) setTimeout(() => live() && voice(pickSaid()), rand(2500, 5000));
     if (idx >= 3 && !houseDone && befriended && ctx.turn() >= 10 && Math.random() < 0.5) {
       houseDone = true;
       await sleep(rand(3000, 5000));
@@ -341,21 +339,6 @@
     await sleep(rand(2200, 3200));
     body.textContent = "（この発言者は、この部屋にいません）";
     body.closest(".msg").classList.add("deleted");
-  }
-
-  // ---------- 相棒の声：明るい声で、あなたの言葉を読む（端末の読み上げ。音「なし」なら黙る） ----------
-  function voice(text) {
-    try {
-      if (!ctx.sound() || !("speechSynthesis" in window) || !text) return;
-      const u = new SpeechSynthesisUtterance(text.slice(0, 30));
-      u.lang = "ja-JP"; u.pitch = phase >= 3 ? 0.6 : 1.7; u.rate = phase >= 3 ? 0.75 : 1.1; u.volume = 0.3;
-      speechSynthesis.speak(u);
-    } catch (e) { /* 読み上げがなければ黙る */ }
-  }
-
-  function pickSaid() {
-    const said = ctx ? ctx.said() : [];
-    return said.length ? pick(said) : "";
   }
 
   window.EX = EX;

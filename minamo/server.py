@@ -77,6 +77,14 @@ def save_record(markdown):
     return path
 
 
+class Server(http.server.ThreadingHTTPServer):
+    def handle_error(self, request, client_address):
+        # 起動の途中（一括チェックのさいちゅう）に待ちきれずに切れた接続は、ログを汚さない
+        if isinstance(sys.exc_info()[1], (BrokenPipeError, ConnectionResetError)):
+            return
+        super().handle_error(request, client_address)
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=WEB_DIR, **kw)
@@ -249,7 +257,7 @@ def main():
 
     # 先にポートを取る（前のサーバーが動いていたら、蔵書の読み込みや AI の一括チェックの前に知らせる）
     try:
-        srv = http.server.ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
+        srv = Server(("127.0.0.1", a.port), Handler)
     except OSError as e:
         if e.errno in (98, 48):          # Address already in use
             print(f"ポート {a.port} は、もう使われています（前に起動したミナモのサーバーが動いたままかもしれません）。\n"
