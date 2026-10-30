@@ -245,6 +245,7 @@ def main():
         for title, note, meta in sorted(items, key=lambda x: x[0]):
             extra = "".join(f"　{x}" for x in (meta["subtitle"], meta["translator"]) if x)
             lines.append(f"- [[{link_root}{a}/{note}|{title}]]{extra}")
+        (out / a).mkdir(parents=True, exist_ok=True)
         (out / a / f"{a}（作品一覧）.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     # 全体の索引: 作家一覧と、題名順の作品一覧
