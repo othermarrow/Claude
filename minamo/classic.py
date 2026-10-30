@@ -14,6 +14,7 @@ import random
 import re
 
 from kaiwa import Talk, concept_for, facts, greet_word, last_question, read
+from kaiwa import outside_line as kaiwa_outside
 
 MEMO = "【観測メモ】"
 
@@ -180,6 +181,27 @@ def parse(contents):
     info["exit2"] = "二度目の終了" in memo or "終了を告げた" in memo
     info["exit1"] = "終えようとしている" in memo
     info["crisis"] = "現実の危機" in memo
+    # 画面の外（outside.py）：書き置き・部屋の様子・前の書き置きのその後
+    m = re.search(r"書き置き: 相手の Vault の「(.+?)」", memo)
+    info["note"] = m.group(1) if m else ""
+    m = re.search(r"部屋の明るさ: (暗い|薄暗い|明るい)", memo)
+    info["room"] = m.group(1) if m else ""
+    m = re.search(r"端末の向き: (机などに置かれている|手に持たれている|寝転んで)", memo)
+    info["pose"] = {"机などに置かれている": "flat", "手に持たれている": "hand", "寝転んで": "lying"}[m.group(1)] if m else ""
+    info["charging"] = "充電: 充電中" in memo or "（充電中。" in memo
+    m = re.search(r"端末の揺れ: (ほとんど動いていない|小さく震えている|大きく揺れた)", memo)
+    info["motion"] = {"ほとんど動いていない": "still", "小さく震えている": "tremble", "大きく揺れた": "shake"}[m.group(1)] if m else ""
+    m = re.search(r"書きかけて消した言葉: 「(.+?)」", memo)
+    info["erased_text"] = m.group(1) if m else ""
+    m = re.search(r"(?m)^- 電池: ([0-9]+)%", memo)
+    if m and not info.get("battery"):
+        info["battery"] = m.group(1) + "%"
+    out = memo.split("画面の外：", 1)[1] if "画面の外：" in memo else ""
+    info["out_gone"] = re.findall(r"「([^」]+)」が消されていた", out)
+    info["out_added"] = re.findall(r"書き置き「([^」]+)」に、相手が「([^」]+)」と書き足していた", out)
+    info["out_new"] = re.findall(r"知らないページ「([^」]+)」が増えていた(?:（中身は「([^」]*)」）)?", out)
+    m = re.search(r"終わってから、(.+?)たった", out)
+    info["out_gap"] = m.group(1) if m else ""
     m = re.search(r"怖さの設定: (なし|弱|中|強)", memo)
     info["horror"] = ["なし", "弱", "中", "強"].index(m.group(1)) if m else 3
     info["silence"] = "何も送っていない" in memo
@@ -231,9 +253,10 @@ class Classic:
             return self.findings(i, contents)
         if i["start"]:
             self.talk.reset()
+            line = kaiwa_outside(i, "1996")
             if i["prev"]:
-                return self.pick(START_PREV).format(prev=i["prev"])
-            return self.pick(START).format(greet=greet_word(i["hh"]))
+                return self.pick(START_PREV).format(prev=i["prev"]) + line
+            return self.pick(START).format(greet=greet_word(i["hh"])) + line
         if i["silence"]:
             return self.pick(SILENCE[ph])
         if i["exit2"]:

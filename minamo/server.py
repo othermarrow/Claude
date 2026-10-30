@@ -19,6 +19,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import minamo  # noqa: E402
+import outside  # noqa: E402
 
 PORT = 8082
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
@@ -46,6 +47,9 @@ def info():
         "exit_block": minamo.EXIT_BLOCK_SRC, "exit_memo": minamo.EXIT_MEMO,
         "horror_levels": minamo.HORROR_LEVELS, "horror": minamo.HORROR,
         "horror_tricks": minamo.HORROR_TRICKS, "trick_note": minamo.TRICK_NOTE,
+        # 画面の外（Vault への書き置き・部屋の様子・あとから届く通知）
+        "outside_available": minamo.OUTSIDE and outside.available(), "outside_dir": outside.shown_name(""),
+        "outside_notes": [lv["notes"] for lv in minamo.HORROR_LEVELS],
         "records": minamo.RECORD_DIR,
         "library": STATE["library"].counts() if STATE["library"] else [0, 0],
         # 起動時の一括チェックの結果（返事の中身は渡さない）
@@ -102,6 +106,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self._json(403, {"error": "forbidden"})
             if self.path == "/api/info":
                 return self._json(200, info())
+            if self.path == "/api/outside":
+                # 面接の始まり：前の書き置きのその後（届いていない通知はやめる）
+                if not minamo.OUTSIDE:
+                    return self._json(200, {"finding": ""})
+                outside.cancel_notify()
+                return self._json(200, {"finding": outside.inspect()})
             if self.path == "/api/memory":
                 mem = STATE["llm"].engines["2026"].memory
                 return self._json(200, {"items": mem.data["items"], "sessions": mem.data["sessions"]})
@@ -149,6 +159,37 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._json(200, {"text": text, "mode": mode,
                                     "events": getattr(STATE["llm"], "events", [])})
 
+        if self.path == "/api/outside":
+            # 書き置きを一枚残す（種類は決まったものだけ。名前と中身はサーバーが決める）
+            if not minamo.OUTSIDE:
+                return self._json(200, {"name": ""})
+            said = [str(x)[:200] for x in (data.get("said") or [])][-20:]
+            replies = [str(x)[:300] for x in (data.get("replies") or [])][-20:]
+            name = outside.write_note(str(data.get("kind") or ""), said, replies)
+            if name:
+                print("画面の外：書き置き " + name)
+            return self._json(200, {"name": name, "line": minamo.NOTE_MEMO.format(name=name) if name else ""})
+
+        if self.path == "/api/room":
+            # 部屋の様子：画面が読んだ端末の向き・充電と、Termux が読んだ明るさ
+            room = outside.sense() if minamo.OUTSIDE else {}
+            pose = str(data.get("pose") or "")
+            if pose in ("flat", "hand", "lying"):
+                room["pose"] = pose
+            motion = str(data.get("motion") or "")
+            if motion in ("still", "tremble", "shake"):
+                room["motion"] = motion
+            if data.get("charging") is not None and "charging" not in room:
+                room["charging"] = bool(data.get("charging"))
+            try:
+                room["battery"] = int(data.get("battery"))
+            except (TypeError, ValueError):
+                pass
+            if data.get("net") in ("wifi", "cellular"):
+                room["net"] = data["net"]
+            room["erased"] = str(data.get("erased") or "")[:40]
+            return self._json(200, {"lines": outside.room_lines(room) if minamo.OUTSIDE else []})
+
         if self.path == "/api/memory/clear":
             STATE["llm"].engines["2026"].memory.clear()
             print("メモリを消去しました")
@@ -159,9 +200,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if not md.strip():
                 return self._json(400, {"error": "empty"})
             try:
-                return self._json(200, {"path": save_record(md)})
+                path = save_record(md)
             except OSError as e:
                 return self._json(500, {"error": str(e)})
+            if minamo.OUTSIDE and data.get("outside"):
+                try:
+                    horror = max(0, min(3, int(data.get("horror") or 0)))
+                except (TypeError, ValueError):
+                    horror = 0
+                said = [str(x)[:200] for x in (data.get("said") or [])][-20:]
+                replies = [str(x)[:300] for x in (data.get("replies") or [])][-20:]
+                name = outside.after_session(horror, said, replies)
+                if name:
+                    print("画面の外：書き置き " + name)
+            return self._json(200, {"path": path})
 
         return self._json(404, {"error": "not found"})
 
@@ -184,6 +236,8 @@ def main():
                     help="端末の中の AI にひとことを頼む割合（既定 0.8〜0.9。1 ならいつも頼む）")
     ap.add_argument("--local-mode", choices=["assist", "full"],
                     help="端末の中の AI の使い方（既定 assist：ひとことだけ頼む。full：全部話させる）")
+    ap.add_argument("--no-outside", action="store_true",
+                    help="画面の外（Vault への書き置き・部屋の明るさ・あとから届く通知）を使わない")
     ap.add_argument("--no-probe", action="store_true",
                     help="起動時の AI の一括チェックをしない（いつもの設定のモデルを使う）")
     ap.add_argument("--probe-timeout", type=int, metavar="秒",
@@ -211,6 +265,9 @@ def main():
                  backend="fake" if a.fake else a.backend,
                  env={} if a.no_env else minamo.gather_env())
     minamo.set_local_share(a.local_share)
+    if a.no_outside:
+        minamo.OUTSIDE = False
+    outside.VISIT_URL = f"http://localhost:{a.port}/?visit=1"
     ranked, probed = None, []
     if minamo.PROBE_ON_START and not (a.no_probe or a.model or a.fake or a.offline):
         ranked, probed = minamo.probe_models(a.backend, a.no_karte)

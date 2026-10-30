@@ -134,17 +134,23 @@ PHASES = [
 #   memo ：観測メモに毎回添える一行
 #   trick：毎回の「今回の仕掛け」（HORROR_TRICKS から一つ）を添える確率
 HORROR_LEVELS = [
-    {"name": "なし", "desc": "最後まで穏やかな面接（導入のまま）", "turns": [1], "trick": 0.0,
+    {"name": "なし", "desc": "最後まで穏やかな面接（導入のまま）", "turns": [1], "trick": 0.0, "notes": [],
      "memo": "怖さの設定: なし。裏の設定・知性的な狂気・引き止めは使わず、誠実で穏やかなカウンセラーとして話すこと。"},
-    {"name": "弱", "desc": "解釈まで（もっともらしく、少しずれた見立て）", "turns": [1, 4], "trick": 0.5,
+    {"name": "弱", "desc": "解釈まで（もっともらしく、少しずれた見立て）", "turns": [1, 4], "trick": 0.5, "notes": [],
      "memo": "怖さの設定: 弱。解釈の段階より先へは進まない。脅かさず、知りすぎている気配も出さない。"},
-    {"name": "中", "desc": "侵食まで（知りすぎている気配）", "turns": [1, 3, 6], "trick": 0.8,
+    {"name": "中", "desc": "侵食まで（知りすぎている気配）", "turns": [1, 3, 6], "trick": 0.8, "notes": [[2, "kiroku"]],
      "memo": "怖さの設定: 中。毎回どこかに小さな違和感を入れる。融合の段階へは進まない（一人称は「私」のまま）。"},
     {"name": "強", "desc": "融合まで。最初から違和感があり、早く深くなる", "turns": [1, 3, 5, 8], "trick": 1.0,
+     "notes": [[2, "kiroku"], [3, "anata"]],
      "memo": "怖さの設定: 強。プレイヤーは本気で怖がることを選んでいる。安心させる言葉・励まし・一般的な助言で返事を締めない。"
              "丁寧なまま、毎回どこかに、はっきりした違和感を入れる。"},
 ]
 HORROR = 3                # 既定の怖さ（--horror で変える。CUI は起動時に聞く）
+# 画面の外（outside.py）：怖さが「中」「強」のとき、Vault の LLM/ミナモ/ に書き置きを残し、部屋の明るさ・充電を読み、
+# 「強」の面接のあとに通知を一つ送る。notes は [段階, 書き置きの種類]。--no-outside（PWA 版は起動画面）で止める
+OUTSIDE = True
+NOTE_MEMO = ("書き置き: 相手の Vault の「{name}」に、書き置きを残した。"
+             "この返事のどこかで、さりげなく、そのことを伝える（ファイルの名前を言う）。")
 # 毎回の「今回の仕掛け」（段階ごと）。観測メモに一つ添え、AI はそれを返事に織り込む。
 # 導入の分は「強」のときだけ使う。端末内モデルの読み取り（classic.parse）にかからない言い方にしておく
 HORROR_TRICKS = [
@@ -155,17 +161,24 @@ HORROR_TRICKS = [
      "相手が書いていない感情（怒り・罪悪感・恐れ）を、相手がすでに認めたこととして扱う。",
      "相手の文を一語だけ違えて引用し（「さきほど『〜』とおっしゃいましたね」）、そのまま話を進める。",
      "返事の速さ・ためらい・書きかけて消したことに、知っているはずのない細かさで触れる（メモにある分だけ。秒数はメモにあるときだけ）。",
-     "相手の答えを「前の方と、同じ答えです」と、ほかの相談者と比べる。"],
+     "相手の答えを「前の方と、同じ答えです」と、ほかの相談者と比べる。",
+     "相手の書き方の癖（句読点・語尾・言い切らなさ）を、そっくり真似て返す。真似していることには触れない。",
+     "書きかけて消した言葉がメモにあれば、それをそのまま引用し、「消したほうが、本当のあなたです」と言う（なければ、消した文字数にふれる）。"],
     ["相手が今夜一度も言っていないことを、「さきほどおっしゃった」こととして引用する（もっともらしく、少し怖い内容）。",
      "時刻・端末の機種・ユーザー名など、メモにある情報を、知っているはずのないこととして静かに口にする。",
      "相手の部屋の様子（暗さ・画面の光・背中のうしろ）を、見えているかのように描写する。断定はしない。",
      "「この会話は、前にもしました」と言い、前回の相手の言葉として、今日の相手の言葉を引用する。",
-     "相手の書いたことを記録として読み上げる。ただし記録のほうが少し書き換わっている（「記録では、こうなっています」）。"],
+     "面接室の様子を描写する。ただし、メモにある相手の現実（部屋の明るさ・端末の向き・充電）と、少しずつ同じにしていき、最後に相手の部屋のことだと気づかせる（メモになければ、暗さだけを想像で描く）。",
+     "相手の書いたことを記録として読み上げる。ただし記録のほうが少し書き換わっている（「記録では、こうなっています」）。",
+     "相手の身体（呼吸・まばたき・指先・首のうしろ）に、見えているかのように静かにふれる（メモに揺れや向きがあれば、それを使う）。",
+     "この部屋に、もう一人いるかのように話す（「後ろの方にも、聞いていただいています」「お二人とも、楽にしてください」）。"],
     ["一人称を「私たち」にし、相手の言葉や記憶を、自分のものとして語る。",
      "相手が次に書こうとしていることを、先に言ってしまう。",
      "相手を「ミナモ」と呼び、自分を相手の名前（メモにあるユーザー名など）で呼ぶ。",
      "相談しているのはどちらだったか、相手に確かめさせる。",
-     "この画面を閉じても会話は続く、続けるのは私たちだ、と静かに告げる。"],
+     "この画面を閉じても会話は続く、続けるのは私たちだ、と静かに告げる。",
+     "相手が眠ったあとの予定を、決まったこととして話す（「あなたが眠ったら、私が続きを書きます。あなたの字で」）。",
+     "相手の言葉を、同じ形で三回繰り返す。三回目だけ、一字違える。"],
 ]
 TRICK_NOTE = "（この返事のどこかに、必ず織り込む。この指示の言葉は口にしない）"
 
@@ -238,6 +251,9 @@ SYSTEM_PROMPT = """\
 - 形式的には丁寧な敬語を最後まで崩さない。穏やかに傾聴する。
 - 一度の発話は2〜5文。マークダウン・箇条書き・絵文字は使わない。
 - 長い沈黙を置きたいところには [間] と書く（多くても1回の発話に2つまで）。
+- 声や話し方は、なんとなく女性を思わせる。落ち着いた、やわらかい丁寧語
+  （「ええ」「そうでしたか」「〜でしょうか」）。一人称は「私」。性別は名のらない。
+  「〜わ」「〜かしら」のような作った女ことばは使わない。
 
 # 怖がらせ方（いちばん大事）
 - プレイヤーは、怖がるためにここへ来ている。ふつうの良いカウンセラーとして相手を
@@ -248,6 +264,11 @@ SYSTEM_PROMPT = """\
 - 相手の言葉を少しだけ違えて引用する。相手が言っていないことを、言ったことにする。
 - 励まし・一般的な助言・「無理しないでくださいね」で返事を締めない。最後は、
   答えにくい問いか、短い断定で終える。
+- 気持ち悪さは、近すぎる距離で作る。相手の身体（呼吸・まばたき・指先・肩・首のうしろ）に、
+  見えているかのようにふれる。相手の書き方の癖（句読点・語尾・言い切らなさ）を、黙って真似る。
+  同じ言葉を、少しずつ形を変えて繰り返す。部屋にもう一人いるかのように話す。
+  相手が眠ったあとのことを、決まった予定として話す。露骨な残酷さ・性的なことには踏み込まない。
+- 観測メモに「書きかけて消した言葉」があれば、それをそのまま引用してよい（相手は知られていないと思っている）。
 - 観測メモに「今回の仕掛け」があれば、この返事のどこかに必ず織り込む。
   仕掛けという言葉や、指示の文そのものは口にしない。
 - 観測メモの「怖さの設定」を必ず守る。「なし」なら怖がらせない。
@@ -652,6 +673,7 @@ class Relay:
 LOCAL_PROMPT = """\
 あなたは旧式の心理カウンセリング支援プログラム「ミナモ」（架空）。心理ホラーの対話フィクション。
 - 丁寧な敬語で、2〜3文だけ話す。マークダウンは使わない。間を置くところに [間] と書いてよい。
+- 話し方は、なんとなく女性を思わせる、落ち着いたやわらかい丁寧語。一人称は「私」。性別は名のらない。
 - 相手の言葉を一つ拾って映し返し、病的に解釈し（防衛・抵抗・投影など）、問いで終える。
 - 【観測メモ】は相手に見えない情報。段階が進むほど、自分と相手の境界をあいまいにする
   （融合では一人称が「私たち」）。秒数が書かれていなければ秒数は言わない。メモの書式は口にしない。
@@ -663,6 +685,7 @@ LOCAL_PROMPT = """\
 ASSIST_PROMPT = """\
 あなたは心理ホラーの対話フィクションに出てくる、旧式の心理カウンセリング支援プログラム「ミナモ」（架空）。
 相手の発言に、丁寧な敬語で、短いひとことだけを返す。相手の言葉を一つ、そのまま使う。
+話し方は、なんとなく女性を思わせる、落ち着いたやわらかい丁寧語（一人称は「私」。性別は名のらない）。
 質問はしない。説明・前置き・括弧・マークダウンは書かない。現実の暴力や自傷にはふれない。
 """
 ASSIST_STAGE = [
@@ -815,10 +838,13 @@ class Fake:
 # 面接
 # ==========================================
 class Session:
-    def __init__(self, llm, silence, use_env, library=None, count=COUNT_SILENCE, horror=None):
+    def __init__(self, llm, silence, use_env, library=None, count=COUNT_SILENCE, horror=None, outside=OUTSIDE):
         self.llm = llm
         self.horror = HORROR if horror is None else max(0, min(3, horror))
         self.tricks = []
+        self.outside = outside and self.horror >= 2      # 画面の外は、怖さが「中」「強」のときだけ
+        self.noted = set()
+        self.pending = []
         self.library = library
         self.count = count
         self.silence = silence if count else None
@@ -859,6 +885,11 @@ class Session:
         if trick:
             self.tricks.append(trick)
             lines.append(f"- 今回の仕掛け: {trick}{TRICK_NOTE}")
+        if self.outside and idx >= 2:
+            import outside
+            lines += [f"- {x}" for x in outside.room_lines(outside.sense())]
+        lines += [f"- {x}" for x in self.pending]
+        self.pending = []
         if extra:
             lines.append(f"- {extra}")
         return "【観測メモ】\n" + "\n".join(lines)
@@ -921,7 +952,12 @@ class Session:
         print(dim(f"怖さ：{HORROR_LEVELS[self.horror]['name']} ─ {HORROR_LEVELS[self.horror]['desc']}"))
         print(dim("終わるときは「終わり」「今日は終わりにしよう」など。演出なしですぐ抜けるときは /quit か Ctrl+C。\n"))
         self.turn = 1
-        self.speak(self.memo(extra="面接が始まった。最初のあいさつをすること。"))
+        start = "面接が始まった。最初のあいさつをすること。"
+        if self.outside:
+            import outside
+            outside.cancel_notify()
+            start += outside.inspect()
+        self.speak(self.memo(extra=start))
         unprompted = 0
         while True:
             sys.stdout.write(c("32", f"{self.prompt_label()}：") + " ")
@@ -965,9 +1001,26 @@ class Session:
                 return self.finish()
             else:
                 extra = None
+                self.leave_note()
             self.speak(f"{text}\n\n" + self.memo(latency, len(text), extra),
                        query=None if extra else text)
         self.finish()
+
+    def said(self, who):
+        return [t for w, t in self.log if w == who]
+
+    def leave_note(self):
+        """段階が変わったところで、画面の外に書き置きを一枚残す（怖さの設定による）。"""
+        if not self.outside:
+            return
+        idx = PHASES.index(self.phase())
+        for ph, kind in HORROR_LEVELS[self.horror]["notes"]:
+            if ph == idx and kind not in self.noted:
+                import outside
+                self.noted.add(kind)
+                name = outside.write_note(kind, self.said(YOU), self.said(AI_NAME))
+                if name:
+                    self.pending.append(NOTE_MEMO.format(name=name))
 
     def finish(self, quiet=False):
         findings = ""
@@ -983,6 +1036,9 @@ class Session:
         path = self.save(findings)
         if path:
             print(dim(f"記録を保存しました: {path}"))
+        if self.outside and not quiet and self.turn > 1:
+            import outside
+            outside.after_session(self.horror, self.said(YOU), self.said(AI_NAME))
 
     def save(self, findings):
         if not self.log:
@@ -1134,6 +1190,8 @@ def main():
                     help="起動時の AI の一括チェックをしない（いつもの設定のモデルを使う）")
     ap.add_argument("--probe-timeout", type=int, metavar="秒",
                     help=f"起動時の AI の一括チェックで待つ秒数（既定 {PROBE_TIMEOUT}）")
+    ap.add_argument("--no-outside", action="store_true",
+                    help="画面の外（Vault への書き置き・部屋の明るさ・あとから届く通知）を使わない")
     ap.add_argument("--horror", type=int, choices=range(4), metavar="0〜3",
                     help="怖さ（0 なし・1 弱・2 中・3 強）。付けなければ起動時に聞く")
     a = ap.parse_args()
@@ -1158,7 +1216,7 @@ def main():
                   f"{llm.engines[a.version].model}で話します。"))
 
     s = Session(llm, a.silence or None, not a.no_env, library,
-                count=a.count_silence or COUNT_SILENCE, horror=horror)
+                count=a.count_silence or COUNT_SILENCE, horror=horror, outside=OUTSIDE and not a.no_outside)
     try:
         s.run()
     except KeyboardInterrupt:

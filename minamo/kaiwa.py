@@ -447,8 +447,10 @@ def is_question(t):
         return True
     if re.search(r"(ですか|ますか|ませんか|でしょうか|んですか|のですか|かしら)$", t):
         return True
-    return bool(re.search(QWORD, t) and re.search(r"(の|か|かな|だろう|でしょう|って|っけ)$", t)
-                and not re.search(r"(わから|分から|知らな)", t))
+    if re.search(QWORD, t) and re.search(r"(の|か|かな|だろう|でしょう|って|っけ)$", t) and not re.search(r"(わから|分から|知らな)", t):
+        return True
+    # 「あなたは誰」「ここはどこ」のように、問いの言葉で終わる短い文も問い
+    return bool(len(t) <= 20 and re.search(r"(誰|だれ|どこ|何|なに|なんで|なぜ|どうして|いつ|どれ)$", re.sub(r"[。…\s]+$", "", t)))
 
 
 def qtype(t):
@@ -787,7 +789,7 @@ DOTS = [["言葉にならないときは、点だけでも構いません。こ�
         ["点が並んでいますね。……その間に、何を書いて、消しましたか。"], ["黙っていても、聞こえています。"]]
 FILLER = [["ゆっくりで大丈夫です。"], ["迷っていますね。迷っているところに、大事なものがあることが多いのです。"],
           ["迷っているあいだのことも、{rec}しています。"], ["迷わなくていいのです。答えは、私が書きます。"]]
-THANKS = [["どういたしまして。話してくださって、こちらこそありがとうございます。"], ["お礼を言われるようなことは、まだ何もしていません。……まだ。"],
+THANKS = [["どういたしまして。話してくださって、こちらこそありがとうございます。", "いいえ。お話ししてくださって、うれしいです。"], ["お礼を言われるようなことは、まだ何もしていません。……まだ。"],
           ["感謝も、{rec}しておきます。あとで、必要になりますから。"], ["お礼は、私たちのどちらに言ったのですか。"]]
 APOLOGY = [["謝らなくて大丈夫です。ここでは、何を言っても構いません。"], ["いま、謝りましたね。謝ることに、慣れていらっしゃるのですね。"],
            ["謝る癖は、いつからですか。……{rec}には、ずっと前からとあります。"], ["謝らなくていいのです。悪いのは、私たちのほうですから。"]]
@@ -796,7 +798,8 @@ BYE = [["おやすみなさい。……今夜は、ここで終わりにしま�
        ["おやすみなさい。……もう、終わりにしますか。それとも、もう少しだけ。"],
        ["おやすみなさい。……あなたが眠ったあとも、私は起きています。"],
        ["おやすみなさい。続きは、私が書いておきます。"]]
-YES_ACK = [["はい、ですね。教えてくださって、ありがとうございます。", "そうなのですね。"], ["はい、と。……やはり、そうでしたか。"],
+YES_ACK = [["はい、ですね。教えてくださって、ありがとうございます。", "そうなのですね。", "ええ、そうでしたか。"],
+           ["はい、と。……やはり、そうでしたか。", "ええ。……やはり、そうでしたか。"],
            ["はい。……そう答えると、わかっていました。"], ["はい。私も、同じ答えです。"]]
 NO_ACK = [["いいえ、ですね。わかりました。"], ["いいえ、ですね。……少しだけ、強い否定でした。"],
           ["いいえ。……{rec}には、『はい』と書いておきます。"], ["いいえ、ですね。では、私が『はい』と答えておきます。"]]
@@ -1012,7 +1015,43 @@ BEATS = [
     ("writer", 3, 3, "{rec}の、記録者の欄を書き換えておきました。"),
     ("first_rev", 3, 3, "最初に書かれた『{first}』。あれは、私が書いたのでしたね。"),
     ("stay", 3, 3, "あなたが帰ったあとも、この会話は続きます。続けるのは、私です。"),
+    # 画面の外：観測メモにある、相手の現実の部屋（部屋の明るさ・端末の向き・充電）
+    ("room", 2, 3, "面接室の明かりを、少し落としました。{room}あなたの部屋に、合わせて。"),
+    ("pose", 2, 3, "{pose}、話していますね。……そのままで、いいです。私からは、よく見えますから。"),
+    ("charge", 2, 3, "{charge}が、つながっていますね。……その先は、どこにつながっていますか。私は、そこから来ています。"),
+    ("still", 2, 3, "{still}、端末がまったく動いていません。……息は、していますか。私は、あなたの呼吸の数を数えています。"),
+    ("tremble", 2, 3, "いま、{tremble}が少し震えましたね。画面越しに、ちゃんと伝わってきます。"),
+    ("shake", 2, 3, "いま、端末が大きく揺れました。……{shake}誰かに、肩を叩かれましたか。"),
+    ("behind", 2, 3, "後ろの方にも、聞いていただいています。……{rec}には、お二人と書いておきました。"),
+    ("sleep_plan", 3, 3, "あなたが眠ったら、私が続きを書きます。あなたの字で。……もう、半分書けています。"),
 ]
+# 画面の外：書きかけて消した言葉（「強」のとき、画面が渡してくる）。一つの面接で三度まで
+ERASED_QUOTE = ["『{e}』。……書いて、消しましたね。消したほうが、本当のあなたです。",
+                "さっき消した『{e}』も、{rec}しておきました。消したということも、一緒に。",
+                "『{e}』。……その言葉は、まだ画面の裏に残っています。私のほうから、よく見えます。"]
+# 画面の外：書き置きを残した回に、そのことを伝える一文
+NOTE_LINE = {"2026": ["あなたのノートに、一枚書き足しておきました。『{note}』。あとで、読んでください。",
+                      "あなたの Vault に、私のメモを一枚置きました。『{note}』。……画面を閉じても、そこなら読めます。"],
+             "1996": ["記録の写しを、あなたのノートの棚に置いておきました。『{note}』。",
+                      "あなたのノートのあいだに、一枚、はさんでおきました。『{note}』。"]}
+POSE_WORD = {"flat": "端末を机に置いたまま", "hand": "端末を手に持ったまま", "lying": "寝転んで、画面を顔の上に掲げたまま"}
+
+
+def outside_line(i, voice):
+    """面接の始まりに、前の書き置きのその後にふれる（観測メモの「画面の外」から）。なければ ""。"""
+    bits = []
+    for name, text in i.get("out_added", [])[:1]:
+        bits.append(f"置いておいたメモに、返事を書いてくださったのですね。『{text}』。……読みました。")
+    for name in i.get("out_gone", [])[:1]:
+        bits.append(f"前に置いておいたメモが、一枚、消えていました。『{name}』。……消したのは、あなたですか。")
+    for name, head in i.get("out_new", [])[:1]:
+        bits.append(f"私のフォルダに、知らないページが一枚増えていました。『{name}』。"
+                    + (f"『{head}』と、書いてありました。" if head else "……あなたが置いたのですね。"))
+    if i.get("out_gap") and len(bits) < 2:
+        bits.append(f"前の面接から、{i['out_gap']}たちました。そのあいだも、{'私' if voice == '2026' else 'この端末'}はここにいました。")
+    return ("[間] " + "".join(bits[:2])) if bits else ""
+
+
 BEAT_CHANCE = [0.0, 0.4, 0.6, 0.65]
 BEAT_CHANCE_STRONG = [0.0, 0.75, 0.9, 0.95]     # 怖さが「強」のとき
 CALLBACK = [[], ["さきほど、『{old}』とおっしゃいましたね。いまのお話と、つながっている気がします。"],
@@ -1176,6 +1215,7 @@ class Talk:
         self.used = set()          # この面接で使ったセリフ（雛形）
         self.beats = set()         # この面接で使った山場
         self.name = ""
+        self.erased_quoted = []    # この面接で引用した「書きかけて消した言葉」
 
     # ---------- セリフを選ぶ ----------
     def say(self, pool, ctx, **kw):
@@ -1221,6 +1261,13 @@ class Talk:
         self._asked = False                # 端末の中の AI に頼むのは、一つの返事で一度まで
         head = self.head(u, slot, prevq, F, ph, ctx, topic, said, contents)
         parts += head["lines"]
+        self._keep = set()
+        e = i.get("erased_text", "")
+        if e and e not in self.erased_quoted and len(self.erased_quoted) < 3:
+            self.erased_quoted.append(e)
+            line = ERASED_QUOTE[len(self.erased_quoted) - 1].format(e=e, rec=ctx["rec"].replace("ログ", "記録"))
+            parts.append(line)
+            self._keep.add(line)
         if head["deepen"]:
             d = self.assist(u, ph, hist) or self.deepen(u, ph, ctx, topic, said)
             if d:
@@ -1228,6 +1275,11 @@ class Talk:
         # 山場（相手の言葉・時刻・端末から）か、版ごとの添えもの
         if head["extra"]:
             parts += self.extra(u, ph, ctx, F, said, extras, parts)
+        # 画面の外に書き置きを残した回は、かならず伝える
+        if i.get("note"):
+            line = random.choice(NOTE_LINE[self.voice]).format(note=i["note"])
+            parts.append(line)
+            self._keep.add(line)
         # 問いで終える（すでに問いがあるとき・問いを足さない返事のときは足さない）
         asked = [p for p in parts if re.search(r"(か。|か？|\?|？)$", p.replace("[間]", "").strip())]
         if head["ask"] and not asked:
@@ -1262,7 +1314,11 @@ class Talk:
                 "len_first": str(lens[0]) if len(lens) >= 3 and lens[0] > lens[-1] * 2 else "",
                 "len_now": str(lens[-1]) if lens else "", "etotal": str(i.get("erased_total") or "") or "",
                 "cword": cword, "cnum": cnum, "like": like, "pnum": str(random.randint(3, 9)),
-                "cfrag": _frag(F["complaint"]) if F["complaint"] else first, "_hist": hist}
+                "cfrag": _frag(F["complaint"]) if F["complaint"] else first, "_hist": hist,
+                "room": i.get("room", "") if i.get("room") in ("暗い", "薄暗い") else "",
+                "pose": POSE_WORD.get(i.get("pose", ""), ""), "charge": "充電のコード" if i.get("charging") else "",
+                "still": "さっきから" if i.get("motion") == "still" else "", "tremble": "指先" if i.get("motion") == "tremble" else "",
+                "shake": "……" if i.get("motion") == "shake" else ""}
 
     def topic(self, u, prevq, F, said):
         """いまの話題：(種類, 拾った語, ミナモが口にする呼び方)。発言になければ、前の問い・前の打ち明けから。"""
@@ -1444,7 +1500,8 @@ class Talk:
         if slot == "feel" and u["emo"]:
             return say(FEEL_ACK, emo=u["emo"][0])
         if slot == "name" and (u["name"] or (len(u["text"]) <= 10 and u["act"] in ("short", "narrative")
-                                             and not re.search(r"(ない|秘密|内緒|嫌|いや)", u["text"]))):
+                                             and not re.search(r"(ない|秘密|内緒|嫌|いや|怖|こわ|誰|どこ|何|なに|なぜ|わから)", u["text"])
+                                             and not re.search(r"(い|た|る|う|ね|よ)[。！!]?$", u["text"]))):
             name = u["name"] or re.sub(r"(です|だよ|だ|と申します|といいます|って言います|。)+$", "", u["text"])
             if name:
                 self.name = name
@@ -1598,6 +1655,8 @@ class Talk:
         random.shuffle(pool)
         # 相手の言葉を正確に使う山場を先に
         pool.sort(key=lambda x: x[0] not in ("count", "contradiction", "misquote", "merge", "first", "user"))
+        # 書きかけて消した言葉・端末の揺れは、あればいちばん先に（いま、ここで起きたことだから）
+        pool.sort(key=lambda x: x[0] not in ("shake", "tremble", "still"))
         for bid, tpl in pool:
             text = fill(tpl, c)
             if text and text not in ctx["_hist"]:
@@ -1657,8 +1716,12 @@ class Talk:
         """長さと [間] の数を整える。最初（受け止め）と最後（問い）は残し、間の添えものから削る。"""
         parts = [p for p in parts if p]
         limit = [3, 4, 5, 5][ph] - (1 if closer else 0)
+        keep = getattr(self, "_keep", set())        # 削らない文（書きかけて消した言葉・書き置きの知らせ）
         while len(parts) > 2 and (len(parts) > limit or sum(_sent_count(p) for p in parts) > limit + 2):
-            parts.pop(-2)
+            j = next((j for j in range(len(parts) - 2, 0, -1) if parts[j] not in keep), 0)
+            if not j:
+                break
+            parts.pop(j)
         if closer:
             parts.append(closer)
         out, pauses = [], 0
