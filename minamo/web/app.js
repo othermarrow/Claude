@@ -237,6 +237,7 @@
     version: () => settings.version,
     sound: () => settings.sound,
     turn: () => S ? S.turn : 0,
+    room: () => ({ pose: room.pose, charging: room.charging, battery: room.battery }),   // 画面の中の部屋を、あなたの部屋にする
   };
 
   // ---------- 面接 ----------

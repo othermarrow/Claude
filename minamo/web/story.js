@@ -21,7 +21,7 @@
                           "ODし", "オーバードーズ", "殺してほしい", "生きていたくない", "いなくなりたい", "人生を終わり"];
 
   // ---------- 保存 ----------
-  const fresh = () => ({ name: "", read: {}, known: {}, trust: 1, talked: {}, posted: false, extra: {}, mlog: [], phrase: 0,
+  const fresh = () => ({ name: "", read: {}, known: {}, trust: 1, talked: {}, posted: false, extra: {}, mlog: [], phrase: 0, palMet: false,
                          opened: false, carryAsked: false, nagiOn: false, nagiN: 0, nagiLog: [], nagiUnread: 0, ending: null });
   let S = load();
   function load() {
@@ -127,9 +127,11 @@
     const go = () => postTo(id);
     $("pgo").onclick = go;
     $("pin").onkeydown = e => { if (e.key === "Enter" && !e.isComposing) go(); };
-    if (!S.read[id]) { S.read[id] = true; save(); }
+    const first = !S.read[id];
+    if (first) { S.read[id] = true; save(); }
     if (id === "l6" || id === "l9") fx("glitch", 300);
     refresh();
+    palThread(id, first);
   }
   // 書き込みは、表示されない（Digital: A Love Story のように）。最初の書き込みで、ナギが現れる
   async function postTo(id) {
@@ -139,6 +141,7 @@
     inp.value = "";
     fx("click");
     $("postnote").textContent = D.posted;
+    if (S.palMet) { palHigh = Date.now(); setTimeout(() => palSay(pick(P.posted).replace("{text}", text.slice(0, 24)), true), 1200); }
     const first = !S.posted;
     S.posted = true; save();
     if (!(S.extra[id] || []).length) {
@@ -157,6 +160,91 @@
       paintTabs();
     }
   }
+
+  // ---------- 相棒（Claude のアイコン風のミナモ。KinitoPET・Buddy Simulator 1984 に倣う） ----------
+  const P = D.pal;
+  let pose = "";
+  window.addEventListener("deviceorientation", e => {
+    if (e.beta == null) return;
+    const b = Math.abs(e.beta), g = Math.abs(e.gamma || 0);
+    pose = b < 20 && g < 20 ? "机に置いたまま" : b > 120 ? "寝転んでる" : "手に持ったまま";
+  });
+  // 読んだスレッドが増えるほど、まとわりつく
+  function palStage() {
+    const n = Object.keys(S.read).length;
+    let st = n < 4 ? 1 : n < 9 ? 2 : 3;
+    if (S.trust >= 4 || S.nagiN >= 3) st = Math.max(st, 2);
+    if (S.nagiN >= 5 || S.read.l9) st = 3;
+    document.body.classList.toggle("pal-wrong", st >= 3);
+    return st;
+  }
+  let palToken = 0, palTimer = 0, palHigh = 0;
+  // important：書き込みを読み上げるときなど。そのあと 8 秒は、ほかのひとことで上書きしない
+  async function palSay(text, important) {
+    if (!text || S.ending) return;
+    if (important) palHigh = Date.now();
+    else if (Date.now() - palHigh < 8000) return;
+    const my = ++palToken;                   // 前のひとことを打っている途中なら、そちらはやめる
+    const pal = $("pal"), box = $("pal-say"), tx = $("pal-tx");
+    pal.hidden = false; pal.classList.add("talk");
+    box.hidden = false; tx.textContent = "";
+    fx("jingle", palStage() >= 3);
+    for (const ch of text) {
+      if (my !== palToken) return;
+      tx.textContent += ch;
+      await sleep(palStage() >= 3 ? 70 : 38);
+    }
+    pal.classList.remove("talk");
+    clearTimeout(palTimer);
+    palTimer = setTimeout(() => { if (my === palToken) box.hidden = true; }, 7000);
+  }
+  const palFill = t => {
+    if (t.includes("{pose}") && !pose) return "";
+    if (t.includes("{name}") && !S.name) return "";
+    return t.replace("{pose}", pose).replace("{name}", S.name);
+  };
+  function palChat(pool) {
+    for (let i = 0; i < 6; i++) { const t = palFill(pick(pool)); if (t) return t; }
+    return "";
+  }
+  async function palMeet() {
+    if (S.palMet) return;
+    S.palMet = true; save();
+    await sleep(1200);
+    await palSay(P.intro[0]);
+    await sleep(2400);
+    palSay(P.intro[1]);
+  }
+  // スレッドを開いたとき：初めて読むスレッドなら、たいてい口をはさむ
+  function palThread(id, first) {
+    if (!S.palMet) return palMeet();
+    const st = palStage();
+    if (first && P.thread[id] && Math.random() < 0.75) return setTimeout(() => palSay(P.thread[id]), 1500);
+    if (Math.random() < [0, 0.15, 0.3, 0.5][st]) setTimeout(() => palSay(palChat(P.stage[st])), 1800);
+  }
+  // 何もしないでいると、いまの進み具合に合わせてヒントを出す（一つの起動で六つまで）
+  let idleAt = Date.now(), hints = 0;
+  ["pointerdown", "keydown"].forEach(e => window.addEventListener(e, () => { idleAt = Date.now(); }, true));
+  setInterval(() => {
+    if (!S.palMet || S.ending || hints >= 6 || $("app").hidden || Date.now() - idleAt < 45000) return;
+    idleAt = Date.now(); hints++;
+    const H = P.hints;
+    const unread = threads().filter(t => open(t) && !S.read[t.id]).length;
+    const t = S.read.l8 && !S.phrase ? H.phrase
+      : unread ? H.read
+      : S.read.y4 && !S.posted ? H.post
+      : S.trust < 4 ? H.trust
+      : !S.talked.mizuno ? H.mizuno
+      : S.nagiOn && S.nagiN < 5 ? H.nagi
+      : palStage() >= 3 ? palChat(P.stage[3]) : H.poke;
+    palSay(t);
+  }, 5000);
+  $("pal").addEventListener("click", () => palSay(palChat(P.stage[palStage()]) || P.hints.poke));
+  $("pal-x").addEventListener("click", e => {
+    e.stopPropagation();
+    $("pal-say").hidden = true;
+    if (palStage() >= 3) setTimeout(() => palSay("閉じても、いいよ。ぼくは、ここにいるから。"), 1500);
+  });
 
   // ---------- 危機の言葉 ----------
   let crisisWords = CRISIS_DEFAULT;
@@ -224,6 +312,7 @@
   const EXIT = /(終わり|おわり|帰る|帰り|さようなら|さよなら|バイバイ|もう行く)/;
   async function showMinamo() {
     tab = "chat"; paintTabs();
+    if (S.palMet && Math.random() < 0.4) setTimeout(() => palSay(pick(P.minamo)), 2500);
     view(`<div class="chat"></div>`, `ミナモ　${STATE_WORD[S.trust]}`);
     for (const [w, t] of S.mlog.slice(-30)) bubble(w === "u" ? "u" : "mi", w === "u" ? "" : "ミナモ", t);
     chatBar(sendMinamo, showContacts);
@@ -304,6 +393,7 @@
   // ---------- ナギ（送ったものは、表示されない） ----------
   function showNagi() {
     tab = "chat";
+    if (S.palMet && Math.random() < 0.6) setTimeout(() => palSay(pick(P.nagi)), 2000);
     S.nagiUnread = 0; save(); paintTabs();
     view(`<div class="chat"></div>`, "ナギ　夢網の底");
     for (const [w, t] of S.nagiLog) {
@@ -366,7 +456,8 @@
     S.ending = kind; save();
     $("app").hidden = true;
     const el = $("ending");
-    el.innerHTML = `<h2>${esc(e.title)}</h2><p>${esc(e.body)}</p><p class="small">${esc(e.last)}</p>
+    $("pal").hidden = true; $("pal-say").hidden = true;
+    el.innerHTML = `<h2>${esc(e.title)}</h2><p>${esc(e.body)}</p><p class="small">${esc(e.last)}</p>${S.palMet ? `<p class="pal-last">${esc(P.last)}</p>` : ""}
       <div class="btns"><button id="again" type="button">最初から</button><a href="./">ミナモ（面接アプリ）へ</a></div>`;
     el.hidden = false;
     fx("fade", 3);
@@ -392,5 +483,6 @@
     clock(); setInterval(clock, 15000);
     refresh(true);
     showBoards();
+    if (S.palMet) { $("pal").hidden = false; palStage(); setTimeout(() => palSay(palStage() >= 3 ? "おかえり。……ずっと、待ってたよ。" : "おかえり！　続き、読もうね！"), 1500); }
   };
 })();
