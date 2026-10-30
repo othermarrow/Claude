@@ -19,6 +19,7 @@
   const lines = $("lines"), log = $("log"), input = $("input"), send = $("send"),
         label = $("label"), form = $("form");
 
+  const BUILD = "minamo-v25";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
   let cfg = null;               // /api/info
   let S = null;                 // 面接の状態
   let booted = false;
@@ -1011,8 +1012,21 @@
                      (cfg.karte ? "　紹介状: あり" : "　紹介状: なし") +
                      "　蔵書: " + (cfg.library && (cfg.library[0] || cfg.library[1])
                        ? "本 " + cfg.library[0] + "冊・ノート " + cfg.library[1] + "件" : "なし");
+    showBuild();
     btn.textContent = "面接を始める"; btn.disabled = false;
     btn.onclick = () => begin();
+  }
+
+  // 起動画面のいちばん下に、いまの版を出す（見出しの ver.0.9.7 は作り話の中の名前で、変わらない）
+  function showBuild() {
+    const el = $("build"), web = cfg.web_version || "";
+    const v = s => s.replace(/^minamo-/, "");
+    el.textContent = "アプリの版：" + v(BUILD) + (cfg.commit ? "　更新：" + cfg.commit : "");
+    if (web && web !== BUILD) {
+      el.classList.add("warn");
+      el.textContent = "画面が古いままです（この画面 " + v(BUILD) + "・端末のファイル " + v(web) +
+                       "）。Chrome のタブ（インストールしたアプリ）を閉じて、開き直してください。";
+    }
   }
 
   // ミナモが自分で画面を開いたとき（面接のあと、outside.py が ?visit=1 で開く）

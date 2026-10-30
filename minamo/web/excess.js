@@ -82,7 +82,7 @@
     document.querySelectorAll(".dlg").forEach(e => e.remove());
     $("input").placeholder = "";
     document.title = "ミナモ";
-    FX.setHum(0);
+    FX.setCrt(0);
   }
 
   // ---------- 相棒（画面の隅の、Claude のアイコン風のミナモ。話しているあいだは回る） ----------
@@ -170,7 +170,7 @@
     if (!live()) return;
     const b = document.body;
     if (idx === 1) { b.classList.add("pal-on"); setTimeout(async () => { await palSay(PAL.intro[0]); await sleep(2600); palSay(PAL.intro[1]); }, 1200); }
-    if (idx === 2) { b.classList.add("zs", "crt"); $("input").placeholder = ">"; status(); FX.setHum(0.2); }
+    if (idx === 2) { b.classList.add("zs", "crt"); $("input").placeholder = ">"; status(); FX.setCrt(0.2); }
     if (idx === 3) { b.classList.add("pal-wrong"); setTimeout(() => live() && befriend(), rand(2500, 4500)); }
   };
 
@@ -273,7 +273,7 @@
     if (!live()) return;
     const b = document.body;
     b.classList.add("trap", "dark");
-    FX.lightsOut();
+    FX.screenOff();
     await sleep(1800);
     const dt = $("darktext");
     const said = ctx.said();
@@ -289,7 +289,7 @@
     }
     await sleep(1500);
     dt.textContent = "";
-    FX.lightsOn();
+    FX.screenOn();
     b.classList.remove("dark");
     await sleep(900);
     b.classList.remove("trap");

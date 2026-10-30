@@ -118,69 +118,48 @@
     });
   };
 
-  // ---------- 過剰の音（唸り・暗転・足音など） ----------
-  // 蛍光灯の唸り：120Hz とその倍音のこもった唸りと、高いところのジジジという音
-  let hum = null, humLevel = 0;
-  function ensureHum() {
-    if (hum || !ac) return;
+  // ---------- 過剰の音（古いパソコンとブラウン管・画面が消える・足音） ----------
+  // 机の上の古いパソコン：ファンのこもった風の音、電源の低いうなり、ブラウン管の細く高い鳴き。
+  // ときどき、ディスクがカリカリと読む（Stories Untold の、画面の前の部屋）
+  let crt = null, crtLevel = 0;
+  function ensureCrt() {
+    if (crt || !ac) return;
     const g = ac.createGain(); g.gain.value = 0; g.connect(master);
-    [[120, 4, 1], [240, 6, 0.5], [360, 8, 0.25]].forEach(([f, q, v]) => {
-      const o = ac.createOscillator(); o.type = "sawtooth"; o.frequency.value = f + rand(-0.3, 0.3);
-      const bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = q;
+    const fan = ac.createBufferSource(); fan.buffer = noise(3, false); fan.loop = true;
+    const bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 420; bp.Q.value = 0.8;
+    const fg = ac.createGain(); fg.gain.value = 0.35;
+    fan.connect(bp); bp.connect(fg); fg.connect(g); fan.start();
+    [[60, 0.25], [180, 0.08]].forEach(([f, v]) => {
+      const o = ac.createOscillator(); o.frequency.value = f;
       const og = ac.createGain(); og.gain.value = v;
-      o.connect(bp); bp.connect(og); og.connect(g); o.start();
+      o.connect(og); og.connect(g); o.start();
     });
-    const z = ac.createOscillator(); z.type = "square"; z.frequency.value = 120;
-    const hp = ac.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 2400;
-    const zg = ac.createGain(); zg.gain.value = 0.05;
-    const lfo = ac.createOscillator(), lg = ac.createGain();
-    lfo.frequency.value = 0.23; lg.gain.value = 0.04; lfo.connect(lg); lg.connect(zg.gain);
-    z.connect(hp); hp.connect(zg); zg.connect(g); z.start(); lfo.start();
-    hum = { g };
+    const w = ac.createOscillator(); w.frequency.value = 15734;     // 水平走査の鳴き（聞こえない人もいる）
+    const wg = ac.createGain(); wg.gain.value = 0.04;
+    w.connect(wg); wg.connect(g); w.start();
+    crt = { g };
+    seek();
   }
-  FX.setHum = v => {
-    humLevel = v;
+  // ディスクを読む音：短いカチカチが、数回続く
+  function seek() {
+    setTimeout(() => {
+      if (live() && crtLevel > 0) {
+        const t0 = ac.currentTime, n = 2 + Math.floor(Math.random() * 5);
+        for (let i = 0; i < n; i++) {
+          const t = t0 + i * rand(0.04, 0.12), src = ac.createBufferSource(); src.buffer = noise(0.015, false);
+          const hp = ac.createBiquadFilter(); hp.type = "bandpass"; hp.frequency.value = rand(1800, 3200); hp.Q.value = 4;
+          const g = ac.createGain(); g.gain.setValueAtTime(0.02 + crtLevel * 0.05, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.015);
+          src.connect(hp); hp.connect(g); g.connect(master); src.start(t); src.stop(t + 0.02);
+        }
+      }
+      seek();
+    }, rand(3000, 9000));
+  }
+  FX.setCrt = v => {
+    crtLevel = v;
     if (!ac) return;
-    ensureHum();
-    hum.g.gain.setTargetAtTime(calm ? 0 : v * 0.09, ac.currentTime, 1.2);
-  };
-  // 照明が一瞬沈むときの、ジジッという音
-  FX.buzz = () => {
-    if (!live() || !hum) return;
-    const t = ac.currentTime;
-    hum.g.gain.cancelScheduledValues(t);
-    hum.g.gain.setTargetAtTime(humLevel * 0.25, t, 0.03);
-    hum.g.gain.setTargetAtTime(humLevel * 0.09, t + 0.5, 0.2);
-    const s = ac.createBufferSource(); s.buffer = noise(0.25, false);
-    const bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 3200; bp.Q.value = 3;
-    const g = ac.createGain(); g.gain.setValueAtTime(0.03, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
-    s.connect(bp); bp.connect(g); g.connect(master); s.start(t); s.stop(t + 0.26);
-  };
-  // 低い衝撃音
-  function boom(gain) {
-    const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
-    o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(24, t + 1.2);
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
-    o.connect(g); g.connect(master); o.start(t); o.stop(t + 1.7);
-    const s = ac.createBufferSource(); s.buffer = noise(1.2, true);
-    const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 140;
-    const ng = ac.createGain(); ng.gain.setValueAtTime(gain * 0.8, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
-    s.connect(lp); lp.connect(ng); ng.connect(master); s.start(t); s.stop(t + 1.2);
-  }
-  // すり抜け：床の下へ落ちていく風の音と、着地の衝撃
-  FX.noclip = short => {
-    if (!live()) return;
-    const t = ac.currentTime, d = short ? 0.6 : 1.1;
-    const s = ac.createBufferSource(); s.buffer = noise(d + 0.1, false);
-    const lp = ac.createBiquadFilter(); lp.type = "lowpass";
-    lp.frequency.setValueAtTime(4000, t); lp.frequency.exponentialRampToValueAtTime(150, t + d);
-    const g = ac.createGain();
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(short ? 0.12 : 0.22, t + d * 0.8);
-    g.gain.setValueAtTime(0.0001, t + d);
-    s.connect(lp); lp.connect(g); g.connect(master); s.start(t); s.stop(t + d + 0.1);
-    if (hum) { hum.g.gain.cancelScheduledValues(t); hum.g.gain.setTargetAtTime(0, t, 0.05); }
-    setTimeout(() => { if (live()) boom(short ? 0.3 : 0.45); }, d * 1000);
+    ensureCrt();
+    crt.g.gain.setTargetAtTime(calm ? 0 : v * 0.09, ac.currentTime, 1.2);
   };
   // 足音：遠ざかっていく（near なら、暗がりで近づいてくる）。左右に動く
   FX.steps = near => {
@@ -198,32 +177,33 @@
       s.connect(lp); lp.connect(g); g.connect(out); s.start(t); s.stop(t + 0.15);
     }
   };
-  // 水滴（Level 37）：落ちる音と、タイルに返る二つのこだま
-  FX.drip = () => {
-    if (!live()) return;
-    const t0 = ac.currentTime + rand(0.2, 1.2);
-    [[0, 0.05], [0.28, 0.02], [0.56, 0.008]].forEach(([dt, gain]) => {
-      const t = t0 + dt, o = ac.createOscillator(), g = ac.createGain();
-      o.frequency.setValueAtTime(1500, t); o.frequency.exponentialRampToValueAtTime(600, t + 0.07);
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.005);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
-      o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.1);
-    });
-  };
-  // 照明が消える・点く：唸りとうなりがゆっくり消え、カチッという音
-  FX.lightsOut = () => {
+  // 画面が消える：ブラウン管の電源が落ちる「ピュン」と、パチパチという静電気。うなりも消える
+  FX.screenOff = () => {
     if (!live()) return;
     const t = ac.currentTime;
-    if (hum) { hum.g.gain.cancelScheduledValues(t); hum.g.gain.setTargetAtTime(0, t, 0.4); }
+    if (crt) { crt.g.gain.cancelScheduledValues(t); crt.g.gain.setTargetAtTime(0, t, 0.15); }
     if (drone) { drone.g.gain.cancelScheduledValues(t); drone.g.gain.setTargetAtTime(0, t, 0.6); }
-    tone(90, 0.12, "square", 0.05);
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.setValueAtTime(2200, t); o.frequency.exponentialRampToValueAtTime(70, t + 0.3);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.4);
+    const src = ac.createBufferSource(); src.buffer = noise(0.6, false);
+    const hp = ac.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 3000;
+    const ng = ac.createGain(); ng.gain.setValueAtTime(0.025, t + 0.05); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.65);
+    src.connect(hp); hp.connect(ng); ng.connect(master); src.start(t + 0.05); src.stop(t + 0.7);
   };
-  FX.lightsOn = () => {
+  // 画面が点く：消磁の「ボワン」と、リレーのカチッ
+  FX.screenOn = () => {
     if (!live()) return;
-    tone(90, 0.12, "square", 0.05);
-    tone(2400, 0.4, "sine", 0.015, ac.currentTime + 0.1);
-    FX.setHum(humLevel);
-    FX.setPhase(phaseNow);
+    const t = ac.currentTime;
+    tone(1200, 0.03, "square", 0.03);
+    const o = ac.createOscillator(), lp = ac.createBiquadFilter(), g = ac.createGain();
+    o.type = "sawtooth"; o.frequency.value = 60; lp.type = "lowpass"; lp.frequency.value = 400;
+    g.gain.setValueAtTime(0.0001, t + 0.05); g.gain.exponentialRampToValueAtTime(0.12, t + 0.15);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    o.connect(lp); lp.connect(g); g.connect(master); o.start(t + 0.05); o.stop(t + 0.95);
+    setTimeout(() => { FX.setCrt(crtLevel); FX.setPhase(phaseNow); }, 700);
   };
 
   // 段階が変わるとき：雑音が膨らんで、切れる
@@ -273,7 +253,7 @@
   FX.pause = () => {
     calm = true; document.body.dataset.calm = "1"; FX.setSilence(0);
     if (drone && ac) drone.g.gain.setTargetAtTime(0, ac.currentTime, 0.1);
-    if (hum && ac) hum.g.gain.setTargetAtTime(0, ac.currentTime, 0.1);
+    if (crt && ac) crt.g.gain.setTargetAtTime(0, ac.currentTime, 0.1);
   };
   FX.resume = idx => { calm = false; delete document.body.dataset.calm; FX.setPhase(idx); };
   FX.suspend = hidden => {

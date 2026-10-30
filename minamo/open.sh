@@ -6,6 +6,7 @@
 #   sh ~/Claude/minamo/open.sh stop       # 止める（stop.sh と同じ）
 #   sh ~/Claude/minamo/open.sh restart    # 止めて、AI の一括チェックからやり直して開く
 #   sh ~/Claude/minamo/open.sh log        # 様子を見る（ログの最後の 20 行と、AI の一括チェックの結果）
+#   sh ~/Claude/minamo/open.sh update     # GitHub から最新にして（git pull）、起動し直して開く
 cd "$(dirname "$0")" || exit 1
 case "$1" in
   stop) sh "$PWD/stop.sh"; echo "止めました。"; exit 0 ;;
@@ -17,10 +18,26 @@ case "$1" in
            echo "止めました。起動し直します。" ;;
   log)  tail -20 "$HOME/minamo/server.log"; echo "AI の一括チェック："
         python3 "$PWD/tools/probe_info.py" 8082; exit 0 ;;
+  update)
+    # 端末の main に、GitHub で取り込んだもの（マージ）があっても止まらないように --no-rebase --no-edit
+    ROOT=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || { echo "git のフォルダが見つかりません。"; exit 1; }
+    BR="${2:-ccr-94656590-3g47vm}"
+    before=$(git -C "$ROOT" log -1 --format=%h)
+    echo "GitHub から最新にしています（$BR）……"
+    if git -C "$ROOT" pull --no-rebase --no-edit origin "$BR"; then
+      after=$(git -C "$ROOT" log -1 --format=%h)
+      if [ "$before" = "$after" ]; then echo "もう最新でした（$after）。"
+      else echo "更新しました：$before → $after"; fi
+      exec sh "$PWD/open.sh" restart
+    fi
+    echo "更新できませんでした。上の英語のメッセージを、そのまま Claude に見せてください。"
+    exit 1 ;;
   story|archive|mina|minasoko) PAGE="story.html"; shift ;;
   *)        PAGE="" ;;
 esac
 LOG="$HOME/minamo/server.log"
+# いまのファイルの版（更新できたかは、ここと起動画面のいちばん下でわかる）
+echo "ミナモ：更新 $(git -C "$PWD" log -1 --format='%h（%cd）' --date=format:'%m/%d %H:%M' 2>/dev/null)"
 mkdir -p "$HOME/minamo"
 touch "$LOG"
 if curl -s -o /dev/null --max-time 2 http://127.0.0.1:8082/ 2>/dev/null; then

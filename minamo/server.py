@@ -28,8 +28,29 @@ MAX_BODY = 2 * 1024 * 1024
 STATE = {}
 
 
+def build_info():
+    """いまのファイルの版：画面（sw.js の VERSION）と、git のコミット（端末で更新できたかを見分けるため）。"""
+    import re
+    import subprocess
+    web = commit = ""
+    try:
+        with open(os.path.join(WEB_DIR, "sw.js"), encoding="utf-8") as f:
+            m = re.search(r'VERSION = "([^"]+)"', f.read())
+            web = m.group(1) if m else ""
+    except OSError:
+        pass
+    try:
+        commit = subprocess.run(["git", "-C", os.path.dirname(WEB_DIR), "log", "-1", "--format=%h（%cd）",
+                                 "--date=format:%m/%d %H:%M"], capture_output=True, text=True, timeout=3).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return web, commit
+
+
 def info():
+    web, commit = build_info()
     return {
+        "web_version": web, "commit": commit,
         "ready": STATE["llm"] is not None,
         "error": STATE["error"],
         "backend": STATE["backend"],
