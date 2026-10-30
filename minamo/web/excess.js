@@ -1,6 +1,7 @@
 /* ミナモ：過剰な演出（演出「過剰」のときだけ動く）。相棒の AI と、画面の中の部屋。
    KinitoPET・Buddy Simulator 1984（相棒が手放してくれなくなる）と、Stories Untold（画面の中の部屋が自分の部屋と重なる）に倣った。
-   - 解釈：画面の隅に、相棒（水滴の形のミナモ）が現れ、明るい口調でヒントを出す。面接室のミナモとは、口調がまるで違う
+   - 解釈：画面の隅に、相棒（Claude のアイコン風の、橙色の放射のミナモ。迷い部屋と同じ形）が現れ、明るい口調でヒントを出す。
+           面接室のミナモとは、口調がまるで違う
    - 侵食：返事の前に、古いテキストアドベンチャーのように部屋の見出しが出る。書いてあるのは、あなたの部屋
            （端末の向き・充電・電池・時刻から）。状態行に部屋の名前と手数。相棒が、その部屋を知っていると言う
    - 融合：相棒がまとわりつく。「友だちになる」しか選べない窓、「インストールしています……あなたの中に」、
@@ -76,6 +77,7 @@
     $("blackout").hidden = true;
     $("darktext").textContent = "";
     $("pal").hidden = true;
+    $("pal").classList.remove("talk");
     $("pal-say").hidden = true;
     document.querySelectorAll(".dlg").forEach(e => e.remove());
     $("input").placeholder = "";
@@ -84,13 +86,14 @@
     FX.setHum(0);
   }
 
-  // ---------- 相棒（画面の隅の、水滴の形のミナモ） ----------
+  // ---------- 相棒（画面の隅の、Claude のアイコン風のミナモ。話しているあいだは回る） ----------
   let sayTimer = 0, sayToken = 0;
   async function palSay(text, keep) {
     if (!live() || !text) return;
     const my = ++sayToken;                     // 前のひとことを打っている途中なら、そちらはやめる
     const box = $("pal-say"), tx = $("pal-tx");
     $("pal").hidden = false;
+    $("pal").classList.add("talk");
     box.hidden = false;
     tx.textContent = "";
     FX.jingle(phase >= 3);
@@ -99,6 +102,7 @@
       tx.textContent += ch;
       await sleep(phase >= 3 ? 70 : 38);
     }
+    $("pal").classList.remove("talk");
     clearTimeout(sayTimer);
     if (!keep) sayTimer = setTimeout(() => { box.hidden = true; }, phase >= 3 ? 9000 : 6000);
   }

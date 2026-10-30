@@ -323,18 +323,23 @@ body[data-ver="2026"] #input.ghost { font-family: var(--sans); }
 body[data-ver="2026"] #ending { font-family: var(--sans); }
 body[data-ver="2026"] #ending .ai { font-family: var(--sans); text-shadow: none; }
 /* ===== 過剰（excess.js）：相棒の AI と、画面の中の部屋 ===== */
-/* 相棒：画面の隅の、水滴の形のミナモ（入力欄の上。入力はふさがない） */
-#pal { position: fixed; right: 12px; bottom: calc(5.6em + env(safe-area-inset-bottom, 0px)); z-index: 30; width: 46px; height: 52px;
-  border: none; padding: 0; background: none; cursor: pointer; transition: transform .6s; }
-#pal .drop { position: absolute; inset: 0; background: radial-gradient(circle at 35% 30%, #e9fbff, #8fd6ee 55%, #4aa6c8);
-  border-radius: 50% 50% 50% 50% / 62% 62% 40% 40%; box-shadow: 0 3px 10px rgba(0,0,0,.4); }
-#pal .eye { position: absolute; top: 22px; width: 7px; height: 9px; background: #10303c; border-radius: 50%; animation: blink 5s infinite; }
-#pal .eye.l { left: 13px; } #pal .eye.r { right: 13px; }
-#pal .mouth { position: absolute; left: 50%; top: 35px; width: 12px; height: 6px; margin-left: -6px; border-bottom: 2px solid #10303c; border-radius: 0 0 8px 8px; }
-@keyframes blink { 0%, 95%, 100% { transform: scaleY(1); } 97% { transform: scaleY(.1); } }
-body.pal-wrong #pal { transform: scale(1.25) rotate(-6deg); }
-body.pal-wrong #pal .eye { width: 9px; height: 12px; top: 20px; background: #000; animation: none; }
-body.pal-wrong #pal .mouth { border-bottom-color: #000; width: 18px; margin-left: -9px; }
+/* 相棒：画面の隅の、Claude のアイコン風のミナモ（迷い部屋と同じ、橙色の放射。入力欄の上。入力はふさがない） */
+#pal { position: fixed; right: 10px; bottom: calc(5.4em + env(safe-area-inset-bottom, 0px)); z-index: 30; width: 52px; height: 52px;
+  border: none; padding: 0; background: none; cursor: pointer; transition: transform .8s; }
+#pal svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 2px 6px rgba(0,0,0,.45)); }
+#pal line { stroke: #d97757; stroke-width: 3.4; stroke-linecap: round; transition: stroke 2s; }
+#pal circle { fill: #d97757; transition: fill 2s; }
+#pal .rays { transform-origin: 24px 24px; animation: palbreath 4s ease-in-out infinite; }
+@keyframes palbreath { 50% { transform: scale(1.06); } }
+/* 話しているあいだは、ゆっくり回る */
+#pal.talk .rays { animation: palspin 6s linear infinite; }
+@keyframes palspin { to { transform: rotate(360deg); } }
+/* 融合：色が深くなり、光が一本だけ伸び、少し傾いたまま止まる */
+body.pal-wrong #pal { transform: scale(1.25) rotate(-8deg); }
+body.pal-wrong #pal line { stroke: #a8432a; }
+body.pal-wrong #pal circle { fill: #a8432a; }
+body.pal-wrong #pal line:nth-child(4) { transform-origin: 24px 24px; transform: scale(1.55); }
+body.pal-wrong #pal.talk .rays { animation-duration: 14s; animation-direction: reverse; }
 #pal-say { position: fixed; right: 66px; bottom: calc(5.8em + env(safe-area-inset-bottom, 0px)); z-index: 30; max-width: min(70vw, 300px);
   background: #fffbe8; color: #2b2410; border: 2px solid #2b2410; border-radius: 10px 10px 2px 10px; padding: .45em 1.8em .45em .7em;
   font-family: "Kosugi Maru", var(--dot), sans-serif; font-size: .86em; line-height: 1.6; box-shadow: 3px 3px 0 rgba(0,0,0,.35);
@@ -467,7 +472,7 @@ body[data-calm] #lights, body[data-calm] #pal, body[data-calm] #pal-say, body[da
 </div>
 <div id="ending" class="full" hidden></div>
 
-<button id="pal" type="button" aria-label="相棒のミナモ" hidden><span class="drop"></span><span class="eye l"></span><span class="eye r"></span><span class="mouth"></span></button>
+<button id="pal" type="button" aria-label="相棒のミナモ" hidden><svg viewBox="0 0 48 48" aria-hidden="true"><g class="rays"><line x1="24" y1="24" x2="33.1" y2="14.7"/><line x1="24" y1="24" x2="39.4" y2="20.4"/><line x1="24" y1="24" x2="41.5" y2="30.3"/><line x1="24" y1="24" x2="32.8" y2="35.4"/><line x1="24" y1="24" x2="25.5" y2="41.1"/><line x1="24" y1="24" x2="17.9" y2="35.5"/><line x1="24" y1="24" x2="10.2" y2="31.8"/><line x1="24" y1="24" x2="5.4" y2="22.9"/><line x1="24" y1="24" x2="12.4" y2="15.5"/><line x1="24" y1="24" x2="17.8" y2="8.0"/><line x1="24" y1="24" x2="26.6" y2="11.3"/></g><circle cx="24" cy="24" r="3.6"/></svg></button>
 <div id="pal-say" hidden><span id="pal-tx"></span><button id="pal-x" type="button" aria-label="閉じる">×</button></div>
 <div id="lights" aria-hidden="true"><div id="darktext"></div></div>
 <div id="blackout" hidden></div>
