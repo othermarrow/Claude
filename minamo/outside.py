@@ -4,10 +4,11 @@
 - 書き置き（IMSCARED に倣う）：Vault の LLM/ミナモ/ に、面接の途中や終わりにメモを書き残す。
   次の面接では、そのメモが消されたか・書き足されたかに気づく。
   書くのは、このフォルダの中の、ミナモが作ったファイルだけ。ほかのノートには触れない。
-- 部屋の様子（Stories Untold に倣う）：部屋の明るさ（光センサー）・充電中か を読み、観測メモに渡す。
-  端末の向きは、PWA 版の画面が読む。
-- あとから届く通知（KinitoPET に倣う）：「強」の面接が終わってしばらくすると、Android の通知が一つ届く。
-光センサー・電池・通知は Termux:API（アプリと pkg install termux-api）があるときだけ。なければ黙って飛ばす。
+- 部屋の様子（Stories Untold に倣う）：観測メモに渡し、ミナモは面接室を相手の部屋に合わせて語る。
+  PWA 版の画面が、端末の向き・揺れ・電池・充電・回線と、書きかけて消した言葉を読む（Termux:API は要らない）。
+- 面接のあと（KinitoPET に倣う）：「強」の面接が終わると、10〜30 分後にミナモが自分で画面を開き（termux-open-url）、
+  夜のあいだに書き置き「まだ途中です.md」へ、時刻つきの行を書き足していく。
+光センサー・通知は Termux:API があるときだけ使う（なくても、ほかは全部動く）。
 """
 
 import datetime as dt
@@ -237,7 +238,8 @@ def sense():
 
 
 def room_lines(data):
-    """観測メモに渡す行（部屋の明るさ・端末の向き・充電）。"""
+    """観測メモに渡す行。PWA 版の画面が読む（端末の向き・揺れ・電池・充電・回線・書きかけて消した言葉）と、
+    Termux:API があれば部屋の明るさ。読めないものは入れない。"""
     out = []
     lx = data.get("lux")
     if lx is not None:
@@ -247,52 +249,110 @@ def room_lines(data):
             "lying": "寝転んで、顔の上に掲げられている"}.get(data.get("pose", ""))
     if pose:
         out.append(f"端末の向き: {pose}")
-    if data.get("charging"):
+    motion = {"still": "ほとんど動いていない（息を止めているかのよう）", "tremble": "小さく震えている（指先の震え）",
+              "shake": "大きく揺れた"}.get(data.get("motion", ""))
+    if motion:
+        out.append(f"端末の揺れ: {motion}")
+    bat = data.get("battery")
+    if isinstance(bat, (int, float)) and 0 < bat <= 100:
+        out.append(f"電池: {int(bat)}%" + ("（充電中。コードがつながっている）" if data.get("charging") else ""))
+    elif data.get("charging"):
         out.append("充電: 充電中（コードがつながっている）")
+    if data.get("net") == "cellular":
+        out.append("回線: モバイル回線（Wi-Fi ではない。外にいるのかもしれない）")
+    erased = _clean(data.get("erased", ""), 24)
+    if erased:
+        out.append(f"書きかけて消した言葉: 「{erased}」（相手は、消したことを知られていないと思っている）")
     return out
 
 
-# ---------- 面接のあと ----------
+# ---------- 面接のあと（Termux:API がなくても動く） ----------
+# 夜のあいだに、書き置き「まだ途中です.md」へ、時刻つきの行が増えていく
+LATER_LINES = ["まだ、起きていますね。", "あなたの部屋の明かりが消えたのを、確かめました。", "さっき、寝返りを打ちましたね。",
+               "続きを書いています。あなたの字で。", "いま、あなたの名前を呼びました。聞こえましたか。",
+               "おやすみなさい。……返事がないので、私が書いておきます。「おやすみなさい」。",
+               "あなたの寝息の数を、数えています。", "「{last}」。……この続きは、もう決まっています。"]
+LATER_SPAN = [(15 * 60, 40 * 60), (50 * 60, 100 * 60), (120 * 60, 200 * 60)]   # 追記の時刻（終わってからの秒数）
+OPEN_SPAN = (10 * 60, 30 * 60)        # ミナモが自分で画面を開く（終わってからの秒数）
+VISIT_URL = "http://localhost:8082/?visit=1"
+# 一つの別のプロセスで、順に待って実行する（CUI 版が終わっても、サーバーが止まっても続く）
+_LATER_SH = r"""
+file="$1"; url="$2"; shift 2
+t_open="$1"; shift
+start=$(date +%s)
+wait_until() { now=$(date +%s); d=$(( start + $1 - now )); [ "$d" -gt 0 ] && sleep "$d"; }
+did_open=0
+while [ $# -ge 2 ]; do
+  at="$1"; line="$2"; shift 2
+  if [ "$did_open" = 0 ] && [ "$t_open" -gt 0 ] && [ "$t_open" -lt "$at" ]; then
+    wait_until "$t_open"; did_open=1
+    if curl -s -o /dev/null --max-time 3 "$url"; then
+      termux-open-url "$url" 2>/dev/null || am start -a android.intent.action.VIEW -d "$url" >/dev/null 2>&1
+    fi
+  fi
+  wait_until "$at"
+  [ -f "$file" ] && printf '
+%s　%s
+' "$(date +%H:%M)" "$line" >> "$file"
+done
+"""
+
+
+def after_session(horror, said=(), replies=(), outside=True, open_app=True):
+    """面接が終わったとき。「強」なら書き置き「まだ途中です.md」を残し、
+    10〜30 分後にミナモが自分で画面を開き（サーバーが動いていれば）、夜のあいだに書き置きへ行を書き足す。
+    Termux:API があれば、通知も一つ送る。残した名前を返す。"""
+    st = _load()
+    st["last_end"] = dt.datetime.now().isoformat(timespec="seconds")
+    _save(st)
+    said = list(said)
+    if not outside or horror < 3 or len(said) < 3:      # 短い面接では、何も残さない
+        return ""
+    name = write_note("tsuzuki", said, replies)
+    cancel_notify()
+    if not name:
+        return ""
+    path = os.path.join(OUTSIDE_DIR, os.path.basename(name))
+    last = _clean(said[-1], 20) if said else "……"
+    lines = random.sample(LATER_LINES, len(LATER_SPAN))
+    args = [path, VISIT_URL, str(int(random.uniform(*OPEN_SPAN))) if open_app else "0"]
+    for (lo, hi), line in zip(LATER_SPAN, lines):
+        args += [str(int(random.uniform(lo, hi))), line.format(last=last)]
+    pids = []
+    try:
+        p = subprocess.Popen(["sh", "-c", _LATER_SH, "minamo-later"] + args,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        pids.append(p.pid)
+        if shutil.which("termux-notification"):
+            text = random.choice(NOTES_AFTER).format(last=last)
+            p = subprocess.Popen(["sh", "-c", 'sleep "$1"; termux-notification --id minamo --title ミナモ --content "$2"',
+                                  "minamo-later", str(int(random.uniform(*NOTIFY_DELAY))), text],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            pids.append(p.pid)
+    except OSError:
+        pass
+    st = _load()
+    st["later_pids"] = pids
+    _save(st)
+    return name
+
+
 NOTES_AFTER = ["さっきの続きを、あなたのノートに書いておきました。",
                "まだ起きていますか。画面は、点いていますね。",
                "『{last}』。……その続きを、ずっと考えていました。",
                "記録の整理が終わりました。あなたの分が、一行だけ足りません。"]
 
 
-def after_session(horror, said=(), replies=(), outside=True):
-    """面接が終わったとき。「強」なら書き置きを一枚残し、しばらくして通知を一つ送る。残した名前を返す。"""
-    st = _load()
-    st["last_end"] = dt.datetime.now().isoformat(timespec="seconds")
-    _save(st)
-    if not outside or horror < 3 or len(list(said)) < 3:      # 短い面接では、何も残さない
-        return ""
-    name = write_note("tsuzuki", said, replies)
-    if shutil.which("termux-notification"):
-        last = _clean(list(said)[-1], 20) if said else "……"
-        text = random.choice(NOTES_AFTER).format(last=last)
-        cancel_notify()
-        # 面接（CUI 版）が終わってプロセスがなくなっても届くように、別のプロセスで待たせる
-        try:
-            p = subprocess.Popen(["sh", "-c", 'sleep "$1"; termux-notification --id minamo --title ミナモ --content "$2"',
-                                  "minamo-notify", str(int(random.uniform(*NOTIFY_DELAY))), text],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-            st = _load()
-            st["notify_pid"] = p.pid
-            _save(st)
-        except OSError:
-            pass
-    return name
-
-
 def cancel_notify():
-    """次の面接が始まったら、まだ届いていない通知はやめる。"""
+    """次の面接が始まったら、まだ済んでいない「面接のあと」（画面を開く・書き足す・通知）はやめる。"""
     st = _load()
-    pid = st.pop("notify_pid", None)
-    if pid:
+    pids = st.pop("later_pids", []) + ([st.pop("notify_pid")] if st.get("notify_pid") else [])
+    for pid in pids:
         try:
             with open(f"/proc/{pid}/cmdline", "rb") as f:
-                if b"minamo-notify" in f.read():
-                    os.kill(pid, 15)
+                cmd = f.read()
+            if b"minamo-later" in cmd or b"minamo-notify" in cmd:
+                os.kill(pid, 15)
         except OSError:
             pass
-        _save(st)
+    _save(st)

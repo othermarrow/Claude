@@ -39,19 +39,33 @@
   settings.horror = [0, 1, 2, 3].includes(settings.horror) ? settings.horror : 3;   // 怖さ（段階の上限）
   settings.outside = settings.outside !== false;   // 画面の外（書き置き・部屋の様子・あとから届く通知）
 
-  // 部屋の様子：端末の向き（置いている・手に持っている・寝転んで掲げている）と、充電中か
-  const room = { pose: "", charging: null };
+  // 部屋の様子（Termux:API は要らない。ブラウザが読めるものだけ）：
+  // 端末の向き（置いている・手に持っている・寝転んで掲げている）・揺れ（その回の最大の揺れ）・電池の残り・充電中か・回線
+  const room = { pose: "", charging: null, battery: null, jerk: 0, last: null };
   window.addEventListener("deviceorientation", e => {
     if (e.beta == null) return;
     const b = Math.abs(e.beta), g = Math.abs(e.gamma || 0);
     room.pose = b < 20 && g < 20 ? "flat" : b > 120 ? "lying" : "hand";
   });
+  window.addEventListener("devicemotion", e => {
+    const a = e.accelerationIncludingGravity;
+    if (!a || a.x == null) return;
+    if (room.last) room.jerk = Math.max(room.jerk, Math.abs(a.x - room.last.x) + Math.abs(a.y - room.last.y) + Math.abs(a.z - room.last.z));
+    room.last = { x: a.x, y: a.y, z: a.z };
+  });
+  const motionWord = () => {
+    if (!room.last) return "";
+    const j = room.jerk;
+    room.jerk = 0;
+    return j < 0.3 ? "still" : j > 6 ? "shake" : room.pose !== "flat" && j > 0.8 ? "tremble" : "";
+  };
   if (navigator.getBattery) {
     navigator.getBattery().then(bt => {
-      const up = () => { room.charging = bt.charging; };
-      up(); bt.addEventListener("chargingchange", up);
+      const up = () => { room.charging = bt.charging; room.battery = Math.round(bt.level * 100); };
+      up(); bt.addEventListener("chargingchange", up); bt.addEventListener("levelchange", up);
     }).catch(() => {});
   }
+  const netType = () => (navigator.connection && navigator.connection.type) || "";
   const is2026 = () => settings.version === "2026";
   const MODE_NOTE = {
     cloud: "回線が戻りました。",
@@ -293,7 +307,7 @@
       const trick = pickTrick(idx, hl);
       if (trick) L.push("- 今回の仕掛け: " + trick + (cfg.trick_note || ""));
     }
-    if (outsideOn() && idx >= 2) S.room.forEach(x => L.push("- " + x));
+    if (outsideOn() && idx >= 1) { S.room.forEach(x => L.push("- " + x)); S.room = []; }
     if (S.pending.length) { S.pending.forEach(x => L.push("- " + x)); S.pending = []; }
     if (o.extra) L.push("- " + o.extra);
     return "【観測メモ】\n" + L.join("\n");
@@ -434,7 +448,9 @@
     input.disabled = !on; send.disabled = !on;
     if (on) {
       label.textContent = promptLabel() + "：";
-      S.t0 = performance.now(); S.erased = 0; S.prevValue = input.value;
+      input.placeholder = settings.horror >= 3 && phaseIdx() >= 2 && Math.random() < 0.5
+        ? pick(["もう書いてあります", "（ミナモが入力しています）", "あなたの言葉を、先に読んでいます", "消しても、届きます"]) : "";
+      S.t0 = performance.now(); S.erased = 0; S.prevValue = input.value; S.erasedText = ""; S.delFrom = "";
       S.lastInput = performance.now(); S.away = 0; S.ghosted = false;
       armSilence();
       input.focus({ preventScroll: true });
@@ -524,12 +540,19 @@
     const deleted = type ? type.startsWith("delete") : !composing && !e.isComposing;
     if (deleted && now.length < prev.length) {
       S.erased += prev.length - now.length;
+      // 消す前に書いてあったもののうち、消えた部分（いちばん長いもの）を覚えておく
+      if (!S.delFrom) S.delFrom = prev;
+      let k = 0;
+      while (k < now.length && now[k] === S.delFrom[k]) k++;
+      const gone = S.delFrom.slice(k).trim();
+      if (gone.length >= 2 && gone.length > (S.erasedText || "").length) S.erasedText = gone;
       let a = 0;
       while (a < now.length && now[a] === prev[a]) a++;
       let b = 0;
       while (b < now.length - a && now[now.length - 1 - b] === prev[prev.length - 1 - b]) b++;
       if (phaseIdx() >= 1) FX.floatErased(prev.slice(a, prev.length - b), input);
     }
+    if (!deleted) S.delFrom = "";
     S.prevValue = now;
     S.lastInput = performance.now();
     S.ghosted = false;
@@ -595,6 +618,7 @@
     if (!text) return;
     const latency = (performance.now() - S.t0) / 1000;
     const erased = S.erased, away = S.away;
+    S.lastErased = S.erasedText && !text.includes(S.erasedText) ? S.erasedText : "";
     input.value = ""; input.style.height = "auto"; S.prevValue = "";
     setInput(false);
     if (text === "/quit") return finish(true);
@@ -645,9 +669,13 @@
         if (r.line) S.pending.push(r.line);
       } catch (e) { /* 書けなければ、黙って続ける */ }
     }
-    if (idx >= 2) {
-      try { S.room = (await api("/api/room", { pose: room.pose, charging: room.charging })).lines || []; } catch (e) { S.room = []; }
-    }
+    const strong = settings.horror >= 3;
+    if (idx >= 2 || (strong && idx >= 1 && S.lastErased)) {
+      const body = { erased: strong ? S.lastErased : "" };
+      if (idx >= 2) Object.assign(body, { pose: room.pose, charging: room.charging, battery: room.battery,
+                                          motion: motionWord(), net: netType() });
+      try { S.room = (await api("/api/room", body)).lines || []; } catch (e) { S.room = []; }
+    } else S.room = [];
   }
 
   // 終わりの合図か（minamo.is_exit と同じ見分け方。古いサーバーなら言葉が入っているかだけ）
@@ -986,7 +1014,35 @@
     btn.onclick = () => begin();
   }
 
+  // ミナモが自分で画面を開いたとき（面接のあと、outside.py が ?visit=1 で開く）
+  async function visit() {
+    history.replaceState(null, "", location.pathname);
+    const el = $("visit");
+    el.hidden = false;
+    const prev = load("minamo.last", null);
+    const lines = ["……開いてくれたのですね。", "いいえ。開いたのは、私でした。", "まだ、途中でしたから。",
+                   prev && prev.findings ? "記録の続きを、書いておきました。あとは、あなたの番です。" : "あなたが眠るまで、ここで待っています。"];
+    for (const t of lines) {
+      const p = document.createElement("p");
+      el.appendChild(p);
+      for (const ch of t) { p.textContent += ch; await sleep("。、…".includes(ch) ? 260 : 90); }
+      await sleep(900);
+    }
+    const row = document.createElement("div");
+    row.className = "btns";
+    row.innerHTML = '<button type="button" class="main" id="v-go">続きを話す</button><button type="button" id="v-close">閉じる</button>';
+    el.appendChild(row);
+    $("v-go").onclick = () => { el.hidden = true; el.textContent = ""; };
+    $("v-close").onclick = async () => {
+      row.remove();
+      const p = document.createElement("p");
+      el.appendChild(p);
+      for (const ch of "画面を閉じてください。……私は、閉じません。") { p.textContent += ch; await sleep(110); }
+    };
+  }
+
   FX.setVersion(settings.version);
   FX.configure(settings);
+  if (new URLSearchParams(location.search).has("visit")) visit();
   connect();
 })();

@@ -181,6 +181,11 @@ body[data-phase="3"] #label { color: var(--bright); }
 #boot pre { margin: 0; font-family: var(--dot); color: #7fd18b; font-size: .82em; line-height: 1.7;
   white-space: pre-wrap; text-shadow: 0 0 6px rgba(127,209,139,.35); }
 #boot.out { opacity: 0; transition: opacity .8s; }
+#visit { z-index: 70; display: flex; flex-direction: column; justify-content: center; gap: .8em; color: #dfe9e4;
+  font-family: var(--mincho, serif); font-size: 1.05em; }
+#visit p { margin: 0; }
+#visit .btns { display: flex; gap: .6em; margin-top: 1.2em; }
+#visit button { background: none; border: 1px solid #3a4a44; color: #9fb3aa; padding: .5em 1.2em; border-radius: 4px; }
 #ending { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 1em; }
 #ending p { margin: 0; }
 #ending .small { color: var(--dim); font-size: .75em; word-break: break-all; max-width: 30em; }
@@ -457,6 +462,7 @@ body[data-calm] #water, body[data-calm] #wall, body[data-calm] #lights { display
 </div>
 
 <div id="boot" class="full" hidden></div>
+<div id="visit" class="full" hidden></div>
 <div id="onboard" class="full" hidden></div>
 <div id="memtoast"><span class="t">◆ メモリを更新しました</span><span class="x" id="memtext"></span><button type="button" id="memopen">管理</button></div>
 <div id="notify"><div class="ic"></div><div><div class="hd"><span>ミナモ</span><span>たった今</span></div><div class="tx" id="notifytext"></div></div></div>

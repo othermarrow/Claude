@@ -188,7 +188,14 @@ def parse(contents):
     info["room"] = m.group(1) if m else ""
     m = re.search(r"端末の向き: (机などに置かれている|手に持たれている|寝転んで)", memo)
     info["pose"] = {"机などに置かれている": "flat", "手に持たれている": "hand", "寝転んで": "lying"}[m.group(1)] if m else ""
-    info["charging"] = "充電: 充電中" in memo
+    info["charging"] = "充電: 充電中" in memo or "（充電中。" in memo
+    m = re.search(r"端末の揺れ: (ほとんど動いていない|小さく震えている|大きく揺れた)", memo)
+    info["motion"] = {"ほとんど動いていない": "still", "小さく震えている": "tremble", "大きく揺れた": "shake"}[m.group(1)] if m else ""
+    m = re.search(r"書きかけて消した言葉: 「(.+?)」", memo)
+    info["erased_text"] = m.group(1) if m else ""
+    m = re.search(r"(?m)^- 電池: ([0-9]+)%", memo)
+    if m and not info.get("battery"):
+        info["battery"] = m.group(1) + "%"
     out = memo.split("画面の外：", 1)[1] if "画面の外：" in memo else ""
     info["out_gone"] = re.findall(r"「([^」]+)」が消されていた", out)
     info["out_added"] = re.findall(r"書き置き「([^」]+)」に、相手が「([^」]+)」と書き足していた", out)

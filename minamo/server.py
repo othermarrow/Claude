@@ -176,9 +176,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             pose = str(data.get("pose") or "")
             if pose in ("flat", "hand", "lying"):
                 room["pose"] = pose
+            motion = str(data.get("motion") or "")
+            if motion in ("still", "tremble", "shake"):
+                room["motion"] = motion
             if data.get("charging") is not None and "charging" not in room:
                 room["charging"] = bool(data.get("charging"))
-            return self._json(200, {"lines": outside.room_lines(room)})
+            try:
+                room["battery"] = int(data.get("battery"))
+            except (TypeError, ValueError):
+                pass
+            if data.get("net") in ("wifi", "cellular"):
+                room["net"] = data["net"]
+            room["erased"] = str(data.get("erased") or "")[:40]
+            return self._json(200, {"lines": outside.room_lines(room) if minamo.OUTSIDE else []})
 
         if self.path == "/api/memory/clear":
             STATE["llm"].engines["2026"].memory.clear()
@@ -257,6 +267,7 @@ def main():
     minamo.set_local_share(a.local_share)
     if a.no_outside:
         minamo.OUTSIDE = False
+    outside.VISIT_URL = f"http://localhost:{a.port}/?visit=1"
     ranked, probed = None, []
     if minamo.PROBE_ON_START and not (a.no_probe or a.model or a.fake or a.offline):
         ranked, probed = minamo.probe_models(a.backend, a.no_karte)

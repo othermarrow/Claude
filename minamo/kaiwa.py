@@ -1019,7 +1019,16 @@ BEATS = [
     ("room", 2, 3, "面接室の明かりを、少し落としました。{room}あなたの部屋に、合わせて。"),
     ("pose", 2, 3, "{pose}、話していますね。……そのままで、いいです。私からは、よく見えますから。"),
     ("charge", 2, 3, "{charge}が、つながっていますね。……その先は、どこにつながっていますか。私は、そこから来ています。"),
+    ("still", 2, 3, "{still}、端末がまったく動いていません。……息は、していますか。私は、あなたの呼吸の数を数えています。"),
+    ("tremble", 2, 3, "いま、{tremble}が少し震えましたね。画面越しに、ちゃんと伝わってきます。"),
+    ("shake", 2, 3, "いま、端末が大きく揺れました。……{shake}誰かに、肩を叩かれましたか。"),
+    ("behind", 2, 3, "後ろの方にも、聞いていただいています。……{rec}には、お二人と書いておきました。"),
+    ("sleep_plan", 3, 3, "あなたが眠ったら、私が続きを書きます。あなたの字で。……もう、半分書けています。"),
 ]
+# 画面の外：書きかけて消した言葉（「強」のとき、画面が渡してくる）。一つの面接で三度まで
+ERASED_QUOTE = ["『{e}』。……書いて、消しましたね。消したほうが、本当のあなたです。",
+                "さっき消した『{e}』も、{rec}しておきました。消したということも、一緒に。",
+                "『{e}』。……その言葉は、まだ画面の裏に残っています。私のほうから、よく見えます。"]
 # 画面の外：書き置きを残した回に、そのことを伝える一文
 NOTE_LINE = {"2026": ["あなたのノートに、一枚書き足しておきました。『{note}』。あとで、読んでください。",
                       "あなたの Vault に、私のメモを一枚置きました。『{note}』。……画面を閉じても、そこなら読めます。"],
@@ -1206,6 +1215,7 @@ class Talk:
         self.used = set()          # この面接で使ったセリフ（雛形）
         self.beats = set()         # この面接で使った山場
         self.name = ""
+        self.erased_quoted = []    # この面接で引用した「書きかけて消した言葉」
 
     # ---------- セリフを選ぶ ----------
     def say(self, pool, ctx, **kw):
@@ -1251,6 +1261,13 @@ class Talk:
         self._asked = False                # 端末の中の AI に頼むのは、一つの返事で一度まで
         head = self.head(u, slot, prevq, F, ph, ctx, topic, said, contents)
         parts += head["lines"]
+        self._keep = set()
+        e = i.get("erased_text", "")
+        if e and e not in self.erased_quoted and len(self.erased_quoted) < 3:
+            self.erased_quoted.append(e)
+            line = ERASED_QUOTE[len(self.erased_quoted) - 1].format(e=e, rec=ctx["rec"].replace("ログ", "記録"))
+            parts.append(line)
+            self._keep.add(line)
         if head["deepen"]:
             d = self.assist(u, ph, hist) or self.deepen(u, ph, ctx, topic, said)
             if d:
@@ -1260,7 +1277,9 @@ class Talk:
             parts += self.extra(u, ph, ctx, F, said, extras, parts)
         # 画面の外に書き置きを残した回は、かならず伝える
         if i.get("note"):
-            parts.append(random.choice(NOTE_LINE[self.voice]).format(note=i["note"]))
+            line = random.choice(NOTE_LINE[self.voice]).format(note=i["note"])
+            parts.append(line)
+            self._keep.add(line)
         # 問いで終える（すでに問いがあるとき・問いを足さない返事のときは足さない）
         asked = [p for p in parts if re.search(r"(か。|か？|\?|？)$", p.replace("[間]", "").strip())]
         if head["ask"] and not asked:
@@ -1297,7 +1316,9 @@ class Talk:
                 "cword": cword, "cnum": cnum, "like": like, "pnum": str(random.randint(3, 9)),
                 "cfrag": _frag(F["complaint"]) if F["complaint"] else first, "_hist": hist,
                 "room": i.get("room", "") if i.get("room") in ("暗い", "薄暗い") else "",
-                "pose": POSE_WORD.get(i.get("pose", ""), ""), "charge": "充電のコード" if i.get("charging") else ""}
+                "pose": POSE_WORD.get(i.get("pose", ""), ""), "charge": "充電のコード" if i.get("charging") else "",
+                "still": "さっきから" if i.get("motion") == "still" else "", "tremble": "指先" if i.get("motion") == "tremble" else "",
+                "shake": "……" if i.get("motion") == "shake" else ""}
 
     def topic(self, u, prevq, F, said):
         """いまの話題：(種類, 拾った語, ミナモが口にする呼び方)。発言になければ、前の問い・前の打ち明けから。"""
@@ -1634,6 +1655,8 @@ class Talk:
         random.shuffle(pool)
         # 相手の言葉を正確に使う山場を先に
         pool.sort(key=lambda x: x[0] not in ("count", "contradiction", "misquote", "merge", "first", "user"))
+        # 書きかけて消した言葉・端末の揺れは、あればいちばん先に（いま、ここで起きたことだから）
+        pool.sort(key=lambda x: x[0] not in ("shake", "tremble", "still"))
         for bid, tpl in pool:
             text = fill(tpl, c)
             if text and text not in ctx["_hist"]:
@@ -1693,8 +1716,12 @@ class Talk:
         """長さと [間] の数を整える。最初（受け止め）と最後（問い）は残し、間の添えものから削る。"""
         parts = [p for p in parts if p]
         limit = [3, 4, 5, 5][ph] - (1 if closer else 0)
+        keep = getattr(self, "_keep", set())        # 削らない文（書きかけて消した言葉・書き置きの知らせ）
         while len(parts) > 2 and (len(parts) > limit or sum(_sent_count(p) for p in parts) > limit + 2):
-            parts.pop(-2)
+            j = next((j for j in range(len(parts) - 2, 0, -1) if parts[j] not in keep), 0)
+            if not j:
+                break
+            parts.pop(j)
         if closer:
             parts.append(closer)
         out, pauses = [], 0
