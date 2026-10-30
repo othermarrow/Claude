@@ -10,6 +10,6 @@ while [ ! -f "$STOP" ]; do
   [ -f "$STOP" ] && break
   if ! up && ! pgrep -f "minamo/[s]erver.py" >/dev/null; then
     echo "$(date '+%F %T') サーバーが止まっていたので、起こし直します" >> "$LOG"
-    nohup python3 "$PWD/server.py" --no-probe "$@" >> "$LOG" 2>&1 &
+    nohup python3 -u "$PWD/server.py" --no-probe "$@" >> "$LOG" 2>&1 &
   fi
 done

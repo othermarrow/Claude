@@ -126,7 +126,7 @@ def run(backend=None, timeout=None, system=None, out=sys.stdout, cands=None, wor
                 r.update(sec=None, ok=False, why=f"{timeout}秒で返事がない", sample="")
         with lock:
             results.append(r)
-            prog = f"[{len(results)}/{n}] " if workers < n else ""
+            prog = f"[{len(results)}/{n}] "
             print("  " + prog + line(r), file=out, flush=True)
 
     threads = [threading.Thread(target=one, args=c, daemon=True) for c in cands]
