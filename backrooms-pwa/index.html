@@ -174,8 +174,9 @@ body #fx-truism { top: auto; bottom: calc(1em + env(safe-area-inset-bottom, 0px)
   "use strict";
   const $ = id => document.getElementById(id);
   const GAMES = [
-    // クリア済みの「降下記録」（koka）と「空欄」（kuuran）は、札から外してある。
-    // 戻すときは、README の「札を戻すには」を見る。
+    // クリア済みの「降下記録」（koka）は、札から外してある。戻すときは、README の「札を戻すには」を見る。
+    { id: "kuuran", file: "games/kuuran.html", no: "記録 02", ja: "空欄", en: "BLANK", lv: "white", c: "#c8f6ff",
+      p: "白い部屋。欄は、まだ埋まっていない。" },
     { id: "noclip", file: "games/noclip.html", no: "記録 03", ja: "ノークリップ", en: "NOCLIP", lv: 1, c: "#00f5d4",
       p: "すり抜けた先に、誰かの手引きが一冊。" },
     { id: "yacho", file: "games/yacho.html", no: "記録 04", ja: "野帳", en: "FIELD NOTES", lv: 7, c: "#3fa9ff",
