@@ -15,6 +15,7 @@ Chrome でインストールすると、ホーム画面のアイコンから開�
 ## 持ち込みについて（Anchorhead・Slouching Towards Bedlam など）
 
 - ゲームファイルは、このアプリには入れていない。自分で取ってきて、「ゲームファイルを開く」で選ぶ。
+  Termux なら `sh yoru-shoko/tools/fetch_games.sh` で、Anchorhead と Bedlam を Download に取ってこられる（取得先の URL は、このセッションからは確かめられていない。取れなければ、IFDB で探して手で保存する）。
   ファイルは、この端末の IndexedDB にだけ置かれる（どこにも送られない）。
 - Anchorhead は Z-machine 形式（.z8）。Slouching Towards Bedlam の形式は未確認だが、Z-machine でも Glulx でも動く。
 - Glulx は Quixe（MIT ライセンス、`glulx/LICENSE-quixe.txt`）で動かす。Glulx のゲームは、ゲームを閉じて別の Glulx のゲームを開くとき、画面を読み込みなおす。
@@ -31,14 +32,15 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 
 ```sh
 cd ~/Claude
-git fetch origin ccr-db3a2681-hvk1xj
+git status --short                       # 何か出たら、先に git stash
+git fetch origin ccr-db3a2681-hvk1xj:ccr-db3a2681-hvk1xj
 git checkout ccr-db3a2681-hvk1xj
-git pull origin ccr-db3a2681-hvk1xj
 sh yoru-shoko/serve.sh
 ```
 
 「Chrome で http://localhost:8081/ を開いてください」と出たら、Termux はそのままにして、
 Chrome で `http://localhost:8081/` を開く。Chrome の ⋮ →「アプリをインストール」（または「ホーム画面に追加」）。
+更新するときは、`git checkout ccr-db3a2681-hvk1xj` と `git pull origin ccr-db3a2681-hvk1xj` をしてから `serve.sh`。
 入れたあとは、サーバーを止めても開ける（はず。下の「確認したこと」を参照）。
 
 - 遊んだ記録は、`localhost:8081` という場所に保存される。ポート（8081）を変えると、記録が見えなくなる。
