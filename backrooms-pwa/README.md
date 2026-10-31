@@ -5,12 +5,23 @@ Chrome で「インストール」すると、ホーム画面のアイコンか�
 
 | 札 | ゲーム | ファイル | 状態 |
 |---|---|---|---|
-| 記録 01 | 降下記録 | `games/tane-wo-niru.html` | 強化済み（Level 0〜11） |
-| 記録 02 | 空欄 | `games/kuuran.html` | 強化済み（裏側 7か所、結末 5） |
+| 記録 01 | 降下記録 | `games/tane-wo-niru.html` | 強化済み（Level 0〜11）。クリア済みのため、起動画面の札から外している |
+| 記録 02 | 空欄 | `games/kuuran.html` | 強化済み（裏側 7か所、結末 5）。クリア済みのため、起動画面の札から外している |
 | 記録 03 | ノークリップ | `games/noclip.html` | 強化済み（Level 0〜11・37・Fun・!・433 N、結末 6） |
 | 記録 04 | 野帳 | `games/yacho.html` | 強化済み（Level 0〜11・433 N・444 N、結末 17） |
 
 もとの版（`tane-wo-niru/` `kuuran/` `noclip/` `yacho/`）はそのまま残してある。こちらは別の保存場所を使うので、もとの版の続きとはつながらない。
+
+### 札を戻すには
+
+「降下記録」と「空欄」は、クリア済みなので起動画面の札から外してある（ゲームのファイルと一枚版は残してある）。戻したいときは、`index.html` の `GAMES` に次の2件を足し、`sw.js` の `FILES` に `./games/tane-wo-niru.html` と `./games/kuuran.html` を足して `VERSION` を上げる。
+
+```js
+{ id: "koka", file: "games/tane-wo-niru.html", no: "記録 01", ja: "降下記録", en: "DESCENT LOG", lv: 0, c: "#ffe66d",
+  p: "下へ。降りる理由は書かれていない。" },
+{ id: "kuuran", file: "games/kuuran.html", no: "記録 02", ja: "空欄", en: "BLANK", lv: "white", c: "#c8f6ff",
+  p: "白い部屋。欄は、まだ埋まっていない。" },
+```
 
 ## インストールのしかた（スマホだけでできる）
 
