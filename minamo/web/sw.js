@@ -2,7 +2,7 @@
    まずネットワーク（Termux のサーバー）から取り、取れないときは前に取っておいたものを返す。
    /api/ は取っておかない。ファイルを足したら FILES に足し、VERSION を上げる。
    VERSION を上げたら、app.js の BUILD も同じにする（起動画面で、画面が古いままかを見分ける）。 */
-const VERSION = "minamo-v26";
+const VERSION = "minamo-v27";
 const FILES = [
   "./",
   "./index.html",

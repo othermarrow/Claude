@@ -19,7 +19,7 @@
   const lines = $("lines"), log = $("log"), input = $("input"), send = $("send"),
         label = $("label"), form = $("form");
 
-  const BUILD = "minamo-v26";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
+  const BUILD = "minamo-v27";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
   let cfg = null;               // /api/info
   let S = null;                 // 面接の状態
   let booted = false;
@@ -96,6 +96,12 @@
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
   const nearBottom = () => log.scrollHeight - log.scrollTop - log.clientHeight < 80;
   const toBottom = () => { log.scrollTop = log.scrollHeight; };
+  // キーボードが出る・予測の帯が増える（会話の欄が縮む）ときも、いちばん下を見ていたなら、最新の発言が隠れないように追いかける
+  let atBottom = true;
+  log.addEventListener("scroll", () => { atBottom = nearBottom(); }, { passive: true });
+  if (window.ResizeObserver) new ResizeObserver(() => { if (atBottom) toBottom(); }).observe(log);
+  if (window.visualViewport) visualViewport.addEventListener("resize", () => { if (atBottom) setTimeout(toBottom, 60); });
+  input.addEventListener("focus", () => { if (atBottom) setTimeout(toBottom, 250); });
   const pad = n => String(n).padStart(2, "0");
 
   function addLine(cls, who, text) {
