@@ -1608,7 +1608,7 @@ class Talk:
         ex = [(k, t) for k, t in extras if t and not (set(re.findall(r"『([^』]+)』", t)) & terms)
               and not any(v in t for v in names) and not (device_beat and k == "env")
               and re.sub(r"[0-9０-９]+", "#", t) not in hist_digits]
-        weight = {"erased": 3, "away": 3, "analysis": 2 if ph == 1 else 1, "concept": 2, "lib": 2, "karte": 1.5,
+        weight = {"erased": 3, "away": 3, "analysis": 2 if ph == 1 else 1, "concept": 2, "lib": 2, "own": 4, "karte": 1.5,
                   "env": 1, "memory": 1.5, "cutup": 2.5, "rewrite": 1.5}
         want = 0 if out and ph <= 1 else 1
         if ph >= 2 and not out:
@@ -1623,8 +1623,8 @@ class Talk:
                 if r <= 0:
                     out.append(t)
                     ex.pop(idx)
-                    if k in ("concept", "lib"):            # 蔵書からの引用は、一つの返事に一つまで
-                        ex = [x for x in ex if x[0] not in ("concept", "lib")]
+                    if k in ("concept", "lib", "own"):     # 蔵書からの引用は、一つの返事に一つまで
+                        ex = [x for x in ex if x[0] not in ("concept", "lib", "own")]
                     break
         return out
 

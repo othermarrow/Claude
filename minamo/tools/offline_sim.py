@@ -106,7 +106,7 @@ def main():
         text = f"{line}\n\n{m}"
         contents.append({"role": "user", "parts": [{"text": text}]})
         sending = contents
-        note = minamo.library_note(lib, line, idx) if lib else ""
+        note = minamo.library_note(lib, line, idx, HORROR) if lib else ""
         if note:
             sending = contents[:-1] + [{"role": "user", "parts": [{"text": f"{text}\n\n{note}"}]}]
         r = eng.ask(sending)

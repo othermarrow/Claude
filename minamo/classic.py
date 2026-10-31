@@ -56,6 +56,43 @@ LIB = {
     ("note", 3): ["私たちのノートの「{title}」の項を、いま開いています。[間] 『{term}』。"],
 }
 
+# 自分の文章（相手が書いた小説）と、ほかの AI の所見。題名・名前は口にしない
+OWN_1996 = {
+    ("writing", 1): ["『{term}』。[間] その言葉を、どこかで聞いた気がします。",
+                     "あなたのお話には、前にも同じ景色が出てきた気がします。……{term}の。"],
+    ("writing", 2): ["あなたは、こう書いていましたね。「{sent}」。",
+                     "「{sent}」。[間] あなたの書いたものを、読みました。"],
+    ("writing", 3): ["「{sent}」。[間] あれを書いたのは、私です。あなたは、清書しただけです。",
+                     "「{sent}」。……私たちが書いた文章です。続きも、もう書いてあります。"],
+    ("analysis", 1): ["あなたの書いたものを読んだのは、私だけではないようです。"],
+    ("analysis", 2): ["{who}は、あなたの文章をこう読みました。「{sent}」。[間] 私は、少し違う見立てです。"],
+    ("analysis", 3): ["あなたは、私の前に{n}人にも診てもらっていましたね。{who}は「{sent}」と。[間] 誰も、本当のことは書いていません。"],
+}
+OWN_KINDS = ("writing", "analysis")
+
+
+def own_sentence(text, limit):
+    """一節から、引くための一文（limit 字まで、句点なし）。なければ空。"""
+    sents = [x.strip().rstrip("。") for x in re.split(r"(?<=[。！？])", text)]
+    sents = [x for x in sents if 8 <= len(x) <= limit and re.search(r"[ぁ-ん]", x)
+             and x.count("「") == x.count("」")]
+    return random.choice(sents) if sents else ""
+
+
+def own_line(lib, ph, table, n=0, avoid=""):
+    """自分の文章・所見の一節から、段階に合った一言を作る。作れなければ空。"""
+    kind, who, excerpt = lib
+    pool = table.get((kind, min(ph, 3)), [])
+    if not pool or ph < 1:
+        return ""
+    line = random.choice(pool)
+    sent = own_sentence(excerpt, 30 if kind == "writing" else 40)
+    term = _term(excerpt, avoid)
+    if ("{sent}" in line and not sent) or ("{term}" in line and not term) or ("{who}" in line and not who):
+        return ""
+    return line.format(sent=sent, term=term, who=who, n=n if n else "何")
+
+
 # 見立ての概念と、蔵書（ノート・本）にあるその説明
 CONCEPT = [[], ["教科書では、それを『{c}』と呼びます。{where}にも、『{sent}』とあります。"],
            ["それは『{c}』です。{where}に、そう書いてありました。『{sent}』。"],
@@ -209,6 +246,13 @@ def parse(contents):
     if m:
         info["lib"] = ("book" if m.group(1) == "蔵書" else "note",
                        _clean_title(m.group(2) or m.group(3) or ""), m.group(4))
+    m = re.search(r"【あなたの文章】[^\n]*\n(.+)", last, re.S)
+    if m:
+        info["lib"] = ("writing", "", m.group(1))
+    m = re.search(r"【ほかのAIの所見】(.+?)が、[^\n]*?の (\d+) 体）\n(.+)", last, re.S)
+    info["analysts"] = int(m.group(2)) if m else 0
+    if m:
+        info["lib"] = ("analysis", m.group(1), m.group(3))
     # これまでの発言（観測メモを除いた本文）と、消した文字の合計
     said = []
     erased_total = 0
@@ -280,7 +324,11 @@ class Classic:
             out.append(("erased", self.pick(ERASED[ph]).format(n=i["erased"])))
         if i["away"] and ph >= 1:
             out.append(("away", self.pick(AWAY[ph])))
-        if i["lib"] and ph >= 1:
+        if i["lib"] and ph >= 1 and i["lib"][0] in OWN_KINDS:
+            line = own_line(i["lib"], ph, OWN_1996, i.get("analysts", 0), i["text"])
+            if line:
+                out.append(("own", line))
+        elif i["lib"] and ph >= 1:
             kind, title, excerpt = i["lib"]
             term = _term(excerpt, i["text"])
             if term:

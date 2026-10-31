@@ -117,7 +117,9 @@
   }
   function showThread(id) {
     const t = threads().find(x => x.id === id);
-    const posts = t.posts.concat(S.extra[id] || []);
+    const first = !S.read[id];
+    if (first) { S.read[id] = true; save(); }
+    const posts = t.posts.concat(ownPosts(id), S.extra[id] || []);
     view(`<h2>${esc(t.title)}</h2>${posts.map(([d, who, text]) => {
       const cls = (t.record && /^\d\d:\d\d/.test(d) ? "rec " : "") + (who === "ミナモ" || who === "minamo" ? "mi" : who === "nagi" ? "na" : "");
       return `<div class="post ${cls}"><div class="m">${esc(fill(d))}　${esc(who)}</div><div class="x">${esc(fill(text))}</div></div>`;
@@ -127,8 +129,6 @@
     const go = () => postTo(id);
     $("pgo").onclick = go;
     $("pin").onkeydown = e => { if (e.key === "Enter" && !e.isComposing) go(); };
-    const first = !S.read[id];
-    if (first) { S.read[id] = true; save(); }
     if (id === "l6" || id === "l9") fx("glitch", 300);
     refresh();
     palThread(id, first);
@@ -248,6 +248,28 @@
 
   // ---------- 危機の言葉 ----------
   let crisisWords = CRISIS_DEFAULT;
+  // あなたの文章の一節（題名・名前・サイト名は伏せたもの。怖さが「中」「強」のときだけ、掲示板に紛れ込む）
+  let ownLines = [];
+  fetch("/api/own", { headers: { "X-Minamo": "1" } }).then(r => r.json()).then(j => { ownLines = j.lines || []; }).catch(() => {});
+  function ownOn() {
+    try { return (JSON.parse(localStorage.getItem("minamo.fx") || "{}").horror ?? 3) >= 2; } catch (e) { return true; }
+  }
+  // y3・y4 を開いたとき、一度だけ、一節を「（投稿者不明）」の書き込みとして足す。書き込んだ覚えのある人は、いない
+  const OWN_THREADS = ["y3", "y4"];
+  function ownPosts(id) {
+    if (!OWN_THREADS.includes(id) || !ownOn()) return [];
+    S.own = S.own || {};
+    if (!S.own[id] && ownLines.length && S.read[id]) {
+      const used = Object.values(S.own);
+      const pick = ownLines.find(x => !used.includes(x));
+      if (pick) { S.own[id] = pick; save(); }
+    }
+    const q = S.own[id];
+    if (!q) return [];
+    return id === "y3"
+      ? [["1999/12/21 03:12", "（投稿者不明）", q], ["1999/12/21", "ミズタマ", "↑ 私じゃないよ。誰の？　削除依頼、出したほうがいい？"]]
+      : [["1999/12/27 03:12", "（投稿者不明）", q], ["1999/12/27", "硝子", "……この文、前にどこかで読んだ気がします。書いたのは、私ではありません。"]];
+  }
   fetch("/api/info", { headers: { "X-Minamo": "1" } }).then(r => r.json()).then(i => { if (i.crisis_words) crisisWords = i.crisis_words; }).catch(() => {});
   function crisisCheck(text) {
     if (!crisisWords.some(w => text.includes(w))) return false;

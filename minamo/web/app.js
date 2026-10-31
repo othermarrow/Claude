@@ -19,7 +19,7 @@
   const lines = $("lines"), log = $("log"), input = $("input"), send = $("send"),
         label = $("label"), form = $("form");
 
-  const BUILD = "minamo-v25";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
+  const BUILD = "minamo-v26";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
   let cfg = null;               // /api/info
   let S = null;                 // 面接の状態
   let booted = false;
@@ -328,7 +328,7 @@
     try {
       const res = await api("/api/ask", {
         contents: S.contents, findings: !!findings,
-        lib_query: libQuery || "", phase: phaseIdx(),
+        lib_query: libQuery || "", phase: phaseIdx(), horror: settings.horror,
         version: settings.version, offline: settings.offline,
       });
       reply = res.text;
@@ -1011,7 +1011,9 @@
                      "（つながらないときは端末内モデル）" +
                      (cfg.karte ? "　紹介状: あり" : "　紹介状: なし") +
                      "　蔵書: " + (cfg.library && (cfg.library[0] || cfg.library[1])
-                       ? "本 " + cfg.library[0] + "冊・ノート " + cfg.library[1] + "件" : "なし");
+                       ? "本 " + cfg.library[0] + "冊・ノート " + cfg.library[1] + "件" : "なし") +
+                     (cfg.library_own && (cfg.library_own[0] || cfg.library_own[1])
+                       ? "・あなたの文章 " + cfg.library_own[0] + "篇・ほかの AI の所見 " + cfg.library_own[1] + "件" : "");
     showBuild();
     btn.textContent = "面接を始める"; btn.disabled = false;
     btn.onclick = () => begin();

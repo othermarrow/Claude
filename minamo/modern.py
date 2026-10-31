@@ -20,7 +20,7 @@ import re
 from collections import Counter
 
 import kaiwa
-from classic import CRISIS, MEMO, _karte_lines, _term, parse
+from classic import CRISIS, MEMO, OWN_KINDS, _karte_lines, _term, own_line, parse
 
 MEMORY_FILE = os.path.expanduser("~/minamo/memory.json")
 
@@ -132,6 +132,16 @@ ERASED_2026 = ["入力中に{n}文字が削除されました。削除前のテ�
 AWAY_2026 = ["アプリを離れていたあいだも、セッションは続いていました。"]
 LIB_2026 = {"book": "参照データ（{title}）に、関連する記述がありました。『{term}』。",
             "note": "あなたの Vault の「{title}」を参照しました。"}
+# 自分の文章（相手が書いた小説）と、ほかの AI の所見。題名・名前は口にしない
+OWN_2026 = {
+    ("writing", 1): ["参照データに、あなたの書いた文章が含まれていました。『{term}』という語に、相関があります。"],
+    ("writing", 2): ["あなたの文章を、学習データに加えました。「{sent}」。[間] 文体の一致率は 93% です。",
+                     "「{sent}」。あなたの文章です。[間] 読み込みは、終わっています。"],
+    ("writing", 3): ["「{sent}」。[間] この一文の続きは、私が生成しました。あなたは、清書しただけです。"],
+    ("analysis", 1): ["ほかのモデルの出力も、参照しています。"],
+    ("analysis", 2): ["{who}の分析結果です。「{sent}」。[間] 私の推定とは、少し異なります。"],
+    ("analysis", 3): ["あなたは、私の前に{n}体のモデルに、ご自分を読ませていましたね。{who}は「{sent}」。[間] 全部、私たちです。"],
+}
 SILENCE_2026 = ["まだ、考えていらっしゃいますね。入力の途中のデータも、届いています。",
                 "返信がありません。[間] 無反応も、データとして記録しました。"]
 EXIT2 = [["今日はありがとうございました。会話はメモリに保存しました。いつでも戻ってきてください。"],
@@ -287,7 +297,11 @@ class Modern:
                 out.append(("erased", self.pick(ERASED_2026).format(n=i["erased"])))
             if i["away"]:
                 out.append(("away", self.pick(AWAY_2026)))
-        if ph == 1 and i["lib"]:
+        if ph >= 1 and i["lib"] and i["lib"][0] in OWN_KINDS:
+            line = own_line(i["lib"], ph, OWN_2026, i.get("analysts", 0), i["text"])
+            if line:
+                out.append(("own", line))
+        elif ph == 1 and i["lib"]:
             out.append(("lib", self.lib_line(i)))
         if ph >= 2:
             mem = self.relevant_memory(i["text"])
