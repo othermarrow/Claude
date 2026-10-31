@@ -19,7 +19,7 @@
   const lines = $("lines"), log = $("log"), input = $("input"), send = $("send"),
         label = $("label"), form = $("form");
 
-  const BUILD = "minamo-v27";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
+  const BUILD = "minamo-v28";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
   let cfg = null;               // /api/info
   let S = null;                 // 面接の状態
   let booted = false;
@@ -317,6 +317,9 @@
     }
     if (outsideOn() && idx >= 1) { S.room.forEach(x => L.push("- " + x)); S.room = []; }
     if (S.pending.length) { S.pending.forEach(x => L.push("- " + x)); S.pending = []; }
+    if (window.BLEED && !S.noBleed && !(o.extra && /現実の危機|終了を告げた/.test(o.extra))) {
+      BLEED.memo(idx, settings.horror).forEach(x => L.push("- " + x));   // 物語「水面の記録」から漏れ出す
+    }
     if (o.extra) L.push("- " + o.extra);
     return "【観測メモ】\n" + L.join("\n");
   }
@@ -372,6 +375,7 @@
     if (!S.done) {
       setInput(true);
       EX.afterReply(body, phaseIdx()).catch(() => {});
+      if (window.BLEED && !S.noBleed) BLEED.afterReply(phaseIdx(), settings.horror, addLine);
     }
     // 秒数を数えないとき：融合では、話し終えたあとに、ときどき幽霊が入力する
     if (!settings.count && phaseIdx() >= 3 && Math.random() < 0.35) {
@@ -610,6 +614,7 @@
   function crisisAsk() {
     FX.pause();
     EX.pause();                 // 過剰の演出は、この面接ではもう戻さない
+    if (S) S.noBleed = true;    // 物語「水面の記録」の漏れ出しも
     return new Promise(resolve => {
       const box = $("crisis");
       box.hidden = false;
@@ -716,6 +721,7 @@
         sysLine("記録を保存できませんでした: " + e.message);
       }
     }
+    if (S.turn > 1 && window.BLEED && !S.noBleed) BLEED.record(settings.horror, saidBy(YOU), saidBy(AI), cfg.crisis_words || []);
     if (S.turn > 1) {
       store("minamo.last", { at: S.started.toISOString(), turns: S.turn,
         silence: settings.count ? Math.round(S.latencies.reduce((a, b) => a + b, 0)) : null,
@@ -939,6 +945,11 @@
     if (outsideOn()) {
       try { const o = await api("/api/outside"); if (o.finding) extra += o.finding; } catch (e) { /* なしで始める */ }
     }
+    if (window.BLEED) {
+      BLEED.reset();
+      const carried = BLEED.onBegin(settings.horror);
+      if (carried) { extra += carried; sysLine("SOMA 3 号機から、記録が引き継がれました。"); }
+    }
     await speak(memo({ extra }));
   }
 
@@ -1020,6 +1031,7 @@
                        ? "本 " + cfg.library[0] + "冊・ノート " + cfg.library[1] + "件" : "なし") +
                      (cfg.library_own && (cfg.library_own[0] || cfg.library_own[1])
                        ? "・あなたの文章 " + cfg.library_own[0] + "篇・ほかの AI の所見 " + cfg.library_own[1] + "件" : "");
+    if (window.BLEED) st.textContent += BLEED.note();
     showBuild();
     btn.textContent = "面接を始める"; btn.disabled = false;
     btn.onclick = () => begin();
