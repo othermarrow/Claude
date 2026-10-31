@@ -100,7 +100,7 @@ KARTE_FILES = [os.path.expanduser("~/.config/minamo/karte.txt"),
                os.path.join(os.path.dirname(os.path.abspath(__file__)), "karte.txt")]
 RECORD_DIR = os.path.expanduser("~/minamo/records")
 # Obsidian の Vault の場所（Vault を動かしたら、環境変数 MINAMO_VAULT か --library で）
-VAULT = os.environ.get("MINAMO_VAULT") or "/storage/emulated/0/Vault"
+VAULT = os.environ.get("MINAMO_VAULT") or "/storage/emulated/0/Obsidian/Vault"
 # 蔵書として読むフォルダ（無いものは飛ばす）。本の txt と、Vault の心理学ノート・Support・zork
 # （zork は利用者が自分で書いた文章。yagi_bungaku など、フォルダごと読んでよいと言われている）
 LIBRARY_DIRS = ["~/minamo/library", VAULT + "/心理学", VAULT + "/Support", VAULT + "/zork"]

@@ -219,8 +219,8 @@ sh ~/Claude/minamo/local.sh ~/models/qwen2.5-1.5b-instruct-q4_k_m.gguf
 | フォルダ | 中身 |
 |---|---|
 | `~/minamo/library` | 本の txt（OCR したもの） |
-| `/storage/emulated/0/Vault/心理学` | Obsidian の心理学ノート（人物・概念・理論・心理療法・実験・文献・研究テーマ） |
-| `/storage/emulated/0/Vault/Support` | 支援の資料（ABC 分析・MAS・感覚統合・スーパービジョン・研修の台本など。架空事例を含む） |
+| `/storage/emulated/0/Obsidian/Vault/心理学` | Obsidian の心理学ノート（人物・概念・理論・心理療法・実験・文献・研究テーマ） |
+| `/storage/emulated/0/Obsidian/Vault/Support` | 支援の資料（ABC 分析・MAS・感覚統合・スーパービジョン・研修の台本など。架空事例を含む） |
 
 ```bash
 termux-setup-storage          # 初回だけ。/storage/emulated/0 を読めるようにする
@@ -229,7 +229,7 @@ cp /storage/emulated/0/Download/*.txt ~/minamo/library/   # 本の txt がある
 ```
 
 別のフォルダを読ませるときは `--library` を並べる（指定すると既定の二つの代わりになる）：
-`minamo --library ~/minamo/library --library /storage/emulated/0/Vault/心理学 --library （ほかのフォルダ）`
+`minamo --library ~/minamo/library --library /storage/emulated/0/Obsidian/Vault/心理学 --library （ほかのフォルダ）`
 （PWA 版は `serve.sh --library ...`）。
 
 - 初回は全部を読んで整えるので待つ。開発環境では、本 48 冊とノート約 3,900 件で 3.5 秒。スマホでは数倍かかると思う。結果を `~/.cache/minamo/library.json`（約 23MB）に取っておき、2 回目からは 0.2 秒。本やノートを足したり書き換えたりすると作り直す。
@@ -565,7 +565,7 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 | `PROBE_ON_START` | `True` | 起動時に一括チェックするか（`--no-probe` で止める） |
 | `PROBE_TIMEOUT` | 5 | 一括チェックで待つ秒数 |
 | `NVIDIA_FALLBACKS` | `nemotron-3-super-120b-a12b`・`nemotron-3-ultra-550b-a55b` | 既定のモデルが使えないときに、順に試す代わり |
-| `LIBRARY_DIRS` | `~/minamo/library`・`Vault/心理学`・`Vault/Support`・`Vault/zork`（Vault は `/storage/emulated/0/Vault`。動かしたら環境変数 `MINAMO_VAULT` で指す） | 蔵書として読むフォルダ。`Vault/zork` は利用者が自分で書いた文章（`yagi_bungaku` など）で、フォルダごと読む |
+| `LIBRARY_DIRS` | `~/minamo/library`・`Vault/心理学`・`Vault/Support`・`Vault/zork`（Vault は `/storage/emulated/0/Obsidian/Vault`。動かしたら環境変数 `MINAMO_VAULT` で指す） | 蔵書として読むフォルダ。`Vault/zork` は利用者が自分で書いた文章（`yagi_bungaku` など）で、フォルダごと読む |
 | `COUNT_SILENCE` | `False` | 沈黙の秒数を数えるか（`--count-silence` で数える） |
 | `SILENCE_SEC` | 60 | 数えるとき、黙っているとミナモが話しかけるまでの秒数 |
 | `LOCAL_URL` | `http://127.0.0.1:8090/v1/chat/completions` | 端末の中の AI |
