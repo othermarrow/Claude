@@ -20,6 +20,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import minamo  # noqa: E402
 import outside  # noqa: E402
+import story_ai  # noqa: E402
 
 PORT = 8082
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
@@ -232,6 +233,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             print("メモリを消去しました")
             return self._json(200, {"ok": True})
 
+        if self.path == "/api/story":
+            # 物語「水面の記録」の登場人物の声と行動（クラウド → 端末の中の AI。だめなら ok: false）
+            out = story_ai.handle(data)
+            if out.get("ok"):
+                print(f"物語：{data.get('who')}／{data.get('mode')}（{out.get('source')}）")
+            return self._json(200, out)
+
+        if self.path == "/api/story/note":
+            # 登場人物の書き置き（Vault の LLM/水面の記録/）。画面の外を使わない設定なら、書かない
+            name = outside.story_note(str(data.get("who") or ""), str(data.get("text") or "")) if minamo.OUTSIDE else ""
+            return self._json(200, {"name": name})
+
         if self.path == "/api/record":
             md = str(data.get("markdown") or "")
             if not md.strip():
@@ -309,6 +322,7 @@ def main():
     if minamo.PROBE_ON_START and not (a.no_probe or a.model or a.fake or a.offline):
         ranked, probed = minamo.probe_models(a.backend, a.no_karte)
     STATE["probe"] = probed
+    story_ai.setup(ranked, offline=a.offline, local=not a.no_local, fake=a.fake)
     llm = minamo.make_llm(a.backend, a.model, a.no_karte, a.fake, a.offline, not a.no_local,
                           library=library, ranked=ranked, local_mode=a.local_mode)
     STATE["llm"] = llm

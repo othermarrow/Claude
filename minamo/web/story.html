@@ -91,6 +91,27 @@ h2 { font-size: 1em; margin: .2em 0 .6em; color: var(--green); }
 #ending .btns { display: flex; gap: .6em; flex-wrap: wrap; justify-content: center; }
 #ending button, #ending a { background: none; border: 1px solid #2d5a3a; color: var(--green); padding: .4em 1.2em; border-radius: 3px; text-decoration: none; font-size: .9em; }
 body.cracked #app { filter: grayscale(.7) contrast(1.1); }
+/* 掲示板の整理：片づける・倉庫・夜ごとのまとまり */
+.tools { display: flex; gap: .4em; justify-content: flex-end; margin: -.2em 0 .6em; }
+.b.sm { padding: .15em .6em; font-size: .75em; }
+.b.right { float: right; }
+details.grp { margin: -.8em 0 1em; border-left: 2px solid var(--line); padding-left: .6em; }
+details.grp summary { color: var(--dim); font-size: .8em; cursor: pointer; padding: .3em 0; }
+details.grp .list { margin-bottom: .4em; }
+details.store summary { color: #8a9a92; }
+details.store li { opacity: .7; }
+/* 登場人物の動き：入力中・取り消し・書き換え・目の前で増える書き込み */
+.msg.typing .tx i { display: inline-block; width: .4em; height: .4em; margin: 0 .12em; border-radius: 50%; background: var(--dim); animation: tdot 1.2s infinite; }
+.msg.typing .tx i:nth-child(2) { animation-delay: .2s; } .msg.typing .tx i:nth-child(3) { animation-delay: .4s; }
+@keyframes tdot { 50% { opacity: .2; } }
+.msg.gone { font-style: italic; opacity: .55; }
+.edited { display: block; font-size: .7em; color: var(--dim); font-family: var(--dot); }
+.post.fresh { animation: fresh 2.4s ease-out 1; }
+@keyframes fresh { 0% { background: rgba(127,209,139,.18); } 100% { background: transparent; } }
+.typing-b { font-style: italic; }
+body.mi-near .msg.mi { border-color: #3f6b55; box-shadow: 0 0 10px rgba(127,209,139,.12); }
+#cin.ghost { color: var(--nagi); }
+label.ear { color: var(--dim); font-size: .78em; max-width: 26em; display: flex; gap: .4em; align-items: flex-start; text-align: left; }
 /* 相棒：Claude のアイコン風のミナモ（面接アプリの「過剰」と同じ、橙色の放射）。下の帯の上。押すと話す */
 #pal { position: fixed; right: 10px; bottom: calc(7.6em + env(safe-area-inset-bottom, 0px)); z-index: 35; width: 48px; height: 48px;
   border: none; padding: 0; background: none; cursor: pointer; transition: transform .8s; }
@@ -128,6 +149,7 @@ body.pal-wrong #pal-say { background: #f3efe0; }
   <input id="name" type="text" maxlength="12" autocomplete="off" placeholder="呼ばれたい名前（なくてもよい）">
   <button id="poweron" type="button">つなぐ</button>
   <a href="./">ミナモ（面接アプリ）に戻る</a>
+  <label class="ear"><input type="checkbox" id="ear"> 部屋の音を聞かせる（マイク。音の大きさだけを端末の中で使い、録音も送信もしない）</label>
   <a href="#" id="wipe">記録を消す</a>
 </div>
 

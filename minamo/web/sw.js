@@ -2,7 +2,7 @@
    まずネットワーク（Termux のサーバー）から取り、取れないときは前に取っておいたものを返す。
    /api/ は取っておかない。ファイルを足したら FILES に足し、VERSION を上げる。
    VERSION を上げたら、app.js の BUILD も同じにする（起動画面で、画面が古いままかを見分ける）。 */
-const VERSION = "minamo-v28";
+const VERSION = "minamo-v29";
 const FILES = [
   "./",
   "./index.html",
@@ -59,7 +59,7 @@ self.addEventListener("notificationclick", e => {
   e.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
       for (const c of list) if ("focus" in c) return c.focus();
-      return self.clients.openWindow("./");
+      return self.clients.openWindow((e.notification.data && e.notification.data.url) || "./");
     })
   );
 });

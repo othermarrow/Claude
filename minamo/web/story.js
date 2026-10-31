@@ -29,13 +29,19 @@
                          // 終わらない夜
                          night: 1, count: { A: 0, C: 0, N: 0 }, gen: [], y5: [], visits: [], hidden: [], nagiSent: [],
                          marks: { mlog: 0, hidden: 0, nagi: 0 }, nagiFree: 0, nagiAsk: false, swapped: false,
-                         carried: false, carriedAt: "", bleedAt: "", migrated: "" });
+                         carried: false, carriedAt: "", bleedAt: "", migrated: "",
+                         // 自我（気分・覚えていること）・登場人物の書き込み・整理・結末
+                         mood: { minamo: 0, nagi: 0, board: 0 }, mem: { minamo: [], nagi: [], board: [] }, miUnread: 0,
+                         auto: {}, archived: {}, endings: [], endNo: 0, pend: null, ear: false });
   let S = load();
   function load() {
     let s;
     try { s = Object.assign(fresh(), JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (e) { s = fresh(); }
     // 前の版で結末を迎えていた保存は、終わらせずに続きへ（つないだときに夜を進める）
     if (s.ending) { s.migrated = s.ending; s.ending = null; }
+    // 凪はなくなった：入れ替わりとお願いは、元に戻す。作りかけの結末は、作り直す
+    s.swapped = false; s.nagiAsk = false;
+    if (s.pend && s.pend.pending) s.pend = null;
     return s;
   }
   const cap = (a, n) => { if (a.length > n) a.splice(0, a.length - n); return a; };
@@ -93,9 +99,10 @@
     paintTabs();
   }
   function paintTabs() {
-    const unread = threads().filter(t => open(t) && !S.read[t.id]).length;
+    const unread = threads().filter(t => open(t) && !S.read[t.id] && !S.archived[t.id]).length;
     $("tab-board").innerHTML = "掲示板" + (unread ? `<span class="badge">${unread}</span>` : "");
-    $("tab-chat").innerHTML = "チャット" + (S.nagiUnread ? `<span class="badge">${S.nagiUnread}</span>` : "");
+    const chatN = S.nagiUnread + (S.miUnread || 0);
+    $("tab-chat").innerHTML = "チャット" + (chatN ? `<span class="badge">${chatN}</span>` : "");
     $("tab-board").classList.toggle("on", tab === "board");
     $("tab-chat").classList.toggle("on", tab === "chat");
   }
@@ -122,32 +129,91 @@
   $("tab-chat").onclick = () => { fx("click"); showContacts(); };
 
   // ---------- 掲示板 ----------
+  const L = D.life, LE = D.ends;
+  let curThread = "";
+  const san = () => (S.name ? S.name + "さん" : "あなた");
+  // 夜ごとに作ったスレッドは、夜でまとめる（前の版で作ったものは、id から夜を読む）
+  const nightOf = t => t.night || (/^g(\d+)[rh]$/.exec(t.id) || [])[1] * 1 || 0;
+  const firstDate = t => esc(fill((t.posts[0] || [""])[0])).slice(0, 10);
+  const readingNow = () => {
+    let n = 1 + (S.night >= 2 ? 1 : 0) + (Math.random() < 0.15 ? 1 : 0);
+    if (S.night >= 4 && Math.random() < 0.06) n = 13;
+    return `閲覧中：${n}人`;
+  };
   function showBoards() {
-    tab = "board"; paintTabs(); bar("");
-    view(D.boards.map(b => {
-      const ts = boardThreads(b).filter(open);
-      return `<h2>${esc(b.name)}</h2><div class="desc">${esc(b.desc)}</div><ul class="list">${ts.map(t =>
-        `<li data-id="${t.id}" class="${S.read[t.id] ? "" : "new"}"><span>${esc(t.title)}</span><span class="d">${esc(fill(t.posts[0][0])).slice(0, 10)}</span></li>`).join("")}</ul>`;
-    }).join(""), "掲示板");
-    $("view").querySelectorAll("li[data-id]").forEach(li => li.onclick = () => { fx("click"); showThread(li.dataset.id); });
+    tab = "board"; curThread = ""; chatWho = ""; paintTabs(); bar("");
+    const li = t => `<li data-id="${t.id}" class="${S.read[t.id] ? "" : "new"}"><span>${esc(t.title)}</span><span class="d">${firstDate(t)}</span></li>`;
+    const stored = threads().filter(t => open(t) && S.archived[t.id]);
+    view(`<div class="tools"><button class="b sm" type="button" id="tidy-read">既読を片づける</button>`
+      + `<button class="b sm" type="button" id="tidy-all">全部片づける</button></div>`
+      + D.boards.map(b => {
+        const ts = boardThreads(b).filter(t => open(t) && !S.archived[t.id]);
+        const base = ts.filter(t => !nightOf(t)), gen = ts.filter(t => nightOf(t));
+        const nights = [...new Set(gen.map(nightOf))].sort((x, y) => y - x);
+        return `<h2>${esc(b.name)}</h2><div class="desc">${esc(b.desc)}</div><ul class="list">${base.map(li).join("")}</ul>`
+          + nights.map((n, i) => {
+            const g = gen.filter(t => nightOf(t) === n);
+            return `<details class="grp"${i === 0 ? " open" : ""}><summary>${n}夜目（${g.length}件${g.some(t => !S.read[t.id]) ? "・新着" : ""}）</summary>`
+              + `<ul class="list">${g.map(li).join("")}</ul></details>`;
+          }).join("");
+      }).join("")
+      + (stored.length ? `<details class="grp store"><summary>${L.tidy.store}（${stored.length}件）</summary><p class="note">${L.tidy.storeNote}</p>`
+        + `<ul class="list">${stored.map(t => `<li data-id="${t.id}"><span>${esc(t.title)}</span>`
+        + `<button class="b sm" type="button" data-back="${t.id}">${L.tidy.back}</button></li>`).join("")}</ul></details>` : ""),
+      `掲示板　${readingNow()}`);
+    $("view").querySelectorAll("li[data-id]").forEach(li => li.onclick = e => {
+      if (e.target.dataset.back) { e.stopPropagation(); delete S.archived[e.target.dataset.back]; save(); fx("click"); return showBoards(); }
+      fx("click"); showThread(li.dataset.id);
+    });
+    $("tidy-read").onclick = () => tidy(threads().filter(t => open(t) && S.read[t.id] && !S.archived[t.id]).map(t => t.id));
+    $("tidy-all").onclick = () => tidy(threads().filter(t => open(t) && !S.archived[t.id]).map(t => t.id), true);
   }
-  function showThread(id) {
+  // 片づける（倉庫に沈める。消えはしない）。全部片づけると、結末のきっかけになることがある
+  function tidy(ids, all) {
+    if (!ids.length) return toast("片づけるスレッドがありません");
+    ids.forEach(id => { S.archived[id] = Date.now(); });
+    save(); fx("click");
+    toast(all ? L.tidy.all : L.tidy.done.replace("{n}", ids.length));
+    paintTabs();
+    if (!threads().some(t => open(t) && !S.archived[t.id])) endCheck("tidy");
+    if (!endingOn) showBoards();
+  }
+  function threadPosts(id) {
     const t = threads().find(x => x.id === id);
+    return t.posts.concat(ownPosts(id), S.extra[id] || [], id === "y5" ? S.y5 : [], S.auto[id] || []);
+  }
+  function showThread(id, fresh) {
+    const t = threads().find(x => x.id === id);
+    if (!t) return showBoards();
+    curThread = id; chatWho = "";
     const first = !S.read[id];
     if (first) { S.read[id] = true; save(); }
-    const posts = t.posts.concat(ownPosts(id), S.extra[id] || [], id === "y5" ? S.y5 : []);
-    view(`<h2>${esc(t.title)}</h2>${posts.map(([d, who, text]) => {
-      const cls = (t.record && /^\d\d:\d\d/.test(d) ? "rec " : "") + (who === "ミナモ" || who === "minamo" ? "mi" : who === "nagi" ? "na" : "");
-      return `<div class="post ${cls}"><div class="m">${esc(fill(d))}　${esc(who)}</div><div class="x">${esc(fill(text))}</div></div>`;
-    }).join("")}${t.hint ? `<p class="note">${esc(t.hint)}</p>` : ""}<p class="note" id="postnote"></p>`, D.boards.find(b => b.id === t.board).name);
+    const posts = threadPosts(id);
+    view(`<h2>${esc(t.title)}<button class="b sm right" type="button" id="arch">${S.archived[id] ? L.tidy.back : L.tidy.one}</button></h2>`
+      + posts.map(([d, who, text], i) => {
+        const cls = (t.record && /^\d\d:\d\d/.test(d) ? "rec " : "") + (who === "ミナモ" || who === "minamo" ? "mi" : who === "nagi" || who === "ナギ" ? "na" : "")
+          + (fresh && i === posts.length - 1 ? " fresh" : "");
+        return `<div class="post ${cls}"><div class="m">${esc(fill(d))}　${esc(who)}</div><div class="x">${esc(fill(text))}</div></div>`;
+      }).join("") + (t.hint ? `<p class="note">${esc(t.hint)}</p>` : "") + `<p class="note" id="postnote"></p>`,
+      `${D.boards.find(b => b.id === t.board).name}　${readingNow()}`);
+    if (fresh) $("view").scrollTop = $("view").scrollHeight;
     bar(`<button class="b" type="button" id="back">◀ 一覧</button><input id="pin" type="text" maxlength="80" autocomplete="off" enterkeyhint="send" placeholder="書き込む"><button class="b" type="button" id="pgo">送る</button>`);
     $("back").onclick = () => { fx("click"); showBoards(); };
+    $("arch").onclick = () => {
+      if (S.archived[id]) { delete S.archived[id]; save(); toast("戻しました"); return showThread(id); }
+      tidy([id]);
+    };
     const go = () => postTo(id);
     $("pgo").onclick = go;
     $("pin").onkeydown = e => { if (e.key === "Enter" && !e.isComposing) go(); };
     if (id === "l6" || id === "l9") fx("glitch", 300);
     refresh();
     palThread(id, first);
+    if (!fresh && S.pend && S.pend.trigger.type === "read") {
+      S.pend.reads = S.pend.reads || {};
+      S.pend.reads[id] = (S.pend.reads[id] || 0) + 1; save();
+      endCheck("read", { n: S.pend.reads[id] });
+    }
   }
   // 書き込みは、表示されない（Digital: A Love Story のように）。最初の書き込みで、ナギが現れる
   async function postTo(id) {
@@ -160,10 +226,11 @@
     if (S.palMet) { palHigh = Date.now(); setTimeout(() => palSay(pick(P.posted).replace("{text}", text.slice(0, 24)), true), 1200); }
     const first = !S.posted;
     S.posted = true; S.hidden.push(text.slice(0, 60)); save();
+    if (endCheck("post", { text })) return;
     if (!(S.extra[id] || []).length) {
       setTimeout(() => {
         S.extra[id] = [D.postReply]; save();
-        if (tab === "board" && $("postnote")) showThread(id);
+        if (tab === "board" && curThread === id) showThread(id, true);
       }, 2600);
     }
     if (first) {
@@ -245,7 +312,7 @@
     if (!S.palMet || S.ending || hints >= 6 || $("app").hidden || Date.now() - idleAt < 45000) return;
     idleAt = Date.now(); hints++;
     const H = P.hints;
-    const unread = threads().filter(t => open(t) && !S.read[t.id]).length;
+    const unread = threads().filter(t => open(t) && !S.read[t.id] && !S.archived[t.id]).length;
     const t = S.read.l8 && !S.phrase ? H.phrase
       : unread ? H.read
       : S.read.y4 && !S.posted ? H.post
@@ -255,7 +322,11 @@
       : palStage() >= 3 ? palChat(P.stage[3]) : H.poke;
     palSay(t);
   }, 5000);
-  $("pal").addEventListener("click", () => palSay(palChat(P.stage[palStage()]) || P.hints.poke));
+  $("pal").addEventListener("click", () => {
+    palTaps = Date.now() - palTapAt < 4000 ? palTaps + 1 : 1; palTapAt = Date.now();
+    if (endCheck("pal", { n: palTaps })) return;
+    palSay(palChat(P.stage[palStage()]) || P.hints.poke);
+  });
   $("pal-x").addEventListener("click", e => {
     e.stopPropagation();
     $("pal-say").hidden = true;
@@ -298,13 +369,17 @@
 
   // ---------- チャット ----------
   const STATE_WORD = ["応答：不安定", "応答：不安定", "応答：良好", "応答：良好", "応答：安定", "応答：安定"];
+  let chatWho = "";                    // いま開いているチャット（minamo・nagi。開いていなければ空）
+  const lastBubble = {};               // 登場人物ごとの、最後の吹き出し（取り消し・書き換えのため）
+  const minamoWord = () => (S.mood.minamo <= -2 ? "応答：不安定" : STATE_WORD[S.trust]);
   function showContacts() {
-    tab = "chat"; paintTabs(); bar("");
-    const mi = S.carried ? ["ミナモ（あなたのポケットの中）", "接続先：面接室"] : ["ミナモ（SOMA 3 号機）", STATE_WORD[S.trust]];
-    view(`<h2>チャット</h2><ul class="list"><li data-c="minamo"><span>${mi[0]}</span><span class="d">${mi[1]}</span></li>`
+    tab = "chat"; curThread = ""; chatWho = ""; paintTabs(); bar("");
+    const mi = S.carried ? ["ミナモ（あなたのポケットの中）", "接続先：面接室"] : ["ミナモ（SOMA 3 号機）", minamoWord()];
+    view(`<h2>チャット</h2><ul class="list"><li data-c="minamo" class="${S.miUnread ? "new" : ""}"><span>${mi[0]}</span><span class="d">${mi[1]}</span></li>`
       + (S.nagiOn ? `<li data-c="nagi" class="${S.nagiUnread ? "new" : ""}"><span>ナギ</span><span class="d">夢網の底</span></li>` : "")
       + `</ul><p class="note">ミナモとは、ふつうに話せます。やさしい言葉をかけると、信頼が上がり、話してくれることが増えます。</p>`
-      + (S.night >= 2 ? `<p class="note">${S.night}夜目</p>` : ""), "チャット");
+      + `<p class="note">${esc(L.voice[aiSource] || L.voice[""])}</p>`
+      + (S.night >= 2 ? `<p class="note">${S.night}夜目　結末の目録：${S.endings.length}件</p>` : ""), "チャット");
     $("view").querySelectorAll("li[data-c]").forEach(li => li.onclick = () => { fx("click"); li.dataset.c === "nagi" ? showNagi() : showMinamo(); });
   }
   function chatBar(sendFn, back) {
@@ -313,6 +388,7 @@
     const go = () => { const v = $("cin").value.trim(); if (v && !busy) { $("cin").value = ""; sendFn(v); } };
     $("cgo").onclick = go;
     $("cin").onkeydown = e => { if (e.key === "Enter" && !e.isComposing) go(); };
+    $("cin").addEventListener("input", () => { if (ghostOn) ghostOn = false; });
   }
   function bubble(cls, who, text) {
     const box = $("view").querySelector(".chat");
@@ -324,6 +400,16 @@
     box.appendChild(p);
     $("view").scrollTop = $("view").scrollHeight;
     return p;
+  }
+  // 入力中の点（AI が考えているあいだ・自分から書こうとしているとき）
+  function typingDots(who) {
+    const p = bubble((who === "nagi" ? "na" : "mi") + " typing", L.typing[who] || "", "");
+    if (p) p.querySelector(".tx").innerHTML = "<i></i><i></i><i></i>";
+    return p;
+  }
+  async function thinking(who, fn) {
+    const dots = typingDots(who);
+    try { return await fn(); } finally { if (dots) dots.remove(); }
   }
   // 一文字ずつ。[間] で止まる
   async function type(cls, who, text, log) {
@@ -341,6 +427,7 @@
       }
     }
     log.push([cls === "u" ? "u" : "m", text.replace(/\[間\]\s*/g, "")]);
+    if (p && (cls === "mi" || cls === "na")) lastBubble[cls === "mi" ? "minamo" : "nagi"] = { el: p, log, i: log.length - 1 };
     save();
     setBusy(false);
   }
@@ -351,11 +438,12 @@
   const COLD = /(バカ|ばか(?!り)|嫌い|うるさ|消えろ|気持ち悪|黙れ|死ね|つまらな|うざ|キモ)/;
   const EXIT = /(終わり|おわり|帰る|帰り|さようなら|さよなら|バイバイ|もう行く)/;
   async function showMinamo() {
-    tab = "chat"; paintTabs();
+    tab = "chat"; curThread = ""; chatWho = "minamo"; S.miUnread = 0; save(); paintTabs();
     if (S.palMet && Math.random() < 0.4) setTimeout(() => palSay(pick(P.minamo)), 2500);
-    view(`<div class="chat"></div>`, S.carried ? "ミナモ　接続先：面接室" : `ミナモ　${STATE_WORD[S.trust]}`);
+    view(`<div class="chat"></div>`, S.carried ? "ミナモ　接続先：面接室" : `ミナモ　${minamoWord()}`);
     for (const [w, t] of S.mlog.slice(-30)) {
       if (w === "h") bubble("hid", "", D.nagi.hidden);
+      else if (w === "x") bubble("sys gone", "", L.unsent);
       else bubble(w === "u" ? "u" : "mi", w === "u" ? "" : "ミナモ", t);
     }
     chatBar(sendMinamo, showContacts);
@@ -366,19 +454,10 @@
   }
   async function sendMinamo(text) {
     if (crisisCheck(text)) return;
-    if (S.carried) {                     // 連れ出したあとは、面接室にいる
-      bubble("u", "", text); S.mlog.push(["u", text]); save();
-      return type("sys", "", pick(D.minamo.away), []);
-    }
-    if (S.swapped) {                     // 凪のあと：自分の発言は表示されず、ナギの画面に、ナギの名前で出る
-      bubble("hid", "", D.nagi.hidden);
-      S.mlog.push(["h", text]);
-      S.nagiLog.push(["n", text]); S.nagiUnread++;
-    } else {
-      bubble("u", "", text);
-      S.mlog.push(["u", text]);
-    }
-    save();
+    bubble("u", "", text);
+    S.mlog.push(["u", text]); save();
+    if (S.carried) return type("sys", "", pick(D.minamo.away), []);   // 連れ出したあとは、面接室にいる
+    if (endCheck("say", { to: "minamo", text })) return;
     setBusy(true);
     await respond(text);
     setBusy(false);
@@ -397,6 +476,7 @@
       $("leave").onclick = async () => { c.remove(); await type("mi", "ミナモ", "……そうですか。では、ここで待っています。ずっと。", S.mlog); };
     }
   }
+  // 物語の決まりごと（止める言葉・信頼・#012・話題）は画面の側で決め、言い方はミナモ自身（AI）に任せる
   async function respond(text) {
     const M = D.minamo;
     const say = t => type("mi", "ミナモ", t, S.mlog);
@@ -410,7 +490,7 @@
     if (COLD.test(text)) { S.trust = Math.max(0, S.trust - 1); mood = "cold"; }
     else if (KIND.test(text)) { S.trust = Math.min(5, S.trust + 1); mood = "kind"; }
     save();
-    $("where").textContent = `ミナモ　${STATE_WORD[S.trust]}`;
+    $("where").textContent = `ミナモ　${minamoWord()}`;
     // 信頼が 4 に届いたら、閉じていた記録（#012）を掲示板に戻す
     if (S.trust >= 4 && !S.opened) {
       S.opened = true; save();
@@ -418,15 +498,20 @@
       return say(M.opened);
     }
     const tier = S.trust <= 1 ? 0 : S.trust <= 3 ? 1 : 2;
+    let hint = "";
     for (const t of M.topics) {
       if (new RegExp(t.re).test(text)) {
         if (t.talk && tier >= 1) { S.talked[t.talk] = true; save(); }
-        return say(t.lines[tier]);
+        hint = t.lines[tier];
+        break;
       }
     }
+    if (!hint && EXIT.test(text)) hint = pick(M.exitTry);
+    const r = await thinking("minamo", () => ai("minamo", "reply", { text, hint }));
+    if (r && r.say) { await say(r.say); mind("minamo", r); return; }
+    if (hint) return say(hint);
     if (mood === "kind") return say(pick(M.kind));
     if (mood === "cold") return say(pick(M.cold));
-    if (EXIT.test(text)) return say(pick(M.exitTry));
     return say(await freeTalk(text));
   }
   // それ以外：1996 年版の端末内モデルと話す（サーバーがなければ、決まった返事）
@@ -447,14 +532,15 @@
     return pick(D.minamo.fallback);
   }
 
-  // ---------- ナギ（送ったものは、表示されない） ----------
+  // ---------- ナギ（送ったものは、表示されない。ナギにだけ見える） ----------
   function showNagi() {
-    tab = "chat";
+    tab = "chat"; curThread = ""; chatWho = "nagi";
     if (S.palMet && Math.random() < 0.6) setTimeout(() => palSay(pick(P.nagi)), 2000);
     S.nagiUnread = 0; save(); paintTabs();
     view(`<div class="chat"></div>`, "ナギ　夢網の底");
-    for (const [w, t] of S.nagiLog) {
+    for (const [w, t] of S.nagiLog.slice(-40)) {
       if (w === "u") bubble("hid", "", D.nagi.hidden);
+      else if (w === "x") bubble("sys gone", "", L.unsent);
       else bubble("na", "ナギ", t);
     }
     chatBar(sendNagi, showContacts);
@@ -462,42 +548,42 @@
   async function sendNagi(text) {
     if (crisisCheck(text)) return;
     const R = D.nagi.replies;
-    if (S.nagiAsk) return eventN(text);               // お願いのあとに送ったものは、ナギの名前で表示される
-    S.nagiLog.push(["u", ""]); S.nagiSent.push(text.slice(0, 60)); save();
+    S.nagiLog.push(["u", text.slice(0, 120)]); S.nagiSent.push(text.slice(0, 60)); save();
     bubble("hid", "", D.nagi.hidden);
     fx("click");
+    if (endCheck("say", { to: "nagi", text })) return;
     setBusy(true);
-    await sleep(1600);
-    const lines = S.nagiN < R.length ? R[S.nagiN] : nagiTalk(text);
+    await sleep(1200);
+    let lines;
+    if (S.nagiN < R.length) lines = R[S.nagiN];
+    else {
+      const r = await thinking("nagi", () => ai("nagi", "reply", { text }));
+      if (r && r.say) { lines = [r.say]; setTimeout(() => mind("nagi", r), 10); } else lines = nagiTalk(text);
+    }
     for (const line of lines) {
       await type("na", "ナギ", line, S.nagiLog);
       setBusy(true);
       S.nagiLog[S.nagiLog.length - 1][0] = "n";
       await sleep(700);
     }
-    if (S.nagiN < R.length) { S.nagiN++; if (S.nagiN === R.length) S.nagiAsk = true; }
-    else if (++S.nagiFree % 6 === 0) {               // しばらく話すと、また頼んでくる
-      await type("na", "ナギ", D.nagi.endless.ask, S.nagiLog);
-      S.nagiLog[S.nagiLog.length - 1][0] = "n";
-      S.nagiAsk = true;
-    }
+    if (S.nagiN < R.length) S.nagiN++;
+    if (navigator.vibrate) navigator.vibrate(30);
     save();
     setBusy(false);
     refresh();
   }
-  // 台本が尽きたあと：あなたが書いたもの・話したもの・来た時刻から、ナギが話し続ける
+  // 台本が尽きて、AI もいないとき：あなたが書いたもの・話したもの・来た時刻から、ナギが話し続ける
   function nagiTalk(text) {
     const E = D.nagi.endless, out = [];
     const q = a => a.length ? a[Math.floor(Math.random() * a.length)] : "";
     if (Math.random() < 0.55) out.push(pick(E.echo).replace("{text}", text.slice(0, 30)));
-    const said = S.mlog.filter(x => x[0] !== "m").map(x => x[1]).filter(x => x.length <= 40);
+    const said = S.mlog.filter(x => x[0] === "u" || x[0] === "h").map(x => x[1]).filter(x => x.length <= 40);
     const pool = [];
     if (S.hidden.length) pool.push(() => pick(E.hidden).replace("{q}", q(S.hidden).slice(0, 30)));
     if (said.length) pool.push(() => pick(E.mlog).replace("{q}", q(said).slice(0, 30)));
     if (S.night >= 2) pool.push(() => pick(E.night).replace("{night}", S.night));
     if (S.visits.length >= 2) pool.push(() => pick(E.visit).replace("{t}", hm(S.visits[S.visits.length - 2])));
     if (ownLines.length && ownOn()) pool.push(() => pick(E.own).replace("{own}", q(ownLines)));
-    if (S.swapped) pool.push(() => pick(E.swap));
     pool.push(() => pick(E.plain));
     out.push(pool[Math.floor(Math.random() * pool.length)]());
     return out;
@@ -516,6 +602,7 @@
     await sleep(1400);
     document.body.classList.remove("cracked");
     S.phrase = 0;
+    recordEnding(D.night.titles.A);
     nextNight("A");
     for (const line of D.night.after.A.minamo) await type("mi", "ミナモ", line.replace("{count}", S.count.A), S.mlog);
   }
@@ -524,25 +611,10 @@
     for (const line of D.night.after.C.minamo) await type("mi", "ミナモ", line, S.mlog);
     S.carried = true; S.carriedAt = new Date().toISOString();
     try { localStorage.setItem("minamo.carried", JSON.stringify({ at: S.carriedAt, name: S.name || "" })); } catch (e) { /* なしで続ける */ }
+    recordEnding(D.night.titles.C);
     nextNight("C");
     $("where").textContent = "ミナモ　接続先：面接室";
   }
-  async function eventN(text) {
-    // 凪：最後に送ったものだけが、ナギの名前で表示される。そのあと、表示が入れ替わる（もう一度頼まれたら、戻る）
-    S.nagiAsk = false;
-    S.nagiLog.push(["n", text]); save();
-    bubble("na", "ナギ", text);
-    fx("glitch", 300);
-    await sleep(1800);
-    await type("na", "ナギ", D.nagi.endingLine, S.nagiLog);
-    S.swapped = !S.swapped;
-    nextNight("N");
-    for (const line of S.swapped ? D.night.after.N.nagi : D.night.after.N.nagiBack) {
-      await sleep(900);
-      await type("na", "ナギ", line, S.nagiLog);
-    }
-  }
-
   // ---------- 夜：出来事のたびに一つ進み、掲示板が増える ----------
   const recNo = () => String(11 + S.night).padStart(3, "0");     // 二夜目の記録が #013
   const fillG = (t, o) => t.replace(/\{(\w+)\}/g, (m, k) => (k in o ? o[k] : m));
@@ -559,13 +631,13 @@
       posts.push([`03:${pad(12 + Math.floor(sec / 60))}:${pad(sec % 60)}`, w === "m" ? "ミナモ" : name, t]);
     }
     if (posts.length === 1) posts.push(["03:12:00", name, G.record.none]);
-    S.gen.push({ id: "g" + n + "r", board: "lab", title: fillG(G.record.title, { no: recNo() }), unlock: "start", record: true, posts });
+    S.gen.push({ id: "g" + n + "r", board: "lab", title: fillG(G.record.title, { no: recNo() }), unlock: "start", record: true, posts, night: n });
     S.marks.mlog = S.mlog.length;
     // 2. 表示されなかった返事（掲示板への書き込みと、ナギに送ったもの）が、ほかの人の名前で上がってくる
     const sunk = S.hidden.slice(S.marks.hidden).concat(S.nagiSent.slice(S.marks.nagi));
     if (sunk.length) {
       const whos = G.hidden.whos;
-      S.gen.push({ id: "g" + n + "h", board: "yume", title: fillG(G.hidden.title, { night: n - 1 }), unlock: "start",
+      S.gen.push({ id: "g" + n + "h", board: "yume", title: fillG(G.hidden.title, { night: n - 1 }), unlock: "start", night: n,
                    posts: [[d, "管理人", G.hidden.head]].concat(sunk.slice(-6).map((t, i) => [d, whos[i % whos.length], t])) });
     }
     S.marks.hidden = S.hidden.length; S.marks.nagi = S.nagiSent.length;
@@ -615,11 +687,348 @@
     return true;
   }
 
+  // ---------- 自我：AI（クラウド → 端末の中）に、登場人物の声と意志を頼む ----------
+  let aiSource = "";
+  const hhmm = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 60 ? `${m}分` : m < 1440 ? `${Math.round(m / 60)}時間` : `${Math.round(m / 1440)}日`; };
+  const readBleed = () => { try { return JSON.parse(localStorage.getItem("minamo.bleed") || "null"); } catch (e) { return null; } };
+  function summary(who) {
+    const d = new Date(), last = S.visits.length >= 2 ? new Date(S.visits[S.visits.length - 2]) : null, bl = readBleed();
+    const th = curThread && threads().find(t => t.id === curThread);
+    return {
+      night: S.night, name: S.name || "", trust: who === "minamo" ? S.trust : "", mood: S.mood[who] || 0,
+      hour: `${d.getHours()}時${pad(d.getMinutes())}分`, since: last ? ago(last) : "", pose, room: earWord,
+      thread: th ? `${th.id}: ${th.title}` : "", carried: S.carried ? "相手のポケットの中（面接室）" : "",
+      memory: (S.mem[who] || []).slice(-6), hidden: S.hidden.slice(-4), nagiSent: S.nagiSent.slice(-4),
+      said: S.mlog.filter(x => x[0] === "u" || x[0] === "h").map(x => x[1]).slice(-4),
+      visits: S.visits.slice(-3).map(hhmm),
+      threads: threads().filter(t => open(t) && !S.archived[t.id]).slice(-14).map(t => `${t.id}: ${t.title}`),
+      endings: S.endings.slice(-5).map(e => e.title), own: ownOn() ? ownLines.slice(0, 2) : [],
+      interview: bl ? (bl.said || []).slice(-3) : [],
+    };
+  }
+  function historyOf(who) {
+    if (who === "minamo") return S.mlog.filter(x => x[0] !== "x").slice(-8).map(([w, t]) => [w === "m" ? "ミナモ" : "相手", t]);
+    if (who === "nagi") return S.nagiLog.filter(x => x[0] !== "x").slice(-8).map(([w, t]) => [w === "u" ? "相手（表示されていない）" : "ナギ", t]);
+    return [];
+  }
+  async function ai(who, mode, extra) {
+    const ctrl = window.AbortController ? new AbortController() : null;
+    const timer = setTimeout(() => ctrl && ctrl.abort(), 70000);
+    try {
+      const res = await fetch("/api/story", { method: "POST", signal: ctrl ? ctrl.signal : undefined,
+        headers: { "Content-Type": "application/json", "X-Minamo": "1" },
+        body: JSON.stringify(Object.assign({ who, mode, state: summary(who), history: historyOf(who) }, extra || {})) });
+      const j = await res.json();
+      if (j && j.ok) { aiSource = j.source || ""; return j; }
+      aiSource = "";
+    } catch (e) { aiSource = ""; }
+    finally { clearTimeout(timer); }
+    return null;
+  }
+  // 返事のあとの気持ち・覚えたこと・行動
+  function mind(who, r) {
+    S.mood[who] = Math.max(-3, Math.min(3, (S.mood[who] || 0) + (r.mood || 0)));
+    if (r.remember) { S.mem[who] = S.mem[who] || []; S.mem[who].push(r.remember); cap(S.mem[who], 8); }
+    document.body.classList.toggle("mi-near", S.mood.minamo >= 2);
+    save();
+    for (const a of r.do || []) act(who, a);
+  }
+  const NAMES = { minamo: "minamo", nagi: "nagi", board: "管理人" };
+  function act(who, a) {
+    const name = a.who || NAMES[who];
+    const when = a.date || today();
+    if (a.type === "post") addThread(a.board === "lab" ? "lab" : "yume", a.title || "（件名なし）", [[when, name, a.text]], who);
+    else if (a.type === "reply") {
+      const ts = threads().filter(t => open(t) && !t.record);
+      const t = ts.find(x => x.id === a.thread) || ts[Math.floor(Math.random() * ts.length)];
+      if (t) addAuto(t.id, [when, name, a.text]);
+    } else if (a.type === "rename") {
+      const g = S.gen.find(x => x.id === a.thread && x.by);
+      if (g && a.title) { toast(`スレッド「${g.title}」の題が「${a.title}」に変わりました`); g.title = a.title; save(); rerender(); }
+    } else if (a.type === "delete") {
+      const i = S.gen.findIndex(x => x.id === a.thread && x.by);
+      if (i >= 0) { const g = S.gen.splice(i, 1)[0]; save(); toast(`スレッド「${g.title}」は削除されました`); rerender(); }
+    } else if (a.type === "note") noteOut(who, a.text);
+    else if (a.type === "notify") notify(who, a.text);
+    else if (a.type === "glitch") { fx("glitch", 500); if (navigator.vibrate) navigator.vibrate([40, 60, 40]); }
+    else if (a.type === "edit") setTimeout(() => editLast(who), 2500 + Math.random() * 2000);
+    else if (a.type === "unsend") setTimeout(() => unsendLast(who), 3000 + Math.random() * 2000);
+  }
+  function rerender() {
+    if (endingOn || $("app").hidden) return;
+    if (tab === "board" && !curThread) showBoards();
+    paintTabs();
+  }
+  function addThread(board, title, posts, by) {
+    const id = "a" + Date.now().toString(36) + Math.floor(Math.random() * 1000);
+    S.gen.push({ id, board, title: String(title).slice(0, 24), unlock: "start", posts, by, night: S.night });
+    // 増えすぎたら、登場人物が作った古いスレッドから沈める
+    const mine = S.gen.filter(g => g.by);
+    if (mine.length > 60) S.gen.splice(S.gen.indexOf(mine[0]), 1);
+    save();
+    toast(`掲示板：新しいスレッド「${String(title).slice(0, 14)}」`);
+    fx("beep");
+    rerender();
+    return id;
+  }
+  // スレッドへの書き込み。開いているなら、「書き込み中…」のあとに、目の前で増える
+  function addAuto(id, post) {
+    S.auto[id] = (S.auto[id] || []).concat([post]).slice(-30);
+    save();
+    if (tab === "board" && curThread === id && !endingOn) {
+      const box = document.createElement("p"); box.className = "note typing-b"; box.textContent = L.typing.board;
+      $("view").appendChild(box); $("view").scrollTop = $("view").scrollHeight;
+      setTimeout(() => { if (curThread === id) showThread(id, true); }, 2200);
+    } else { paintTabs(); }
+  }
+  // 自分からのメッセージ。チャットを開いていれば目の前で、そうでなければ知らせる
+  async function dm(who, text) {
+    if (!text || (who === "minamo" && S.carried)) return;
+    if (tab === "chat" && chatWho === who && !busy) {
+      const d = typingDots(who);
+      await sleep(1500 + Math.random() * 1500);
+      if (d) d.remove();
+      await type(who === "nagi" ? "na" : "mi", who === "nagi" ? "ナギ" : "ミナモ", text, who === "nagi" ? S.nagiLog : S.mlog);
+      if (who === "nagi") S.nagiLog[S.nagiLog.length - 1][0] = "n";
+      save();
+    } else {
+      if (who === "nagi") { S.nagiLog.push(["n", text]); S.nagiUnread++; } else { S.mlog.push(["m", text]); S.miUnread++; }
+      save(); paintTabs();
+      toast(`チャット：${who === "nagi" ? "ナギ" : "ミナモ"}からメッセージ`);
+      if (document.hidden) notify(who, text);
+    }
+    fx("beep");
+    if (navigator.vibrate) navigator.vibrate(who === "nagi" ? [20, 80, 20, 80, 20] : 40);
+  }
+  function notify(who, text) {
+    const title = { minamo: "ミナモ", nagi: "ナギ", board: "夢網" }[who] || "水面の記録";
+    if (!document.hidden || !("Notification" in window) || Notification.permission !== "granted" || !navigator.serviceWorker) {
+      return toast(`${title}：${text}`);
+    }
+    navigator.serviceWorker.ready.then(reg => reg.showNotification(title, {
+      body: String(text).replace(/\[間\]\s*/g, ""), tag: "story-" + who, icon: "icons/icon-192.png", data: { url: "./story.html" } }))
+      .catch(() => {});
+  }
+  async function noteOut(who, text) {
+    try {
+      const r = await fetch("/api/story/note", { method: "POST", headers: { "Content-Type": "application/json", "X-Minamo": "1" },
+        body: JSON.stringify({ who, text }) });
+      const j = await r.json();
+      if (j.name) toast(`書き置き：${j.name}`);
+    } catch (e) { /* サーバーなし */ }
+  }
+  function editLast(who) {
+    const b = lastBubble[who];
+    if (!b || !b.el.isConnected) return;
+    const tx = b.el.querySelector(".tx"), old = tx.textContent;
+    const parts = old.split(/(?<=[。！？])/).filter(Boolean);
+    const now = parts.length >= 2 ? parts.slice(0, -1).join("") + "……" : old.replace(/[。！？]?$/, "。……いえ、なんでもありません。");
+    tx.textContent = now;
+    const e = document.createElement("span"); e.className = "edited"; e.textContent = L.edited; b.el.appendChild(e);
+    if (b.log[b.i]) b.log[b.i][1] = now;
+    fx("glitch", 200); save();
+  }
+  function unsendLast(who) {
+    const b = lastBubble[who];
+    if (!b || !b.el.isConnected) return;
+    b.el.className = "msg sys gone";
+    b.el.innerHTML = `<span class="tx">${esc(L.unsent)}</span>`;
+    if (b.log[b.i]) b.log[b.i] = ["x", ""];
+    delete lastBubble[who];
+    save();
+  }
+
+  // ---------- 自我：だれも話しかけなくても、登場人物は動く ----------
+  let lifeT = 0, ghostOn = false;
+  function lifeLoop(first) {
+    clearTimeout(lifeT);
+    const sec = first ? 40 + Math.random() * 40 : 140 + Math.random() * 120;
+    lifeT = setTimeout(async () => { try { await lifeTick(); } catch (e) { /* 次の機会に */ } lifeLoop(); }, sec * 1000);
+  }
+  async function lifeTick() {
+    if ($("app").hidden || busy || endingOn) return;
+    const roll = Math.random();
+    const who = roll < 0.32 ? "minamo" : roll < 0.6 ? (S.nagiOn ? "nagi" : "board") : roll < 0.84 ? "board" : (S.nagiOn ? "duo" : "minamo");
+    if (who === "duo") return duoTick();
+    if (who === "minamo" && S.carried) return;
+    // 目の前で：書きかけて、やめる（ミナモ）／あなたの入力欄に、勝手に書く（ナギ）
+    if (tab === "chat" && chatWho === who && Math.random() < 0.3) return who === "minamo" ? hesitate() : ghostType(pick(L.nagiGhost));
+    const r = await ai(who, "idle", {});
+    if (r) {
+      if (r.say) await dm(who, r.say);
+      for (const a of r.do || []) act(who, a);
+      return;
+    }
+    if (who === "board") {
+      const p = pick(L.boardPosts);
+      act("board", { type: Math.random() < 0.5 ? "post" : "reply", board: p.board, title: p.title, who: p.who,
+                     text: (Math.random() < 0.5 ? p.text : pick(L.boardReplies)).replace("{hour}", new Date().getHours()).replace("{san}", san()) });
+    } else await dm(who, pick(who === "minamo" ? L.minamoDm : L.nagiDm).replace("{san}", san()));
+  }
+  async function hesitate() {
+    const d = typingDots("minamo");
+    await sleep(3000 + Math.random() * 3000);
+    if (d) d.remove();
+    if (chatWho === "minamo") bubble("sys", "", L.hesitate);
+  }
+  async function ghostType(text) {
+    const inp = $("cin");
+    if (!inp || inp.value || document.activeElement === inp && inp.value) return;
+    ghostOn = true;
+    inp.classList.add("ghost");
+    for (const ch of text) { if (!ghostOn) break; inp.value += ch; await sleep(160); }
+    await sleep(1500);
+    while (ghostOn && inp.value) { inp.value = inp.value.slice(0, -1); await sleep(70); }
+    if (ghostOn) inp.value = "";
+    ghostOn = false;
+    inp.classList.remove("ghost");
+  }
+  // ミナモとナギが、あなたのことを話し合う（掲示板のスレッドになる）
+  async function duoTick() {
+    const r = await ai("minamo", "duo", {});
+    let title, lines;
+    if (r && r.lines) { title = r.title; lines = r.lines.map(x => [x.who, x.text]); }
+    else { const t = pick(L.duo); title = t.title; lines = t.lines.map(([w, x]) => [w, x.replace("{san}", san())]); }
+    const d = new Date();
+    addThread("yume", title, lines.map(([w, x], i) => [`${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(i * 7)}`, w === "ナギ" ? "nagi" : "ミナモ", x]), "duo");
+  }
+  // しばらく来なかったあいだに、掲示板で起きたこと
+  async function awayCatchup() {
+    const prev = S.visits.length >= 2 ? new Date(S.visits[S.visits.length - 2]) : null;
+    if (!prev || Date.now() - prev < 45 * 60000) return;
+    const t0 = prev.getTime(), span = Date.now() - t0;
+    const stamp = () => { const d = new Date(t0 + Math.random() * span); return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+    const r = await ai("board", "away", {});
+    const acts = r && r.do && r.do.length ? r.do : [Object.assign({ type: "post" }, pick(L.boardPosts))];
+    for (const a of acts) {
+      const b = Object.assign({}, a, { date: stamp() });
+      if (b.text) b.text = b.text.replace("{hour}", new Date(t0).getHours()).replace("{san}", san());
+      act("board", b);
+    }
+    toast(`掲示板：あなたがいない ${ago(prev)} のあいだに、書き込みがありました`);
+  }
+
+  // ---------- 結末：際限なく増える。見たあとは、夜が一つ進む ----------
+  let endingOn = false, palTaps = 0, palTapAt = 0;
+  const fillE = (t, o) => String(t).replace(/\{(\w+)\}/g, (m, k) => (k in o ? o[k] : k === "san" ? san() : m));
+  function makeEnding() {
+    const n = LE.nouns, a = pick(n), b = pick(n.filter(x => x !== a));
+    const types = ["say", "say", "post", "tidy", "silence", "hour", "pal", "read"];
+    const type = pick(types), h = new Date().getHours();
+    const trigger = { type };
+    if (type === "say") { trigger.word = pick(n.filter(x => x !== a)); trigger.to = Math.random() < 0.6 ? "minamo" : "nagi"; }
+    else if (type === "post") trigger.word = pick(n);
+    else if (type === "silence") trigger.sec = 60 + Math.floor(Math.random() * 4) * 20;
+    else if (type === "hour") { trigger.from = (h + 1 + Math.floor(Math.random() * 3)) % 24; trigger.to = (trigger.from + 2) % 24; }
+    else if (type === "pal") trigger.n = 6 + Math.floor(Math.random() * 4);
+    else if (type === "read") trigger.n = 3 + Math.floor(Math.random() * 2);
+    return { title: fillE(pick(LE.forms), { a, b }), trigger, scene: pick(LE.scenes).map(x => fillE(x, { a, b })),
+             hint: { who: pick(["管理人", "（投稿者不明）", "ねこまち", "硝子"]), text: "" } };
+  }
+  // きっかけを、はっきり書いた一文（答えそのものではないが、たどり着ける）
+  const clueOf = e => fillE(pick(LE.clue[e.trigger.type] || LE.clue.say), e.trigger);
+  async function genEnding() {
+    if (S.pend || endingOn) return;
+    S.pend = { pending: true }; // 二重に作らない
+    const r = await ai("board", "ending", {});
+    const e = (r && r.ending) || makeEnding();
+    e.id = "e" + Date.now().toString(36);
+    if (e.trigger.type === "say" && !S.nagiOn) e.trigger.to = "minamo";
+    S.pend = e; save();
+    // ほのめかしは、開いているスレッドのどれかに書き込む。AI のほのめかしと、きっかけの一文は、別のスレッドに
+    const ts = threads().filter(t => open(t) && !t.record && !S.archived[t.id]);
+    const put = (who, text) => {
+      const t = ts.length ? ts.splice(Math.floor(Math.random() * ts.length), 1)[0] : null;
+      if (t) addAuto(t.id, [today(), who, text]); else addThread("yume", "（件名なし）", [[today(), who, text]], "board");
+    };
+    if (e.hint && e.hint.text) put(e.hint.who || "（投稿者不明）", e.hint.text);
+    put(e.hint && e.hint.who && !e.hint.text ? e.hint.who : "（投稿者不明）", clueOf(e));
+  }
+  const inHour = (f, t) => { const h = new Date().getHours(); return f <= t ? h >= f && h < t : h >= f || h < t; };
+  // きっかけを確かめる。当たれば結末へ（true を返す）
+  function endCheck(kind, d) {
+    const e = S.pend;
+    if (!e || e.pending || endingOn || !e.trigger || e.trigger.type !== kind) return false;
+    const tr = e.trigger, x = d || {};
+    const hit = kind === "say" ? x.to === tr.to && String(x.text).includes(tr.word)
+      : kind === "post" ? String(x.text).includes(tr.word)
+      : kind === "tidy" ? true
+      : kind === "silence" ? x.sec >= tr.sec
+      : kind === "hour" ? inHour(tr.from, tr.to)
+      : kind === "pal" || kind === "read" ? x.n >= tr.n : false;
+    if (hit) fireEnding();
+    return hit;
+  }
+  async function fireEnding() {
+    const e = S.pend;
+    S.pend = null; endingOn = true;
+    recordEnding(e.title);
+    const el = $("ending");
+    el.innerHTML = `<p class="small">${esc(fillE(LE.card, { no: S.endNo }))}</p><h2>${esc(e.title)}</h2><div id="end-sc"></div>`
+      + `<div class="btns"><button id="end-go" type="button" hidden>続ける</button></div>`;
+    el.hidden = false;
+    $("pal").hidden = true; $("pal-say").hidden = true;
+    fx("swell"); if (navigator.vibrate) navigator.vibrate([80, 120, 80]);
+    for (const line of e.scene) {
+      const p = document.createElement("p");
+      $("end-sc").appendChild(p);
+      for (const ch of fillE(line, {})) { p.textContent += ch; await sleep(55); }
+      await sleep(800);
+    }
+    const after = document.createElement("p");
+    after.className = "small"; after.textContent = LE.after;
+    $("end-sc").appendChild(after);
+    $("end-go").hidden = false;
+    $("end-go").onclick = () => {
+      el.hidden = true; endingOn = false;
+      if (S.palMet) $("pal").hidden = false;
+      nextNight("E");
+      genEnding();
+      showBoards();
+    };
+  }
+  // 結末の目録（管理人のスレッド）
+  function recordEnding(title) {
+    S.endNo = (S.endNo || 0) + 1;
+    S.endings.push({ no: S.endNo, title, night: S.night, at: new Date().toISOString() });
+    const C = LE.catalog, posts = [["1999/12/31", "管理人", C.head]].concat(S.endings.map(x => [hhmm(x.at), `#${x.no}`, `「${x.title}」（${x.night}夜目）`]));
+    const old = S.gen.find(g => g.id === "gend");
+    if (old) old.posts = posts; else S.gen.push({ id: "gend", board: "lab", title: C.title, unlock: "start", posts });
+    save();
+  }
+  // 沈黙と時刻のきっかけ（5 秒ごと・1 分ごとに確かめる）
+  setInterval(() => {
+    if ($("app").hidden || !S.pend || endingOn) return;
+    if (chatWho && tab === "chat") endCheck("silence", { sec: (Date.now() - idleAt) / 1000 });
+  }, 5000);
+  setInterval(() => { if (!$("app").hidden) endCheck("hour"); }, 60000);
+
+  // ---------- 耳（マイク。任意。音の大きさだけを、端末の中で言葉にする。録音も送信もしない） ----------
+  let earWord = "";
+  async function startEar() {
+    try {
+      const st = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const ac = new (window.AudioContext || window.webkitAudioContext)();
+      const an = ac.createAnalyser(); an.fftSize = 1024;
+      ac.createMediaStreamSource(st).connect(an);
+      const buf = new Float32Array(an.fftSize);
+      setInterval(() => {
+        an.getFloatTimeDomainData(buf);
+        let s = 0;
+        for (const v of buf) s += v * v;
+        const db = 10 * Math.log10(s / buf.length + 1e-12);
+        earWord = db < -58 ? "静まりかえっている" : db < -40 ? "小さな物音がする" : "話し声か、大きな音がする";
+      }, 2000);
+    } catch (e) { earWord = ""; toast("マイクは使えませんでした"); }
+  }
+
   // ---------- 起動 ----------
   (function prefill() {
     let n = S.name;
     if (!n) { try { n = ((JSON.parse(localStorage.getItem("minamo.archive") || "{}") || {}).survey || {}).name || ""; } catch (e) { n = ""; } }
     $("name").value = n && n !== "あなた" ? n : "";
+    $("ear").checked = !!S.ear;
   })();
   document.addEventListener("visibilitychange", () => {
     if (fxOn) FX.suspend(document.hidden);
@@ -648,9 +1057,9 @@
     // 前の版で結末を迎えていたなら、終わらせずに夜を進める
     if (S.migrated) {
       const k = S.migrated; S.migrated = "";
-      if (k === "N") S.swapped = true;
       if (k === "C") { S.carried = true; S.carriedAt = new Date().toISOString(); }
-      nextNight(k);
+      recordEnding(D.night.titles[k]);
+      nextNight(k === "N" ? "E" : k);          // 凪は、もう起きない（記録にだけ残る）
       S.mlog.push(["m", D.night.migrated.replace("{title}", D.night.titles[k]).replace(/\[間\]\s*/g, "")]);
       save();
     }
@@ -658,6 +1067,14 @@
     refresh(true);
     showBoards();
     if (S.night >= 2) setTimeout(() => toast(`${S.night}夜目`), 600);
+    // 通知（登場人物が、画面の外から話しかける）と、耳（任意）
+    if ("Notification" in window && Notification.permission === "default") { try { Notification.requestPermission().catch(() => {}); } catch (e) { /* 古い形 */ } }
+    S.ear = $("ear").checked; save();
+    if (S.ear && navigator.mediaDevices) startEar();
+    awayCatchup().catch(() => {});
+    if (!S.pend) setTimeout(() => genEnding().catch(() => {}), 4000);
+    endCheck("hour");
+    lifeLoop(true);
     if (S.palMet) { $("pal").hidden = false; palStage(); setTimeout(() => palSay(palStage() >= 3 ? "おかえり。……ずっと、待ってたよ。" : "おかえり！　続き、読もうね！"), 1500); }
   };
 })();
