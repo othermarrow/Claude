@@ -7,8 +7,8 @@
 - プロジェクトごとにトップレベルにフォルダを作る（例: `gh-reader/`, `research_bot/`）。
 - 各フォルダに `README.md` を置き、目的・使い方・設定方法を書く。
 - Vault のノートやメモそのものの変更だけは、othermarrow/Psychology 側で行う。
-- 作業はブランチで行う。`main` へ直接プッシュせず、マージは依頼されたときだけ。
-- PR は依頼されたときだけ作る。
+- 作業はブランチで行う。`main` へ直接プッシュしない。
+- 作業が済んだら PR を作って、基本的にそのまま `main` にマージする（利用者の指示）。確かめられていないことや、壊れうる変更があるときは、マージ前に知らせる。
 
 ## 利用環境
 - 利用者は Android（Xperia 1 IV）のみで、PC はない。開発は F-Droid 版 Termux。
@@ -26,6 +26,7 @@
 | `zork-watch/` | Zork I を Balance 2 の中だけで動かすミニアプリ（日英表示・英語入力） |
 | `noclip/` | 本家 Backrooms の設定（レベル・実体・M.E.G.・アーモンド水）で一から作ったテキストアドベンチャー「ノークリップ」（HTML 一枚） |
 | `yacho/` | Backrooms Wiki の記事をもとに、出会うものを観察して野帳に書きとめていくテキストアドベンチャー「野帳」（HTML 一枚、CC BY-SA 3.0） |
+| `kuuran2-watch/` | 「空欄_2」（階層目録の記録 04）を Balance 2 の中だけで動かすミニアプリ（Zepp OS、全部タップで遊ぶ） |
 | `yacho-watch/` | 「野帳」を Balance 2 の中だけで動かすミニアプリ（Zepp OS、全部タップで遊ぶ、振動つき） |
 | `backrooms-pwa/` | 「階層目録」：ノークリップ・野帳を強化し、物語から作った新作「未定稿」（Zork + Backrooms）を足して、起動画面から選べるようにした PWA（Chrome でインストール、Termux の localhost で配る） |
 | `yoru-shoko/` | 「夜の書庫」：Zork I〜III（Zork I は日本語辞書つき）と、書き下ろしの長編ホラー「蔵守」を選んで遊ぶ PWA。Z-machine 形式のゲームファイル（Anchorhead など）は自分で持ち込んで遊べる（Termux の localhost で配る） |

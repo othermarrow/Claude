@@ -1,0 +1,30 @@
+{
+  "configVersion": "v3",
+  "app": {
+    "appId": 1098772,
+    "appName": "Kuuran2",
+    "appType": "app",
+    "version": { "code": 1, "name": "1.0.0" },
+    "icon": "icon.png",
+    "vender": "zepp",
+    "description": "A text adventure without a stated purpose"
+  },
+  "permissions": ["data:os.device.info"],
+  "runtime": {
+    "apiVersion": { "compatible": "3.0", "target": "3.0", "minVersion": "3.0" }
+  },
+  "targets": {
+    "common": {
+      "module": {
+        "page": { "pages": ["page/game/index"] }
+      },
+      "platforms": [{ "st": "r", "dw": 480 }]
+    }
+  },
+  "i18n": {
+    "ja-JP": { "appName": "空欄_2" },
+    "en-US": { "appName": "Kuuran2" }
+  },
+  "defaultLanguage": "ja-JP",
+  "debug": false
+}
