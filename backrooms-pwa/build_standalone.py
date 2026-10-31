@@ -1,6 +1,6 @@
 """games/ のゲームに fx.js を埋めこみ、HTML 一枚で開ける版を standalone/ に作る。
 
-使い方: python3 build_standalone.py tane-wo-niru
+使い方: python3 build_standalone.py noclip
 起動画面がないので「起動画面へ」ボタンは隠し、PWA の manifest は外す。
 """
 import pathlib
@@ -24,5 +24,5 @@ def build(name):
     print(dst.relative_to(ROOT), len(out.encode("utf-8")), "bytes")
 
 
-for n in sys.argv[1:] or ["tane-wo-niru"]:
+for n in sys.argv[1:] or ["noclip"]:
     build(n)

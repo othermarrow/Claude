@@ -31,7 +31,7 @@
 
 ## 準備（初回だけ）
 
-前提：Termux に Zepp OS の開発ツール `zeus` が入っていて、kuuran-watch や zork-watch を `zeus preview` で送れていること。
+前提：Termux に Zepp OS の開発ツール `zeus` が入っていて、zork-watch を `zeus preview` で送れていること。
 
 1. ブラウザで GitHub の `othermarrow/Claude` を開き、ブランチ `ccr-d4f31da7-u5hlbp` を選んでから `Code` → `Download ZIP` で zip を Download フォルダに保存する。
    保存された名前は `ls /storage/emulated/0/Download/ | grep -i claude` で確かめられる（`(1)` が付くことがある）。
@@ -76,7 +76,7 @@ zeus preview
 | `shared/engine.js` | ゲーム本体。`yacho/yacho.html` から自動で作る（直接は直さない） |
 | `shared/store.js` | 状態と設定の保存 |
 | `shared/vibe.js` | 振動 |
-| `shared/ui.js` | 部品を置く小さな道具（kuuran-watch と同じ） |
+| `shared/ui.js` | 部品を置く小さな道具（zork-watch と同じ） |
 | `tools/build-engine.js` | `shared/engine.js` を作り直すスクリプト |
 | `setup.sh` | 初回の準備（`npm i`） |
 
