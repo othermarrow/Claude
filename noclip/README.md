@@ -4,7 +4,7 @@
 現実から「すり抜けて」黄色い部屋（Level 0）に落ち、下のレベルへ進んでいく。最初は、何をすればいいのか分からない。
 
 - ファイル：`noclip.html`（HTML 一枚。外から読みこむのは DotGothic16 フォントだけで、読めなくても遊べる）
-- 操作：「降下記録」「空欄」と同じ（状態行・「命令を作る」・十字キー・よく使う6ボタン・≡ メニュー・自動保存）
+- 操作：野帳と同じ（状態行・「命令を作る」・十字キー・よく使う6ボタン・≡ メニュー・自動保存）
 - 文章：すべて標準語の書き下ろし
 - 下敷き：The Backrooms（2019年の画像投稿から始まった共同創作）と、Backrooms Wiki などで共有されている設定。具体的には、レベルの名前と様子、実体（スマイラー、ハウンド、スキンスティーラー、フェイスリング、パーティーゴアー、ウレッチ）、M.E.G.、アーモンド水、ノークリップ、生存難易度クラス。設定だけを借り、文章は引用していない。謎解きや細かい決まりごとは、このゲーム独自のもの
 
@@ -26,7 +26,7 @@
    cp noclip/noclip.html /storage/emulated/0/Tasker/noclip/
    ```
 
-2. 「降下記録」と同じようにシーンを作り、WebView の Source を `file:///storage/emulated/0/Tasker/noclip/noclip.html` にする（Mode は `URI`。Allow Phone Access と Allow Universal Access はオン。シーン表示は Activity, Full Window）。
+2. シーンを作り、WebView の Source を `file:///storage/emulated/0/Tasker/noclip/noclip.html` にする（Mode は `URI`。Allow Phone Access と Allow Universal Access はオン。シーン表示は Activity, Full Window）。
 
 ### Tasker を使わずに開く
 
@@ -45,7 +45,7 @@ python3 -m http.server 8000
 ## 時計版について
 
 ゲーム本体（`// ==== ENGINE BEGIN ====` から `// ==== ENGINE END ====` まで）は画面に触らないように書いてある。
-`kuuran-watch` と同じやり方で、Amazfit Balance 2 版を作れる（まだ作っていない）。
+`yacho-watch` と同じやり方で、Amazfit Balance 2 版を作れる（まだ作っていない）。
 
 <details>
 <summary>しくみと手順（ネタばれ）</summary>

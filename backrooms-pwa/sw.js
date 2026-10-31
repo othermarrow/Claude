@@ -1,7 +1,7 @@
 /* 階層目録：オフラインでも開けるようにする。
    まずネットワーク（Termux のサーバー）から取り、取れないときは前に取っておいたものを返す。
    ファイルを足したら FILES に足し、VERSION を上げる。 */
-const VERSION = "kaisou-v9";
+const VERSION = "kaisou-v10";
 const FILES = [
   "./",
   "./index.html",
@@ -10,9 +10,10 @@ const FILES = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/maskable-512.png",
-  "./games/kuuran.html",
   "./games/noclip.html",
   "./games/yacho.html",
+  "./games/miteiko.html",
+  "./games/kuuran2.html",
 ];
 
 self.addEventListener("install", e => {
