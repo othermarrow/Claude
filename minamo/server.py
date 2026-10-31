@@ -28,8 +28,29 @@ MAX_BODY = 2 * 1024 * 1024
 STATE = {}
 
 
+def build_info():
+    """いまのファイルの版：画面（sw.js の VERSION）と、git のコミット（端末で更新できたかを見分けるため）。"""
+    import re
+    import subprocess
+    web = commit = ""
+    try:
+        with open(os.path.join(WEB_DIR, "sw.js"), encoding="utf-8") as f:
+            m = re.search(r'VERSION = "([^"]+)"', f.read())
+            web = m.group(1) if m else ""
+    except OSError:
+        pass
+    try:
+        commit = subprocess.run(["git", "-C", os.path.dirname(WEB_DIR), "log", "-1", "--format=%h（%cd）",
+                                 "--date=format:%m/%d %H:%M"], capture_output=True, text=True, timeout=3).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return web, commit
+
+
 def info():
+    web, commit = build_info()
     return {
+        "web_version": web, "commit": commit,
         "ready": STATE["llm"] is not None,
         "error": STATE["error"],
         "backend": STATE["backend"],
@@ -75,6 +96,14 @@ def save_record(markdown):
     with open(path, "w", encoding="utf-8") as f:
         f.write(markdown)
     return path
+
+
+class Server(http.server.ThreadingHTTPServer):
+    def handle_error(self, request, client_address):
+        # 起動の途中（一括チェックのさいちゅう）に待ちきれずに切れた接続は、ログを汚さない
+        if isinstance(sys.exc_info()[1], (BrokenPipeError, ConnectionResetError)):
+            return
+        super().handle_error(request, client_address)
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -249,7 +278,7 @@ def main():
 
     # 先にポートを取る（前のサーバーが動いていたら、蔵書の読み込みや AI の一括チェックの前に知らせる）
     try:
-        srv = http.server.ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
+        srv = Server(("127.0.0.1", a.port), Handler)
     except OSError as e:
         if e.errno in (98, 48):          # Address already in use
             print(f"ポート {a.port} は、もう使われています（前に起動したミナモのサーバーが動いたままかもしれません）。\n"

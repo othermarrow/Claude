@@ -26,8 +26,11 @@ if up http://127.0.0.1:8082/; then
   echo "$(date '+%F %T') すでに動いています" >> "$LOG"
   exit 0
 fi
-echo "$(date '+%F %T') 起動します" >> "$LOG"
-nohup python3 -u "$PWD/server.py" "$@" >> "$LOG" 2>&1 &
+# 起動の途中（AI の一括チェックのさいちゅう）なら、二つ目は動かさずに待つ
+if ! pgrep -f "minamo/[s]erver.py" >/dev/null; then
+  echo "$(date '+%F %T') 起動します" >> "$LOG"
+  nohup python3 -u "$PWD/server.py" "$@" >> "$LOG" 2>&1 &
+fi
 
 # 開けるようになるまで待つ（最大 60 秒。AI の一括チェックと蔵書の読み込みのぶん）
 i=0
