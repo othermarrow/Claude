@@ -1,1 +1,0 @@
-App({ globalData: {}, onCreate() {}, onDestroy() {} })

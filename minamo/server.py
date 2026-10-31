@@ -73,6 +73,7 @@ def info():
         "outside_notes": [lv["notes"] for lv in minamo.HORROR_LEVELS],
         "records": minamo.RECORD_DIR,
         "library": STATE["library"].counts() if STATE["library"] else [0, 0],
+        "library_own": STATE["library"].own_counts() if STATE["library"] else [0, 0],
         # 起動時の一括チェックの結果（返事の中身は渡さない）
         "probe": [{k: r[k] for k in ("backend", "model", "sec", "ok", "why")} for r in STATE.get("probe") or []],
     }
@@ -141,6 +142,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     return self._json(200, {"finding": ""})
                 outside.cancel_notify()
                 return self._json(200, {"finding": outside.inspect()})
+            if self.path == "/api/own":
+                # 物語の掲示板に紛れ込ませる、自分の文章の短い一節（題名・名前・サイト名は伏せたもの）
+                lib = STATE["library"]
+                return self._json(200, {"lines": lib.quote() if lib and hasattr(lib, "quote") else []})
             if self.path == "/api/memory":
                 mem = STATE["llm"].engines["2026"].memory
                 return self._json(200, {"items": mem.data["items"], "sessions": mem.data["sessions"]})
@@ -172,7 +177,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 phase = max(0, min(int(data.get("phase") or 0), len(minamo.PHASES) - 1))
             except (TypeError, ValueError):
                 phase = 0
-            note = minamo.library_note(STATE["library"], str(data.get("lib_query") or ""), phase)
+            try:
+                horror = max(0, min(3, int(data.get("horror") or 0)))
+            except (TypeError, ValueError):
+                horror = 0
+            note = minamo.library_note(STATE["library"], str(data.get("lib_query") or ""), phase, horror)
             if note and contents[-1]["role"] == "user":
                 contents[-1]["parts"][0]["text"] += "\n\n" + note
                 print("蔵書: " + note.splitlines()[0])

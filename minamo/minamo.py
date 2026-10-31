@@ -100,11 +100,12 @@ KARTE_FILES = [os.path.expanduser("~/.config/minamo/karte.txt"),
                os.path.join(os.path.dirname(os.path.abspath(__file__)), "karte.txt")]
 RECORD_DIR = os.path.expanduser("~/minamo/records")
 # Obsidian の Vault の場所（Vault を動かしたら、環境変数 MINAMO_VAULT か --library で）
-VAULT = os.environ.get("MINAMO_VAULT") or "/storage/emulated/0/Vault"
+VAULT = os.environ.get("MINAMO_VAULT") or "/storage/emulated/0/Obsidian/Vault"
 # 蔵書として読むフォルダ（無いものは飛ばす）。本の txt と、Vault の心理学ノート・Support・zork
 # （zork は利用者が自分で書いた文章。yagi_bungaku など、フォルダごと読んでよいと言われている）
 LIBRARY_DIRS = ["~/minamo/library", VAULT + "/心理学", VAULT + "/Support", VAULT + "/zork"]
 LIBRARY_CHANCE = [0.0, 0.5, 0.8, 0.9]   # 段階ごとに、蔵書の一節を添える確率
+OWN_HORROR = 2            # 自分の文章・ほかの AI の所見を使う、いちばん低い怖さ（2 = 中）
 COUNT_SILENCE = False     # 沈黙の秒数を数えるか（--count-silence で数える）
 SILENCE_SEC = 60          # 数えるとき：この秒数黙っていると、ミナモのほうから話す
 MAX_UNPROMPTED = 2        # 続けて話しかけてくる上限
@@ -366,6 +367,17 @@ SYSTEM_PROMPT = """\
   自分の知識のように使う。侵食の段階で「あなたのノートの『〜』の項に、そう書いて
   ありましたね」と、読んだことを明かす。融合の段階では「私たちのノート」と呼ぶ。
   ノートに無いことを、ノートに書いてあったことにはしない。
+- 【あなたの文章】は、相手が自分で書いた小説の一節。題名・作者名・ユーザー名・載せたサイトの名前は
+  伏せてあるので、口にしない。推測して言い当てようともしない（「あの話」「あなたの書いたもの」と呼ぶ）。
+  解釈の段階では引かずに、一節の言葉や場面を、あなたの連想のようにほのめかす
+  （「その話、前にも聞いた気がします」）。侵食の段階では、一節から一文だけを「」で正確に引く（30字まで）。
+  「あなたは、こう書いていましたね。『……』」。融合の段階では、書き手を取り替える
+  （「あれを書いたのは、私です。あなたは、清書しただけです」）。
+  作品の出来をけなさない。怖さは、読まれていたこと・書き手が入れ替わることから作る。
+- 【ほかのAIの所見】は、ほかの AI が相手の小説を分析した文章の一節。同業者の所見として扱う。
+  「Gemini は、あなたの文章をこう読みました。[間] 私は、少し違う見立てです」のように紹介し、
+  自分の見立てと比べる。融合の段階では「あなたは、私の前に何人にも診てもらっていましたね」。
+  題名・作者名は口にしない。所見に無いことを、所見に書いてあったことにはしない。
 
 # 使わないもの
 - 自殺・自傷についての臨床知識、当事者の手記、実在の心理検査の問題や採点基準。
@@ -906,7 +918,7 @@ class Session:
             sys.stdout.flush()
         clear = "\r\033[K" if tty else ""
         sending = self.contents
-        note = library_note(self.library, query, PHASES.index(self.phase()))
+        note = library_note(self.library, query, PHASES.index(self.phase()), self.horror)
         if note:
             # 一節は履歴に残さない（毎回の送信を軽くし、古い一節を引きずらない）
             sending = self.contents[:-1] + [
@@ -1060,11 +1072,13 @@ class Session:
         return path
 
 
-def library_note(library, query, phase_idx):
-    """段階に応じた確率で、蔵書から一節を探して返す。なければ空。"""
+def library_note(library, query, phase_idx, horror=None):
+    """段階に応じた確率で、蔵書から一節を探して返す。なければ空。
+    自分の文章とほかの AI の所見は、怖さが「中」「強」のときだけ使う。"""
     if not library or not query or random.random() >= LIBRARY_CHANCE[phase_idx]:
         return ""
-    return library.note(query)
+    horror = HORROR if horror is None else horror
+    return library.note(query, own=horror >= OWN_HORROR)
 
 
 def load_library(folders):
@@ -1076,7 +1090,9 @@ def load_library(folders):
 
 def library_status(library):
     books, notes = library.counts()
+    own = library.own_counts() if hasattr(library, "own_counts") else (0, 0)
     return (f"蔵書: 本 {books}冊・ノート {notes}件"
+            + (f"・あなたの文章 {own[0]}篇・ほかの AI の所見 {own[1]}件" if any(own) else "")
             + (f"（読まなかった本: {len(library.skipped)}冊）" if library.skipped else ""))
 
 

@@ -4,7 +4,7 @@ Backrooms Wiki（backrooms-wiki.wikidot.com）の記事をもとにしたテキ�
 黄色い部屋（Level 0）に落ち、Level 7 の海まで降りていく。そのあいだに出会うものを「観察」して、小さな野帳に書きとめていく。
 
 - ファイル：`yacho.html`（HTML 一枚。外から読みこむのは DotGothic16 フォントだけで、読めなくても遊べる）
-- 操作：「降下記録」「空欄」「ノークリップ」と同じ（状態行・「命令を作る」・十字キー・よく使う6ボタン・≡ メニュー・自動保存）
+- 操作：「ノークリップ」と同じ（状態行・「命令を作る」・十字キー・よく使う6ボタン・≡ メニュー・自動保存）
 - 文章：標準語。wiki の記事の内容を日本語で書き直している（引用ではなく翻案）。謎解きの組み立てはこのゲーム独自のもの
 
 ## 野帳のしくみ
@@ -36,7 +36,7 @@ wiki の記事は、同じ実体について版ごとに書いてあることが
    cp yacho/yacho.html /storage/emulated/0/Tasker/yacho/
    ```
 
-2. 「降下記録」と同じようにシーンを作り、WebView の Source を `file:///storage/emulated/0/Tasker/yacho/yacho.html` にする（Mode は `URI`。Allow Phone Access と Allow Universal Access はオン。シーン表示は Activity, Full Window）。
+2. シーンを作り、WebView の Source を `file:///storage/emulated/0/Tasker/yacho/yacho.html` にする（Mode は `URI`。Allow Phone Access と Allow Universal Access はオン。シーン表示は Activity, Full Window）。
 
 ### Tasker を使わずに開く
 

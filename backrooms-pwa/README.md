@@ -1,17 +1,15 @@
 # 階層目録
 
-Backrooms のテキストアドベンチャー5本を、起動画面から選んで遊べるようにしたアプリ（PWA）。
-Chrome で「インストール」すると、ホーム画面のアイコンから開ける。記録 01〜04 は、もとの版より階層を深く、難しくし、目的が分からないように作り直している。記録 05 は、利用者の物語をもとに新しく作った。演出は、階層ごとに画面全体の色が変わり、走査線・ネオンの格言・背景の線画・bytebeat の音・揺れ・振動が出る。
+Backrooms のテキストアドベンチャー3本を、起動画面から選んで遊べるようにしたアプリ（PWA）。
+Chrome で「インストール」すると、ホーム画面のアイコンから開ける。記録 01・02 は、もとの版より階層を深く、難しくし、目的が分からないように作り直している。記録 03 は、利用者の物語をもとに新しく作った。演出は、階層ごとに画面全体の色が変わり、走査線・ネオンの格言・背景の線画・bytebeat の音・揺れ・振動が出る。
 
 | 札 | ゲーム | ファイル | 状態 |
 |---|---|---|---|
-| 記録 01 | 降下記録 | `games/tane-wo-niru.html` | 強化済み（Level 0〜11） |
-| 記録 02 | 空欄 | `games/kuuran.html` | 強化済み（裏側 7か所、結末 5） |
-| 記録 03 | ノークリップ | `games/noclip.html` | 強化済み（Level 0〜11・37・Fun・!・433 N、結末 6） |
-| 記録 04 | 野帳 | `games/yacho.html` | 強化済み（Level 0〜11・433 N・444 N、結末 17） |
-| 記録 05 | 未定稿 | `games/miteiko.html` | 新作（地上・地下・黄色い部屋・箱と四つの層・吊り橋・海の底、結末 5） |
+| 記録 01 | ノークリップ | `games/noclip.html` | 強化済み（Level 0〜11・37・Fun・!・433 N、結末 6） |
+| 記録 02 | 野帳 | `games/yacho.html` | 強化済み（Level 0〜11・433 N・444 N、結末 17） |
+| 記録 03 | 未定稿 | `games/miteiko.html` | 新作（地上・地下・黄色い部屋・箱と四つの層・吊り橋・海の底、結末 5） |
 
-記録 01〜04 のもとの版（`tane-wo-niru/` `kuuran/` `noclip/` `yacho/`）はそのまま残してある。こちらは別の保存場所を使うので、もとの版の続きとはつながらない。
+記録 01・02 のもとの版（`noclip/` `yacho/`）はそのまま残してある。こちらは別の保存場所を使うので、もとの版の続きとはつながらない。
 
 ## インストールのしかた（スマホだけでできる）
 
@@ -45,7 +43,7 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 
 ## 設定
 
-起動画面の下に「音」「振動」「動き」の切り替えがある。5本のゲームでも同じ設定が使われる（localStorage の `bpwa.settings`）。「動き」を切ると、揺れ・明滅・背景の動きが止まる。端末の「視覚効果を減らす」設定がオンのときも止まる。
+起動画面の下に「音」「振動」「動き」の切り替えがある。3本のゲームでも同じ設定が使われる（localStorage の `bpwa.settings`）。「動き」を切ると、揺れ・明滅・背景の動きが止まる。端末の「視覚効果を減らす」設定がオンのときも止まる。
 
 ## 中身
 
@@ -53,7 +51,7 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 |---|---|
 | `index.html` | 起動画面。札を押すとゲームへ。各ゲームの結末の数・いちばん深い階層・周回数を札に出す |
 | `fx.js` | 共通の演出。蛍光灯のうなりと階層ごとの環境音（15種）、効果音（20種）、鼓動、背景の線画（13星座・波形・海・洞窟の雫・住宅地・麦畑・街など）、走査線、ネオンの格言、揺れ、閃光、停電、記録映像ふうの表示、bytebeat の音、振動（タップしたときの音は出さない） |
-| `games/*.html` | 5本のゲーム。どれも HTML 一枚で、`../fx.js` を読む（読めなくても遊べる） |
+| `games/*.html` | 3本のゲーム。どれも HTML 一枚で、`../fx.js` を読む（読めなくても遊べる） |
 | `manifest.webmanifest` | アプリの名前・アイコン・色 |
 | `sw.js` | オフラインでも開けるようにする仕組み（Service Worker）。ファイルを足したら `FILES` に足し、`VERSION` を上げる |
 | `icons/` | アイコン（192px、512px、マスク用 512px） |
@@ -63,7 +61,7 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 
 ### ゲームと起動画面の約束
 
-- 保存：`localStorage["bpwa.<id>.state"]`（id は `koka` `kuuran` `noclip` `yacho` `miteiko`）。
+- 保存：`localStorage["bpwa.<id>.state"]`（id は `noclip` `yacho` `miteiko`）。
 - 札に出す要約：`localStorage["bpwa.<id>.meta"]` に `{"endings": [...], "total": 数, "deepest": "Level 11", "runs": 数, "updated": 時刻}`。
 - 各ゲームの ≡ メニューに「起動画面へ」がある。
 
@@ -77,85 +75,12 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 
 | ファイル | Tasker のシーンで開くときの保存先（変数） |
 |---|---|
-| `tane-wo-niru-standalone.html`（降下記録） | `/storage/emulated/0/Tasker/koka/koka-data.json`（`%KOKA`） |
-| `kuuran-standalone.html`（空欄） | `/storage/emulated/0/Tasker/kuuran2/kuuran2-data.json`（`%KUURAN2`） |
 | `noclip-standalone.html`（ノークリップ） | `/storage/emulated/0/Tasker/noclip2/noclip2-data.json`（`%NOCLIP2`） |
 | `yacho-standalone.html`（野帳） | `/storage/emulated/0/Tasker/yacho2/yacho2-data.json`（`%YACHO2`） |
 | `miteiko-standalone.html`（未定稿） | `/storage/emulated/0/Tasker/miteiko/miteiko-data.json`（`%MITEIKO`） |
 
-- 保存先は、もとの版（`Tasker/tane-wo-niru/`、`Tasker/kuuran/`、`Tasker/noclip/`、`Tasker/yacho/`）とは分けてあるので、もとの版の記録を上書きしない。
-- ゲームを直したら、`python3 build_standalone.py tane-wo-niru kuuran noclip yacho miteiko` で作り直す。
-
-## 降下記録（強化版）
-
-- 階層：Level 0〜11。Level 0〜6 は、もとの物語の骨組み（記憶のない始まり、配線の塊に「ヨル」と名前をつける、書いて電話をとる、豆を煮る決まりごと、空いた椅子と「わからない」）を残したまま、Backrooms Wiki の各レベルの設定で作り直した。Level 7（海）、8（洞窟）、9（夜の住宅地）、10（麦畑）、11（眠らない街）を足した。
-- 増えた仕組み：孤立効果とうなりの高まり（Level 0）、M.E.G. の詰所跡（Level 1）、熱と果てのない黒（Level 2）、点検表（Level 3）、給水器のアーモンド水と塗られていない窓（Level 4）、ビバリールームとボイラー室（Level 5）、点かない懐中電灯と押してはいけないスイッチ（Level 6）、息（海の中）、懐中電灯の電池、ゲームごとに変わる迷路の正解・扉・家の特徴、実体（Deathmoths、Skin-Stealer、Smilers、Hounds、引っかき傷で警告する盲目の実体ほか）、長居の罰。
-- 音：部屋ごとに環境音が変わり、扉・物・実体の前ぶれに効果音が鳴り、出来事に合わせて蛍光灯がちらつく。足音は別の階に着いたときだけ。
-- 「わからない」は 3回目から正気が減り、深い階では答えが遠回しになる。遊び方の説明は操作だけ。
-- 結末は5つ。どれが正解かは、どこにも書いていない。
-- 深い階の管理室に「五台の分析機」が「あなた」を標本にしている記録がある。利用者が渡した五つの分析レポートの要点を、名前などを出さずに書き下ろした。
-
-<details>
-<summary>降下記録の攻略（ネタばれ）</summary>
-
-| id | 結末 | 条件 |
-|---|---|---|
-| wake | 目を開ける | Level 6：空いた椅子に座って「わからない」 |
-| swap | 交代した | Level 6：人影に触る、照明のスイッチを二度押す、または静かな部屋で正気 0 |
-| field | 麦の家 | Level 10：納屋で二度眠る |
-| exit | 番号のない出口 | Level 11：バリケードを二度越えようとする |
-| sleep | 消灯 | Level 11：312号室で眠る |
-
-- Level 0：耳をすまし、うなりの強い方角へ進みつづける（遠ざかりつづけると赤い部屋、穴の部屋で下へ行くと落ちる）→ 灯りの消えた区画で濡れた紙切れを読む → 下。
-- Level 1：北（詰所）→ ロッカーを開け、懐中電灯・手袋・バールを取る → 南 → 木箱を開けてアーモンド水 → 東 → 手袋を身につけ、断熱扉を開ける → 東 → 霜のない箱を開けて鍵を取る（灯りが消える。懐中電灯を点ける）→ 西×3 → 鍵を鍵穴に入れる → 下。
-- Level 2：東 → バルブを閉める → 錆びた缶を開けて手紙を取る → 西 → 北×3 → 配線の塊に名前をつける → 下（窓のある扉は開けない）。
-- Level 3：どれかの変電室の扉を開ける → 点検する場所を一度ずつ確かめる（二度目は場所が増える）→「もういい」と言う → 西 → 札のない扉を開ける → 下（黒い管に触らない、通路で立ち止まらない）。
-- Level 4：東・東（会議室）→ 白い紙と鉛筆を取る → 西 → 北（給湯室）→ 耳をすます → 書く → 南・西 → 内線電話を取る → 下（塗られていない窓に近づかない）。
-- Level 5：北（ビバリールーム）→ 耳をすまし、機械の音がする壁の扉へ（ボイラー室）→ 懐中電灯を消す → 豆の袋を鍋に入れる → かき混ぜる×6（振り向かない、声を出さない、止めない）→ 炉の火を消す → 下。
-- Level 6：北 → 原稿を読む → 南 → 下（波の音のほう）。ここで空いた椅子に座って「わからない」なら結末「目を開ける」、人影に触れるかスイッチを二度押すと「交代した」。
-- Level 7：呼び鈴を取る → 東（落ちる）→ 息を吸う → 下 → 呼び鈴を鳴らす → 下・下・下 → 懐中電灯を点ける → 下 → 北。
-- Level 8：東 → リュックを開け、電池を取って懐中電灯に入れる（手帳・カメラも）→ 西 → 北 → 各段で標識を読み、矢印の方角へ（番号はでたらめ。翅の段では灯りを消してから進み、引っかき傷の段では待つ）→ 道の終わりで待つ・待つ。
-- Level 9：三軒の家を調べ、一軒だけ違う家に入る（引き出しの電池、冷蔵庫の水）→ 北 → 灯りを消して白い歯を見つめる → 北 → 唸り声が聞こえたらすぐ隠れる → 東（チョークの絵のとおり草の中へ）。
-- Level 10：麦を取る → 北（納屋）→ 西・西・西・西。
-- Level 11：北 → 東 → 東 → 郵便受けを開けて 312の鍵を取る（自販機の水も）→ 上 → 312の扉を開ける → 分電盤を押す → カーテンを閉める → 麦の穂（または戸棚を開ける・閉める・開けるで届く豆の袋）を小鍋に入れる → コンロを点ける → かき混ぜる×6（戸を叩かれても開けない・答えない）→ 火を消す → 眠る。
-- 管理室の十三星座盤を回すと月がそろい、正気が戻る。
-
-</details>
-
-## 空欄（強化版）
-
-- もとの骨組み（白い部屋、613 のファイルと五つの欄、曜日が進むこと、校舎の決まり、インコと公衆電話、体温、日曜の配達員と「613」か「　」）を残したまま、建物と「裏側」を Backrooms Wiki と JP Wiki の設定で作り直した。
-- 白いのは 613 の部屋だけ。扉の外の建物は夜で、病棟・喫煙所・喫茶・校舎・音楽室・屋上・図書室・土手で配色がはっきり変わる。
-- 建物の中：誰ともすれ違わない病棟（孤立効果）、前の人たちの「申し送りノート」、土曜にだけ来る看護師（職員のふりをする Skin-Stealer）、喫煙所の顔のない三人（Facelings）、アーモンドの匂いの水割り、並びに理由のない校舎と二階（JP Level 2 N 風。家庭科室の顔のない子どもたち、図画工作室の笑った風船）。
-- 裏側（すり抜けた先）：Level 37（白いタイルのプール）、Level 4（事務所）、Level 9（夜の住宅地）、Level 11（街）、Level Fun、Level 444 N（夕暮れの田園。バス停）。
-- 体温が上がると鼓動が鳴る。部屋ごとに環境音が変わり、扉・物・配達員のベル・公衆電話・実体の前ぶれに効果音が鳴る。
-- 「わからない」は1日3回までで、聞くたびに体温が上がる。遊び方の説明は操作だけ。結末は5つで、どれが正解かは書いていない。
-
-<details>
-<summary>空欄の攻略（ネタばれ）</summary>
-
-| id | 結末 | 条件 |
-|---|---|---|
-| number | 受け取った | 日曜、配達員に「613」と答える |
-| blank | 空欄 | 日曜、配達員に「　」と答える |
-| pool | 浮かぶ | 五つの欄が埋まった状態で 615 → 寝る×2 |
-| face | 顔 | Level 11 の大通りで待つ×3 |
-| dusk | 夕焼け | 五つの欄が埋まったあと、日曜に校舎 → 理科室の前から東 → Level 444 N → 東のバス停 → 座る×2 |
-
-1. 木曜：ベッドを調べる → 北 → 西（申し送りノートを読む）→ 東 → 北 → 西 → 待つ（皆が壁を向く）→ 鍵束を取る → 警備員室の扉を開ける → 北 → DVDプレーヤーを押す → 冷蔵庫を開ける →「エンドロールだけの映画」と言う。
-2. 南 → 東 → 東 → スイッチを押す → 弦を取る → 西 → 南 → 611 の扉を開ける → 蛍光灯を消す → 耳をすます。
-3. 東 → 東 → 東 → 下 → 鉛筆を取る → 上 → 北（校舎で走る・押す・しゃべると怪物が来て、言葉が分かる）→ 東（教室）→ チョークを取る →「おさない」「はしらない」「しゃべらない」と書く → 答案用紙を取る。
-4. 西 → 北 → 東 → ケースを開ける → 弦をバイオリンに入れる → 弾く →「きれい」→「帰る」。
-5. 正面玄関のガラスに額をぶつけて 37.0〜37.4℃ にする → 615 を開ける → 夢を書く（どれでもよい）→ 下。
-6. 詰所で Scroll Lock を押す → 待つ×2 → 返却口の硬貨を取る → 東 → 笑う顔を調べる → 東 → 待つ → 下。
-7. 寝る → 月曜：鏡の破片を取る → 理科室の鍵穴を調べる → のりを取る → パンフレットを折る → 破片を調べる → 寝る。
-8. 水曜：配達員のあとで 616 を開ける → しゃべらない家で皿を食べる → 標識を調べて矢印のとおりに×3 → 売店で硬貨を店番に渡す → 東 → 北 → 詰所で日曜の紙をカレンダーに貼る。
-9. 視聴覚室で質問を3回言う → 食べた料理を言う → 白い部屋で寝る。
-10. 日曜：正面玄関から北 → 配達員に「613」か「　」。
-
-- 寄り道：二階の泣いている子に、光る音符・水筒・硬貨のどれかを渡すと、料理の味を知れる。二階の風船 → Level Fun（裏返しのポスター → Level 4、手すりから下 → Level 37）。土曜の詰所は2手以内に出る。外階段は走って上ると屋上 → 天窓を開ける（熱が下がる）。
-
-</details>
+- 保存先は、もとの版（`Tasker/noclip/`、`Tasker/yacho/`）とは分けてあるので、もとの版の記録を上書きしない。
+- ゲームを直したら、`python3 build_standalone.py noclip yacho miteiko` で作り直す。
 
 ## ノークリップ（強化版）
 
@@ -240,7 +165,7 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 - 文章はそのまま使わず、言い換えた。ゲームの文字列と物語の本文を機械で照らし合わせ、同じ並びが 10 字以上続く箇所がないこと、作品の題名（3字以上）がゲームの中にないことを確かめた（9字以下の一致は「鍵がかかっている」のような、ありふれた言い回しだけ）。
 - 一つの物語を一つの部屋に当てず、いくつもの物語の像を混ぜて部屋にしている。
 - 自殺・自傷・性暴力・虐待・殺人が中心の作品、実在の事件をなぞった作品、福祉施設や支援の現場に近い作品は使っていない。
-- 「空欄」「六一三号室」など、前に物語から作ったゲームで使った像（鍵穴、喫煙所の三人、避難訓練、冥界の喫茶店、鉄の球、山羊など）は避けた。
+- 「六一三号室」など、前に物語から作ったゲームで使った像（鍵穴、喫煙所の三人、避難訓練、冥界の喫茶店、鉄の球、山羊など）は避けた。
 - 物語に由来する部分の扱い（どこまで公開するか、ライセンス）は、利用者が決める。黄色い部屋の設定は Backrooms Wiki「Level 0 "Threshold"」（CC BY-SA 3.0）による。
 
 <details>
@@ -267,51 +192,6 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 ## もとにしたものとライセンス
 
 The Backrooms は、2019年に匿名掲示板 4chan に投稿された黄色い部屋の写真と、「現実からすり抜けると、ここに出る」という書きこみから広まった共同創作。このアプリの各ゲームは、Backrooms Wiki の記事の内容を日本語に翻案した部分を含む。もとの記事のライセンス（CC BY-SA 3.0）に合わせて、`backrooms-pwa/` の中身も **CC BY-SA 3.0**（https://creativecommons.org/licenses/by-sa/3.0/ ）で公開する。
-
-### 降下記録で使った Backrooms Wiki の記事
-
-| 記事 | 作者（各ページの「Cite this page as」の表記） |
-|---|---|
-| [Level 0 - "Threshold"](https://backrooms-wiki.wikidot.com/level-0) | DivineAtlas, DrAkimoto, and RobertGoerman |
-| [Level 1 - "Habitable Zone"](https://backrooms-wiki.wikidot.com/level-1) | Praetor3005 and DivineAtlas |
-| [Level 2 - "Abandoned Utility Halls"](https://backrooms-wiki.wikidot.com/level-2) | Greggita Mahayfaio |
-| [Level 3 - "Electrical Station"](https://backrooms-wiki.wikidot.com/level-3) | Natedagreat563 |
-| [Level 4 - "Abandoned Office"](https://backrooms-wiki.wikidot.com/level-4) | u/M654zy on Reddit |
-| [Level 5 - "Terror Hotel"](https://backrooms-wiki.wikidot.com/level-5) | Stretchsterz |
-| [Level 6 - "Lights Out"](https://backrooms-wiki.wikidot.com/level-6) | Bart0nius |
-| [Level 7 - "Thalassophobia"](https://backrooms-wiki.wikidot.com/level-7) | Bart0nius |
-| [Level 8 - "Cave Systems"](https://backrooms-wiki.wikidot.com/level-8) | C-Graph and kai4C |
-| [Level 9 - "The Suburbs"](https://backrooms-wiki.wikidot.com/level-9) | Stretchsterz |
-| [Level 10 - "Bumper Crop"](https://backrooms-wiki.wikidot.com/level-10) | scutoid studios & egglord |
-| [Level 11 - "The City That Never Sleeps"](https://backrooms-wiki.wikidot.com/level-11) | Greggita Mahayfaio, inspired by the original Level 11 by nerdykiddo4884 |
-| [Entity 3 - "Smilers"](https://backrooms-wiki.wikidot.com/entity-3) | Palico22, rewritten by Stretchsterz |
-| [Entity 4 - "Deathmoths"](https://backrooms-wiki.wikidot.com/entity-4) | DrAkimoto |
-| [Entity 8 - "Hound"](https://backrooms-wiki.wikidot.com/entity-8) | Palico 22, rewritten by 1000dumplings |
-| [Entity 10 - "Skin-Stealer"](https://backrooms-wiki.wikidot.com/entity-10) | Original author is AndromedaMapping1; Rewritten by 1000dumplings |
-| [Object 1 - "Almond Water"](https://backrooms-wiki.wikidot.com/object-1) | Natedagreat563 |
-| [The M.E.G.](https://backrooms-wiki.wikidot.com/the-m-e-g) | Greggita Mahayfaio, Natedagreat563, Orb1t41, Poliacci, Positive123, Praetor3005, Robert Goerman, Reyday, Snomwriting and Squibblezombie |
-
-- 記事は 2026年10月に、利用者が保存したページの本文で読んだ。wiki のページは書き直されることがあり、今の版と食い違うところがあるかもしれない。
-- 記事にない細かい決まりごと（ヨル、点検表、豆を煮る決まりごと、九番目の道の迷路、息の数え方、312号室の手順など）は、このゲームで足したもの。
-
-### 空欄で使った Backrooms Wiki の記事
-
-| 記事 | 作者（各ページの「Cite this page as」の表記） |
-|---|---|
-| [Level 0 - "Threshold"](https://backrooms-wiki.wikidot.com/level-0) | DivineAtlas, DrAkimoto, and RobertGoerman |
-| [Level 4 - "Abandoned Office"](https://backrooms-wiki.wikidot.com/level-4) | u/M654zy on Reddit |
-| [Level 9 - "The Suburbs"](https://backrooms-wiki.wikidot.com/level-9) | Stretchsterz |
-| [Level 11 - "The City That Never Sleeps"](https://backrooms-wiki.wikidot.com/level-11) | Greggita Mahayfaio, inspired by the original Level 11 by nerdykiddo4884 |
-| [Level 26 - "The SS Fun =)"](https://backrooms-wiki.wikidot.com/level-26) | Robert Goerman and MC_Crafter_24_7 |
-| [Level 37 - "Sublimity"](https://backrooms-wiki.wikidot.com/level-37) | egglord |
-| [Entity 3 - "Smilers"](https://backrooms-wiki.wikidot.com/entity-3) | Palico22, rewritten by Stretchsterz |
-| [Entity 9 - "Facelings"](https://backrooms-wiki.wikidot.com/entity-9) | Original co authors: Jo and Higher Being Love Cereal!. Original collaborators: Backrooms explorers Reddit. Author of first rewrite: 1000dumplings. Author of current rewrite: Nikuchan |
-| [Entity 10 - "Skin-Stealer"](https://backrooms-wiki.wikidot.com/entity-10) | Original author is AndromedaMapping1; Rewritten by 1000dumplings |
-| [Entity 67 - "Partygoers =)"](https://backrooms-wiki.wikidot.com/entity-67) | Robert Goerman and MC_Crafter_24_7 |
-| [Object 1 - "Almond Water"](https://backrooms-wiki.wikidot.com/object-1) | Natedagreat563 |
-| [The M.E.G.](https://backrooms-wiki.wikidot.com/the-m-e-g) | Greggita Mahayfaio, Natedagreat563, Orb1t41, Poliacci, Positive123, Praetor3005, Robert Goerman, Reyday, Snomwriting and Squibblezombie |
-
-- 空欄で参考にした JP Wiki の記事：「Level 2 N」（https://japan-backrooms-wiki.wikidot.com/level-2-n ）、「Level 444 N」（https://japan-backrooms-wiki.wikidot.com/level-444-n ）。場所の設定だけを借り、文章は使っていない（ライセンスの表記は未確認）。
 
 ### ノークリップで使った Backrooms Wiki の記事
 
@@ -362,14 +242,11 @@ The Backrooms は、2019年に匿名掲示板 4chan に投稿された黄色い�
 - 日本語版ウィキペディア「リミナルスペース」「アナログホラー」：The Backrooms の始まり（2019年の投稿、2022年からの Kane Pixels の映像）を確かめるのに使った。
 - 利用者が渡した zip（Backrooms-Database-Archives）にあった実体：ライセンスの表記がないので、名前も文章も使わず、「壁の引っかき傷の警告 → 止まって黙る」という仕掛けの発想だけを使った。
 - Internet Archive にある Backrooms の記録映像：ビデオカメラの記録の見た目（`FX.vhs`）の参考にした。
-- 演出の水準は、利用者が別の AI で作った派手版の「降下記録」に合わせた。派手版の物語の文章は使っていない。
 
 
 ## 確認したこと
 
 - 起動画面：Playwright（Chromium、幅 390px）で開き、エラーが出ないこと、Service Worker が登録されること、オフラインでも開けること、Chrome がインストールできると判定すること（試験用の画面ではシークレット扱いになるので、その理由だけが出た）を確かめた。
-- 降下記録：Playwright で、5つの結末すべてに命令だけでたどり着けること、Level 0〜11 を全部通ること、21種類の失敗が前ぶれのあとで起き、そのあとも遊び続けられること、ランダムな命令 36,000 回で例外が出ないこと、幅 360px でも ≡ が押せること、古い保存があっても壊れずにはじめからになることを確かめた。
-- 空欄：Playwright で、5つの結末すべてに命令だけでたどり着けること、裏側と新しい部屋を通ること、13種類の失敗が前ぶれのあとで起き、翌朝から続けられること、ランダムな命令 72,000 回で例外が出ないこと、fx.js が読めなくても遊べること、古い保存（一つ前の版）から続きを遊べることを確かめた。
 - ノークリップ：6つの結末すべてに命令だけでたどり着けること（道筋を変えて各結末 250〜300回）、18種類の失敗に前ぶれがあり続けて遊べること、ランダムな命令 75,000 回以上で例外が出ないこと、ゲーム本体（ENGINE）が画面やブラウザの機能に触らないこと、古い保存が壊れないことを確かめた。
 - 未定稿：Playwright（Chromium、幅 390px）で、5つの結末すべてに命令だけでたどり着けること、暗闇で消される・弁の順を間違える・願いを口にする・壁をすり抜ける・立入禁止の扉・小部屋に閉じこめられるなどの失敗のあとも遊び続けられること、回収人が盗んだ物が古本の部屋に移ること、ランダムな命令 72,000 回（地上・地下・箱・各層から始めて）で例外が出ないこと、fx.js がなくても遊べること、起動画面の札に結末の数と最深の層が出ることを確かめた。
 - 野帳：17の結末と 433 N・444 N を通る道筋（20通り）に命令だけでたどり着けること、23種類の失敗に前ぶれがあり続けて遊べること、ランダムな命令 130,000 回で例外が出ないこと、時計版の切り出し（`yacho-watch/tools/build-engine.js`）がこの版でもエラーなく動くことを確かめた（時計版は今も `yacho/yacho.html` から作っている）。
