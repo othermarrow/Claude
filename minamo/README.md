@@ -235,7 +235,7 @@ cp /storage/emulated/0/Download/*.txt ~/minamo/library/   # 本の txt がある
 - 初回は全部を読んで整えるので待つ。開発環境では、本 48 冊とノート約 3,900 件で 3.5 秒。スマホでは数倍かかると思う。結果を `~/.cache/minamo/library.json`（約 23MB）に取っておき、2 回目からは 0.2 秒。本やノートを足したり書き換えたりすると作り直す。
 - 本は OCR の文字間の空白を詰め、読める文の段落だけを使う。文字化けの多い段落は落とすが、残ることもある。そのときはミナモに無視するよう指示している。
 - ノートは、前書き（`---`）・見出し・囲み（`> [!abstract]`）・リンク・出典番号・表・出典の節を除いた地の文だけを使う。
-- 次の名前を含むフォルダは読まない（`SKIP_DIRS`）：`仕事用`・`Abstract`・`Terminal`・`LLM`・`zork用`・`索引`・`管理`・`出典`。Vault 全体を指したときにも効く。`Support` は読んでよいことになったので外した（`Support` の中の新版 K 式の通過年齢の一覧は、検査の資料なので `EXCLUDE_MARKERS` の「K式」で外す）。
+- 次の名前を含むフォルダは読まない（`SKIP_DIRS`）：`仕事用`・`Abstract`・`Terminal`・`LLM`・`索引`・`管理`・`出典`。Vault 全体を指したときにも効く。`Support` は読んでよいことになったので外した（`Support` の中の新版 K 式の通過年齢の一覧は、検査の資料なので `EXCLUDE_MARKERS` の「K式」で外す）。
 - 一節を添えるのは解釈の段階からで、確率は段階ごとに 50%・80%・90%（`LIBRARY_CHANCE`）。一節は会話の履歴に残さない。
 - PWA 版では、どの本の一節を使ったかが Termux の画面に出る（ミナモの画面には出ない）。
 
@@ -524,7 +524,7 @@ minamo --horror 0          # 怖さを決めて始める（0 なし・1 弱・2 
 minamo --no-probe          # 起動時の AI の一括チェックをしない
 minamo --no-env            # ユーザー名・機種・電池を渡さない（時刻は渡す）
 minamo --no-karte          # 紹介状を読ませない
-minamo --library DIR       # 蔵書のフォルダ（何度でも。既定 ~/minamo/library と Vault/心理学 と Vault/Support）
+minamo --library DIR       # 蔵書のフォルダ（何度でも。既定 ~/minamo/library と Vault/心理学 と Vault/Support と Vault/zork）
 minamo --no-library        # 蔵書を使わない
 minamo --backend gemini    # Gemini を使う（NVIDIA のキーもあるとき）
 minamo --model nvidia/nemotron-3-ultra-550b-a55b     # NVIDIA の別のモデル（大きく質が高いが遅め）
@@ -565,7 +565,7 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 | `PROBE_ON_START` | `True` | 起動時に一括チェックするか（`--no-probe` で止める） |
 | `PROBE_TIMEOUT` | 5 | 一括チェックで待つ秒数 |
 | `NVIDIA_FALLBACKS` | `nemotron-3-super-120b-a12b`・`nemotron-3-ultra-550b-a55b` | 既定のモデルが使えないときに、順に試す代わり |
-| `LIBRARY_DIRS` | `~/minamo/library`・`/storage/emulated/0/Vault/心理学`・`/storage/emulated/0/Vault/Support` | 蔵書として読むフォルダ |
+| `LIBRARY_DIRS` | `~/minamo/library`・`Vault/心理学`・`Vault/Support`・`Vault/zork`（Vault は `/storage/emulated/0/Vault`。動かしたら環境変数 `MINAMO_VAULT` で指す） | 蔵書として読むフォルダ。`Vault/zork` は利用者が自分で書いた文章（`yagi_bungaku` など）で、フォルダごと読む |
 | `COUNT_SILENCE` | `False` | 沈黙の秒数を数えるか（`--count-silence` で数える） |
 | `SILENCE_SEC` | 60 | 数えるとき、黙っているとミナモが話しかけるまでの秒数 |
 | `LOCAL_URL` | `http://127.0.0.1:8090/v1/chat/completions` | 端末の中の AI |

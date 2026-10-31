@@ -38,7 +38,7 @@ EXCLUDE_MARKERS = [
 ]
 # 名前にこれを含むフォルダは読まない（「.」で始まるフォルダも読まない）。
 # Vault 全体を指したときに、職場の資料やコード、索引が混ざらないようにする。
-SKIP_DIRS = ["仕事用", "Abstract", "Terminal", "LLM", "zork用",
+SKIP_DIRS = ["仕事用", "Abstract", "Terminal", "LLM",
              "索引", "管理", "出典", "Templates", "テンプレート"]
 # この言葉を含む段落は使わない
 BLOCK_WORDS = ["自殺", "自死", "希死", "自傷", "リストカット", "縊", "飛び降り",

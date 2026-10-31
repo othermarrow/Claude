@@ -23,7 +23,8 @@ import threading
 import time
 
 # 書き置きの置き場所。親のフォルダ（Vault/LLM）がなければ、書き置きはしない
-OUTSIDE_DIR = os.environ.get("MINAMO_OUTSIDE_DIR") or "/storage/emulated/0/Vault/LLM/ミナモ"
+OUTSIDE_DIR = (os.environ.get("MINAMO_OUTSIDE_DIR")
+               or (os.environ.get("MINAMO_VAULT") or "/storage/emulated/0/Vault") + "/LLM/ミナモ")
 STATE_FILE = os.path.expanduser("~/minamo/outside.json")
 NOTIFY_DELAY = (10 * 60, 30 * 60)          # 面接が終わってから通知までの秒数（この間のどこか）
 SENSE_CACHE = 30                           # 光センサーを読み直すまでの秒数
