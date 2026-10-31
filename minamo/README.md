@@ -560,10 +560,10 @@ minamo --no-library        # 蔵書を使わない
 minamo --backend gemini    # Gemini を使う（NVIDIA のキーもあるとき）
 minamo --model nvidia/nemotron-3-ultra-550b-a55b     # NVIDIA の別のモデル（大きく質が高いが遅め）
 minamo --backend gemini --model gemini-2.5-pro
-minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を変える
+minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を変える（PWA 版は serve.sh --records ...）
 ```
 
-記録は既定で `~/minamo/records/年月日-時分秒.md` に保存される。Obsidian で読むなら `--records` で Vault の中を指定する。
+記録は既定で Vault の `/storage/emulated/0/Obsidian/Vault/LLM/log/年月日-時分秒.md` に保存される（Obsidian で読める。環境変数 `MINAMO_RECORDS` か `--records` で変えられる）。Vault に書けないとき（ストレージの許可がない・Vault がない）は、`~/minamo/records/` に保存する。`LLM` フォルダは蔵書として読まないので、ミナモが自分の記録を引くことはない。
 
 ## ファイル
 

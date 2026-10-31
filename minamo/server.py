@@ -92,8 +92,7 @@ def clean_contents(raw):
 
 
 def save_record(markdown):
-    os.makedirs(minamo.RECORD_DIR, exist_ok=True)
-    path = os.path.join(minamo.RECORD_DIR, f"{dt.datetime.now():%Y%m%d-%H%M%S}.md")
+    path = minamo.record_path(f"{dt.datetime.now():%Y%m%d-%H%M%S}.md")
     with open(path, "w", encoding="utf-8") as f:
         f.write(markdown)
     return path

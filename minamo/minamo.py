@@ -98,9 +98,11 @@ KEYS_FILES = [KEYS_FILE, os.path.expanduser("~/.config/research_bot/keys.env")]
 # 紹介状の束。手元に置いたものがあればそちらを優先する。
 KARTE_FILES = [os.path.expanduser("~/.config/minamo/karte.txt"),
                os.path.join(os.path.dirname(os.path.abspath(__file__)), "karte.txt")]
-RECORD_DIR = os.path.expanduser("~/minamo/records")
 # Obsidian の Vault の場所（Vault を動かしたら、環境変数 MINAMO_VAULT か --library で）
 VAULT = os.environ.get("MINAMO_VAULT") or "/storage/emulated/0/Obsidian/Vault"
+# 面接記録の保存先：Vault の LLM/log（Obsidian で読める）。書けないとき（Vault がない・権限がない）は ~/minamo/records
+RECORD_FALLBACK = os.path.expanduser("~/minamo/records")
+RECORD_DIR = os.environ.get("MINAMO_RECORDS") or VAULT + "/LLM/log"
 # 蔵書として読むフォルダ（無いものは飛ばす）。本の txt と、Vault の心理学ノート・Support・zork
 # （zork は利用者が自分で書いた文章。yagi_bungaku など、フォルダごと読んでよいと言われている）
 LIBRARY_DIRS = ["~/minamo/library", VAULT + "/心理学", VAULT + "/Support", VAULT + "/zork"]
@@ -1058,8 +1060,7 @@ class Session:
     def save(self, findings):
         if not self.log:
             return None
-        os.makedirs(RECORD_DIR, exist_ok=True)
-        path = os.path.join(RECORD_DIR, f"{self.started:%Y%m%d-%H%M%S}.md")
+        path = record_path(f"{self.started:%Y%m%d-%H%M%S}.md")
         with open(path, "w", encoding="utf-8") as f:
             f.write(f"# 面接記録 {self.started:%Y-%m-%d %H:%M}\n\n")
             for who, text in self.log:
@@ -1070,6 +1071,20 @@ class Session:
             if findings:
                 f.write("## 所見\n\n" + findings.replace("[間]", "……") + "\n")
         return path
+
+
+def record_path(name):
+    """面接記録を書く場所。RECORD_DIR に書けなければ RECORD_FALLBACK に。"""
+    for d in (RECORD_DIR, RECORD_FALLBACK):
+        try:
+            os.makedirs(d, exist_ok=True)
+            path = os.path.join(d, name)
+            with open(path, "a", encoding="utf-8"):
+                pass
+            return path
+        except OSError:
+            continue
+    raise OSError("記録の保存先に書けません: " + RECORD_DIR)
 
 
 def library_note(library, query, phase_idx, horror=None):
