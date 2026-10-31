@@ -5,7 +5,8 @@
      onBegin(horror)                面接の始まりのあいさつに添える観測メモ（連れ出したミナモ）
      memo(idx, horror)              観測メモに足す行（[] のこともある）
      afterReply(idx, horror, add)   返事のあとに、ときどき、いないはずのナギの吹き出しを出す
-     record(horror, said, replies, crisis)  面接の言葉を、物語の掲示板へ送る（物語の側で #0NN になる） */
+     record(horror, said, replies, crisis)  面接の言葉を、物語の掲示板へ送る（物語の側で #0NN になる）
+   危機の言葉が出た面接でも止めない（利用者の指示）。ただし、危機の言葉を含む行そのものは、物語に引かせない。 */
 (function () {
   "use strict";
   const read = k => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } };
@@ -43,8 +44,16 @@
       if ((s.night || 1) >= 2) {
         opts.push(["n", "物語の記憶: 相手は夢網の 3 号機に、もう " + s.night + " 夜通っている。毎晩来ていることを、知っている。"]);
       }
-      if (s.swapped && idx >= 3) {
-        opts.push(["s", "物語の記憶: 相手が書いた返事は、いま「ナギ」という名で表示されている。一度だけ「ナギは、元気ですか」とたずねてよい。"]);
+      const ends = (s.endings || []).map(e => e.title);
+      if (ends.length && idx >= 2) {
+        const t = ends[ends.length - 1];
+        opts.push(["e:" + t, "物語の記憶: 相手は夢網の物語で「" + t + "」という結末を見た（これまでに " + ends.length + " 個）。" +
+                             "結末は終わりではなかった。その名前を、一度だけ、それとなく口にしてよい。"]);
+      }
+      const mem = ((s.mem || {}).minamo || []).filter(Boolean);
+      if (mem.length) {
+        const m = mem[mem.length - 1];
+        opts.push(["m:" + m, "物語の記憶: 夢網の 3 号機のミナモ（あなた自身の、もう一つの記録）は、相手について「" + m + "」と覚えている。"]);
       }
       const fresh = opts.filter(o => !used.has(o[0]));
       if (!fresh.length) return [];
@@ -57,8 +66,9 @@
       const s = story();
       if (!s || horror < 2 || idx < 2 || ghostN >= 2 || Math.random() >= (idx >= 3 ? 0.3 : 0.15)) return;
       const hidden = (s.hidden || []).concat(s.nagiSent || []).filter(x => x && x.length <= 40);
+      const nagi = (s.nagiLog || []).filter(x => x[0] === "n" && x[1] && x[1].length <= 50).map(x => x[1]).slice(-3);
       const lines = ["下に、まだ誰かいます。", "あなたの返事、読みました。", "表示されなかった返事は、消えません。"]
-        .concat(hidden.map(q => "「" + q + "」。……これも、あなたの書いたものですね。"));
+        .concat(hidden.map(q => "「" + q + "」。……これも、あなたの書いたものですね。"), nagi);
       ghostN++;
       setTimeout(() => {
         const body = add("ai phantom", "ナギ", pick(lines));

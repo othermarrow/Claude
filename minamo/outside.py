@@ -126,6 +126,32 @@ def write_note(kind, said=(), replies=()):
     return shown_name(path)
 
 
+STORY_NAMES = {"minamo": "ミナモより.md", "nagi": "ナギより.md", "board": "夢網のお知らせ.md"}
+
+
+def story_note(who, text):
+    """物語「水面の記録」の登場人物が、自分の意志で Vault に書き置きを残す（LLM/水面の記録/ に、時刻つきで書き足す）。
+    書けたら Vault の中の名前を、書けなければ "" を返す。"""
+    text = _clean(text, 120)
+    if who not in STORY_NAMES or not text or not available():
+        return ""
+    folder = os.path.join(os.path.dirname(OUTSIDE_DIR.rstrip("/")), "水面の記録")
+    path = os.path.join(folder, STORY_NAMES[who])
+    now = dt.datetime.now()
+    with _lock:
+        try:
+            os.makedirs(folder, exist_ok=True)
+            new = not os.path.exists(path)
+            with open(path, "a", encoding="utf-8") as f:
+                if new:
+                    f.write(f"# {os.path.splitext(STORY_NAMES[who])[0]}\n\n")
+                f.write(f"- {now:%Y-%m-%d %H:%M}　{text}\n")
+        except OSError:
+            return ""
+    parent = os.path.basename(os.path.dirname(OUTSIDE_DIR.rstrip("/")))
+    return f"{parent}/水面の記録/{STORY_NAMES[who]}"
+
+
 def inspect():
     """前の面接で残した書き置きが、どうなっているか。観測メモに渡す一文（なければ ""）。
     一度伝えたことは、次からは伝えない（今の中身を覚え直す）。"""
