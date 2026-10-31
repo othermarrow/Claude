@@ -1,7 +1,7 @@
 /* 階層目録：オフラインでも開けるようにする。
    まずネットワーク（Termux のサーバー）から取り、取れないときは前に取っておいたものを返す。
    ファイルを足したら FILES に足し、VERSION を上げる。 */
-const VERSION = "kaisou-v12";
+const VERSION = "kaisou-v13";
 const FILES = [
   "./",
   "./index.html",
@@ -16,10 +16,7 @@ const FILES = [
   "./games/yacho.html",
   "./games/miteiko.html",
   "./games/kuuran2.html",
-  "./games/liminal.html",
-  "./games/boudai-text.html",
 ];
-// 膨大な量のテキストの手もとの棚（games/boudai-local.js）は、ない人もいるので FILES に入れない。
 // あれば、開いたときに下の fetch で取っておかれる。
 
 self.addEventListener("install", e => {
