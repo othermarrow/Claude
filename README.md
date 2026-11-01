@@ -16,4 +16,4 @@
 | [yacho-watch](yacho-watch/) | 「野帳」を Amazfit Balance 2 で遊ぶミニアプリ (Zepp OS) |
 | [backrooms-pwa](backrooms-pwa/) | 階層目録(上の4本を強化し、自分の物語から作った新作「未定稿」を足して、起動画面から選べるようにした、Chrome でインストールできるアプリ) |
 | [minamo](minamo/) | 旧式カウンセリングAI「ミナモ」と面接する心理ホラー(Termux、NVIDIA API か Gemini API) |
-| [minamo-watch](minamo-watch/) | 「ミナモ」を Amazfit Balance 2 へ連れ出すミニアプリ (Zepp OS) |
+| [minamo-watch](minamo-watch/) | 「ミナモ」を Amazfit Balance 2 へ連れ出すミニアプリ (Zepp OS)。スマホのミナモが動いていれば、Zepp アプリを通して脈とボタンが届き、返事はスマホの AI が考える |

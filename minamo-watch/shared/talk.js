@@ -75,6 +75,7 @@ export function createTalk(saved, r = Math.random) {
   return {
     state: s,
     phase,
+    turn: () => turn,
     phaseName: () => PHASES[phase()],
     // 始まり：初めてなら、研究室から手首へ連れ出されたことに。二回目からは、前回を覚えている
     start(obs) {

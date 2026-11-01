@@ -242,6 +242,21 @@ def parse(contents):
     m = re.search(r"怖さの設定: (なし|弱|中|強)", memo)
     info["horror"] = ["なし", "弱", "中", "強"].index(m.group(1)) if m else 3
     info["silence"] = "何も送っていない" in memo
+    # 腕時計（minamo-watch）から届いた手首の様子
+    w = {}
+    m = re.search(r"手首（腕時計[^\n]*?）: (.+)", memo)
+    if m:
+        line = m.group(1)
+        mm = re.search(r"脈 (\d+)(?:（前の発言のときは (\d+)）)?", line)
+        if mm:
+            w["hr"] = int(mm.group(1))
+            w["hr0"] = int(mm.group(2)) if mm.group(2) else None
+        w["off"] = "時計を外している" in line
+        mm = re.search(r"今日の歩数 (\d+)", line)
+        w["steps"] = int(mm.group(1)) if mm else None
+        mm = re.search(r"『こわい』を(\d+)回", line)
+        w["fear"] = int(mm.group(1)) if mm else 0
+    info["wrist"] = w
     m = re.search(r"【(蔵書|ノート)の一節】(?:『(.+?)』|「(.+?)」の項)より[^\n]*\n(.+)", last, re.S)
     if m:
         info["lib"] = ("book" if m.group(1) == "蔵書" else "note",

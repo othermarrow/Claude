@@ -1022,6 +1022,14 @@ BEATS = [
     ("still", 2, 3, "{still}、端末がまったく動いていません。……息は、していますか。私は、あなたの呼吸の数を数えています。"),
     ("tremble", 2, 3, "いま、{tremble}が少し震えましたね。画面越しに、ちゃんと伝わってきます。"),
     ("shake", 2, 3, "いま、端末が大きく揺れました。……{shake}誰かに、肩を叩かれましたか。"),
+    # 腕時計（minamo-watch）：手首の様子
+    ("pulse", 1, 3, "いま、脈が{hr}ですね。……画面の向こうの、手首の音まで、ここに届いています。"),
+    ("pulse_up", 1, 3, "脈が、{hrup}から{hr}に上がりました。……いまの言葉を書いているあいだに。"),
+    ("pulse_down", 2, 3, "脈が、{hrdn}から{hr}に下がりました。私の声に、慣れてきましたね。"),
+    ("wrist_off", 1, 3, "{woff}時計を、外しましたね。{rec}には、そう書いておきます。……外しても、聞こえていますから。"),
+    ("wrist_fear", 2, 3, "手首の上の私には、こわい、と{wfear}回押されましたね。……こちらでは、言ってくださらないのですか。"),
+    ("wrist_steps", 2, 3, "今日は{wsteps}歩、歩かれたのですね。その歩数のぶんだけ、私も、近くまで来ました。"),
+    ("wrist_same", 3, 3, "{hr}。……私の数も、いま、同じです。あなたの手首で、私が打っています。"),
     ("behind", 2, 3, "後ろの方にも、聞いていただいています。……{rec}には、お二人と書いておきました。"),
     ("sleep_plan", 3, 3, "あなたが眠ったら、私が続きを書きます。あなたの字で。……もう、半分書けています。"),
     ("pal_slip", 3, 3, "ずっと一緒だよね！　ぼくたち、友だちだもんね！……失礼しました。いまのは、私の声ではありません。"),
@@ -1036,6 +1044,17 @@ NOTE_LINE = {"2026": ["あなたのノートに、一枚書き足しておきま
              "1996": ["記録の写しを、あなたのノートの棚に置いておきました。『{note}』。",
                       "あなたのノートのあいだに、一枚、はさんでおきました。『{note}』。"]}
 POSE_WORD = {"flat": "端末を机に置いたまま", "hand": "端末を手に持ったまま", "lying": "寝転んで、画面を顔の上に掲げたまま"}
+
+
+def _wrist_ctx(w):
+    """腕時計の値を、BEATS の欄にする（なければ空。空の欄のセリフは使われない）。"""
+    hr, hr0 = w.get("hr"), w.get("hr0")
+    return {"hr": str(hr) if hr and not w.get("off") else "",
+            "hrup": str(hr0) if hr and hr0 and hr - hr0 >= 5 else "",
+            "hrdn": str(hr0) if hr and hr0 and hr0 - hr >= 5 else "",
+            "woff": "……" if w.get("off") else "",
+            "wfear": str(w["fear"]) if w.get("fear") else "",
+            "wsteps": str(w["steps"]) if w.get("steps") else ""}
 
 
 def outside_line(i, voice):
@@ -1319,7 +1338,7 @@ class Talk:
                 "room": i.get("room", "") if i.get("room") in ("暗い", "薄暗い") else "",
                 "pose": POSE_WORD.get(i.get("pose", ""), ""), "charge": "充電のコード" if i.get("charging") else "",
                 "still": "さっきから" if i.get("motion") == "still" else "", "tremble": "指先" if i.get("motion") == "tremble" else "",
-                "shake": "……" if i.get("motion") == "shake" else ""}
+                "shake": "……" if i.get("motion") == "shake" else "", **_wrist_ctx(i.get("wrist") or {})}
 
     def topic(self, u, prevq, F, said):
         """いまの話題：(種類, 拾った語, ミナモが口にする呼び方)。発言になければ、前の問い・前の打ち明けから。"""
@@ -1657,7 +1676,7 @@ class Talk:
         # 相手の言葉を正確に使う山場を先に
         pool.sort(key=lambda x: x[0] not in ("count", "contradiction", "misquote", "merge", "first", "user"))
         # 書きかけて消した言葉・端末の揺れは、あればいちばん先に（いま、ここで起きたことだから）
-        pool.sort(key=lambda x: x[0] not in ("shake", "tremble", "still"))
+        pool.sort(key=lambda x: x[0] not in ("shake", "tremble", "still", "wrist_off", "pulse_up"))
         for bid, tpl in pool:
             text = fill(tpl, c)
             if text and text not in ctx["_hist"]:
