@@ -28,8 +28,8 @@ body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-i
   background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0,0,0,.16) 2px 3px); }
 body.glitch #app { transform: translateX(2px); filter: hue-rotate(30deg); }
 
-.full { position: fixed; inset: 0; z-index: 30; background: #000; padding: calc(1.2em + env(safe-area-inset-top, 0px)) 16px 16px; }
-#power { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1em; text-align: center; color: #cfe3d6; }
+.full { position: fixed; inset: 0; z-index: 30; background: #000; overflow-y: auto; padding: calc(1.2em + env(safe-area-inset-top, 0px)) 16px 16px; }
+#power { display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: 1em; text-align: center; color: #cfe3d6; }
 #power h1 { font-family: var(--mincho); font-weight: 500; letter-spacing: .4em; margin: 0; font-size: 1.5em; }
 #power p { margin: 0; color: var(--dim); font-size: .85em; max-width: 26em; }
 #power input { background: #0d1411; border: 1px solid #2d5a3a; padding: .4em .6em; width: 12em; text-align: center; }
@@ -84,7 +84,7 @@ h2 { font-size: 1em; margin: .2em 0 .6em; color: var(--green); }
   background: #13201b; border: 1px solid #2d5a3a; padding: .35em 1em; font-size: .82em; border-radius: 4px; opacity: 0; transition: opacity .3s;
   pointer-events: none; max-width: calc(100% - 32px); }
 #toast.on { opacity: 1; }
-#ending { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1em; text-align: center; }
+#ending { display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: 1em; text-align: center; }
 #ending h2 { font-family: var(--mincho); font-weight: 500; letter-spacing: .3em; margin: 0; color: #e6f2ea; font-size: 1.3em; }
 #ending p { margin: 0; max-width: 28em; white-space: pre-wrap; }
 #ending .small { color: var(--dim); font-size: .8em; }
@@ -111,6 +111,9 @@ details.store li { opacity: .7; }
 .typing-b { font-style: italic; }
 body.mi-near .msg.mi { border-color: #3f6b55; box-shadow: 0 0 10px rgba(127,209,139,.12); }
 #cin.ghost { color: var(--nagi); }
+/* 横画面：行が長くなりすぎないように。キーボードで背がとても低いときは、下のタブを隠して入力欄を残す */
+@media (min-width: 760px) { #view { padding-left: max(12px, calc((100% - 720px) / 2)); padding-right: max(12px, calc((100% - 720px) / 2)); } }
+@media (max-height: 300px) { #tabs { display: none; } #bar { margin-bottom: 0; } }
 label.ear { color: var(--dim); font-size: .78em; max-width: 26em; display: flex; gap: .4em; align-items: flex-start; text-align: left; }
 /* 相棒：Claude のアイコン風のミナモ（面接アプリの「過剰」と同じ、橙色の放射）。下の帯の上。押すと話す */
 #pal { position: fixed; right: 10px; bottom: calc(7.6em + env(safe-area-inset-bottom, 0px)); z-index: 35; width: 48px; height: 48px;
@@ -133,7 +136,7 @@ body.pal-wrong #pal.talk .rays { animation-duration: 14s; animation-direction: r
 body.pal-wrong #pal-say { background: #f3efe0; }
 #ending .pal-last { color: #d97757; font-family: "Kosugi Maru", var(--dot), sans-serif; font-size: .85em; }
 @media (prefers-reduced-motion: reduce) { #pal .rays, #pal.talk .rays { animation: none; } }
-.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 60; display: flex; align-items: safe center; justify-content: safe center; padding: 16px; overflow-y: auto; }
 .box { max-width: 460px; width: 100%; background: #1a1f1d; color: #eef2f0; border: 1px solid #d9b25f; border-radius: 6px; padding: 1.2em;
   font-family: system-ui, sans-serif; line-height: 1.7; }
 .box p { margin: 0 0 .8em; }
