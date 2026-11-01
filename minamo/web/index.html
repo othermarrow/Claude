@@ -325,7 +325,7 @@ body[data-ver="2026"] #ending { font-family: var(--sans); }
 body[data-ver="2026"] #ending .ai { font-family: var(--sans); text-shadow: none; }
 /* ===== 過剰（excess.js）：面接室が Backrooms になる。壁は会話の後ろに敷く（階層ごとに、ゆっくり変わる） ===== */
 #wall { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity 4s; }
-#wall::after { content: ""; position: absolute; inset: 0; background: rgba(0,0,0,.42); }
+#wall::after { content: ""; position: absolute; inset: 0; background: rgba(0,0,0,.36); }
 body.br #wall { opacity: .6; }
 body[data-ver="1996"].br #wall { opacity: .45; }
 body.br[data-lv="0"] #wall { background: linear-gradient(to top, #6e6236 0 16%, transparent 16%),
@@ -533,6 +533,7 @@ body[data-calm] #lights, body[data-calm] #pal, body[data-calm] #pal-say, body[da
 </div>
 
 <script src="fx.js"></script>
+<script src="walls.js"></script>
 <script src="excess.js"></script>
 <script src="bleed.js"></script>
 <script src="app.js"></script>
