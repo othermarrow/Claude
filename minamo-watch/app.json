@@ -5,8 +5,8 @@
     "appName": "Minamo",
     "appType": "app",
     "version": {
-      "code": 3,
-      "name": "1.2.0"
+      "code": 4,
+      "name": "1.3.0"
     },
     "icon": "icon.png",
     "vender": "zepp",
@@ -25,7 +25,8 @@
     "data:user.hd.stand",
     "device:os.barometer",
     "device:os.accelerometer",
-    "data:user.info"
+    "data:user.info",
+    "device:os.alarm"
   ],
   "runtime": {
     "apiVersion": {

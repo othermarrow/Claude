@@ -122,6 +122,18 @@ export function observe() {
   return v
 }
 
+// いまの時・分・秒（時計の表示と、59 分の合図に使う）
+export function clockParts() {
+  const t = S.time, d = new Date()
+  const h = safe(() => t.getHours()), m = safe(() => t.getMinutes()), sec = safe(() => t.getSeconds())
+  return { h: h == null ? d.getHours() : h, m: m == null ? d.getMinutes() : m, s: sec == null ? d.getSeconds() : sec }
+}
+
+// 画面が消えているか（画面が消えて 10 秒たつと、時計はアプリを閉じる。そのとき onDestroy で使う）
+export function screenOff() {
+  return safe(() => S.screen.getStatus()) === 2
+}
+
 // 時計の表示用（yyyy/mm/dd hh:mm:ss）
 export function clockText() {
   const t = S.time, d = new Date()

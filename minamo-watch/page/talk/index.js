@@ -4,26 +4,36 @@ import { setWakeUpRelaunch, setPageBrightTime } from '@zos/display'
 import { BasePage } from '@zeppos/zml/base-page'
 import { W, MARGIN, CW, Canvas, textHeight } from '../../shared/ui'
 import { createTalk, GROUPS, labelOf } from '../../shared/talk'
-import { startSense, stopSense, observe, clockText } from '../../shared/sense'
+import { startSense, stopSense, observe, clockText, clockParts, screenOff } from '../../shared/sense'
+import { cancelAll, rearm } from '../../shared/alarm'
 import { load, save } from '../../shared/store'
 import { knock } from '../../shared/vibe'
 
-// 色：ミナモの画面と同じ、暗い緑がかった黒。段階が進むと、文字が少しずつ白く冷たくなる
+// 色：ミナモの画面と同じ、暗い緑がかった黒。段階が進むと、文字が少しずつ白く冷たくなる（少し暗め）
 const BG = 0x0a0f0d
-const TEXT = [0xcfe3d6, 0xd8ece0, 0xe6f2ea, 0xf4fbf6]
-const DIM = 0x6b8578
+const TEXT = [0xa7bcae, 0xb2c6b9, 0xbed0c4, 0xcad9cf]   // ミナモの言葉
+const BTN = [0x8ea397, 0x97ac9f, 0xa1b5a9, 0xacbfb3]    // ボタンの文字
+const DIM = 0x6b8578                                     // 時刻・見出し（♡ もこの色）
 const KEY = 0x13201b
 const WARN = 0xd9826f
 const TICK = 20000      // スマホのミナモに、手首の様子を送る間隔
 const ASK_WAIT = 16000  // ボタンへの返事を、スマホの AI に頼んで待つ長さ（間に合わなければ、時計の返事）
 const CLOCK_Y = 22, HEAD_Y = 54, BODY_Y = 90
+const IDLE_MIN = 60000, IDLE_MAX = 600000   // 何も押さないと、1〜10 分に一度、ミナモが独り言を話す
 
 Page(
   BasePage({
     state: {},
 
-    onInit() {
+    onInit(params) {
       const st = this.state
+      // 時計の予約で起こされたか（'59'：毎時の合図、'mono'：独り言）
+      const g = this.globalData || {}
+      const launch = String(params || g.launch || '')
+      g.launch = ''
+      st.mode = launch.indexOf('59') >= 0 ? '59' : launch.indexOf('mono') >= 0 ? 'mono' : 'new'
+      st.sig59 = ''
+      cancelAll()                        // 開いているあいだは、予約はいらない
       st.canvas = new Canvas()
       st.token = 0
       st.busy = false
@@ -44,10 +54,16 @@ Page(
       try { setPageBrightTime({ brightTime: 60000 }) } catch (e) { /* なくてもよい */ }
       startSense()
       st.talk = createTalk(load())
-      const greet = st.talk.start(observe())
-      this.say(greet, false)
+      const obs0 = observe()
+      const greet = st.talk.start(obs0, st.mode)
+      if (st.mode === '59') { const p = clockParts(); st.sig59 = String(p.h) }
+      const quiet = st.mode === '59' && st.talk.line59(obs0).quiet
+      this.say(greet, st.mode !== 'new' && !quiet)
+      save(st.talk.state)
       // スマホのミナモ（Zepp アプリ → Termux のサーバー）につなぐ。つながらなくても、時計だけで話す
-      setTimeout(() => { if (!st.gone) this.link('start', { said: greet }) }, 400)
+      // 続きのとき・起こされたときは、新しい面接として数えない（tick）
+      const ev = st.talk.resumed() || st.mode !== 'new' ? 'tick' : 'start'
+      setTimeout(() => { if (!st.gone) this.link(ev, { said: greet }) }, 400)
       this.tick()
       this.clockTick()
     },
@@ -61,7 +77,16 @@ Page(
       clearTimeout(st.tickT)
       clearTimeout(st.clockT)
       stopSense()
-      if (!st.ended) { st.talk.end(observe()); save(st.talk.state) }   // 途中で閉じても、会ったことは覚えておく
+      const obs = observe(), off = screenOff(), t = st.talk, s = t.state
+      if (!st.ended) {
+        if (t.turn() === 0 && st.mode !== 'new' && !t.resumed()) { /* 起こされただけ。夜は数えない */ }
+        else if (off) t.pause()           // 画面が消えて閉じた：続きとして覚えておく
+        else t.end(obs)                   // 自分で戻って閉じた：途中でも、会ったことは覚えておく
+      }
+      save(s)
+      // 閉じているあいだの予約：59 分の合図（切り替えられる）と、画面が消えて閉じたときだけ独り言
+      const mono = !st.ended && off && s.live && s.mono < 8 && obs.worn !== 0 && obs.sleeping !== 1
+      rearm(s.h59, mono ? (IDLE_MIN + Math.random() * (IDLE_MAX - IDLE_MIN)) / 1000 : 0)
     },
 
     // ---------- スマホのミナモとのつながり ----------
@@ -114,18 +139,35 @@ Page(
     clockTick() {
       const st = this.state
       if (st.gone) return
-      const ph = st.talk.phase()
+      const ph = st.talk.phase(), p = clockParts()
       let t = clockText()
       if (ph >= 2 && Math.random() < (ph === 3 ? 0.06 : 0.025)) t = '1999/12/31 23:59:59'
-      try { if (st.clock) st.clock.setProperty(hmUI.prop.TEXT, t) } catch (e) { /* 消えた部品 */ }
+      try {
+        if (st.clock) {
+          st.clock.setProperty(hmUI.prop.TEXT, t)
+          st.clock.setProperty(hmUI.prop.COLOR, p.m === 59 ? WARN : DIM)   // 59 分のあいだは、時刻が赤みを帯びる
+        }
+      } catch (e) { /* 消えた部品 */ }
+      if (p.m === 59 && st.sig59 !== String(p.h)) { st.sig59 = String(p.h); this.signal59() }
       if (++st.sec % 5 === 0) this.paintHead()
       st.clockT = setTimeout(() => this.clockTick(), 1000)
     },
 
+    // 毎時 59 分の合図：ノック一回と、ミナモのひとこと（眠っているときは、鳴らさない）
+    signal59() {
+      const st = this.state
+      if (st.gone) return
+      const r = st.talk.line59(observe())
+      if (!r.quiet) knock()
+      if (!st.busy && !st.ended) this.say(r.text, false)
+      else if (!st.ended) { st.echoQ.unshift(r.text); this.flushEcho() }
+    },
+
     // ---------- 画面 ----------
+    // 見出し：段階・脈（♡ は時刻と同じ色の文字）・時計の電池・スマホとつながっているか
     headText() {
       const st = this.state, obs = observe()
-      return `ミナモ ・ ${st.talk.phaseName()}` + (obs.hr ? `　♥ ${obs.hr}` : '') + (st.linked ? '　⇄' : '')
+      return `ミナモ・${st.talk.phaseName()}` + (obs.hr ? ` ♡${obs.hr}` : '') + (obs.battery ? ` 電池${obs.battery}%` : '') + (st.linked ? ' ⇄' : '')
     },
     paintHead() {
       const st = this.state
@@ -177,14 +219,23 @@ Page(
           const wide = label.length >= 8
           if (wide && col) { col = 0; y += bh + 10 }
           const x = MARGIN + (wide ? 0 : col * (bw + 12))
-          c.button(x, y, wide ? CW : bw, bh, label, () => this.tap(id), { color: KEY, size: label.length >= 7 ? 22 : 24, textColor: TEXT[ph] })
+          c.button(x, y, wide ? CW : bw, bh, label, () => this.tap(id), { color: KEY, size: label.length >= 7 ? 22 : 24, textColor: BTN[ph] })
           if (wide || col === 1) { col = 0; y += bh + 10 } else col = 1
         }
         if (col) y += bh + 10
         y += 10
       }
       c.button(MARGIN + CW / 4, y, CW / 2, 52, '終わる', () => this.finish(), { color: 0x222222, size: 22, textColor: DIM })
-      return y + 60
+      y += 62
+      // 閉じているときも、59 分に合図するか（ミナモが時計を起こす）
+      const label59 = () => `閉じていても59分に合図：${this.state.talk.state.h59 ? 'する' : 'しない'}`
+      const b59 = c.button(MARGIN, y, CW, 48, label59(), () => {
+        const s = this.state.talk.state
+        s.h59 = !s.h59
+        save(s)
+        try { b59.setProperty(hmUI.prop.TEXT, label59()) } catch (e) { /* 消えた部品 */ }
+      }, { color: 0x161616, size: 18, textColor: DIM })
+      return y + 56
     },
 
     // 一文字ずつ。[間] で止まる。打ち終わったら、黙っていると話しかけてくるタイマーを入れる
@@ -212,16 +263,22 @@ Page(
       step()
     },
 
+    // 何も押さなくても、1〜10 分に一度、ミナモが独り言を話す（何度でも）。
+    // スマホとつながっていれば、独り言もスマホの AI に頼む（間に合わなければ、時計の独り言）
     armIdle() {
       const st = this.state
-      if (st.ended || st.idles >= 3) return
+      if (st.ended) return
       clearTimeout(st.idleT)
       st.idleT = setTimeout(() => {
         if (st.ended || st.busy || st.gone) return
-        st.idles++
         const r = st.talk.idle(observe())
-        this.say(r.text, r.pulse)
-      }, 50000 + Math.floor(Math.random() * 30000))
+        if (!st.linked || r.last) { this.say(r.text, r.pulse); return }
+        const ask = ++st.askId
+        this.link('idle', { want: 1, local: r.text, history: st.hist.slice(-6) }, 14000).then((res) => {
+          if (ask !== st.askId || st.busy || st.ended || st.gone) return
+          this.say(res && res.say ? res.say : r.text, r.pulse)
+        })
+      }, IDLE_MIN + Math.floor(Math.random() * (IDLE_MAX - IDLE_MIN)))
     },
 
     tap(id) {
@@ -273,9 +330,9 @@ Page(
       })
       y += 44
       c.button(MARGIN + CW / 6, y, (CW * 2) / 3, 56, 'もう一度、話す', () => {
-        st.ended = false; st.idles = 0; st.hist = []
+        st.ended = false; st.idles = 0; st.hist = []; st.mode = 'new'
         st.talk = createTalk(st.talk.state)
-        const greet = st.talk.start(observe())
+        const greet = st.talk.start(observe(), 'new')
         this.say(greet, false)
         this.link('start', { said: greet })
       }, { color: KEY, size: 24, textColor: WARN })
