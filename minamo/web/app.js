@@ -19,7 +19,7 @@
   const lines = $("lines"), log = $("log"), input = $("input"), send = $("send"),
         label = $("label"), form = $("form");
 
-  const BUILD = "minamo-v34";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
+  const BUILD = "minamo-v35";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
   let cfg = null;               // /api/info
   let S = null;                 // 面接の状態
   let booted = false;
@@ -92,11 +92,12 @@
 
   // ---------- 手首（腕時計 minamo-watch から、Zepp アプリを通って届く。wrist.py） ----------
   // つながっていなければ、何も変わらない。怖さ「なし」では、手首のことは言わない
-  const WRIST = { linked: false, obs: {}, taps: {}, said: "", turnHr: null };
+  const WRIST = { linked: false, obs: {}, taps: {}, labels: {}, words: [], said: "", turnHr: null };
   async function pollWrist() {
     try {
       const w = await api("/api/watch");
       WRIST.linked = !!w.linked; WRIST.obs = w.obs || {}; WRIST.taps = w.taps || {}; WRIST.said = w.said || "";
+      WRIST.labels = w.labels || {}; WRIST.words = w.words || [];
       if (WRIST.linked && WRIST.obs.hr && S && !S.done) S.hrs.push(WRIST.obs.hr);
     } catch (e) { WRIST.linked = false; }
     paintWrist();
@@ -125,9 +126,12 @@
       P.push("脈 " + o.hr + (WRIST.turnHr && WRIST.turnHr !== o.hr ? "（前の発言のときは " + WRIST.turnHr + "）" : ""));
       WRIST.turnHr = o.hr;
     }
-    if (idx >= 1 && o.steps) P.push("今日の歩数 " + o.steps);
+    // 睡眠・ストレス・血中酸素・温度・揺れ・明るさ・歩数など（サーバーが言葉にしたもの）は、解釈の段階から
+    if (idx >= 1) WRIST.words.filter(w => !/^脈 |^時計を外している|^年齢/.test(w)).forEach(w => P.push(w));
     if (idx >= 1 && o.battery && o.battery < 30) P.push("時計の電池 " + o.battery + "%");
     if (idx >= 1 && WRIST.taps.fear) P.push("時計の上のミナモに『こわい』を" + WRIST.taps.fear + "回押した");
+    const other = Object.entries(WRIST.taps).filter(([k]) => k !== "fear").sort((a, b) => b[1] - a[1]).slice(0, 3);
+    if (idx >= 1 && other.length) P.push("時計で押したほかのボタン「" + other.map(([k, n]) => (WRIST.labels[k] || k) + "」" + n + "回").join("・「"));
     if (idx >= 2 && WRIST.said) P.push("時計の上のミナモは『" + WRIST.said + "』と言った");
     return P.length ? "手首（腕時計から届いた、いまの値。ときどき、さりげなく言い当てる。数字を毎回は言わない）: " + P.join("、") : "";
   }
