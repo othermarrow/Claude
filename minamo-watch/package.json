@@ -1,0 +1,9 @@
+{
+  "name": "minamo-watch",
+  "version": "1.0.0",
+  "private": true,
+  "main": "app.js",
+  "devDependencies": {
+    "@zeppos/device-types": "^4.0.0"
+  }
+}
