@@ -26,9 +26,9 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
    sh backrooms-pwa/serve.sh
    ```
 
-   「Chrome で http://localhost:8080/ を開いてください」と出たら、Termux はそのままにしておく。
+   「Chrome で http://localhost:6060/ を開いてください」と出たら、Termux はそのままにしておく。
 
-2. Chrome で `http://localhost:8080/` を開く。
+2. Chrome で `http://localhost:6060/` を開く。
 3. 起動画面の「ホーム画面にインストール」を押す。ボタンが出ないときは、Chrome 右上の ⋮ から「アプリをインストール」または「ホーム画面に追加」を選ぶ。
 4. インストールが済んだら、Termux のサーバーは Ctrl+C で止めてよい。一度開いたファイルはアプリの中に取っておかれるので、次からはホーム画面のアイコンだけで開ける（はず。下の「確認したこと」を参照）。
 
@@ -38,9 +38,24 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 
 ### 注意
 
-- 遊んだ記録は、Chrome の中の `localhost:8080` という場所に保存される。ポート番号（8080）を変えると、記録が見えなくなる。
+- 遊んだ記録は、Chrome の中の `localhost:6060` という場所に保存される。ポート番号（6060）を変えると、記録が見えなくなる。
 - Chrome の「サイトのデータを削除」をすると、記録も消える。
 - `serve.sh` は `127.0.0.1` でだけ待つので、同じ Wi-Fi のほかの端末からは見えない。
+
+
+### 番号が 8080 から 6060 に変わった（記録の引っ越し）
+
+ミナモ（8082）や端末の中の AI（8090）と離すため、既定の番号を 8080 から **6060** に変えた。Chrome は記録を番号ごとに分けて持つので、前に 8080 で遊んでいた記録は、一度だけ引っ越す（8080 の記録は消えずに残る）。
+
+```bash
+cd ~/Claude/backrooms-pwa
+sh serve.sh 8080 &
+sh serve.sh
+```
+
+1. 一行目は前の番号 8080 のサーバー（後ろで動く）、二行目が新しい番号 6060 のサーバー。
+2. Chrome で `http://localhost:8080/move.html` を開き、「引っ越す」を押す。新しい番号の画面が開いて「受け取りました」と出れば、終わり。
+3. 前の番号のサーバーを止める：`pkill -f "http.server 8080"`。ホーム画面の古いアイコンは消して、`http://localhost:6060/` でインストールし直す。
 
 ## 設定
 
@@ -56,7 +71,7 @@ PWA は `https://` か `http://localhost` で開いたときだけインスト�
 | `manifest.webmanifest` | アプリの名前・アイコン・色 |
 | `sw.js` | オフラインでも開けるようにする仕組み（Service Worker）。ファイルを足したら `FILES` に足し、`VERSION` を上げる |
 | `icons/` | アイコン（192px、512px、マスク用 512px） |
-| `serve.sh` | Termux で動かすサーバー（`python3 -m http.server 8080 --bind 127.0.0.1`） |
+| `serve.sh` | Termux で動かすサーバー（`python3 -m http.server 6060 --bind 127.0.0.1`） |
 | `build_standalone.py` | ゲームに fx.js を埋めこんで、HTML 一枚で開ける版を `standalone/` に作る |
 | `standalone/*-standalone.html` | 各ゲームの HTML 一枚版（下の「HTML 一枚版」） |
 

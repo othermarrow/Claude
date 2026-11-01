@@ -1,6 +1,6 @@
 /* ミナモ：演出（音・画面の乱れ・波紋・心音・幽霊の入力・起動画面）。
    音は WebAudio で作る（音声ファイルなし）。強い点滅はしない：乱れは短く、明るさは変えない。
-   演出の強さ  0: 弱（動く演出なし。音と印字だけ）  1: 標準  2: 強  3: 過剰（excess.js も動く。相棒と、画面の中の部屋） */
+   演出の強さ  0: 弱（動く演出なし。音と印字だけ）  1: 標準  2: 強  3: 過剰（excess.js も動く。面接室が Backrooms になり、階層を落ちていく） */
 (function () {
   "use strict";
 
@@ -206,6 +206,129 @@
     setTimeout(() => { FX.setCrt(crtLevel); FX.setPhase(phaseNow); }, 700);
   };
 
+  // ---------- Backrooms の環境音（過剰）：階層ごとに鳴り分け、ゆっくり入れ替わる ----------
+  // hum 蛍光灯の唸り／office 空調／pipes 配管と蒸気／electric 電気室／hotel 遠いワルツ／dark ほぼ無音と息
+  // sea 遠い波／cave 水滴と岩／crickets 夜の虫／wind 麦畑の風／city 遠い車／alarm 警報／party 歪んだオルゴール
+  let amb = null;
+  const node = (type, f, q) => { const x = ac.createBiquadFilter(); x.type = type; x.frequency.value = f; if (q) x.Q.value = q; return x; };
+  const gainOf = v => { const g = ac.createGain(); g.gain.value = v; return g; };
+  function buildAmb(kind, out) {
+    const stop = [], timers = [];
+    const run = n => { n.start(); stop.push(n); return n; };
+    const noiseTo = (type, f, q, v, brown) => {
+      const s = ac.createBufferSource(); s.buffer = noise(3, brown); s.loop = true;
+      const fl = node(type, f, q), g = gainOf(v);
+      s.connect(fl); fl.connect(g); g.connect(out); run(s); return { g, fl };
+    };
+    const osc = (f, type, v, through) => {
+      const o = ac.createOscillator(); o.type = type || "sine"; o.frequency.value = f;
+      const g = gainOf(v); o.connect(through || g); if (through) through.connect(g); g.connect(out); run(o); return { o, g };
+    };
+    const lfo = (param, rate, depth) => { const o = ac.createOscillator(), g = gainOf(depth); o.frequency.value = rate; o.connect(g); g.connect(param); run(o); };
+    const every = (min, max, fn) => { const t = { id: 0 }; const go = () => { t.id = setTimeout(() => { if (live()) fn(); go(); }, rand(min, max)); }; go(); timers.push(t); };
+    const note = (f, dur, type, v, lp) => {
+      const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(), fl = node("lowpass", lp || 1200);
+      o.type = type || "sine"; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(fl); fl.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.05);
+    };
+    const burst = (f, q, v, dur) => {
+      const t = ac.currentTime, s = ac.createBufferSource(); s.buffer = noise(dur + 0.05, false);
+      const fl = node("bandpass", f, q), g = ac.createGain();
+      g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      s.connect(fl); fl.connect(g); g.connect(out); s.start(t); s.stop(t + dur + 0.05);
+    };
+    if (kind === "hum") {                                   // Level 0：蛍光灯
+      osc(120, "sawtooth", 0.5, node("bandpass", 120, 4)); osc(240, "sawtooth", 0.25, node("bandpass", 240, 6));
+      const z = osc(120, "square", 0.05, node("highpass", 2400)); lfo(z.g.gain, 0.23, 0.04);
+    } else if (kind === "office") {                         // Level 1・4：空調
+      noiseTo("lowpass", 700, 0, 0.35); osc(50, "sine", 0.08);
+      every(9000, 20000, () => note(rand(900, 1300), 0.08, "square", 0.01));
+    } else if (kind === "pipes") {                          // Level 2：配管と蒸気、ときどき金属音
+      noiseTo("lowpass", 200, 0, 0.9, true); const h = noiseTo("bandpass", 4000, 1, 0.05); lfo(h.g.gain, 0.1, 0.04);
+      every(5000, 12000, () => { note(rand(70, 110), 0.6, "triangle", 0.12, 600); note(rand(300, 500), 0.4, "square", 0.02, 900); });
+    } else if (kind === "electric") {                       // Level 3：機械の唸りと火花
+      osc(60, "sawtooth", 0.4, node("lowpass", 400)); noiseTo("highpass", 6000, 0, 0.03);
+      every(1500, 6000, () => burst(rand(2500, 4500), 3, 0.06, rand(0.03, 0.12)));
+    } else if (kind === "hotel") {                          // Level 5：遠いホールのワルツ（三拍子、短調）
+      noiseTo("lowpass", 300, 0, 0.25, true);
+      const bars = [[220, 261.6, 329.6], [196, 246.9, 293.7], [174.6, 220, 261.6], [164.8, 207.7, 246.9]];
+      let k = 0;
+      every(1700, 1900, () => { const b = bars[k++ % bars.length]; b.forEach((f, i) => setTimeout(() => live() && note(f * (i ? 1 : 0.5), 0.5, "triangle", 0.025, 700), i * 520)); });
+    } else if (kind === "dark") {                           // Level 6：ほぼ無音。近くで、息
+      noiseTo("lowpass", 120, 0, 0.2, true);
+      every(4000, 7000, () => {
+        const t = ac.currentTime, s = ac.createBufferSource(); s.buffer = noise(2.4, false);
+        const fl = node("bandpass", 900, 1), g = ac.createGain();
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05, t + 1.1); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.3);
+        s.connect(fl); fl.connect(g); g.connect(out); s.start(t); s.stop(t + 2.4);
+      });
+    } else if (kind === "sea") {                            // Level 7：扉の外の、遠い波
+      const w = noiseTo("lowpass", 500, 0, 0.3); lfo(w.g.gain, 0.08, 0.25); lfo(w.fl.frequency, 0.08, 250);
+      osc(38, "sine", 0.06);
+    } else if (kind === "cave") {                           // Level 8：岩の響きと水滴
+      noiseTo("lowpass", 150, 0, 0.35, true);
+      every(1800, 5000, () => [[0, 0.05], [0.28, 0.02], [0.56, 0.008]].forEach(([dt, v]) =>
+        setTimeout(() => { if (!live()) return; const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+          o.frequency.setValueAtTime(1500, t); o.frequency.exponentialRampToValueAtTime(600, t + 0.07);
+          g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+          o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.1); }, dt * 1000)));
+    } else if (kind === "crickets") {                       // Level 9：夜の虫と、遠い犬
+      noiseTo("lowpass", 250, 0, 0.12, true);
+      every(700, 1600, () => [0, 0.07, 0.14].forEach(dt => setTimeout(() => live() && note(rand(4100, 4400), 0.05, "sine", 0.012, 8000), dt * 1000)));
+      every(15000, 30000, () => note(rand(380, 460), 0.25, "sawtooth", 0.01, 700));
+    } else if (kind === "wind") {                           // Level 10：麦畑を渡る風
+      const w = noiseTo("bandpass", 400, 0.5, 0.35); lfo(w.fl.frequency, 0.05, 200); lfo(w.g.gain, 0.12, 0.15);
+    } else if (kind === "city") {                           // Level 11：遠い車と、だれも鳴らさないクラクション
+      noiseTo("lowpass", 250, 0, 0.5, true);
+      every(8000, 16000, () => note(rand(300, 360), 0.8, "sawtooth", 0.02, 900));
+    } else if (kind === "alarm") {                          // Level !：ゆっくりした警報
+      const s = osc(700, "square", 0.025, node("lowpass", 1500)); lfo(s.o.frequency, 0.5, 120);
+    } else if (kind === "party") {                          // Level Fun =)：少し狂ったオルゴール
+      const tune = [523.3, 659.3, 784, 659.3, 698.5, 880, 784, 0, 523.3, 587.3, 659.3, 523.3];
+      let k = 0;
+      every(330, 360, () => { const f = tune[k++ % tune.length]; if (f) note(f * (1 + rand(-0.03, 0.03)), 0.3, "triangle", 0.03, 3000); });
+    }
+    return { stop, timers };
+  }
+  // kind が空なら止める
+  FX.amb = kind => {
+    if (!ac || (amb && amb.kind === kind)) return;
+    const t = ac.currentTime;
+    if (amb) {
+      const old = amb;
+      old.g.gain.cancelScheduledValues(t); old.g.gain.setTargetAtTime(0, t, 0.6);
+      old.parts.timers.forEach(x => clearTimeout(x.id));
+      setTimeout(() => old.parts.stop.forEach(n => { try { n.stop(); } catch (e) { /* もう止まっている */ } }), 3000);
+      amb = null;
+    }
+    if (!kind || !soundOn) return;
+    const g = ac.createGain(); g.gain.value = 0; g.connect(master);
+    g.gain.setTargetAtTime(calm ? 0 : 0.11, t, 1.5);
+    amb = { kind, g, parts: buildAmb(kind, g) };
+  };
+  // すり抜け：床の下へ落ちていく風の音と、着地の衝撃。環境音は、いったん消える
+  function boom(gain) {
+    const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(24, t + 1.2);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 1.7);
+  }
+  FX.noclip = short => {
+    if (!live()) return;
+    const t = ac.currentTime, d = short ? 0.8 : 1.3;
+    if (amb) { amb.g.gain.cancelScheduledValues(t); amb.g.gain.setTargetAtTime(0, t, 0.08); }
+    const s = ac.createBufferSource(); s.buffer = noise(d + 0.1, false);
+    const lp = ac.createBiquadFilter(); lp.type = "lowpass";
+    lp.frequency.setValueAtTime(4000, t); lp.frequency.exponentialRampToValueAtTime(150, t + d);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(short ? 0.12 : 0.22, t + d * 0.8);
+    g.gain.setValueAtTime(0.0001, t + d);
+    s.connect(lp); lp.connect(g); g.connect(master); s.start(t); s.stop(t + d + 0.1);
+    setTimeout(() => { if (live()) boom(short ? 0.3 : 0.45); }, d * 1000);
+  };
+
   // 段階が変わるとき：雑音が膨らんで、切れる
   FX.swell = () => {
     if (!live()) return;
@@ -254,6 +377,7 @@
     calm = true; document.body.dataset.calm = "1"; FX.setSilence(0);
     if (drone && ac) drone.g.gain.setTargetAtTime(0, ac.currentTime, 0.1);
     if (crt && ac) crt.g.gain.setTargetAtTime(0, ac.currentTime, 0.1);
+    if (amb && ac) amb.g.gain.setTargetAtTime(0, ac.currentTime, 0.1);
   };
   FX.resume = idx => { calm = false; delete document.body.dataset.calm; FX.setPhase(idx); };
   FX.suspend = hidden => {

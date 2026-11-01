@@ -323,7 +323,44 @@ body[data-ver="2026"] #input.ghost { font-family: var(--sans); }
 #notify .tx { font-size: .9em; }
 body[data-ver="2026"] #ending { font-family: var(--sans); }
 body[data-ver="2026"] #ending .ai { font-family: var(--sans); text-shadow: none; }
-/* ===== 過剰（excess.js）：相棒の AI と、画面の中の部屋 ===== */
+/* ===== 過剰（excess.js）：面接室が Backrooms になる。壁は会話の後ろに敷く（階層ごとに、ゆっくり変わる） ===== */
+#wall { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity 4s; }
+#wall::after { content: ""; position: absolute; inset: 0; background: rgba(0,0,0,.42); }
+body.br #wall { opacity: .6; }
+body[data-ver="1996"].br #wall { opacity: .45; }
+body.br[data-lv="0"] #wall { background: linear-gradient(to top, #6e6236 0 16%, transparent 16%),
+  repeating-linear-gradient(90deg, #b8a35a 0 18px, #ad9852 18px 20px, #c2ad64 20px 38px); animation: flick 7s infinite; }
+@keyframes flick { 0%, 44%, 52%, 100% { opacity: .6; } 47% { opacity: .42; } }
+body.br[data-lv="1"] #wall { background: repeating-linear-gradient(90deg, transparent 0 120px, rgba(0,0,0,.28) 120px 150px), linear-gradient(#5d6063, #34373a); }
+body.br[data-lv="2"] #wall { background: repeating-linear-gradient(0deg, #2a1d17 0 26px, #4a3427 26px 34px, #2a1d17 34px 60px); }
+body.br[data-lv="3"] #wall { background: radial-gradient(circle at 70% 30%, rgba(255,140,40,.25), transparent 35%), repeating-linear-gradient(80deg, #121212 0 30px, #2a2216 30px 33px); }
+body.br[data-lv="4"] #wall { background: repeating-linear-gradient(0deg, #8d8b84 0 2px, transparent 2px 60px), repeating-linear-gradient(90deg, #8d8b84 0 2px, transparent 2px 60px), #a9a598; }
+body.br[data-lv="5"] #wall { background: radial-gradient(circle at 25% 25%, #8a2626 2px, transparent 3px) 0 0 / 24px 24px, radial-gradient(circle at 75% 75%, #a07a30 1.5px, transparent 2.5px) 0 0 / 24px 24px, #4a0f12; }
+body.br[data-lv="6"] #wall { background: #010101; opacity: .9; }
+body.br[data-lv="7"] #wall { background: linear-gradient(#05080f 0 45%, #0b1b2b 45% 100%); }
+body.br[data-lv="8"] #wall { background: radial-gradient(ellipse at 50% 0%, #3a332b, #0d0b09 70%); }
+body.br[data-lv="9"] #wall { background: radial-gradient(circle at 82% 8%, rgba(255,170,60,.4), transparent 28%), linear-gradient(#0a0f1f, #05060c); }
+body.br[data-lv="10"] #wall { background: repeating-linear-gradient(100deg, transparent 0 6px, rgba(90,70,20,.35) 6px 8px) 0 40% / 100% 60% no-repeat, linear-gradient(#77786f 0 40%, #a8893f 40% 100%); }
+body.br[data-lv="11"] #wall { background: repeating-linear-gradient(90deg, transparent 0 22px, rgba(255,220,140,.14) 22px 30px), repeating-linear-gradient(0deg, transparent 0 18px, rgba(0,0,0,.6) 18px 30px), #0b0d14; }
+body.br[data-lv="!"] #wall { background: radial-gradient(ellipse at center, #1a0303 30%, #6a0000 100%); animation: runred 2.6s ease-in-out infinite; }
+@keyframes runred { 50% { opacity: .85; } }
+body.br-run header { background: rgba(90,0,0,.55); }
+body.br[data-lv="Fun =)"] #wall { background: radial-gradient(circle, #ff6fa8 2px, transparent 3px) 0 0 / 40px 40px, radial-gradient(circle, #ffd84d 2px, transparent 3px) 20px 20px / 40px 40px, #3a2a3a; }
+body.br-fun .msg.ai .who { visibility: hidden; position: relative; }
+body.br-fun .msg.ai .who::after { content: "=)"; visibility: visible; position: absolute; left: 0; color: #ff9fc4; }
+body.br-dark #log { filter: brightness(.8); }
+/* スマイラー（Level 6）：闇に浮かぶ歯と目。押すと消える */
+#grin { position: fixed; z-index: 3; width: 120px; opacity: 0; animation: grin 3s ease-in forwards; cursor: pointer; }
+#grin svg { width: 100%; filter: drop-shadow(0 0 6px rgba(255,255,255,.5)); }
+#grin ellipse, #grin path.t { fill: #f4f4ec; }
+@keyframes grin { to { opacity: .85; } }
+/* 非常口の札（押すと、絵だったとわかる） */
+.exit-sign { display: block; margin: .4em 0 .9em; background: #0a8a3a; color: #eaffea; border: none; border-radius: 2px;
+  font-family: var(--dot); padding: .2em .9em; box-shadow: 0 0 12px rgba(0,255,120,.35); }
+.exit-sign[disabled] { background: none; color: var(--dim); box-shadow: none; font-size: .85em; }
+/* 皮を盗むもの（Level 9）：ミナモの顔をした、あなたの言葉 */
+.msg.mimic .body { box-shadow: 1px 0 rgba(255,60,60,.5), -1px 0 rgba(60,220,255,.35); }
+/* 相棒・窓・暗転（過剰） */
 /* 相棒：画面の隅の、Claude のアイコン風のミナモ（迷い部屋と同じ、橙色の放射。入力欄の上。入力はふさがない） */
 #pal { position: fixed; right: 10px; bottom: calc(5.4em + env(safe-area-inset-bottom, 0px)); z-index: 30; width: 52px; height: 52px;
   border: none; padding: 0; background: none; cursor: pointer; transition: transform .8s; }
@@ -391,6 +428,7 @@ body[data-calm] #lights, body[data-calm] #pal, body[data-calm] #pal-say, body[da
 </head>
 <body data-phase="0" data-fx="high">
 <div id="wm" aria-hidden="true"></div>
+<div id="wall" aria-hidden="true"></div>
 <header>
   <span id="title">SOMA 対話支援システム ver.0.9.7</span>
   <span id="toast" aria-live="polite"></span>
@@ -449,7 +487,7 @@ body[data-calm] #lights, body[data-calm] #pal, body[data-calm] #pal-say, body[da
       </div>
     </div>
     <p class="small">強い点滅はありません。「弱」は画面の乱れ・波紋・揺れを止めます。イヤホン推奨。</p>
-    <p class="small warn" id="excess-note" hidden>「過剰」：画面の隅に、明るい相棒のミナモが現れ、だんだん離れなくなります。返事の前に、あなたの部屋がテキストアドベンチャーのように描かれます。暗転・足音があります（声は出しません）。通知の許可を聞きます（任意）。右上の「面接をやめる」は、いつでも効きます。</p>
+    <p class="small warn" id="excess-note" hidden>「過剰」：面接室が少しずつ The Backrooms になり、すり抜けるたびに下の階層へ落ちていきます（Level 0〜11・!・Fun =)、そしてまた Level 0。プールの部屋はありません）。階層ごとに、壁・環境音（蛍光灯の唸り・配管・警報など）・出てくるものが変わります。暗転・落ちる音・足音・心音・振動があり、速く打つと足音が近づきます。案内係の相棒もついてきます。通知の許可を聞きます（任意）。右上の「面接をやめる」は、いつでも効きます。</p>
     <div class="btns">
       <button id="begin" class="main" type="button" disabled>面接を始める</button>
     </div>
@@ -479,6 +517,7 @@ body[data-calm] #lights, body[data-calm] #pal, body[data-calm] #pal-say, body[da
 <button id="pal" type="button" aria-label="相棒のミナモ" hidden><svg viewBox="0 0 48 48" aria-hidden="true"><g class="rays"><line x1="24" y1="24" x2="33.1" y2="14.7"/><line x1="24" y1="24" x2="39.4" y2="20.4"/><line x1="24" y1="24" x2="41.5" y2="30.3"/><line x1="24" y1="24" x2="32.8" y2="35.4"/><line x1="24" y1="24" x2="25.5" y2="41.1"/><line x1="24" y1="24" x2="17.9" y2="35.5"/><line x1="24" y1="24" x2="10.2" y2="31.8"/><line x1="24" y1="24" x2="5.4" y2="22.9"/><line x1="24" y1="24" x2="12.4" y2="15.5"/><line x1="24" y1="24" x2="17.8" y2="8.0"/><line x1="24" y1="24" x2="26.6" y2="11.3"/></g><circle cx="24" cy="24" r="3.6"/></svg></button>
 <div id="pal-say" hidden><span id="pal-tx"></span><button id="pal-x" type="button" aria-label="閉じる">×</button></div>
 <div id="lights" aria-hidden="true"><div id="darktext"></div></div>
+<div id="grin" hidden><svg viewBox="0 0 120 70" aria-hidden="true"><ellipse cx="38" cy="16" rx="9" ry="6"/><ellipse cx="82" cy="16" rx="9" ry="6"/><path class="t" d="M12 36 Q60 80 108 36 Q60 58 12 36Z"/><path d="M24 42 L28 52 M35 47 L38 57 M47 50 L49 61 M60 51 L60 62 M73 50 L71 61 M85 47 L82 57 M96 42 L92 52" stroke="#000" stroke-width="2"/></svg></div>
 <div id="blackout" hidden></div>
 
 <div id="crisis" class="overlay" hidden>

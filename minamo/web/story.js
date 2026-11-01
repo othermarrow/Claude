@@ -675,7 +675,15 @@
       if (rep[i]) posts.push([`02:${pad(40 + i)}:02`, "ミナモ", rep[i]]);
     }
     const no = String(40 + S.gen.filter(g => g.id.startsWith("gi")).length).padStart(3, "0");
-    S.gen.push({ id: "gi" + b.at, board: "lab", title: fillG(G.title, { no }), unlock: "start", record: true, posts });
+    S.gen.push({ id: "gi" + b.at, board: "lab", title: fillG(G.title, { no }), unlock: "start", record: true, posts, night: S.night });
+    // 面接室が Backrooms になっていたなら（演出「過剰」）、落ちた階層が M.E.G. の生存者記録になる
+    if (b.levels && b.levels.length) {
+      const path = b.levels.slice(-12);
+      S.gen.push({ id: "gm" + b.at, board: "yume", title: "M.E.G. 生存者記録", unlock: "start", night: S.night, by: "board",
+        posts: [[today(), "M.E.G.", `生存者 ${name}。面接室から、すり抜けを ${b.levels.length} 回確認。`]]
+          .concat(path.map((lv, i) => [`03:${pad(10 + i)}:00`, "M.E.G.", `${lv} にて確認。` + (i === path.length - 1 ? "以降、消息不明。" : "")]))
+          .concat([[today(), "nagi", "その人は、ここにもいます。底から、上を見ています。"]]) });
+    }
     let back = false;
     if (S.carried && b.at > S.carriedAt) {
       S.carried = false; S.carryAsked = false; back = true;

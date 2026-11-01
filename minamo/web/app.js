@@ -19,7 +19,7 @@
   const lines = $("lines"), log = $("log"), input = $("input"), send = $("send"),
         label = $("label"), form = $("form");
 
-  const BUILD = "minamo-v30";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
+  const BUILD = "minamo-v31";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
   let cfg = null;               // /api/info
   let S = null;                 // 面接の状態
   let booted = false;
@@ -244,7 +244,8 @@
     version: () => settings.version,
     sound: () => settings.sound,
     turn: () => S ? S.turn : 0,
-    room: () => ({ pose: room.pose, charging: room.charging, battery: room.battery }),   // 画面の中の部屋を、あなたの部屋にする
+    room: () => ({ pose: room.pose, charging: room.charging, battery: room.battery }),   // 見出しに、あなたの部屋を混ぜる
+    env: () => (cfg && cfg.env) || {},                                                   // M.E.G. の生存者記録（機種・ユーザー名）
   };
 
   // ---------- 面接 ----------
@@ -720,7 +721,7 @@
         sysLine("記録を保存できませんでした: " + e.message);
       }
     }
-    if (S.turn > 1 && window.BLEED) BLEED.record(settings.horror, saidBy(YOU), saidBy(AI), cfg.crisis_words || []);
+    if (S.turn > 1 && window.BLEED) BLEED.record(settings.horror, saidBy(YOU), saidBy(AI), cfg.crisis_words || [], EX.levels ? EX.levels() : []);
     if (S.turn > 1) {
       store("minamo.last", { at: S.started.toISOString(), turns: S.turn,
         silence: settings.count ? Math.round(S.latencies.reduce((a, b) => a + b, 0)) : null,
