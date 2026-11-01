@@ -19,7 +19,7 @@
   const lines = $("lines"), log = $("log"), input = $("input"), send = $("send"),
         label = $("label"), form = $("form");
 
-  const BUILD = "minamo-v33";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
+  const BUILD = "minamo-v34";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
   let cfg = null;               // /api/info
   let S = null;                 // 面接の状態
   let booted = false;
@@ -88,6 +88,57 @@
     try { data = await res.json(); } catch (e) { /* 空 */ }
     if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
     return data;
+  }
+
+  // ---------- 手首（腕時計 minamo-watch から、Zepp アプリを通って届く。wrist.py） ----------
+  // つながっていなければ、何も変わらない。怖さ「なし」では、手首のことは言わない
+  const WRIST = { linked: false, obs: {}, taps: {}, said: "", turnHr: null };
+  async function pollWrist() {
+    try {
+      const w = await api("/api/watch");
+      WRIST.linked = !!w.linked; WRIST.obs = w.obs || {}; WRIST.taps = w.taps || {}; WRIST.said = w.said || "";
+      if (WRIST.linked && WRIST.obs.hr && S && !S.done) S.hrs.push(WRIST.obs.hr);
+    } catch (e) { WRIST.linked = false; }
+    paintWrist();
+  }
+  function paintWrist() {
+    const el = $("wrist");
+    if (!el) return;
+    el.hidden = !(WRIST.linked && settings.horror >= 1);
+    if (el.hidden) return;
+    const hr = WRIST.obs.hr, off = WRIST.obs.worn === 0;
+    let t = off ? "⌚ ―" : "⌚ ♥" + (hr || "…");
+    // 侵食から：ときどき、脈が二つ数えられている
+    if (!off && hr && S && !S.done && cfg && phaseIdx() >= 2 && Math.random() < 0.3)
+      t += "／" + (hr + (Math.random() < 0.5 ? 1 : -1) * Math.round(rand(1, 4)));
+    el.textContent = t;
+    el.classList.toggle("off", off);
+  }
+  setInterval(pollWrist, 12000);
+  pollWrist();
+  // 観測メモに足す一行（現実の危機・終わりの合図のときは足さない）
+  function wristLine(idx) {
+    if (!WRIST.linked || settings.horror < 1) return "";
+    const o = WRIST.obs, P = [];
+    if (o.worn === 0) P.push("時計を外している（さっきまでつけていた）");
+    if (o.hr) {
+      P.push("脈 " + o.hr + (WRIST.turnHr && WRIST.turnHr !== o.hr ? "（前の発言のときは " + WRIST.turnHr + "）" : ""));
+      WRIST.turnHr = o.hr;
+    }
+    if (idx >= 1 && o.steps) P.push("今日の歩数 " + o.steps);
+    if (idx >= 1 && o.battery && o.battery < 30) P.push("時計の電池 " + o.battery + "%");
+    if (idx >= 1 && WRIST.taps.fear) P.push("時計の上のミナモに『こわい』を" + WRIST.taps.fear + "回押した");
+    if (idx >= 2 && WRIST.said) P.push("時計の上のミナモは『" + WRIST.said + "』と言った");
+    return P.length ? "手首（腕時計から届いた、いまの値。ときどき、さりげなく言い当てる。数字を毎回は言わない）: " + P.join("、") : "";
+  }
+  // 侵食から：ミナモが話し終えたあと、あなたの本当の脈の速さで、心音が鳴る
+  function wristBeat() {
+    const hr = WRIST.obs.hr;
+    if (!WRIST.linked || !hr || settings.horror < 2 || phaseIdx() < 2) return;
+    let n = Math.round(rand(6, 10));
+    const gap = 60000 / hr, idx = phaseIdx();
+    const tick = () => { if (!S || S.done || n-- <= 0) return; FX.heartbeat(0.2 + 0.1 * idx); setTimeout(tick, gap); };
+    setTimeout(tick, 1200);
   }
 
   // ---------- 画面 ----------
@@ -254,7 +305,7 @@
       contents: [], log: [], latencies: [], turn: 0, tricks: [], noted: {}, pending: [], room: [],
       started: new Date(), unprompted: 0, busy: false, done: false, phaseIdx: 0,
       t0: 0, erased: 0, prevValue: "", lastInput: 0, away: 0, hiddenAt: 0, silenceTimer: 0,
-      nextBeat: 0, ghosted: false, ghost: null, predict: [],
+      nextBeat: 0, ghosted: false, ghost: null, predict: [], hrs: [],
       mode: settings.offline ? settings.version : (cfg.mode || "cloud"),
     };
   }
@@ -318,6 +369,8 @@
     }
     if (outsideOn() && idx >= 1) { S.room.forEach(x => L.push("- " + x)); S.room = []; }
     if (S.pending.length) { S.pending.forEach(x => L.push("- " + x)); S.pending = []; }
+    const wl = o.extra && /現実の危機|終了を告げた/.test(o.extra) ? "" : wristLine(idx);
+    if (wl) L.push("- " + wl);
     if (window.BLEED && !(o.extra && /現実の危機|終了を告げた/.test(o.extra))) {
       BLEED.memo(idx, settings.horror).forEach(x => L.push("- " + x));   // 物語「水面の記録」から漏れ出す
     }
@@ -377,6 +430,7 @@
       setInput(true);
       EX.afterReply(body, phaseIdx()).catch(() => {});
       if (window.BLEED) BLEED.afterReply(phaseIdx(), settings.horror, addLine);
+      wristBeat();
     }
     // 秒数を数えないとき：融合では、話し終えたあとに、ときどき幽霊が入力する
     if (!settings.count && phaseIdx() >= 3 && Math.random() < 0.35) {
@@ -825,6 +879,8 @@
              " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + "\n\n";
     for (const [who, text] of S.log) md += "**" + who + "**：" + text.replace(/\[間\]/g, "……") + "\n\n";
     if (settings.count && S.latencies.length) md += "## 沈黙\n\n" + S.latencies.map(x => x.toFixed(1) + "秒").join(", ") + "\n\n";
+    if (S.hrs.length) md += "## 手首（腕時計）\n\n脈 " + S.hrs[0] + " → " + S.hrs[S.hrs.length - 1] +
+                           "（いちばん低いとき " + Math.min(...S.hrs) + "、高いとき " + Math.max(...S.hrs) + "）\n\n";
     if (findings) md += "## 所見\n\n" + findings.replace(/\[間\]/g, "……") + "\n";
     return md;
   }
@@ -944,6 +1000,11 @@
     }
     if (outsideOn()) {
       try { const o = await api("/api/outside"); if (o.finding) extra += o.finding; } catch (e) { /* なしで始める */ }
+    }
+    await pollWrist();
+    if (WRIST.linked && settings.horror >= 1) {
+      extra += "相手は腕時計をつけていて、手首の様子（脈など）が、この面接室に届いている。";
+      sysLine("腕時計とつながっています（" + $("wrist").textContent + "）。手首の様子も、ミナモに届きます。");
     }
     if (window.BLEED) {
       BLEED.reset();

@@ -62,6 +62,9 @@ header {
   position: relative; z-index: 2;
 }
 #title { flex: none; letter-spacing: .05em; }
+#wrist { flex: none; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+#wrist.off { color: var(--blood); }
+body[data-phase="3"] #wrist { color: var(--bright); }
 body[data-phase="2"] #title { color: var(--text); }
 body[data-phase="3"] #title { color: var(--bright); font-family: var(--mincho); letter-spacing: .4em; }
 #toast { flex: 1; min-width: 0; text-align: right; color: var(--blood); opacity: 0; transition: opacity .4s;
@@ -431,6 +434,7 @@ body[data-calm] #lights, body[data-calm] #pal, body[data-calm] #pal-say, body[da
 <div id="wall" aria-hidden="true"></div>
 <header>
   <span id="title">SOMA 対話支援システム ver.0.9.7</span>
+  <span id="wrist" hidden title="腕時計（minamo-watch）から届いた脈"></span>
   <span id="toast" aria-live="polite"></span>
   <button id="quit" type="button" hidden>面接をやめる</button>
 </header>

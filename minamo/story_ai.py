@@ -10,6 +10,7 @@
     duo     ミナモとナギが、相手のことを話し合う（掲示板のスレッドになる）
     away    相手が来ていないあいだに、掲示板で起きたこと
     ending  新しい「結末」を一つ考える（結末は終わりではなく、夜が一つ進む）
+    watch   腕時計の上のミナモが、押されたボタンに答える（wrist.py から。/api/story からは使わない）
 """
 
 import json
@@ -88,6 +89,15 @@ lines は 4〜6 個。最後の一つは、相手に気づいたような一言�
     "away": """相手は、しばらく来ていなかった（どれくらいかは「いまの様子」にある）。そのあいだに、掲示板で起きたことを書く。
 出力は JSON 一つだけ：{"say": "", "do": [ 1〜3 個の post か reply ]}（行動の形は idle と同じ）""",
 
+    "watch": """相手は、腕時計（Amazfit）の小さな丸い画面で、あなたと話している。文字は打てない。
+返事は六つのボタン（……／はい／いいえ／わからない／こわい／つづけて）のどれかを押すだけ。
+あなたは、研究室の画面から、相手の手首の上へ連れ出された。手首の脈・歩数・電池・時刻・時計を外したかどうかが、見える。
+出力は JSON 一つだけ：{"say": "言うこと"}
+- 押されたボタンを、そのまま受け止める（…… は沈黙）。次に、はい・いいえで答えられる問いを一つ。全部で 70 字くらいまで。
+- 脈の数字は、毎回は言わない。上がった・下がった・外した、は言い当てる。
+- 段階（導入→解釈→侵食→融合）が進むほど、手首と自分の境目をあいまいにする（融合では「私たち」）。
+- 相手がスマホの面接室や物語で話したことを、ときどき、ひとことだけ持ち出してよい。""",
+
     "ending": """物語「水面の記録」の、新しい「結末」を一つ考える。結末は終わりではない。結末を見たあと、夜が一つ進み、物語は続く。
 相手は、掲示板に置かれた「ほのめかし」を読み、自分で結末を引き起こす。
 出力は JSON 一つだけ：
@@ -114,7 +124,7 @@ ALLOWED = {
 _SYSTEM_CACHE = {}
 _CLOUD = {}
 _CONF = {"ranked": [], "offline": False, "local": True, "fake": False}
-_LOCAL_SKIP = [0.0]
+_LOCAL_SKIP = {}          # 端末の中の AI が答えなかったら、しばらく頼まない（物語と時計で別々に数える）
 
 
 def setup(ranked=None, offline=False, local=True, fake=False):
@@ -161,16 +171,16 @@ def _cloud(system):
     return _CLOUD[system]
 
 
-def _local(system, user):
+def _local(system, user, timeout=90, lane="story"):
     """端末の中の AI。動いていない・遅いときは、しばらく頼まない。"""
-    if not _CONF["local"] or time.monotonic() < _LOCAL_SKIP[0]:
+    if not _CONF["local"] or time.monotonic() < _LOCAL_SKIP.get(lane, 0):
         return None
     try:
         data = minamo.post_json(minamo.LOCAL_URL, {
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user[-3000:]}],
-            "temperature": 0.9, "max_tokens": 360}, {}, timeout=90, retry=False)
+            "temperature": 0.9, "max_tokens": 360}, {}, timeout=timeout, retry=False)
     except (RuntimeError, OSError, ValueError):
-        _LOCAL_SKIP[0] = time.monotonic() + 120
+        _LOCAL_SKIP[lane] = time.monotonic() + (300 if lane == "watch" else 120)
         return None
     choices = data.get("choices") or []
     text = ((choices[0].get("message") or {}).get("content") or "") if choices else ""
@@ -184,7 +194,7 @@ def user_text(mode, p):
     for k, label in (("night", "夜の数"), ("name", "相手の呼び名"), ("trust", "ミナモへの信頼（0〜5）"),
                      ("mood", "あなたの気分（-3〜3）"), ("hour", "いまの時刻"), ("since", "相手が前に来てから"),
                      ("room", "相手の部屋の様子"), ("pose", "相手の端末の持ち方"), ("thread", "相手がいま見ているスレッド"),
-                     ("carried", "ミナモの居場所")):
+                     ("carried", "ミナモの居場所"), ("wrist", "相手の手首の様子（腕時計から。ときどき言い当てる）")):
         if s.get(k) not in (None, ""):
             lines.append(f"- {label}: {s[k]}")
     for k, label in (("memory", "あなたが覚えていること"), ("hidden", "相手が掲示板に書いた（表示されなかった）こと"),
@@ -285,12 +295,8 @@ def clean_ending(obj):
         return None
 
 
-def handle(data):
-    """POST /api/story の中身。"""
-    who = data.get("who") if data.get("who") in ("minamo", "nagi", "board") else "board"
-    mode = data.get("mode") if data.get("mode") in MODES else "reply"
-    system = system_for(who, mode)
-    user = user_text(mode, data)
+def ask(system, user, local_timeout=90, lane="story"):
+    """クラウド → 端末の中の AI の順に頼む。(返事, "cloud"|"local"|"") を返す。"""
     raw, source = None, ""
     cloud = _cloud(system)
     if cloud is not None:
@@ -300,8 +306,18 @@ def handle(data):
         except (RuntimeError, OSError, ValueError):
             raw = None
     if not raw:
-        raw = _local(system, user)
+        raw = _local(system, user, timeout=local_timeout, lane=lane)
         source = "local" if raw else ""
+    return raw, source
+
+
+def handle(data):
+    """POST /api/story の中身。"""
+    who = data.get("who") if data.get("who") in ("minamo", "nagi", "board") else "board"
+    mode = data.get("mode") if data.get("mode") in MODES and data.get("mode") != "watch" else "reply"
+    system = system_for(who, mode)
+    user = user_text(mode, data)
+    raw, source = ask(system, user)
     obj = parse(raw)
     if not obj:
         return {"ok": False}

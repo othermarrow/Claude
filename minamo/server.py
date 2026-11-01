@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import minamo  # noqa: E402
 import outside  # noqa: E402
 import story_ai  # noqa: E402
+import wrist  # noqa: E402
 
 PORT = 9090
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
@@ -146,6 +147,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 # 物語の掲示板に紛れ込ませる、自分の文章の短い一節（題名・名前・サイト名は伏せたもの）
                 lib = STATE["library"]
                 return self._json(200, {"lines": lib.quote() if lib and hasattr(lib, "quote") else []})
+            if self.path == "/api/watch":
+                # 腕時計（minamo-watch）から届いた、手首の様子
+                return self._json(200, wrist.snapshot())
             if self.path == "/api/memory":
                 mem = STATE["llm"].engines["2026"].memory
                 return self._json(200, {"items": mem.data["items"], "sessions": mem.data["sessions"]})
@@ -190,6 +194,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 text = STATE["llm"].ask(contents, version=version, offline=bool(data.get("offline")))
             except RuntimeError as e:
                 return self._json(502, {"error": str(e)})
+            if not data.get("findings"):
+                wrist.note_interview(contents, text, horror)     # 時計へ漏れ出す材料（ファイルには残さない）
             mode = getattr(STATE["llm"], "mode", "cloud")
             if mode != STATE.get("mode"):
                 print(minamo.MODE_NOTE.get(mode, ""), getattr(STATE["llm"], "model", ""))
@@ -238,12 +244,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             out = story_ai.handle(data)
             if out.get("ok"):
                 print(f"物語：{data.get('who')}／{data.get('mode')}（{out.get('source')}）")
+                wrist.note_story(data.get("who"), out.get("say"))
             return self._json(200, out)
 
         if self.path == "/api/story/note":
             # 登場人物の書き置き（Vault の LLM/水面の記録/）。画面の外を使わない設定なら、書かない
             name = outside.story_note(str(data.get("who") or ""), str(data.get("text") or "")) if minamo.OUTSIDE else ""
             return self._json(200, {"name": name})
+
+        if self.path == "/api/watch":
+            # 腕時計 →（Bluetooth）→ Zepp アプリのサイドサービス → ここ。返事は時計に届く
+            return self._json(200, wrist.update(data))
 
         if self.path == "/api/record":
             md = str(data.get("markdown") or "")

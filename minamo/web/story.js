@@ -32,7 +32,7 @@
                          carried: false, carriedAt: "", bleedAt: "", migrated: "",
                          // 自我（気分・覚えていること）・登場人物の書き込み・整理・結末
                          mood: { minamo: 0, nagi: 0, board: 0 }, mem: { minamo: [], nagi: [], board: [] }, miUnread: 0,
-                         auto: {}, archived: {}, endings: [], endNo: 0, pend: null, ear: false });
+                         auto: {}, archived: {}, endings: [], endNo: 0, pend: null, ear: false, wrist: [] });
   let S = load();
   function load() {
     let s;
@@ -695,6 +695,65 @@
     return true;
   }
 
+  // ---------- 手首（腕時計 minamo-watch。Zepp アプリを通って、サーバーに届く。wrist.py） ----------
+  // つながっていなければ、何も起きない
+  const WR = { linked: false, obs: {}, taps: {}, prevHr: null, offSaid: false };
+  async function pollWrist() {
+    if (document.hidden) return;
+    try {
+      const w = await (await fetch("/api/watch", { headers: { "X-Minamo": "1" } })).json();
+      const was = WR.obs;
+      WR.linked = !!w.linked; WR.obs = w.obs || {}; WR.taps = w.taps || {};
+      if (!WR.linked) return;
+      if (was.hr && was.hr !== WR.obs.hr) WR.prevHr = was.hr;
+      wristLog();
+      // 時計を外したら、どちらかが気づく
+      if (WR.obs.worn === 0 && !WR.offSaid && !$("app").hidden && !endingOn) {
+        WR.offSaid = true;
+        const who = S.nagiOn && (S.carried || Math.random() < 0.5) ? "nagi" : "minamo";
+        dm(who, L.wristOff[who]).catch(() => {});
+      }
+      if (WR.obs.worn !== 0) WR.offSaid = false;
+    } catch (e) { WR.linked = false; }
+  }
+  // 掲示板「手首の観測」：三分おきに、一行ずつ
+  function wristLog() {
+    const o = WR.obs, now = Date.now(), last = S.wrist[S.wrist.length - 1];
+    if (last && now - last[0] < 180000) return;
+    S.wrist.push([now, o.hr || 0, o.steps || 0, o.worn === 0 ? 0 : 1]);
+    cap(S.wrist, 12);
+    const G = D.gen.wrist;
+    const posts = [["1999/12/31", "3 号機", fillG(G.head, { name: S.name || "あなた" })]].concat(S.wrist.map(([t, hr, st, on]) => {
+      const d = new Date(t);
+      return [`${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`, "3 号機",
+              on ? `脈 ${hr || "―"}　歩数 ${st || "―"}` : G.off];
+    }));
+    if (S.wrist.length >= 4) posts.push([today(), "minamo", G.tail]);
+    const old = S.gen.find(g => g.id === "gwrist");
+    if (old) old.posts = posts;
+    else S.gen.push({ id: "gwrist", board: "lab", title: G.title, unlock: "start", posts });
+    save();
+    if (!$("app").hidden) paintTabs();
+  }
+  function wristWords() {
+    if (!WR.linked) return [];
+    const o = WR.obs, w = [];
+    if (o.worn === 0) w.push("時計を外している");
+    else if (o.hr) w.push("脈 " + o.hr + (WR.prevHr ? "（さっきは " + WR.prevHr + "）" : ""));
+    if (o.steps) w.push("今日の歩数 " + o.steps);
+    if (WR.taps.fear) w.push("腕時計の上のミナモに『こわい』を" + WR.taps.fear + "回押した");
+    return w;
+  }
+  // AI がいないときの、手首にふれる一言（つながっていなければ ""）
+  function wristDm(who) {
+    if (!WR.linked || WR.obs.worn === 0 || Math.random() > 0.4) return "";
+    const hr = WR.obs.hr, d = hr && WR.prevHr ? hr - WR.prevHr : 0;
+    const v = { hr: hr || "", dir: d >= 4 ? "上がり" : d <= -4 ? "下がり" : "", fear: WR.taps.fear || "" };
+    const pool = (who === "minamo" ? L.wristMinamo : L.wristNagi)
+      .filter(t => (t.match(/\{(\w+)\}/g) || []).every(m => m === "{san}" || v[m.slice(1, -1)]));
+    return pool.length ? fillG(pick(pool), v) : "";
+  }
+
   // ---------- 自我：AI（クラウド → 端末の中）に、登場人物の声と意志を頼む ----------
   let aiSource = "";
   const hhmm = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
@@ -712,7 +771,7 @@
       visits: S.visits.slice(-3).map(hhmm),
       threads: threads().filter(t => open(t) && !S.archived[t.id]).slice(-14).map(t => `${t.id}: ${t.title}`),
       endings: S.endings.slice(-5).map(e => e.title), own: ownOn() ? ownLines.slice(0, 2) : [],
-      interview: bl ? (bl.said || []).slice(-3) : [],
+      interview: bl ? (bl.said || []).slice(-3) : [], wrist: wristWords(),
     };
   }
   function historyOf(who) {
@@ -872,7 +931,7 @@
       const p = pick(L.boardPosts);
       act("board", { type: Math.random() < 0.5 ? "post" : "reply", board: p.board, title: p.title, who: p.who,
                      text: (Math.random() < 0.5 ? p.text : pick(L.boardReplies)).replace("{hour}", new Date().getHours()).replace("{san}", san()) });
-    } else await dm(who, pick(who === "minamo" ? L.minamoDm : L.nagiDm).replace("{san}", san()));
+    } else await dm(who, (wristDm(who) || pick(who === "minamo" ? L.minamoDm : L.nagiDm)).replace("{san}", san()));
   }
   async function hesitate() {
     const d = typingDots("minamo");
@@ -1072,6 +1131,8 @@
       save();
     }
     pullBleed();
+    pollWrist().then(() => { if (tab === "board" && !curThread) showBoards(); });
+    setInterval(pollWrist, 20000);
     refresh(true);
     showBoards();
     if (S.night >= 2) setTimeout(() => toast(`${S.night}夜目`), 600);
