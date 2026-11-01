@@ -256,6 +256,15 @@ def parse(contents):
         w["steps"] = int(mm.group(1)) if mm else None
         mm = re.search(r"『こわい』を(\d+)回", line)
         w["fear"] = int(mm.group(1)) if mm else 0
+        mm = re.search(r"昨夜の睡眠 (?:(\d+)時間)?(\d+)分", line)
+        w["sleep_min"] = (int(mm.group(1) or 0) * 60 + int(mm.group(2))) if mm else None
+        mm = re.search(r"最初は (\d+時\d+分)", line)
+        w["wake_at"] = mm.group(1) if mm else ""
+        mm = re.search(r"ストレス (\d+)", line)
+        w["stress"] = int(mm.group(1)) if mm else None
+        mm = re.search(r"手首の温度 ([\d.]+)度", line)
+        w["temp"] = mm.group(1) if mm else ""
+        w["tremble"] = "手首が小さく震えている" in line
     info["wrist"] = w
     m = re.search(r"【(蔵書|ノート)の一節】(?:『(.+?)』|「(.+?)」の項)より[^\n]*\n(.+)", last, re.S)
     if m:

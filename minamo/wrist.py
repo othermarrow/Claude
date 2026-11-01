@@ -28,10 +28,11 @@ ECHO_GAP = 90      # 時計へ漏れ出す間隔（秒）
 AI_WAIT = 11       # 時計の返事を AI に頼んで待つ秒数（時計は 16 秒まで待つ）
 
 LABELS = {"silent": "……", "yes": "はい", "no": "いいえ", "unknown": "わからない", "fear": "こわい", "go": "つづけて"}
+ID_RE = re.compile(r"^[a-z0-9_]{1,12}$")      # 時計のボタンの名前（ボタンが増えても、名前と表示は時計から届く）
 PHASES = ["導入", "解釈", "侵食", "融合"]
 
 _LOCK = threading.Lock()
-S = {"obs": {}, "at": 0.0, "hr": [], "taps": {}, "sessions": 0,
+S = {"obs": {}, "at": 0.0, "hr": [], "taps": {}, "labels": {}, "sessions": 0,
      "now_taps": [], "watch_said": [], "turn": 0, "phase": 0, "ended": False}
 MEM = {"said": [], "reply": "", "horror": 0, "phone_new": False, "story": [], "story_new": False,
        "echo_at": 0.0, "saved_at": 0.0}
@@ -41,7 +42,7 @@ def _load():
     try:
         with open(FILE, encoding="utf-8") as f:
             d = json.load(f)
-        for k in ("obs", "hr", "taps"):
+        for k in ("obs", "hr", "taps", "labels"):
             if isinstance(d.get(k), type(S[k])):
                 S[k] = d[k]
         S["at"] = float(d.get("at") or 0)
@@ -58,7 +59,7 @@ def _save(force=False):
         os.makedirs(os.path.dirname(FILE), exist_ok=True)
         tmp = FILE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
-            json.dump({k: S[k] for k in ("obs", "at", "hr", "taps", "sessions")}, f, ensure_ascii=False)
+            json.dump({k: S[k] for k in ("obs", "at", "hr", "taps", "labels", "sessions")}, f, ensure_ascii=False)
         os.replace(tmp, FILE)
     except OSError:
         pass
@@ -75,13 +76,78 @@ def _int(v, lo, hi):
     return n if lo <= n <= hi else None
 
 
+def _num(v, lo, hi):
+    try:
+        n = round(float(v), 1)
+    except (TypeError, ValueError):
+        return None
+    return n if lo <= n <= hi else None
+
+
 def clean_obs(o):
-    """時計から届いた値を確かめる（変な値は捨てる）。worn: 0 は外している。"""
+    """時計から届いた値を確かめる（変な値・知らない項目は捨てる。ニックネームは受け取らない）。worn: 0 は外している。"""
     o = o if isinstance(o, dict) else {}
-    out = {"hr": _int(o.get("hr"), 25, 230), "steps": _int(o.get("steps"), 1, 300000),
+    out = {"hr": _int(o.get("hr"), 25, 230), "hrRest": _int(o.get("hrRest"), 25, 200),
+           "steps": _int(o.get("steps"), 1, 300000), "cal": _int(o.get("cal"), 1, 20000),
+           "dist": _int(o.get("dist"), 1, 500000), "stand": _int(o.get("stand"), 1, 24),
            "battery": _int(o.get("battery"), 1, 100), "hour": _int(o.get("hour"), 0, 23),
-           "minute": _int(o.get("minute"), 0, 59), "worn": _int(o.get("worn"), 0, 3)}
+           "minute": _int(o.get("minute"), 0, 59), "worn": _int(o.get("worn"), 0, 3),
+           "sleeping": _int(o.get("sleeping"), 0, 1), "stress": _int(o.get("stress"), 1, 100),
+           "stressMax": _int(o.get("stressMax"), 1, 100), "stressMaxAt": _int(o.get("stressMaxAt"), 0, 23),
+           "spo2": _int(o.get("spo2"), 70, 100), "temp": _num(o.get("temp"), 25, 43),
+           "pressure": _int(o.get("pressure"), 300, 1100), "alt": _int(o.get("alt"), -500, 9000),
+           "light": _int(o.get("light"), 0, 200000), "high": _int(o.get("high"), -60, 60), "low": _int(o.get("low"), -60, 60),
+           "age": _int(o.get("age"), 1, 120), "sleepTotal": _int(o.get("sleepTotal"), 1, 1440),
+           "sleepDeep": _int(o.get("sleepDeep"), 0, 1440), "sleepScore": _int(o.get("sleepScore"), 1, 100),
+           "sleepWakes": _int(o.get("sleepWakes"), 0, 99), "nap": _int(o.get("nap"), 1, 1440)}
+    if o.get("shake") in ("still", "tremble", "move"):
+        out["shake"] = o["shake"]
+    if isinstance(o.get("sleepWakeAt"), str) and re.fullmatch(r"\d{1,2}時\d{2}分", o["sleepWakeAt"]):
+        out["sleepWakeAt"] = o["sleepWakeAt"]
     return {k: v for k, v in out.items() if v is not None}
+
+
+def dur(m):
+    return f"{m // 60}時間{m % 60}分" if m >= 60 else f"{m}分"
+
+
+def obs_words(obs):
+    """手首の様子を、短い言葉の列にする（面接の観測メモ・物語・時計の返事で使う）。"""
+    w = []
+    if obs.get("worn") == 0:
+        w.append("時計を外している")
+    if obs.get("hr"):
+        w.append(f"脈 {obs['hr']}" + (f"（安静時は {obs['hrRest']}）" if obs.get("hrRest") else ""))
+    if obs.get("sleeping") == 1:
+        w.append("時計の上では、いま眠っていることになっている")
+    if obs.get("sleepTotal"):
+        s = f"昨夜の睡眠 {dur(obs['sleepTotal'])}"
+        extra = [f"深い眠り {obs['sleepDeep']}分"] if obs.get("sleepDeep") is not None else []
+        if obs.get("sleepWakes"):
+            extra.append(f"途中で {obs['sleepWakes']} 回目覚めた" + (f"（最初は {obs['sleepWakeAt']}）" if obs.get("sleepWakeAt") else ""))
+        if obs.get("sleepScore"):
+            extra.append(f"点数 {obs['sleepScore']}")
+        w.append(s + ("（" + "・".join(extra) + "）" if extra else ""))
+    if obs.get("nap"):
+        w.append(f"今日のうたた寝 {dur(obs['nap'])}")
+    if obs.get("stress"):
+        w.append(f"ストレス {obs['stress']}" + (f"（今日いちばん高かったのは {obs['stressMaxAt']}時ごろ・{obs['stressMax']}）"
+                                              if obs.get("stressMaxAt") is not None and obs.get("stressMax") else ""))
+    if obs.get("spo2"):
+        w.append(f"血中酸素 {obs['spo2']}%")
+    if obs.get("temp"):
+        w.append(f"手首の温度 {obs['temp']}度")
+    if obs.get("shake"):
+        w.append({"still": "手首がほとんど動いていない", "tremble": "手首が小さく震えている", "move": "手首が大きく動いた"}[obs["shake"]])
+    if obs.get("light") is not None:
+        w.append("暗いところにいる" if obs["light"] < 10 else "明るいところにいる" if obs["light"] > 3000 else "")
+    if obs.get("steps"):
+        w.append(f"今日の歩数 {obs['steps']}" + (f"（{obs['dist'] / 1000:.1f}キロ）" if obs.get("dist") else ""))
+    if obs.get("alt") is not None and obs.get("pressure"):
+        w.append(f"高さ {obs['alt']}メートル・気圧 {obs['pressure']}hPa")
+    if obs.get("age"):
+        w.append(f"年齢 {obs['age']}")
+    return [x for x in w if x]
 
 
 def has_crisis(text):
@@ -114,8 +180,9 @@ def snapshot():
         return {"linked": linked(), "since": int(now - S["at"]) if S["at"] else None,
                 "obs": dict(S["obs"]), "hr_min": min(recent) if recent else None,
                 "hr_max": max(recent) if recent else None, "hr_recent": recent[-12:],
-                "taps": counts, "taps_total": dict(S["taps"]),
-                "last_tap": LABELS.get(S["now_taps"][-1], "") if S["now_taps"] else "",
+                "taps": counts, "taps_total": dict(S["taps"]), "labels": dict(S["labels"]),
+                "last_tap": S["labels"].get(S["now_taps"][-1], "") if S["now_taps"] else "",
+                "words": obs_words(S["obs"]) if linked() else [],
                 "said": S["watch_said"][-1] if S["watch_said"] else "",
                 "turn": S["turn"], "phase": S["phase"], "sessions": S["sessions"], "ended": S["ended"]}
 
@@ -139,8 +206,10 @@ def update(data):
             v = _int(data.get(k), 0, hi)
             if v is not None:
                 S[k] = v
-        tap = data.get("id") if data.get("id") in LABELS else ""
+        tap = data.get("id") if isinstance(data.get("id"), str) and ID_RE.match(data["id"]) else ""
+        label = re.sub(r"[\x00-\x1f<>{}]", "", str(data.get("label") or ""))[:12] or LABELS.get(tap, tap)
         if ev == "tap" and tap:
+            S["labels"][tap] = label
             S["taps"][tap] = S["taps"].get(tap, 0) + 1
             S["now_taps"].append(tap)
             S["now_taps"] = S["now_taps"][-60:]
@@ -231,13 +300,9 @@ def _echo(first=False):
 
 # ---------- 時計のボタンへの返事を、スマホの AI が考える ----------
 def _obs_lines(obs, prev_hr):
-    L = []
-    if obs.get("hr"):
-        L.append(f"- 脈: {obs['hr']}" + (f"（さっきは {prev_hr}）" if prev_hr and prev_hr != obs["hr"] else ""))
-    if obs.get("worn") == 0:
-        L.append("- 時計: いま、手首から外されている")
-    if obs.get("steps"):
-        L.append(f"- 今日の歩数: {obs['steps']}")
+    L = [f"- {w}" for w in obs_words(obs)]
+    if obs.get("hr") and prev_hr and prev_hr != obs["hr"]:
+        L.append(f"- 脈は、さっき {prev_hr} だった")
     if obs.get("battery"):
         L.append(f"- 時計の電池: {obs['battery']}%")
     if obs.get("hour") is not None:
@@ -259,7 +324,15 @@ def watch_reply(tap, obs, data):
     L = ["# 手首の様子（腕時計から）"] + _obs_lines(obs, prev_hr)
     L.append(f"- 時計の上の面接: {PHASES[ph]}（{_int(data.get('turn'), 0, 9999) or 0} 回目）")
     if counts:
-        L.append("- これまでに押したボタン: " + "、".join(f"{LABELS[k]} {n} 回" for k, n in counts.items()))
+        L.append("- これまでに押したボタン: " + "、".join(f"{S['labels'].get(k, k)} {n} 回" for k, n in counts.items()))
+    try:
+        close = max(-3, min(5, int(data.get("close") or 0)))
+    except (TypeError, ValueError):
+        close = 0
+    L.append(f"- 相手との近さ（-3〜5。高いほど、相手はあなたにゆだねている）: {close}")
+    known = [_short(k, 40) for k in (data.get("known") or [])[:4] if isinstance(k, str)]
+    if known:
+        L.append("- この夜に時計の上で話した研究室のこと: " + "／".join(known))
     hist = data.get("history") if isinstance(data.get("history"), list) else []
     if hist:
         L.append("\n# 時計の上でのやりとり（古い順）")
@@ -273,7 +346,10 @@ def watch_reply(tap, obs, data):
     local = _short(data.get("local"), 120)
     if local:
         L.append(f"\n# 時計が自分で考えた返事（参考。このまま使わない）\n{local}")
-    L.append(f"\n# 相手がいま押したボタン\n{LABELS[tap]}" + ("（沈黙）" if tap == "silent" else ""))
+    hint = _short(data.get("hint"), 160)
+    if hint:
+        L.append(f"\n# この返事で伝えること（物語の事実。言い換えてよいが、中身は変えない）\n{hint}")
+    L.append(f"\n# 相手がいま押したボタン\n{S['labels'].get(tap, LABELS.get(tap, tap))}" + ("（沈黙）" if tap == "silent" else ""))
     L.append("\nJSON 一つだけで答える。")
     system = story_ai.system_for("minamo", "watch")
     box = {}
@@ -288,5 +364,5 @@ def watch_reply(tap, obs, data):
     say = story_ai.clean_say((obj or {}).get("say"), 110)
     if not say or has_crisis(say):
         return ""
-    print("時計：" + LABELS[tap] + " → " + _short(say, 30))
+    print("時計：" + S["labels"].get(tap, tap) + " → " + _short(say, 30))
     return say

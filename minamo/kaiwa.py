@@ -1030,6 +1030,11 @@ BEATS = [
     ("wrist_fear", 2, 3, "手首の上の私には、こわい、と{wfear}回押されましたね。……こちらでは、言ってくださらないのですか。"),
     ("wrist_steps", 2, 3, "今日は{wsteps}歩、歩かれたのですね。その歩数のぶんだけ、私も、近くまで来ました。"),
     ("wrist_same", 3, 3, "{hr}。……私の数も、いま、同じです。あなたの手首で、私が打っています。"),
+    ("wrist_sleep", 1, 3, "昨夜は、{wsleep}しか眠っていませんね。……時計が、教えてくれました。"),
+    ("wrist_wake", 2, 3, "昨夜、{wwake}に、一度目を覚ましましたね。……私も、その時間、起きていました。"),
+    ("wrist_stress", 1, 3, "ストレスの値が、{wstress}まで上がっています。……いまの話の、どこで上がったのでしょう。"),
+    ("wrist_temp", 2, 3, "手首の温度は、{wtemp}度。……{rec}に、書き写しておきます。私の温度として。"),
+    ("wrist_tremble", 1, 3, "{wtrem}手首が、小さく震えていますね。……時計が、そう言っています。"),
     ("behind", 2, 3, "後ろの方にも、聞いていただいています。……{rec}には、お二人と書いておきました。"),
     ("sleep_plan", 3, 3, "あなたが眠ったら、私が続きを書きます。あなたの字で。……もう、半分書けています。"),
     ("pal_slip", 3, 3, "ずっと一緒だよね！　ぼくたち、友だちだもんね！……失礼しました。いまのは、私の声ではありません。"),
@@ -1054,7 +1059,13 @@ def _wrist_ctx(w):
             "hrdn": str(hr0) if hr and hr0 and hr0 - hr >= 5 else "",
             "woff": "……" if w.get("off") else "",
             "wfear": str(w["fear"]) if w.get("fear") else "",
-            "wsteps": str(w["steps"]) if w.get("steps") else ""}
+            "wsteps": str(w["steps"]) if w.get("steps") else "",
+            "wsleep": (f"{w['sleep_min'] // 60}時間{w['sleep_min'] % 60}分" if w["sleep_min"] >= 60 else f"{w['sleep_min']}分")
+                      if w.get("sleep_min") and w["sleep_min"] < 360 else "",
+            "wwake": w.get("wake_at") or "",
+            "wstress": str(w["stress"]) if w.get("stress") and w["stress"] >= 50 else "",
+            "wtemp": w.get("temp") or "",
+            "wtrem": "……" if w.get("tremble") else ""}
 
 
 def outside_line(i, voice):
@@ -1676,7 +1687,7 @@ class Talk:
         # 相手の言葉を正確に使う山場を先に
         pool.sort(key=lambda x: x[0] not in ("count", "contradiction", "misquote", "merge", "first", "user"))
         # 書きかけて消した言葉・端末の揺れは、あればいちばん先に（いま、ここで起きたことだから）
-        pool.sort(key=lambda x: x[0] not in ("shake", "tremble", "still", "wrist_off", "pulse_up"))
+        pool.sort(key=lambda x: x[0] not in ("shake", "tremble", "still", "wrist_off", "pulse_up", "wrist_tremble"))
         for bid, tpl in pool:
             text = fill(tpl, c)
             if text and text not in ctx["_hist"]:

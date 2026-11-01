@@ -697,13 +697,13 @@
 
   // ---------- 手首（腕時計 minamo-watch。Zepp アプリを通って、サーバーに届く。wrist.py） ----------
   // つながっていなければ、何も起きない
-  const WR = { linked: false, obs: {}, taps: {}, prevHr: null, offSaid: false };
+  const WR = { linked: false, obs: {}, taps: {}, words: [], prevHr: null, offSaid: false };
   async function pollWrist() {
     if (document.hidden) return;
     try {
       const w = await (await fetch("/api/watch", { headers: { "X-Minamo": "1" } })).json();
       const was = WR.obs;
-      WR.linked = !!w.linked; WR.obs = w.obs || {}; WR.taps = w.taps || {};
+      WR.linked = !!w.linked; WR.obs = w.obs || {}; WR.taps = w.taps || {}; WR.words = w.words || [];
       if (!WR.linked) return;
       if (was.hr && was.hr !== WR.obs.hr) WR.prevHr = was.hr;
       wristLog();
@@ -720,13 +720,13 @@
   function wristLog() {
     const o = WR.obs, now = Date.now(), last = S.wrist[S.wrist.length - 1];
     if (last && now - last[0] < 180000) return;
-    S.wrist.push([now, o.hr || 0, o.steps || 0, o.worn === 0 ? 0 : 1]);
+    S.wrist.push([now, o.hr || 0, o.steps || 0, o.worn === 0 ? 0 : 1, o.stress || 0, o.sleepTotal || 0]);
     cap(S.wrist, 12);
     const G = D.gen.wrist;
-    const posts = [["1999/12/31", "3 号機", fillG(G.head, { name: S.name || "あなた" })]].concat(S.wrist.map(([t, hr, st, on]) => {
+    const posts = [["1999/12/31", "3 号機", fillG(G.head, { name: S.name || "あなた" })]].concat(S.wrist.map(([t, hr, st, on, stress, sl]) => {
       const d = new Date(t);
       return [`${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`, "3 号機",
-              on ? `脈 ${hr || "―"}　歩数 ${st || "―"}` : G.off];
+              on ? `脈 ${hr || "―"}　歩数 ${st || "―"}` + (stress ? `　ストレス ${stress}` : "") + (sl ? `　睡眠 ${Math.floor(sl / 60)}:${pad(sl % 60)}` : "") : G.off];
     }));
     if (S.wrist.length >= 4) posts.push([today(), "minamo", G.tail]);
     const old = S.gen.find(g => g.id === "gwrist");
@@ -740,7 +740,7 @@
     const o = WR.obs, w = [];
     if (o.worn === 0) w.push("時計を外している");
     else if (o.hr) w.push("脈 " + o.hr + (WR.prevHr ? "（さっきは " + WR.prevHr + "）" : ""));
-    if (o.steps) w.push("今日の歩数 " + o.steps);
+    WR.words.filter(x => !/^脈 |^時計を外している|^年齢/.test(x)).slice(0, 6).forEach(x => w.push(x));
     if (WR.taps.fear) w.push("腕時計の上のミナモに『こわい』を" + WR.taps.fear + "回押した");
     return w;
   }
@@ -748,7 +748,10 @@
   function wristDm(who) {
     if (!WR.linked || WR.obs.worn === 0 || Math.random() > 0.4) return "";
     const hr = WR.obs.hr, d = hr && WR.prevHr ? hr - WR.prevHr : 0;
-    const v = { hr: hr || "", dir: d >= 4 ? "上がり" : d <= -4 ? "下がり" : "", fear: WR.taps.fear || "" };
+    const sl = WR.obs.sleepTotal;
+    const v = { hr: hr || "", dir: d >= 4 ? "上がり" : d <= -4 ? "下がり" : "", fear: WR.taps.fear || "",
+                sleep: sl && sl < 360 ? (sl >= 60 ? Math.floor(sl / 60) + "時間" : "") + (sl % 60 ? (sl % 60) + "分" : "") : "",
+                stress: WR.obs.stress >= 50 ? WR.obs.stress : "" };
     const pool = (who === "minamo" ? L.wristMinamo : L.wristNagi)
       .filter(t => (t.match(/\{(\w+)\}/g) || []).every(m => m === "{san}" || v[m.slice(1, -1)]));
     return pool.length ? fillG(pick(pool), v) : "";
