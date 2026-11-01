@@ -5,7 +5,7 @@
      onBegin(horror)                面接の始まりのあいさつに添える観測メモ（連れ出したミナモ）
      memo(idx, horror)              観測メモに足す行（[] のこともある）
      afterReply(idx, horror, add)   返事のあとに、ときどき、いないはずのナギの吹き出しを出す
-     record(horror, said, replies, crisis)  面接の言葉を、物語の掲示板へ送る（物語の側で #0NN になる）
+     record(horror, said, replies, crisis, levels)  面接の言葉と、過剰で落ちた階層を、物語の掲示板へ送る（物語の側で #0NN と M.E.G. の記録になる）
    危機の言葉が出た面接でも止めない（利用者の指示）。ただし、危機の言葉を含む行そのものは、物語に引かせない。 */
 (function () {
   "use strict";
@@ -80,14 +80,14 @@
       }, 1800 + Math.random() * 2000);
     },
 
-    record(horror, said, replies, crisis) {
+    record(horror, said, replies, crisis, levels) {
       if (horror < 2 || !said.length) return;
       const bad = t => (crisis || []).some(w => t.includes(w));
       const clean = t => String(t).replace(/\[間\]\s*/g, "").replace(/\s+/g, " ").trim();
       const s = said.map(clean).filter(t => t && !bad(t)).slice(-6).map(t => t.slice(0, 60));
       const r = replies.map(clean).filter(t => t && !bad(t)).slice(-6).map(t => t.slice(0, 80));
       if (!s.length) return;
-      try { localStorage.setItem("minamo.bleed", JSON.stringify({ at: new Date().toISOString(), said: s, replies: r })); } catch (e) { /* なし */ }
+      try { localStorage.setItem("minamo.bleed", JSON.stringify({ at: new Date().toISOString(), said: s, replies: r, levels: (levels || []).slice(-30) })); } catch (e) { /* なし */ }
     },
   };
 })();
