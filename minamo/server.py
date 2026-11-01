@@ -22,7 +22,7 @@ import minamo  # noqa: E402
 import outside  # noqa: E402
 import story_ai  # noqa: E402
 
-PORT = 8082
+PORT = 9090
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 MAX_BODY = 2 * 1024 * 1024
 

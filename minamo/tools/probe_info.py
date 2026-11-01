@@ -5,7 +5,7 @@ import json
 import sys
 import urllib.request
 
-port = sys.argv[1] if len(sys.argv) > 1 else "8082"
+port = sys.argv[1] if len(sys.argv) > 1 else "9090"
 try:
     req = urllib.request.Request(f"http://localhost:{port}/api/info", headers={"X-Minamo": "1"})
     with urllib.request.urlopen(req, timeout=4) as res:

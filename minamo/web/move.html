@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>記録の引っ越し（ミナモ）</title>
+<style>
+  body { background: #0b0d0c; color: #d8e2dc; font-family: system-ui, sans-serif; line-height: 1.8; margin: 0; padding: 24px 16px; }
+  main { max-width: 34em; margin: 0 auto; }
+  h1 { font-size: 1.15em; margin: 0 0 .8em; }
+  button, a.b { display: inline-block; background: none; color: #9fe0b0; border: 1px solid #3d7a50; border-radius: 4px;
+    padding: .5em 1.4em; font: inherit; text-decoration: none; margin-top: .6em; }
+  .dim { color: #7d8c84; font-size: .9em; }
+  code { color: #fff; }
+</style>
+</head>
+<body>
+<main>
+  <h1>記録の引っ越し（ミナモ）</h1>
+  <div id="msg"></div>
+</main>
+<script>
+/* 古い番号（8082）の記録（localStorage と IndexedDB）を、新しい番号（9090）へ運ぶ。
+   ブラウザは、記録をポートごとに分けてしまうので、二つの画面のあいだで手渡しする（window.open と postMessage）。
+   古い番号の画面で「引っ越す」を押す → 新しい番号の画面が開いて、受け取る。どちらのサーバーも動かしておくこと。 */
+(function () {
+  "use strict";
+  const OLD = "8082", NEW = "9090", DBS = [];
+  const $ = id => document.getElementById(id);
+  const say = html => { $("msg").innerHTML = html; };
+  const origins = p => ["http://localhost:" + p, "http://127.0.0.1:" + p];
+  const req = r => new Promise((ok, ng) => { r.onsuccess = () => ok(r.result); r.onerror = () => ng(r.error); });
+
+  async function dump() {
+    const ls = {};
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); ls[k] = localStorage.getItem(k); }
+    let names = DBS.slice();
+    try { if (indexedDB.databases) names = [...new Set(names.concat((await indexedDB.databases()).map(d => d.name).filter(Boolean)))]; } catch (e) { /* 一覧がなくても、決まった名前は運ぶ */ }
+    const idb = [];
+    for (const name of names) {
+      let db;
+      try { db = await req(indexedDB.open(name)); } catch (e) { continue; }
+      const stores = [];
+      for (const sn of Array.from(db.objectStoreNames)) {
+        const st = db.transaction(sn, "readonly").objectStore(sn);
+        const keys = await req(st.getAllKeys()), vals = await req(st.getAll());
+        stores.push({ name: sn, keyPath: st.keyPath, autoIncrement: st.autoIncrement,
+          indexes: Array.from(st.indexNames).map(n => { const ix = st.index(n); return { name: n, keyPath: ix.keyPath, unique: ix.unique, multiEntry: ix.multiEntry }; }),
+          keys, vals });
+      }
+      idb.push({ name, version: db.version, stores });
+      db.close();
+    }
+    return { ls, idb };
+  }
+
+  async function restore(data) {
+    let n = 0;
+    for (const [k, v] of Object.entries(data.ls || {})) { localStorage.setItem(k, v); n++; }
+    for (const d of data.idb || []) {
+      let db = await req(indexedDB.open(d.name));
+      const missing = d.stores.filter(s => !db.objectStoreNames.contains(s.name));
+      if (missing.length) {
+        const v = Math.max(db.version + 1, d.version);
+        db.close();
+        const r = indexedDB.open(d.name, v);
+        r.onupgradeneeded = () => {
+          for (const s of missing) {
+            const st = r.result.createObjectStore(s.name, { keyPath: s.keyPath, autoIncrement: s.autoIncrement });
+            for (const ix of s.indexes) st.createIndex(ix.name, ix.keyPath, { unique: ix.unique, multiEntry: ix.multiEntry });
+          }
+        };
+        db = await req(r);
+      }
+      for (const s of d.stores) {
+        const tx = db.transaction(s.name, "readwrite"), st = tx.objectStore(s.name);
+        s.vals.forEach((v, i) => { if (s.keyPath) st.put(v); else st.put(v, s.keys[i]); n++; });
+        await new Promise((ok, ng) => { tx.oncomplete = ok; tx.onerror = () => ng(tx.error); });
+      }
+      db.close();
+    }
+    return n;
+  }
+
+  const here = location.port;
+  if (here === OLD) {
+    say(`<p>この画面は、古い番号（<code>${OLD}</code>）です。ここにある記録を、新しい番号（<code>${NEW}</code>）へ運びます。</p>
+      <p class="dim">新しい番号のサーバーも動かしておいてください（README の「引っ越し」）。新しい番号にすでに記録があるときは、同じ名前のものだけ上書きします。</p>
+      <button id="go" type="button">引っ越す</button>`);
+    $("go").onclick = () => {
+      const w = window.open(`http://localhost:${NEW}/move.html#recv`, "_blank");
+      if (!w) return say("<p>新しい画面を開けませんでした。ポップアップを許可して、もう一度押してください。</p>");
+      say("<p>新しい番号の画面に、記録を渡しています……</p>");
+      window.addEventListener("message", async e => {
+        if (!origins(NEW).includes(e.origin)) return;
+        if (e.data && e.data.type === "ready") { try { w.postMessage({ type: "data", data: await dump() }, e.origin); } catch (er) { say(`<p>読み出せませんでした：${er}</p>`); } }
+        if (e.data && e.data.type === "done") say(`<p>引っ越しました（${e.data.n} 件）。これからは <code>http://localhost:${NEW}/</code> で遊べます。</p><p class="dim">古い番号（${OLD}）のサーバーは、止めてかまいません。この画面の記録は、そのまま残っています。</p>`);
+        if (e.data && e.data.type === "error") say(`<p>新しい番号の側で、書き込めませんでした：${e.data.msg}</p>`);
+      });
+    };
+  } else if (location.hash === "#recv" && window.opener) {
+    say("<p>古い番号から、記録を受け取っています……</p>");
+    window.addEventListener("message", async e => {
+      if (!origins(OLD).includes(e.origin) || !e.data || e.data.type !== "data") return;
+      try {
+        const n = await restore(e.data.data);
+        e.source.postMessage({ type: "done", n }, e.origin);
+        say(`<p>受け取りました（${n} 件）。</p><a class="b" href="./">開く</a>`);
+      } catch (er) { e.source.postMessage({ type: "error", msg: String(er) }, e.origin); say(`<p>書き込めませんでした：${er}</p>`); }
+    });
+    window.opener.postMessage({ type: "ready" }, "*");
+  } else {
+    say(`<p>この画面は、古い番号（<code>${OLD}</code>）で開いたときに使います。</p><p class="dim">古い番号のサーバーを動かして、<code>http://localhost:${OLD}/move.html</code> を開いてください。</p><a class="b" href="./">戻る</a>`);
+  }
+})();
+</script>
+</body>
+</html>

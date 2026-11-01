@@ -4,7 +4,7 @@
 cd "$(dirname "$0")" || exit 1
 LOG="$HOME/minamo/server.log"
 STOP="$HOME/minamo/stop"
-up() { curl -s -o /dev/null --max-time 3 http://127.0.0.1:8082/ 2>/dev/null; }
+up() { curl -s -o /dev/null --max-time 3 http://127.0.0.1:9090/ 2>/dev/null; }
 while [ ! -f "$STOP" ]; do
   sleep 15
   [ -f "$STOP" ] && break

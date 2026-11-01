@@ -11,13 +11,13 @@ cd "$(dirname "$0")" || exit 1
 case "$1" in
   stop) sh "$PWD/stop.sh"; echo "止めました。"; exit 0 ;;
   restart) sh "$PWD/stop.sh"; sleep 1; shift; PAGE=""
-           if curl -s -o /dev/null --max-time 2 http://127.0.0.1:8082/ 2>/dev/null; then
+           if curl -s -o /dev/null --max-time 2 http://127.0.0.1:9090/ 2>/dev/null; then
              echo "止められないサーバーが動いています（start.sh 以外の方法で起動したもの？）。そのサーバーの画面で Ctrl+C を押してから、もう一度 mo restart"
              exit 1
            fi
            echo "止めました。起動し直します。" ;;
   log)  tail -20 "$HOME/minamo/server.log"; echo "AI の一括チェック："
-        python3 "$PWD/tools/probe_info.py" 8082; exit 0 ;;
+        python3 "$PWD/tools/probe_info.py" 9090; exit 0 ;;
   update)
     # 端末の main に、GitHub で取り込んだもの（マージ）があっても止まらないように --no-rebase --no-edit
     ROOT=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || { echo "git のフォルダが見つかりません。"; exit 1; }
@@ -40,10 +40,10 @@ LOG="$HOME/minamo/server.log"
 echo "ミナモ：更新 $(git -C "$PWD" log -1 --format='%h（%cd）' --date=format:'%m/%d %H:%M' 2>/dev/null)"
 mkdir -p "$HOME/minamo"
 touch "$LOG"
-if curl -s -o /dev/null --max-time 2 http://127.0.0.1:8082/ 2>/dev/null; then
+if curl -s -o /dev/null --max-time 2 http://127.0.0.1:9090/ 2>/dev/null; then
   # もう動いている：そのサーバーに、起動時の一括チェックの結果を聞いて見せる
   echo "サーバーは、もう動いています。起動したときの AI の一括チェック："
-  python3 "$PWD/tools/probe_info.py" 8082
+  python3 "$PWD/tools/probe_info.py" 9090
   sh "$PWD/start.sh" "$@" >/dev/null 2>&1
 else
   # 起動のあいだ、ログに増えた行（各モデルの一括チェックの進み具合など）を、そのまま見せる
@@ -83,7 +83,7 @@ else
   rc=$?
   show
   # ログに一括チェックの行が出てこなかったときは、サーバーに直接聞く
-  [ "$rc" = 0 ] && [ "$seen" = 0 ] && python3 "$PWD/tools/probe_info.py" 8082
+  [ "$rc" = 0 ] && [ "$seen" = 0 ] && python3 "$PWD/tools/probe_info.py" 9090
   if [ "$rc" != 0 ]; then
     echo "開けませんでした。上の表示か、mo log で様子を見てください。"
     exit 1
@@ -92,7 +92,7 @@ fi
 # すぐに Chrome が前に出て、上の結果が隠れないように、少しだけ待つ
 echo "（3 秒後に開きます。結果はあとで mo log でも見られます）"
 sleep 3
-URL="http://localhost:8082/$PAGE"
+URL="http://localhost:9090/$PAGE"
 if command -v termux-open-url >/dev/null 2>&1; then
   termux-open-url "$URL"
 else
