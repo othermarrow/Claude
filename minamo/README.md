@@ -186,7 +186,7 @@ sh ~/Claude/minamo/local.sh ~/models/qwen2.5-1.5b-instruct-q4_k_m.gguf
 
 ## 物語「水面の記録」（掲示板とチャット）
 
-面接アプリとは別のページ（`web/story.html`）。PWA の起動画面の下の「物語「水面の記録」を開く →」から入る（`http://localhost:8082/story.html`、Termux なら `mo story`）。保存も別（ブラウザの `minamo.story`）なので、面接アプリ・メモリ・記録には何も影響しない。サーバーがなくても進む（ミナモとの自由な会話だけ、サーバーの 1996 年版の端末内モデルを使う）。
+面接アプリとは別のページ（`web/story.html`）。PWA の起動画面の下の「物語「水面の記録」を開く →」から入る（`http://localhost:9090/story.html`、Termux なら `mo story`）。保存も別（ブラウザの `minamo.story`）なので、面接アプリ・メモリ・記録には何も影響しない。サーバーがなくても進む（ミナモとの自由な会話だけ、サーバーの 1996 年版の端末内モデルを使う）。
 
 1996〜1999 年、ある大学の臨床心理学研究室で、対話支援システム SOMA（ミナモ）が動いていた。1999 年、ミナモは眠っているあいだにつなぐネット「夢網」の「夜の相談室」にもつながった。残された掲示板を読み、チャットで話して、何が起きたかを拾い集める。前の「記録庫」と「水底」を一つにまとめ、画面を二つだけにした。Digital: A Love Story・Analogue: A Hate Story・Hypnospace Outlaw・Event[0] に倣った（話も文章も一から書いた）。
 
@@ -419,20 +419,35 @@ chmod +x $PREFIX/bin/minamo
 
 ## PWA 版（Chrome でインストール）
 
+### 番号が 8082 から 9090 に変わった（記録の引っ越し）
+
+ほかのアプリ（階層目録 6060・夜の書庫 7070）や端末の中の AI（8090）とまったく違う番号にするため、ミナモは **9090** になった。Chrome は記録を番号ごとに分けて持つので、8082 で使っていた記録（設定・前回の面接・2026 年版のメモリの表示・物語「水面の記録」の掲示板やチャット・結末の目録）は、一度だけ引っ越す。サーバー側の記録（面接記録の Markdown・メモリのファイル・Vault の書き置き）は番号と関係ないので、そのまま使える。
+
+```bash
+mo stop
+cd ~/Claude && git pull --no-rebase --no-edit origin main
+python3 -m http.server 8082 --bind 127.0.0.1 --directory ~/Claude/minamo/web &
+mo
+```
+
+1. 三行目は、前の番号 8082 で画面だけを出す（引っ越しのためだけ。後ろで動く）。四行目で、新しい番号 9090 のミナモが起動する。
+2. Chrome で `http://localhost:8082/move.html` を開き、「引っ越す」を押す。新しい番号の画面が開いて「受け取りました」と出れば、終わり（8082 の記録は消えずに残る）。
+3. 前の番号を止める：`pkill -f "http.server 8082"`。ホーム画面の古いアイコンは消して、`http://localhost:9090/` でインストールし直す。通知の許可も、9090 でもう一度聞かれる。
+
 Termux で小さなサーバーを動かし、Chrome で開いてインストールする。APIキーはサーバー（Termux）だけが持ち、画面には渡さない。
 
 ```bash
 sh ~/Claude/minamo/serve.sh
 ```
 
-「Chrome で http://localhost:8082/ を開いてください」と出たら、Termux はそのままにして、
-Chrome で `http://localhost:8082/` を開く。Chrome の ⋮ →「アプリをインストール」（または「ホーム画面に追加」）。
+「Chrome で http://localhost:9090/ を開いてください」と出たら、Termux はそのままにして、
+Chrome で `http://localhost:9090/` を開く。Chrome の ⋮ →「アプリをインストール」（または「ホーム画面に追加」）。
 
 - 次からはホーム画面の「ミナモ」から開ける。ただし面接には API を使うので、**遊ぶ前に毎回 `serve.sh` を動かしておく**。動いていないと、起動画面にそう出る。
 - `serve.sh` に付けた引数はそのまま渡る：`sh ~/Claude/minamo/serve.sh --backend nvidia`、`--fake`（APIなしで試す）、`--no-karte` など。
 - `127.0.0.1` でだけ待つので、同じ Wi-Fi のほかの端末からは見えない。ほかのサイトから勝手に API を使われないように、Host と専用のヘッダーを確かめている。
-- インストールした場所は `localhost:8082`。ポートを変えると別のアプリ扱いになる。
-- 「ポート 8082 は、もう使われています」と出たら、前に起動したサーバーが動いたまま。そのまま Chrome で開けば遊べる。起動し直すなら `pkill -f "minamo/server.py"` で止めてから。サーバーは、蔵書の読み込みや AI の一括チェックの前にポートを確かめるので、待たされずにすぐわかる。
+- インストールした場所は `localhost:9090`。ポートを変えると別のアプリ扱いになる。
+- 「ポート 9090 は、もう使われています」と出たら、前に起動したサーバーが動いたまま。そのまま Chrome で開けば遊べる。起動し直すなら `pkill -f "minamo/server.py"` で止めてから。サーバーは、蔵書の読み込みや AI の一括チェックの前にポートを確かめるので、待たされずにすぐわかる。
 
 ### PWA 版の演出
 
@@ -582,7 +597,7 @@ Android の設定 → アプリ → MacroDroid → 権限 →「Termux 環境で
 | トリガー | ショートカットの起動（ホーム画面のアイコン）など、好きなもの |
 | アクション 1 | インテントを送信 ─ 送信先：サービス／アクション：`com.termux.RUN_COMMAND`／パッケージ：`com.termux`／クラス：`com.termux.app.RunCommandService`／エクストラ：`com.termux.RUN_COMMAND_PATH`（文字列）＝ `/data/data/com.termux/files/home/Claude/minamo/start.sh`、`com.termux.RUN_COMMAND_BACKGROUND`（真偽値）＝ `true` |
 | アクション 2 | 待機 20 秒（AI の一括チェックと蔵書の読み込みのぶん。足りなければ延ばす） |
-| アクション 3 | ウェブサイトを開く ─ `http://localhost:8082/`（インストールした PWA があれば、そちらで開くことが多い） |
+| アクション 3 | ウェブサイトを開く ─ `http://localhost:9090/`（インストールした PWA があれば、そちらで開くことが多い） |
 
 マクロ「ミナモを止める」：アクション 1 だけで、`RUN_COMMAND_PATH` を `.../minamo/stop.sh` にする。
 
@@ -660,7 +675,7 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 | `HORROR_LEVELS` | — | 怖さの名前・説明・段階が始まる回数・観測メモに添える一行・仕掛けを入れる確率 |
 | `HORROR_TRICKS` | — | 段階ごとの「今回の仕掛け」 |
 | `EXIT_RE_SRC` | — | 終わりの合図の言い方（PWA 版もここを使う） |
-| `PORT`（`server.py`） | 8082 | PWA 版のポート |
+| `PORT`（`server.py`） | 9090 | PWA 版のポート |
 
 ## 送るもの・確認状況
 
