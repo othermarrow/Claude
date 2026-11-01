@@ -140,6 +140,7 @@
     const b = document.body;
     b.classList.remove("trap", "dark", "zs", "pal-on", "pal-wrong", "crt", "br", "br-run", "br-dark", "br-fun");
     delete b.dataset.lv;
+    $("wall").style.background = "";
     $("blackout").hidden = true;
     $("darktext").textContent = "";
     $("pal").hidden = true;
@@ -223,6 +224,10 @@
     b.classList.toggle("br-dark", l.id === "6");
     b.classList.toggle("br-fun", l.id === "Fun =)");
     FX.amb(l.amb);
+    paintWall(l.id);
+    // 次の階層の壁を、先に描いておく（落ちる暗転を短く保つため）
+    const nx = LV[(li + 1) % LV.length].id;
+    setTimeout(() => { if (live() && window.WALLS) WALLS.paint(nx, innerWidth, innerHeight); }, 4000);
     visited.push(lvName(l));
     since = 0; runTurns = 0;
     document.title = l.id === "Fun =)" ? "=)" : "ミナモ";
@@ -232,6 +237,17 @@
     if (l.id === "!") chaseT = setInterval(() => { if (live()) { FX.heartbeat(0.9); if (navigator.vibrate) navigator.vibrate([30, 120, 30]); } }, 1700);
     if (phase >= 2) status();
   }
+
+  // 壁：階層ごとにキャンバスで描いた絵（walls.js）。描けなければ CSS の模様のまま
+  function paintWall(id) {
+    const url = window.WALLS ? WALLS.paint(id, innerWidth, innerHeight) : "";
+    $("wall").style.background = url ? `#000 center / cover no-repeat url(${url})` : "";
+  }
+  let resizeT = 0;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeT);
+    resizeT = setTimeout(() => { if (live() && cur()) paintWall(cur().id); }, 400);   // 縦横を変えたら、描き直す
+  });
 
   // すり抜け：画面がゆっくり暗くなり、落ちる音のあとで、下の階層に着く
   async function noclip(first) {
