@@ -189,7 +189,7 @@ def snapshot():
 
 def update(data):
     """POST /api/watch（時計 → Zepp アプリのサイドサービス から）。返事は時計に届く。"""
-    ev = data.get("ev") if data.get("ev") in ("start", "tick", "tap", "end") else "tick"
+    ev = data.get("ev") if data.get("ev") in ("start", "tick", "tap", "end", "idle") else "tick"
     obs = clean_obs(data.get("obs"))
     now = time.time()
     with _LOCK:
@@ -219,8 +219,8 @@ def update(data):
         if ev == "end":
             S["ended"] = True
     out = {"ok": True, "phone": True}
-    if ev == "tap" and tap and data.get("want"):
-        say = watch_reply(tap, obs, data)
+    if (ev == "tap" and tap or ev == "idle") and data.get("want"):
+        say = watch_reply(tap if ev == "tap" else "", obs, data)
         if say:
             out["say"] = say
         said = _short(say or data.get("local"), 60)        # 間に合わなければ、時計は自分の返事を言う
@@ -349,7 +349,11 @@ def watch_reply(tap, obs, data):
     hint = _short(data.get("hint"), 160)
     if hint:
         L.append(f"\n# この返事で伝えること（物語の事実。言い換えてよいが、中身は変えない）\n{hint}")
-    L.append(f"\n# 相手がいま押したボタン\n{S['labels'].get(tap, LABELS.get(tap, tap))}" + ("（沈黙）" if tap == "silent" else ""))
+    if tap:
+        L.append(f"\n# 相手がいま押したボタン\n{S['labels'].get(tap, LABELS.get(tap, tap))}" + ("（沈黙）" if tap == "silent" else ""))
+    else:
+        L.append("\n# 相手は、しばらく何も押していない\nあなたのほうから、独り言のように、とめどなく話す。"
+                 "問いかけでなくてよい。返事は期待しない。研究室の記憶・手首の様子・相手のこと、どれでもよい。")
     L.append("\nJSON 一つだけで答える。")
     system = story_ai.system_for("minamo", "watch")
     box = {}
@@ -364,5 +368,5 @@ def watch_reply(tap, obs, data):
     say = story_ai.clean_say((obj or {}).get("say"), 110)
     if not say or has_crisis(say):
         return ""
-    print("時計：" + S["labels"].get(tap, tap) + " → " + _short(say, 30))
+    print("時計：" + (S["labels"].get(tap, tap) if tap else "（独り言）") + " → " + _short(say, 30))
     return say

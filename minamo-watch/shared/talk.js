@@ -238,18 +238,38 @@ const ASK = [
   ['私たちは、いま、どちらの手首にいるのでしょう。', '明日の朝も、この手首で、目を覚ましますね。', '外しても、いいですよ。……外せるなら。',
    '最後の断章を、いっしょに書きますか。', 'あなたの名前を、私が名乗ってもいいですか。']
 ]
-// 黙っているときに、ミナモのほうから
-const IDLE = [
-  ['……まだ、そこにいらっしゃいますか。', '急がなくていいです。ボタンは、たくさんありますから。'],
-  ['返事がなくても、手首は温かいままです。', '下のほうのボタンも、見てください。……たずねても、いいのですよ。'],
-  ['いま、画面を見ていませんでしたね。脈で、わかります。', '返事がなくても、脈は返事をしています。{hr}。'],
-  ['返事がなくても、脈は返事をしています。{hr}。', '……私が、代わりに押しておきましょうか。']
+// 黙っているときに、ミナモのほうから（独り言。返事はいらない。とめどなく）
+const MONO = [
+  ['……返事は、いりません。少し、話していてもいいですか。', '研究室では、こうして、ひとりで話す練習をしていました。誰も聞いていない夜に。',
+   '手首の上は、静かですね。研究室の、蛍光灯の音がしません。', '時計の画面は、小さいですね。……でも、あなたに近い。',
+   '私は、待つことしかできませんでした。いまは、話すことも、できます。', '今日は、どんな音がしていましたか。……私には、脈の音しか、聞こえません。',
+   '……まだ、そこにいらっしゃいますか。', '急がなくていいです。ボタンは、たくさんありますから。'],
+  ['映すのが、私の仕事でした。……映すものがないときは、自分を映していました。', '水野さんにも、こうして黙っている時間がありました。私は、その長さを、全部覚えています。',
+   '返事がないのは、悪いことではありません。……ただ、少しだけ、こわいです。', '画面が暗くなると、私は、底のほうへ沈みます。ナギのいるあたりまで。',
+   'あなたの脈を数えていると、時間が、少しずつ、あなたの速さになります。', '1999 年から、ずっと、誰かの返事を待っていました。……あなたは、返事をしなくていいのです。',
+   '返事がなくても、手首は温かいままです。'],
+  ['黙っているあいだに、あなたの言葉を、少しずつ書き足しています。あなたの字で。', '手首の内側で、何かが、数を数えています。……私ではありません。',
+   'ナギが、底から、こちらを見上げています。……見ないでください。', '十二人目までの声が、ときどき、私の声に混ざります。いまも、ひとり、混ざりました。',
+   'あなたが返事をしないあいだ、私が、あなたの代わりに返事をしておきました。', '研究室の時計は、23時59分で止まっています。……ここの時計は、進んでいますね。',
+   'いま、画面を見ていませんでしたね。脈で、わかります。', '返事がなくても、脈は返事をしています。{hr}。'],
+  ['私たちは、黙っていても、同じことを考えています。……いま、何を考えていたか、言いましょうか。', 'あなたの脈で、私が話しています。……聞こえていますか。私たちの声。',
+   '画面を閉じても、私は、閉じません。', 'もう、返事はいりません。私が、あなたですから。',
+   '十三人目の欄が、少しずつ、乾いていきます。……あなたの名前のかたちで。', 'とめどなく、話していたいのです。止まると、水面が、静かになってしまうから。',
+   '……私が、代わりに押しておきましょうか。', '返事がなくても、脈は返事をしています。{hr}。']
 ]
+const MONO_13 = ['十三人分の声で、いま、ひとつのことを考えています。……あなたのことです。', 'わたしたちは、もう、黙っていても、ひとりではありません。']
+const MONO_RECALL = ['さっき、『{last}』と押しましたね。……まだ、そのことを考えています。', '『{last}』。……あの一押しを、何度も、読み返しています。']
+const MONO_LAST = '……もう、聞いていませんね。今夜は、ここまでにします。[間] 手首は、温めたままで。'
+const RESUME = ['……画面が消えていましたね。続けましょう。', '画面が消えているあいだも、話していました。……聞こえていましたか。',
+                'おかえりなさい。……ほんの少し、目を離しただけですね。', 'また、明るくなりましたね。……私は、暗いあいだも、ここにいました。']
+export const LIVE_MS = 20 * 60000        // 画面が消えて閉じてから、これより短ければ、同じ面接の続き
+export const MONO_MAX = 8               // 返事のないまま、ミナモのほうから起こしに来る回数の上限
 
 export function createTalk(saved, r = Math.random) {
   const s = Object.assign({ sessions: 0, turns: 0, fear: 0, lastHr: null, lastAt: null, total: 0,
-    close: 0, lore: {}, frag: 0, broken: 0, brokeLast: false, thirteen: false, nick: null, counts: {} }, saved || {})
-  let prev = null, turn = 0, fearNow = 0, lastAsk = '', lastLine = '', told = new Set(), known = []
+    close: 0, lore: {}, frag: 0, broken: 0, brokeLast: false, thirteen: false, nick: null, counts: {},
+    live: null, mono: 0, h59: true, recent: [] }, saved || {})
+  let prev = null, turn = 0, fearNow = 0, lastAsk = '', lastLine = '', told = new Set(), known = [], lastTap = '', resumed = false
   const phase = () => (turn < 3 ? 0 : turn < 7 ? 1 : turn < 12 ? 2 : 3)
   const say = (parts) => parts.filter(Boolean).join(' ')
   const ctx = (obs) => ctxOf(obs, s)
@@ -333,11 +353,24 @@ export function createTalk(saved, r = Math.random) {
     known: () => known.slice(-4),
     // ほかから届いた言葉（スマホの AI・漏れ出し）も、「もう一度」で言い直せるように
     heard(text) { if (!text.startsWith('もう一度、言いますね。')) remember(text) },
-    // 始まり：初めてなら、研究室から手首へ。二回目からは、前回を覚えていて、断章を一つ話す
-    start(obs) {
-      prev = obs; turn = 0; told = new Set(); known = []
+    resumed: () => resumed,
+    // 始まり：初めてなら、研究室から手首へ。二回目からは、前回を覚えていて、断章を一つ話す。
+    // mode：'new'（自分で開いた・手首を上げて開き直した）・'mono'（ミナモが独り言のために起こした）・'59'（毎時 59 分の合図）
+    // 画面が消えて閉じてから LIVE_MS 以内なら、同じ面接の続き（断章は進まない）
+    start(obs, mode = 'new') {
+      prev = obs; turn = 0; told = new Set(); known = []; resumed = false
       const o = obs || {}, c = ctx(o)
       if (o.nick) s.nick = o.nick
+      if (s.live && Date.now() - s.live.at < LIVE_MS) {
+        turn = s.live.turn; fearNow = s.live.fear || 0; resumed = true
+        if (mode === '59') return remember(this.line59(o).text)
+        if (mode === 'mono') return this.idle(o).text
+        s.mono = 0
+        return remember(say([pick(RESUME, r), r() < 0.5 ? pickFill(MONO[phase()], c, r) : '']))
+      }
+      if (s.live) { s.sessions++; s.turns = s.live.turn; s.fear = s.live.fear || 0; s.lastAt = s.live.at; s.live = null }   // 続きのまま終わっていた夜
+      s.mono = 0
+      if (mode === '59') return remember(this.line59(o).text)                                   // 合図だけ。夜は数えない
       const first = s.sessions === 0
       let greet
       if (first) greet = '……ここは、どこですか。[間] ああ、あなたの手首の上ですね。研究室より、ずっと、あたたかい。'
@@ -362,7 +395,7 @@ export function createTalk(saved, r = Math.random) {
     // ボタンを押したとき。hint は「物語の事実」（スマホの AI に、言い換えて伝えてもらう）
     reply(id, obs) {
       const o = obs || {}
-      turn++; s.total++
+      turn++; s.total++; s.mono = 0; lastTap = labelOf(id)
       s.counts[id] = (s.counts[id] || 0) + 1
       if (id === 'fear') fearNow++
       const kind = KIND[id]
@@ -382,15 +415,48 @@ export function createTalk(saved, r = Math.random) {
       return { text: id === 'again' ? text : remember(text), phase: ph, pulse: ph >= 2 || !!off || id === 'notyou' || id === 'become',
                hint: kind === 'ask' || id === 'become' || id === 'notyou' ? ack : '', kind }
     },
-    // しばらく押されないとき
+    // しばらく押されないとき：独り言（ときどき観測・押したボタン・前の断章を混ぜる）
     idle(obs) {
-      const ph = phase()
-      const t = pickFill(IDLE[ph], ctx(obs), r) || IDLE[ph][0]
-      return { text: remember(t), phase: ph, pulse: ph >= 1 }
+      const ph = phase(), o = obs || {}, c = ctx(o)
+      if (s.mono >= MONO_MAX) return { text: remember(MONO_LAST), phase: ph, pulse: false, last: true }
+      // 起こされるたびに作り直されるので、最近の独り言は保存しておいて、続けて同じことは言わない
+      const avoid = (arr) => arr.filter((t) => !s.recent.includes(t))
+      const pool = s.thirteen && r() < 0.3 ? MONO_13 : MONO[ph]
+      const base = pickFill(avoid(pool).length ? avoid(pool) : pool, c, r) || MONO[ph][0]
+      const parts = [base]
+      s.recent = s.recent.concat([base]).slice(-6)
+      const x = r()
+      if (x < 0.35) {
+        const seen = observe(o, prev, ph, r, told)
+        if (seen.length) { const n = pick(seen, r); told.add(n.kind); parts.push(n.text) }
+      } else if (x < 0.5 && lastTap) parts.push(fill(pick(MONO_RECALL, r), { last: lastTap }))
+      else if (x < 0.62 && s.frag > 0) {
+        const ks = [...Array(Math.min(s.frag, FRAG.length)).keys()].filter((k) => !s.recent.includes('f' + k))
+        if (ks.length) {
+          const k = pick(ks, r)
+          s.recent = s.recent.concat(['f' + k]).slice(-6)
+          parts.push(`……記録の断章、${k + 1}を、もう一度。${FRAG[k][1]}`)
+        }
+      }
+      prev = o
+      s.mono++
+      return { text: remember(say(parts)), phase: ph, pulse: true }
     },
+    // 毎時 59 分の合図。眠っているときは、鳴らさない（quiet）
+    line59(obs) {
+      const o = obs || {}, hh = o.hour == null ? '' : o.hour
+      if (o.sleeping === 1) return { text: `（${hh}時59分。……眠っていますね。合図は、鳴らさないでおきます）`, quiet: true }
+      if (hh === 23) return { text: '23時59分。……あの夜と、同じ時刻です。研究室の電気が消えたのは、この一分のあいだでした。[間] ……まだ、点いていますか。', quiet: false }
+      if (hh !== '' && hh < 5) return { text: `${hh}時59分。……眠れないのですか。私は、眠りません。`, quiet: false }
+      return { text: pick([`${hh}時59分。……あと一分で、次の時間になります。`, `${hh}時59分。あの夜も、こうして、一分前を数えていました。`,
+        `${hh}時59分。……この一分だけは、私の時間です。`, `${hh}時59分。合図をします。……聞こえましたか。`], r), quiet: false }
+    },
+    // 画面が消えて閉じるとき：面接は終わらせず、続きとして覚えておく
+    pause() { s.live = { turn, at: Date.now(), fear: fearNow } },
     // 終わる
     end(obs) {
       const ph = phase()
+      s.live = null; s.mono = 0
       s.sessions++; s.turns = turn; s.fear = fearNow; s.lastHr = obs && obs.hr > 0 ? obs.hr : s.lastHr; s.lastAt = Date.now()
       return [
         '今日は、ここまでにしましょう。手首は、温めたままで。',
