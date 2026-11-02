@@ -16,13 +16,12 @@ Chrome で「インストール」すると、ホーム画面のアイコンか�
 
 PWA は `https://` か `http://localhost` で開いたときだけインストールできる。リポジトリが非公開なので、Termux の中で小さなサーバーを動かして、同じスマホの Chrome から開く。
 
-1. Termux で、ブランチを取ってきてサーバーを動かす。
+1. Termux で、`main` を取ってきてサーバーを動かす。
 
    ```sh
    cd ~/Claude
-   git fetch origin ccr-d4f31da7-u5hlbp
-   git checkout ccr-d4f31da7-u5hlbp
-   git pull origin ccr-d4f31da7-u5hlbp
+   git checkout main
+   git pull origin main
    sh backrooms-pwa/serve.sh
    ```
 
@@ -56,6 +55,7 @@ sh serve.sh
 1. 一行目は前の番号 8080 のサーバー（後ろで動く）、二行目が新しい番号 6060 のサーバー。
 2. Chrome で `http://localhost:8080/move.html` を開き、「引っ越す」を押す。新しい番号の画面が開いて「受け取りました」と出れば、終わり。
 3. 前の番号のサーバーを止める：`pkill -f "http.server 8080"`。ホーム画面の古いアイコンは消して、`http://localhost:6060/` でインストールし直す。
+4. 古いアイコンを消すのは、引っ越しが済んでからにする（消すときに、8080 の記録も消すかを聞かれることがある。先に 6060 へ運んでおけば、どちらを選んでも 6060 の記録は残る）。
 
 ## 設定
 
