@@ -1,0 +1,1168 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>蔵守</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d0c07">
+<link rel="icon" href="../icons/icon-192.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Shippori+Mincho:wght@500;700&display=swap">
+<style>
+/* 蔵守（記録 05）。組み立ては空欄_2 と同じ（状態行・文章・命令を作る・十字キー・よく使うボタン・≡ メニュー）。
+   場所と時刻（昼・夕・夜）ごとに、画面全体の配色が変わる。配色の表は下のスクリプトの PAL にあり、
+   body[data-pal="…"] の CSS 変数として差しこむ。不安がたまると、文章欄の下から水が上がってくる。 */
+:root {
+  --screen: #0b100c;
+  --wall: #cddfc8;
+  --bright: #f3fff0;
+  --dim: #6f8a6c;
+  --faint: #1f2c20;
+  --key: #111a12;
+  --bar-bg: #a8cf8e;
+  --bar-fg: #0b100c;
+  --warn: #ff6a5a;
+  --glow: rgba(168, 207, 142, 0.28);
+  --take: #ffd479;
+  --dream: #b9c4ff;
+  --tide: 0, 190, 180;
+  --water: 0;
+  --dot: "DotGothic16", "Noto Sans Mono CJK JP", "Osaka-Mono", ui-monospace, monospace;
+  --mincho: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif CJK JP", serif;
+  --size: 17px;
+  --line: 1.7;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--screen);
+  color: var(--wall);
+  font-family: var(--dot);
+  font-size: var(--size);
+  line-height: var(--line);
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.9s, color 0.9s;
+}
+#app { height: 100%; display: flex; flex-direction: column; }
+
+/* 状態行 */
+#bar {
+  position: relative; z-index: 3;
+  display: flex; align-items: baseline; gap: 0.8em;
+  background: var(--bar-bg); color: var(--bar-fg);
+  padding: calc(0.15em + env(safe-area-inset-top, 0px)) 16px 0.15em; white-space: nowrap;
+  box-shadow: 0 0 16px var(--glow), 0 1px 0 color-mix(in srgb, var(--fx-a, var(--bar-bg)) 60%, transparent);
+}
+#room { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 0 6px color-mix(in srgb, var(--bar-fg) 25%, transparent); }
+#score { font-variant-numeric: tabular-nums; font-size: 0.9em; }
+#menu-btn { font: inherit; background: none; border: 0; color: var(--bar-fg); padding: 0 0.2em; cursor: pointer; }
+#menu-btn:focus-visible { outline: 2px solid var(--bar-fg); }
+#bar, .pk, .key, .bk, #send, #build-btn, #dock { transition: background-color 0.7s, color 0.7s, border-color 0.7s, box-shadow 0.7s; }
+
+/* 文章欄。下から水が上がる（不安の高さ） */
+#stage { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+#water {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 0; pointer-events: none;
+  height: calc(var(--water) * 64%);
+  background: linear-gradient(to top, rgba(var(--tide), 0.30), rgba(var(--tide), 0.10) 70%, rgba(var(--tide), 0));
+  transition: height 2.4s ease;
+}
+#water::before {
+  content: ""; position: absolute; left: -48px; right: -48px; top: -7px; height: 14px;
+  background: radial-gradient(ellipse at 50% 100%, rgba(var(--tide), 0.55) 0 28%, transparent 62%) 0 0 / 48px 14px repeat-x;
+  opacity: calc(min(1, var(--water) * 6));
+}
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.fx-still) #water::before { animation: tide 7s linear infinite; }
+  @keyframes tide { to { transform: translateX(48px); } }
+}
+#screen {
+  position: absolute; inset: 0; z-index: 1; overflow-y: auto;
+  padding-inline: 16px; padding-block: 1.1em 0.6em;
+  overscroll-behavior: contain;
+}
+#log { max-width: 46em; display: flex; flex-direction: column; }
+
+/* 文章の行：本文は明朝、場所の名・注記・命令はドット体。題・声・警告は光る */
+.row { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; font-family: var(--mincho); font-weight: 500; }
+body:not(.light) .row { text-shadow: 0 0 6px rgba(0, 0, 0, 0.75); }
+.row.title, .row.note, .row.clue, .cmd { font-family: var(--dot); font-weight: 400; }
+.row.title { color: var(--bright); letter-spacing: 0.04em; }
+body:not(.light) .row.title { text-shadow: 0 0 10px var(--glow), 0 0 4px color-mix(in srgb, var(--fx-a, var(--bright)) 70%, transparent); }
+.row.sub { color: var(--dim); }
+.row.note { color: var(--dim); font-size: 0.86em; }
+.row.warn { color: var(--warn); }
+body:not(.light) .row.warn { text-shadow: 0 0 6px var(--fx-b, var(--warn)), 0 0 14px color-mix(in srgb, var(--fx-b, var(--warn)) 60%, transparent); }
+.row.doc { color: var(--bright); border-left: 3px solid var(--fx-b, var(--dim)); padding-left: 0.7em; margin-left: 0.2em; }
+body:not(.light) .row.doc { text-shadow: 0 0 7px color-mix(in srgb, var(--fx-b, var(--bright)) 40%, transparent); }
+.row.take { color: var(--take); }
+.row.dream { color: var(--dream); letter-spacing: 0.03em; padding-left: 1em; }
+body:not(.light) .row.dream { text-shadow: 0 0 10px color-mix(in srgb, var(--dream) 60%, transparent); }
+.row.clue {
+  color: var(--bright); font-size: 0.88em; margin: 0.3em 0; padding: 0.25em 0.6em;
+  border: 1px solid color-mix(in srgb, var(--fx-a, var(--dim)) 70%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--fx-a, var(--dim)) 30%, transparent), inset 0 0 12px color-mix(in srgb, var(--fx-a, var(--dim)) 14%, transparent);
+}
+.row.logo {
+  position: relative; text-align: center; margin: 0.5em 0 0.4em;
+  font-family: var(--mincho); font-weight: 700; font-size: 2.4em; line-height: 1.3;
+  letter-spacing: 0.4em; text-indent: 0.4em; color: var(--bright);
+}
+body:not(.light) .row.logo { text-shadow: 0 0 10px var(--fx-a, var(--bright)), 0 0 28px var(--fx-a, var(--bright)); }
+.row.logo::before, .row.logo::after { content: attr(data-t); position: absolute; inset: 0; pointer-events: none; opacity: 0.7; mix-blend-mode: screen; text-shadow: none; }
+.row.logo::before { color: #ff2a85; transform: translate(-2px, 0); }
+.row.logo::after { color: #00f5d4; transform: translate(2px, 0); }
+.gap { height: calc(var(--size) * 0.7); }
+.sep { height: 1px; margin: 1em 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--fx-a, var(--dim)) 75%, transparent), transparent); }
+.cmd { color: var(--bright); margin-top: 0.4em; text-shadow: 0 0 6px var(--glow); }
+@media (prefers-reduced-motion: no-preference) {
+  .row.fresh { animation: hum 0.25s steps(3, end); }
+  @keyframes hum { from { opacity: 0.2; } to { opacity: 1; } }
+  body:not(.fx-still) .row.logo::before { animation: rip 3.7s steps(1, end) infinite; }
+  body:not(.fx-still) .row.logo::after { animation: rip 3.7s steps(1, end) infinite reverse; }
+  @keyframes rip {
+    0%, 86%, 100% { clip-path: inset(0 0 0 0); transform: translate(-2px, 0); }
+    88% { clip-path: inset(10% 0 55% 0); transform: translate(-9px, 0); }
+    90% { clip-path: inset(60% 0 8% 0); transform: translate(7px, 0); }
+    92% { clip-path: inset(35% 0 40% 0); transform: translate(-4px, 0); }
+  }
+  /* 不安が高いときに出た行は、水の中の字のように揺れる */
+  body:not(.fx-still) .row.wet { animation: wet 3.2s ease-in-out 2; }
+  body:not(.fx-still) .row.fresh.wet { animation: hum 0.25s steps(3, end), wet 3.2s ease-in-out 0.25s 2; }
+  @keyframes wet { 0%, 100% { transform: none; filter: none; } 50% { transform: translateX(1px) skewX(-0.7deg); filter: blur(0.4px); } }
+  #bar.flicker { animation: flicker 0.6s steps(2, end) 1; }
+  @keyframes flicker { 0% { opacity: 1; } 30% { opacity: 0.35; } 45% { opacity: 1; } 60% { opacity: 0.6; } 100% { opacity: 1; } }
+  #ask.fresh { animation: rise 0.35s ease-out 1; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+}
+
+/* 入力と、十字キー・よく使う命令 */
+#dock {
+  position: relative; z-index: 3;
+  border-top: 1px solid var(--faint);
+  padding-block: 0.5em calc(0.6em + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--screen) 86%, transparent);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+#prompt { display: flex; align-items: center; gap: 0.5em; padding-inline: 16px; }
+#prompt .gt { color: var(--bright); text-shadow: 0 0 8px var(--fx-a, var(--bright)); }
+#cmd {
+  flex: 1; min-width: 0; font: inherit; font-size: max(16px, 1em);
+  background: transparent; color: var(--bright); border: 0; outline: 0;
+  caret-color: var(--fx-a, var(--bright)); padding: 0.2em 0;
+}
+#cmd::placeholder { color: var(--faint); }
+#send, #build-btn {
+  flex: none; font: inherit; font-size: 0.9em; background: var(--wall); color: var(--screen);
+  border: 0; padding: 0.35em 0.7em; cursor: pointer;
+}
+#build-btn { box-shadow: 0 0 10px var(--glow); }
+#send:focus-visible, #build-btn:focus-visible { outline: 2px solid var(--bright); outline-offset: 2px; }
+
+#pad {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: 0.55em;
+  padding-inline: 16px; padding-top: 0.6em;
+}
+#compass { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+#common { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-content: start; }
+.pk {
+  font: inherit; font-size: min(0.9em, 3.75vw); line-height: 1.2; min-height: 2.4em; min-width: 0;
+  background: color-mix(in srgb, var(--screen) 70%, transparent); color: var(--wall); border: 1px solid var(--faint);
+  padding: 0.3em 0.1em; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pk.dir { background: var(--key); color: var(--dim); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.pk.dir small { display: block; max-width: 100%; font-size: 0.62em; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; color: var(--dim); }
+.pk.dir small:empty { display: none; }
+.pk.dir.open { color: var(--bright); border-color: var(--fx-a, var(--dim)); box-shadow: inset 0 0 10px color-mix(in srgb, var(--fx-a, var(--dim)) 55%, transparent); }
+.pk.dir.open small { color: color-mix(in srgb, var(--bright) 70%, transparent); }
+.pk.look { border-color: var(--wall); color: var(--bright); }
+.pk.blank { visibility: hidden; }
+.pk.new { border-color: var(--fx-b, var(--warn)); color: var(--bright); box-shadow: 0 0 10px color-mix(in srgb, var(--fx-b, var(--warn)) 50%, transparent); }
+.pk:active { background: var(--wall); color: var(--screen); }
+.pk:focus-visible { outline: 1px solid var(--bright); }
+.pk.updown { font-size: 0.82em; }
+body.typing #pad, body.typing #ask { display: none; }
+
+/* 問いの答え・結末のあとのボタン（十字キーのかわりに出る） */
+#ask { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 0.6em 16px 0; }
+#ask .q { grid-column: 1 / -1; color: var(--dim); font-size: 0.82em; }
+#ask .q.end { color: var(--bright); font-size: 0.95em; text-shadow: 0 0 10px var(--fx-a, var(--bright)); }
+.pk.choice {
+  min-height: 2.9em; white-space: normal; color: var(--bright);
+  border-color: color-mix(in srgb, var(--fx-b, var(--warn)) 80%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--fx-b, var(--warn)) 30%, transparent), inset 0 0 10px color-mix(in srgb, var(--fx-b, var(--warn)) 18%, transparent);
+}
+
+.key {
+  font: inherit; font-size: 0.9em; line-height: 1.2;
+  background: transparent; color: var(--wall);
+  border: 1px solid var(--faint); padding: 0.35em 0.7em; cursor: pointer;
+}
+.key[aria-expanded="true"] { border-color: var(--fx-a, var(--wall)); color: var(--bright); }
+.key:active { background: var(--wall); color: var(--screen); }
+.key:focus-visible { outline: 1px solid var(--bright); }
+
+/* 命令を作る・メニュー */
+#builder, #sheet {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); z-index: 20;
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+.panel {
+  background: var(--screen); border-top: 1px solid var(--wall);
+  max-height: 82%; display: flex; flex-direction: column;
+  padding: 0.8em 16px calc(0.8em + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -6px 24px var(--glow);
+}
+.bhead { display: flex; flex-direction: column; gap: 0.15em; padding-bottom: 0.6em; }
+#b-title, .panel h2 { color: var(--bright); font: inherit; margin: 0; text-shadow: 0 0 8px var(--glow); }
+#b-preview { color: var(--dim); font-size: 0.86em; }
+#b-list {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; align-content: start;
+}
+#b-list.verbs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.bk {
+  font: inherit; text-align: left; background: transparent; color: var(--wall);
+  border: 1px solid var(--faint); padding: 0.45em 0.6em; cursor: pointer; min-width: 0;
+}
+#b-list.verbs .bk { padding: 0.4em 0.45em; }
+.bk.quick { border-color: color-mix(in srgb, var(--fx-a, var(--dim)) 60%, transparent); color: var(--bright); }
+.bk.held { border-color: var(--fx-b, var(--dim)); box-shadow: 0 0 8px color-mix(in srgb, var(--fx-b, var(--dim)) 45%, transparent); }
+.bk.choice { color: var(--bright); border-color: var(--fx-b, var(--warn)); }
+.bk:active { background: var(--wall); color: var(--screen); }
+.bk:focus-visible { outline: 1px solid var(--bright); }
+#b-list .empty { color: var(--dim); margin: 0; }
+.bfoot { display: flex; gap: 0.4em; flex-wrap: wrap; padding-top: 0.7em; }
+#sheet .panel { gap: 0.8em; overflow-y: auto; }
+#sheet p { margin: 0; color: var(--dim); font-size: 0.86em; line-height: 1.6; }
+#sheet p.howto, #sheet p.credit { color: var(--wall); font-family: var(--mincho); }
+.btn-row { display: flex; gap: 0.4em; flex-wrap: wrap; }
+
+/* 白壁の前など、明るい配色のとき：走査線と背景を淡くする */
+body.light #fx-crt { opacity: 0.22; }
+body.light #fx-bg { opacity: 0.5; }
+</style>
+</head>
+<body data-pal="niwa-day">
+
+<div id="app">
+  <header id="bar">
+    <span id="room">蔵守</span>
+    <span id="score"></span>
+    <button id="menu-btn" type="button" aria-label="メニュー" aria-expanded="false">≡</button>
+  </header>
+
+  <div id="stage">
+    <div id="water" aria-hidden="true"></div>
+    <main id="screen" aria-live="polite">
+      <div id="log"></div>
+    </main>
+  </div>
+
+  <footer id="dock">
+    <form id="prompt" autocomplete="off">
+      <button id="build-btn" type="button" aria-haspopup="dialog">命令を作る</button>
+      <label for="cmd" class="gt">&gt;</label>
+      <input id="cmd" type="text" enterkeyhint="send" placeholder="例：表札を調べる" autocapitalize="off" spellcheck="false">
+      <button id="send" type="submit">決定</button>
+    </form>
+    <div id="ask" hidden></div>
+    <div id="pad">
+      <div id="compass" aria-label="移動">
+        <button class="pk dir updown" type="button" data-go="u"><span>上</span><small></small></button>
+        <button class="pk dir" type="button" data-go="n"><span>北</span><small></small></button>
+        <span class="pk blank" aria-hidden="true"></span>
+        <button class="pk dir" type="button" data-go="w"><span>西</span><small></small></button>
+        <button class="pk look" type="button" data-act="look">見回す</button>
+        <button class="pk dir" type="button" data-go="e"><span>東</span><small></small></button>
+        <span class="pk blank" aria-hidden="true"></span>
+        <button class="pk dir" type="button" data-go="s"><span>南</span><small></small></button>
+        <button class="pk dir updown" type="button" data-go="d"><span>下</span><small></small></button>
+      </div>
+      <div id="common" aria-label="よく使う命令">
+        <button class="pk" type="button" data-act="inv">持ち物</button>
+        <button class="pk" type="button" data-act="notes">手がかり</button>
+        <button class="pk" type="button" data-act="wait">待つ</button>
+        <button class="pk" type="button" data-act="listen">耳をすます</button>
+        <button class="pk" type="button" data-act="sleep">眠る</button>
+        <button class="pk" type="button" data-act="undo">ひとつ戻す</button>
+      </div>
+    </div>
+  </footer>
+
+  <div id="builder" hidden>
+    <div class="panel" role="dialog" aria-labelledby="b-title">
+      <div class="bhead">
+        <span id="b-title">何をする？</span>
+        <span id="b-preview"></span>
+      </div>
+      <div id="b-list"></div>
+      <div class="bfoot">
+        <button class="key" type="button" id="b-back">戻る</button>
+        <button class="key" type="button" id="b-close">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="sheet" hidden>
+    <div class="panel" role="dialog" aria-label="メニュー">
+      <h2>蔵守</h2>
+      <div class="btn-row">
+        <button class="key" type="button" id="hint-btn">ヒント</button>
+        <button class="key" type="button" id="howto-btn" aria-expanded="false" aria-controls="howto">遊び方</button>
+        <button class="key" type="button" id="credit-btn" aria-expanded="false" aria-controls="credit">クレジット</button>
+      </div>
+      <p class="howto" id="howto" hidden>十字キーで移動する。光っている方角へ行ける（左上の「上」と右下の「下」で、上下にも）。まんなかの「見回す」で、いまいる場所をもう一度見る。<br>「命令を作る」を押し、動詞 → 物（→ もうひとつの物）の順にタップすると命令になる。問いかけられたときは、答えのボタンが出る。入力欄に日本語で書いてもいい（例：「門柱を調べる」「北へ行く」）。<br>【手がかり】は手帳に書きとめられ、「手がかり」でいつでも見返せる。「ひとつ戻す」で一手前に戻れる。困ったときは「ヒント」。</p>
+      <p class="credit" id="credit" hidden>蔵守 —— 書き下ろしの長編ホラー。「夜の書庫」から、この目録に移した。Backrooms Wiki の記事や、ほかの作品の文章は使っていない。夜の書庫の蔵守とは別に保存される（続きはつながらない）。</p>
+      <p>途中の状態は自動で残り、次に開くと続きから始まる。</p>
+      <div class="btn-row" id="opt-row">
+        <button class="key" type="button" id="home-btn">起動画面へ</button>
+        <button class="key" type="button" id="snd-btn">音：入</button>
+        <button class="key" type="button" id="vib-btn">振動：入</button>
+      </div>
+      <div class="btn-row" id="confirm-row">
+        <button class="key" type="button" id="restart-btn">はじめから</button>
+        <button class="key" type="button" id="restart-yes" hidden>本当にはじめから</button>
+        <button class="key" type="button" id="restart-no" hidden>やめる</button>
+      </div>
+      <button class="key" type="button" id="close-sheet">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script src="../fx.js"></script>
+<script src="kura/engine.js"></script>
+<script src="kura/house.js"></script>
+<script src="kura/village.js"></script>
+<script src="kura/night.js"></script>
+<script src="kura/extra.js"></script>
+<script>
+"use strict";
+(function () {
+  const $ = id => document.getElementById(id);
+  const logEl = $("log"), screenEl = $("screen"), cmdEl = $("cmd");
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  // 演出（fx.js）。読めなくても遊べるように、すべてここを通す
+  const fx = (fn, ...a) => { try { if (window.FX && typeof window.FX[fn] === "function") return window.FX[fn](...a); } catch (e) { /* 演出なしで続ける */ } };
+
+  // ---- 保存（ブラウザの記憶。Tasker のシーンでは Tasker/kuramori/ のファイルにも残す。夜の書庫の蔵守とは別） ----
+  const KEY = "bpwa.kuramori.state";      // game.export() の JSON
+  const LOG_KEY = "bpwa.kuramori.log";    // 画面の文章（最近の 300 行）
+  const META_KEY = "bpwa.kuramori.meta";  // 起動画面の札に出す要約
+  const LOOP_KEY = "bpwa.kuramori.loop";  // 見た結末・いちばん深く行ったところ・周回数（はじめからでも消えない）
+  const TK = (() => {
+    try {
+      if (typeof tk !== "undefined" && tk && typeof tk.readFile === "function" && typeof tk.writeFile === "function") return tk;
+      if (typeof readFile === "function" && typeof writeFile === "function") {
+        return { readFile, writeFile,
+          global: typeof global === "function" ? global : undefined,
+          setGlobal: typeof setGlobal === "function" ? setGlobal : undefined };
+      }
+    } catch (e) { /* Tasker の外 */ }
+    return null;
+  })();
+  const TK_FILE = "/storage/emulated/0/Tasker/kuramori/kuramori-data.json";
+  const TK_VAR = "KURAMORI";
+
+  const DIR_JA = { n: "北", s: "南", e: "東", w: "西", u: "上", d: "下" };
+  // 結末は8つ。何が正解だったのかは、どこにも書いていない
+  const ENDINGS = ["return", "return_plus", "keeper", "substitute", "fire", "called", "escape", "loop"];
+  // 札に出す「最深」。時刻の進みと、入った場所の深さの、大きいほう
+  const DEEP = ["一日目", "一晩目", "二日目", "二晩目", "三日目", "蔵の中", "水の間", "三晩目", "底の社"];
+  function rankOf(S) {
+    const night = S.phase === "夜";
+    let r = S.day <= 1 ? (night ? 1 : 0) : S.day === 2 ? (night ? 3 : 2) : (night ? 7 : 4);
+    if (S.visited.kura1) r = Math.max(r, 5);
+    if (S.visited.kura_b) r = Math.max(r, 6);
+    if (S.visited.soko) r = Math.max(r, 8);
+    return r;
+  }
+
+  // ---- 場所ごとの配色・背景・環境音 ----
+  // s 背景 / w 文字 / b 明るい字 / d 淡い字 / f 罫 / k キー / bb・bf 状態行 / wa 警告 / g 光彩(rgb) / a・c ネオン2色 / m 背景の描き方 / bed 環境音 / lv fx.js の階層 / t 流れる文字
+  const PAL = {
+    // 母屋（昼）：古い畳と障子の、くすんだ琥珀。電気は、昼のあいだだけ、この家にいる
+    "omoya-day": { s: "#120e09", w: "#e3d3b4", b: "#fff7e8", d: "#8c7a5e", f: "#3a3023", k: "#1b150e", bb: "#e2c58c", bf: "#120e09", wa: "#ff5b4a", g: "226,197,140", a: "#e2c58c", c: "#ff5b4a", m: "tags", bed: "office", lv: 5, t: "house" },
+    // 母屋（夕）：障子ごしの橙
+    "omoya-dusk": { s: "#170b0b", w: "#f2cdb4", b: "#fff1e6", d: "#9a6f5c", f: "#3d2420", k: "#1f100e", bb: "#ff9b5e", bf: "#170b0b", wa: "#ff4f7b", g: "255,155,94", a: "#ff9b5e", c: "#b38cff", m: "tags", bed: "office", lv: 5, t: "house" },
+    // 母屋（夜）：電気のいなくなった家。冷たい青の闇
+    "omoya-night": { s: "#04060b", w: "#9cadc4", b: "#e4eeff", d: "#4c5a70", f: "#121a28", k: "#080d16", bb: "#1d2a40", bf: "#b9cdf0", wa: "#ff3b5c", g: "90,140,255", a: "#6f8cff", c: "#ff3b5c", m: "dark", bed: "dark", lv: 6, t: "house" },
+    // 仏間：線香の煙。金と紫
+    "butsuma-day": { s: "#110b12", w: "#e6d6ee", b: "#fff6ff", d: "#8a7593", f: "#33243a", k: "#1a111c", bb: "#d9b56b", bf: "#110b12", wa: "#ff4f6d", g: "217,181,107", a: "#d9b56b", c: "#c58bff", m: "tags", bed: "silence", lv: 9, t: "house" },
+    "butsuma-night": { s: "#07040a", w: "#b7a6c9", b: "#f3eaff", d: "#5a4a6b", f: "#1c1426", k: "#0d0812", bb: "#2a1d3a", bf: "#d9c7f2", wa: "#ff3b5c", g: "157,123,255", a: "#9d7bff", c: "#ff3b5c", m: "dark", bed: "dark", lv: 6, t: "house" },
+    // 風呂場：水色のタイル
+    "furo-day": { s: "#061210", w: "#bfe6de", b: "#effffb", d: "#5e8c85", f: "#16302c", k: "#0b1d1a", bb: "#8eeedb", bf: "#061210", wa: "#ff6b9a", g: "142,238,219", a: "#8eeedb", c: "#ff6b9a", m: "water", bed: "pool", lv: 37, t: "house" },
+    "furo-night": { s: "#020908", w: "#7fbcb3", b: "#dffbf6", d: "#3e6a64", f: "#0c2421", k: "#051311", bb: "#0f3a35", bf: "#a9f5e8", wa: "#ff3b6b", g: "47,224,200", a: "#2fe0c8", c: "#ff3b6b", m: "water", bed: "pool", lv: 37, t: "house" },
+    // 納戸・床下：かび臭い暗がり
+    "nando-day": { s: "#0b0805", w: "#b9a689", b: "#efe3cc", d: "#6b5c45", f: "#241c12", k: "#120d08", bb: "#6b5c45", bf: "#efe3cc", wa: "#ff7a4a", g: "255,190,110", a: "#b9a689", c: "#ff7a4a", m: "dark", bed: "dark", lv: 6, t: "house" },
+    "nando-night": { s: "#030201", w: "#8c7c64", b: "#e0d4be", d: "#4a3f30", f: "#16110a", k: "#080604", bb: "#2a2117", bf: "#d8c8ac", wa: "#ff4a3d", g: "255,160,90", a: "#8c7c64", c: "#ff4a3d", m: "dark", bed: "dark", lv: 6, t: "house" },
+    // 庭（昼）：湿った苔。晴れているのに、雫が落ちる
+    "niwa-day": { s: "#0b100c", w: "#cddfc8", b: "#f3fff0", d: "#6f8a6c", f: "#1f2c20", k: "#111a12", bb: "#a8cf8e", bf: "#0b100c", wa: "#ff6a5a", g: "168,207,142", a: "#a8cf8e", c: "#ff6a5a", m: "drip", bed: "field", lv: 10, t: "niwa" },
+    // 外（夕）：山の端の橙と紫
+    "out-dusk": { s: "#160c0a", w: "#ffd6be", b: "#fff3ea", d: "#a2715c", f: "#3e2219", k: "#1f110c", bb: "#ff8a4c", bf: "#160c0a", wa: "#b38cff", g: "255,138,76", a: "#ff8a4c", c: "#b38cff", m: "stars", bed: "night", lv: 9, t: "niwa" },
+    // 外（夜）：月明かりの藍
+    "out-night": { s: "#050716", w: "#a9b6e6", b: "#eef1ff", d: "#4f5a8c", f: "#151b3a", k: "#0a0e22", bb: "#8c9cff", bf: "#050716", wa: "#ff3b6b", g: "140,156,255", a: "#8c9cff", c: "#ff3b6b", m: "stars", bed: "night", lv: 9, t: "niwa" },
+    // 蔵の前（昼）：白壁。ここだけ、白い
+    "kuramae-day": { s: "#ebe8df", w: "#2c3236", b: "#0e1214", d: "#7d8186", f: "#cfcac0", k: "#e0dcd2", bb: "#2c3236", bf: "#ebe8df", wa: "#b8322a", g: "194,55,43", a: "#4d6b78", c: "#c2372b", m: "drip", bed: "pool", lv: "white", t: "kura", light: true },
+    "kuramae-dusk": { s: "#e8d6c4", w: "#3a2a24", b: "#160d0a", d: "#8a6d5e", f: "#d2b9a6", k: "#dfcab6", bb: "#3a2a24", bf: "#e8d6c4", wa: "#b52a35", g: "181,42,53", a: "#b0603a", c: "#c2372b", m: "drip", bed: "pool", lv: "white", t: "kura", light: true },
+    // 蔵の前（夜）：闇に浮く白壁
+    "kuramae-night": { s: "#06060a", w: "#e6e6ee", b: "#ffffff", d: "#6c6c7c", f: "#1a1a24", k: "#0c0c12", bb: "#f0f0f6", bf: "#06060a", wa: "#ff2d55", g: "255,255,255", a: "#e6e6ee", c: "#ff2d55", m: "drip", bed: "cave", lv: 8, t: "kura" },
+    // 蔵の中：懐中電灯の黄色い円
+    "kura-day": { s: "#080705", w: "#ddd2b6", b: "#fff8e6", d: "#7a6f58", f: "#221d14", k: "#100e0a", bb: "#f5e7a6", bf: "#080705", wa: "#ff4a3d", g: "245,231,166", a: "#f5e7a6", c: "#ff4a3d", m: "drip", bed: "cave", lv: 8, t: "kura" },
+    "kura-night": { s: "#040405", w: "#c9cbd6", b: "#f4f6ff", d: "#5d6070", f: "#16171e", k: "#0a0a0e", bb: "#cfd8ff", bf: "#040405", wa: "#ff3355", g: "207,216,255", a: "#cfd8ff", c: "#ff3355", m: "drip", bed: "cave", lv: 8, t: "kura" },
+    // 水の間：黒く澄んだ水
+    "mizu-day": { s: "#01080a", w: "#8fe0dc", b: "#e6ffff", d: "#3f7774", f: "#0b2324", k: "#041214", bb: "#00d1c1", bf: "#01080a", wa: "#ff3d7f", g: "0,209,193", a: "#00d1c1", c: "#ff3d7f", m: "water", bed: "pool", lv: 7, t: "mizu" },
+    "mizu-night": { s: "#000507", w: "#76d0cc", b: "#dcffff", d: "#2f625f", f: "#06191a", k: "#020c0d", bb: "#00a89b", bf: "#e6ffff", wa: "#ff2d6f", g: "0,168,155", a: "#00e0cf", c: "#ff2d6f", m: "water", bed: "sea", lv: 7, t: "mizu" },
+    // 水路
+    "suido": { s: "#020506", w: "#9cc4c6", b: "#e6ffff", d: "#4b6f71", f: "#0e1d1e", k: "#061011", bb: "#2f7f84", bf: "#dffcff", wa: "#ff3d7f", g: "79,214,220", a: "#4fd6dc", c: "#ff3d7f", m: "drip", bed: "cave", lv: 7, t: "mizu" },
+    // 村（昼）：色の抜けた写真
+    "mura-day": { s: "#100f0b", w: "#dcd3bd", b: "#fffaf0", d: "#8a8169", f: "#2e2a1f", k: "#18160f", bb: "#cdb98c", bf: "#100f0b", wa: "#ff5f57", g: "205,185,140", a: "#cdb98c", c: "#7fd0ff", m: "tags", bed: "field", lv: 9, t: "mura" },
+    // 空き家（田所・松岡）
+    "haioku-day": { s: "#0c0b0d", w: "#d2ccd6", b: "#f8f4fb", d: "#77707e", f: "#26232a", k: "#141217", bb: "#a99bb5", bf: "#0c0b0d", wa: "#ff6a5a", g: "169,155,181", a: "#a99bb5", c: "#ff6a5a", m: "dark", bed: "dark", lv: 6, t: "mura" },
+    // トメの家：囲炉裏の火
+    "tome-day": { s: "#140a06", w: "#f0d2b4", b: "#fff4e8", d: "#9a7458", f: "#3a2418", k: "#1d0f08", bb: "#ff9f5a", bf: "#140a06", wa: "#ff5050", g: "255,159,90", a: "#ff9f5a", c: "#ffd27a", m: "scope", bed: "silence", lv: 5, t: "mura" },
+    // 水神社：朱と杉
+    "jinja-day": { s: "#0e0a08", w: "#ecd9c8", b: "#fff6ee", d: "#94786a", f: "#33241d", k: "#170f0b", bb: "#ff5a3c", bf: "#0e0a08", wa: "#7fe3ff", g: "255,90,60", a: "#ff5a3c", c: "#7fe3ff", m: "tags", bed: "field", lv: 2, t: "mura" },
+    // 寺：線香と紫
+    "tera-day": { s: "#0e0a12", w: "#e2d5ec", b: "#fbf6ff", d: "#85769a", f: "#2c2236", k: "#150f1b", bb: "#c9a6ff", bf: "#0e0a12", wa: "#ffcf5a", g: "201,166,255", a: "#c9a6ff", c: "#ffcf5a", m: "tags", bed: "silence", lv: 9, t: "tera" },
+    // 分校：黒板の緑
+    "gakko-day": { s: "#0b1712", w: "#cfe6d4", b: "#f4fff6", d: "#6f9a80", f: "#1e3a2b", k: "#10241a", bb: "#e6f2c4", bf: "#0b1712", wa: "#ff7a8a", g: "230,242,196", a: "#e6f2c4", c: "#ff7a8a", m: "tags", bed: "field", lv: 10, t: "gakko" },
+    // 分校（夕）：誰かのいる教室
+    "gakko-dusk": { s: "#1a0d05", w: "#ffe0c2", b: "#fff6ec", d: "#a3765a", f: "#42261a", k: "#22120a", bb: "#ffa64d", bf: "#1a0d05", wa: "#ff4f8b", g: "255,166,77", a: "#ffa64d", c: "#ff4f8b", m: "stars", bed: "silence", lv: 5, t: "gakko" },
+    // 川端・バス停
+    "kawa-day": { s: "#071012", w: "#c4e0e4", b: "#f0feff", d: "#64888d", f: "#1a2e31", k: "#0d1a1c", bb: "#7fd6e0", bf: "#071012", wa: "#ffb35c", g: "127,214,224", a: "#7fd6e0", c: "#ffb35c", m: "sea", bed: "sea", lv: 7, t: "mura" },
+    // ダム
+    "dam-day": { s: "#0a0e11", w: "#c3d1da", b: "#f2f8fc", d: "#687985", f: "#1d272e", k: "#11171c", bb: "#8fd3ff", bf: "#0a0e11", wa: "#ff5a5a", g: "143,211,255", a: "#8fd3ff", c: "#ff5a5a", m: "grid", bed: "pipes", lv: 11, t: "dam" },
+    // 管理室：計器の緑
+    "kanri-day": { s: "#050d08", w: "#b8f0c6", b: "#effff3", d: "#5b8a69", f: "#123020", k: "#0a1a10", bb: "#5dff9a", bf: "#050d08", wa: "#ff4040", g: "93,255,154", a: "#5dff9a", c: "#ff4040", m: "scope", bed: "electric", lv: 3, t: "dam" },
+    // 堤・湖畔
+    "kohan-day": { s: "#050b10", w: "#b5cfe0", b: "#eef8ff", d: "#5a7486", f: "#16242f", k: "#0b141b", bb: "#6fb8ff", bf: "#050b10", wa: "#ff6b6b", g: "111,184,255", a: "#6fb8ff", c: "#e8f4ff", m: "sea", bed: "field", lv: 7, t: "dam" },
+    // 底の社の跡
+    "soko": { s: "#0b0c0d", w: "#d6dbde", b: "#ffffff", d: "#6c7378", f: "#22272a", k: "#121517", bb: "#dfe5e9", bf: "#0b0c0d", wa: "#ff3d6b", g: "223,229,233", a: "#dfe5e9", c: "#ff3d6b", m: "water", bed: "dark", lv: 37, t: "soko" },
+    "soko-lit": { s: "#0d0b08", w: "#f3e4c8", b: "#fffaf0", d: "#9a8a6c", f: "#2e2719", k: "#16130c", bb: "#ffe1a8", bf: "#0d0b08", wa: "#9fd8ff", g: "255,225,168", a: "#ffe1a8", c: "#9fd8ff", m: "water", bed: "silence", lv: 37, t: "soko" },
+    // 結末
+    "end-return": { s: "#f3ede6", w: "#3a3530", b: "#15110d", d: "#8a8077", f: "#d9cfc4", k: "#e8e0d6", bb: "#3a3530", bf: "#f3ede6", wa: "#b8432f", g: "224,168,122", a: "#e0a87a", c: "#6fa8d6", m: "stars", bed: "field", lv: "white", t: "end", light: true },
+    "end-return_plus": { s: "#fbf3df", w: "#3b3020", b: "#140f06", d: "#8f7d5c", f: "#e2d2ae", k: "#f0e4c6", bb: "#3b3020", bf: "#fbf3df", wa: "#b8432f", g: "255,184,77", a: "#ffb84d", c: "#ff6fa8", m: "stars", bed: "field", lv: "white", t: "end", light: true },
+    "end-keeper": { s: "#000000", w: "#cfcfcf", b: "#ffffff", d: "#666666", f: "#1a1a1a", k: "#0a0a0a", bb: "#e8e8e8", bf: "#000000", wa: "#ff2d55", g: "255,255,255", a: "#ffffff", c: "#ff2d55", m: "dark", bed: "dark", lv: 6, t: "end" },
+    "end-substitute": { s: "#05060c", w: "#aab4d4", b: "#eef1ff", d: "#56607e", f: "#161b2e", k: "#0b0e1a", bb: "#ffcf8a", bf: "#05060c", wa: "#ff6b6b", g: "255,207,138", a: "#aab4d4", c: "#ffcf8a", m: "stars", bed: "night", lv: 9, t: "end" },
+    "end-fire": { s: "#160502", w: "#ffd2b8", b: "#fff2e6", d: "#a8634a", f: "#3e140a", k: "#200905", bb: "#ff4d1a", bf: "#160502", wa: "#ffd23f", g: "255,77,26", a: "#ff4d1a", c: "#ffd23f", m: "spark", bed: "electric", lv: "run", t: "end" },
+    "end-called": { s: "#000a10", w: "#6fc2d6", b: "#dcf8ff", d: "#2e6170", f: "#062029", k: "#021118", bb: "#0a5f70", bf: "#c8f6ff", wa: "#ff3d7f", g: "0,194,214", a: "#00c2d6", c: "#ff3d7f", m: "water", bed: "sea", lv: 7, t: "end" },
+    "end-escape": { s: "#0e1114", w: "#cdd4da", b: "#f6f9fb", d: "#6d7882", f: "#222a31", k: "#151a1f", bb: "#b8c4cf", bf: "#0e1114", wa: "#ff8a5c", g: "184,196,207", a: "#b8c4cf", c: "#ff8a5c", m: "grid", bed: "city", lv: 11, t: "end" },
+    "end-loop": { s: "#04050a", w: "#8d98b8", b: "#e2e8ff", d: "#47506e", f: "#121628", k: "#090b16", bb: "#2b3555", bf: "#c9d4f5", wa: "#ff3b5c", g: "111,140,255", a: "#6f8cff", c: "#ff3b5c", m: "dark", bed: "dark", lv: 6, t: "end" },
+  };
+  // 部屋 → 配色のまとまり
+  const AREA = {
+    gate: "niwa", maeniwa: "niwa", uraniwa: "niwa", ido: "niwa", nagaya: "niwa",
+    genkan: "omoya", doma: "omoya", chanoma: "omoya", zashiki: "omoya", engawa: "omoya", rouka: "omoya",
+    niaikai: "omoya", obaba: "omoya", kodomo: "omoya", yaneura: "omoya",
+    butsuma: "butsuma", furo: "furo", nando: "nando", yukashita: "nando",
+    kuramae: "kuramae", kura1: "kura", kura2: "kura", kura_b: "mizu", suido1: "suido", suido2: "suido",
+    michi: "mura", shukaijo: "mura", tsuji: "mura", roji: "mura", chuzaisho: "mura", yubin: "mura",
+    tome_house: "tome", suijinja: "jinja", tadokoro: "haioku", matsuoka: "haioku",
+    sanmon: "tera", hondo: "tera", bochi: "tera", koutei: "gakko", classroom: "gakko",
+    kawa: "kawa", basutei: "kawa", rindo: "dam", dam_office: "dam", kanri: "kanri", dam_top: "kohan", kohan: "kohan",
+    soko: "soko",
+  };
+  // 部屋ごとの環境音（配色の環境音より優先）。夜は家から電気がいなくなる
+  const lakeLow = S => !!S.f.drawdown && S.turns - (S.f.drawTurn || 0) >= 8;
+  const ROOM_BED = {
+    gate: (S, n) => n ? "dark" : "field", maeniwa: (S, n) => n ? "dark" : "field", uraniwa: (S, n) => n ? "dark" : "field",
+    ido: (S, n) => n ? "dark" : "pool", nagaya: "silence", doma: (S, n) => n ? "pool" : "office", yukashita: "pool", yaneura: "silence",
+    michi: "field", tsuji: "field", roji: "field", shukaijo: "office", chuzaisho: "office", yubin: "office",
+    sanmon: "field", hondo: "silence", bochi: "dark", koutei: "field", classroom: "silence", basutei: "field", rindo: "cave",
+    kanri: S => S.f.damPower ? "electric" : "silence", dam_top: S => lakeLow(S) ? "sea" : "field", kohan: S => lakeLow(S) ? "cave" : "pool",
+    soko: S => S.f.mirrorPlaced ? "silence" : "dark",
+  };
+  // 背景に流れる文字
+  const TAGS = {
+    house: ["[柏木]", "[四十九日]", "[三晩]", "[子の刻]", "[戸締まり不要]", "[二十一]", "[水]", "[ひとつ、たりない]"],
+    niwa: ["[柏木]", "[門前]", "[足跡]", "[松の雫]", "[水のにおい]", "[坂の上]"],
+    kura: ["[蔵]", "[注連縄]", "[錠前]", "[鈴]", "[溝]", "[覗くべからず]", "[二十二]"],
+    mizu: ["[水の間]", "[水鏡]", "[二十一]", "[名]", "[ひとり、たりない]"],
+    mura: ["[眞木]", "[空き家]", "[辻]", "[昭和三十四年]", "[底]", "[一日二便]", "[七家]"],
+    tera: ["[正念寺]", "[過去帳]", "[南無]", "[二十一]", "[昭和三十四年六月]"],
+    gakko: ["[眞木分校]", "[二年]", "[かぞえ歌]", "[ひとつひろって]", "[みっつ]", "[にじゅういち]"],
+    dam: ["[眞木沢ダム]", "[点検中]", "[無人]", "[職員以外立入禁止]", "[水位]", "[副ゲート]"],
+    soko: ["[底]", "[鳥居]", "[台座]", "[二十一]", "[名]"],
+    end: ["[四十九日]", "[柏木]", "[二十一]", "[二十二]", "[水]"],
+  };
+  const TRUISMS = [
+    ["DO NOT ANSWER WHEN CALLED", "呼ばれても、返事をするな", "?"],
+    ["WATER DOES NOT ALWAYS FLOW DOWNHILL", "水は、いつも低いほうへ流れるとはかぎらない", "?"],
+    ["COUNTING IS A WAY OF STAYING", "数えることは、留まる方法のひとつだ", "?"],
+    ["ONE IS ALWAYS MISSING", "いつも、ひとつ足りない", "?"],
+    ["A HOUSE CAN BE WET FROM THE INSIDE", "家は、内側から濡れることがある", "?"],
+    ["NO ONE HAS WRITTEN WHY YOU CAME", "あなたが来た理由は、誰も書いていない", "?"],
+  ];
+  function palFor(S) {
+    if (S.over) return PAL["end-" + S.over] ? "end-" + S.over : "end-loop";
+    const r = S.room, a = AREA[r] || "omoya";
+    const t = S.phase === "夜" ? "night" : S.phase === "夕" ? "dusk" : "day";
+    if (a === "soko") return S.f.mirrorPlaced ? "soko-lit" : "soko";
+    if (a === "suido") return "suido";
+    if (PAL[a + "-" + t]) return a + "-" + t;
+    const room = Kura.DEFS.rooms[r] || {};
+    const outdoor = room.indoor === false;
+    if (t === "night") return outdoor ? "out-night" : a === "kura" ? "kura-night" : "omoya-night";
+    if (t === "dusk" && outdoor) return "out-dusk";
+    return PAL[a + "-day"] ? a + "-day" : "omoya-day";
+  }
+  function bedFor(S, pk) {
+    const P = PAL[pk];
+    if (S.over) return P.bed;
+    const f = ROOM_BED[S.room];
+    const v = typeof f === "function" ? f(S, S.phase === "夜") : f;
+    return v || P.bed;
+  }
+  function stressOf(S) {
+    if (S.over) return S.over === "called" ? 0.7 : S.over === "fire" ? 0.5 : 0;
+    let x = S.dread / 12;
+    if (S.phase === "夜") x += 0.06;
+    if (S.f.crowd && !S.f.mirrorPlaced) x += 0.12;
+    return Math.max(0, Math.min(1, x));
+  }
+  function waterOf(S) {
+    if (S.over) return S.over === "called" ? 0.95 : S.over === "loop" ? 0.35 : S.over === "fire" ? 0.2 : 0;
+    return Math.max(0, Math.min(0.95, S.dread / 12));
+  }
+  // 配色の表を CSS 変数にして差しこむ
+  (function palCss() {
+    const css = Object.entries(PAL).map(([k, p]) =>
+      `body[data-pal="${k}"]{--screen:${p.s};--wall:${p.w};--bright:${p.b};--dim:${p.d};--faint:${p.f};--key:${p.k};` +
+      `--bar-bg:${p.bb};--bar-fg:${p.bf};--warn:${p.wa};--glow:rgba(${p.g},${p.light ? 0.2 : 0.28});` +
+      (p.light ? "--take:#8a5a00;--dream:#3f4fa0;--tide:0,105,115;color-scheme:light}" : "color-scheme:dark}")).join("\n");
+    const st = document.createElement("style");
+    st.id = "pal-css";
+    st.textContent = css;
+    document.head.appendChild(st);
+  })();
+
+  // ---- 表示 ----
+  let rows = [];
+  function rowEl(r) {
+    if (r.t === "gap") { const d = document.createElement("div"); d.className = "gap"; return d; }
+    if (r.t === "sep") { const d = document.createElement("div"); d.className = "sep"; return d; }
+    const p = document.createElement("p");
+    if (r.t === "cmd") { p.className = "row cmd"; p.textContent = "> " + r.ja; return p; }
+    p.className = "row" + (r.cls ? " " + r.cls : "");
+    p.textContent = r.ja;
+    if (/(^| )logo( |$)/.test(r.cls || "")) p.dataset.t = r.ja;
+    return p;
+  }
+  function push(r, fresh) {
+    rows.push(r);
+    const el = rowEl(r);
+    if (fresh) el.classList.add("fresh");
+    logEl.append(el);
+    // 長く遊んでも重くならないように、古い行から捨てる（行と表示は一対一のまま）
+    if (rows.length > 700) {
+      rows.splice(0, 200);
+      for (let i = 0; i < 200 && logEl.firstChild; i++) logEl.removeChild(logEl.firstChild);
+    }
+  }
+  const gap = () => push({ t: "gap" });
+  const note = t => push({ t: "out", ja: t, cls: "note" }, true);
+  function scrollDown() { requestAnimationFrame(() => { screenEl.scrollTop = screenEl.scrollHeight; }); }
+  // エンジンの案内のうち、この画面のボタンの名前に合わせて言い換えるもの（エンジンの文章そのものは変えない）
+  const REWORD = [["メニュー（⋮）の「ヒントを見る」", "メニュー（≡）の「ヒント」"], ["メニューの「はじめから遊ぶ」", "≡ メニューの「はじめから」"]];
+
+  // ---- ゲーム（kura/engine.js）とのやりとり ----
+  if (typeof Kura === "undefined" || !Kura.DEFS || !Kura.DEFS.rooms.gate) {
+    note("ゲームの本体（kura/*.js）を読めませんでした。サーバーを動かしてから、開き直してください。");
+    return;
+  }
+  let game = null, LOOP = null, buf = null, statusL = "", statusR = "";
+  const ui = {
+    say: (text, cls) => {
+      let t = String(text);
+      for (const [a, b] of REWORD) if (t.includes(a)) t = t.split(a).join(b);
+      let c = cls || "";
+      if (t.startsWith("【手がかり】")) c = "clue";
+      if (buf) buf.push({ text: t, cls: c });
+      const S = game && game.state();
+      if (S && S.dread >= 8 && !S.over && c !== "title") c += " wet";
+      push({ t: "out", ja: t, cls: c.trim() }, true);
+    },
+    gap: () => gap(),
+    sep: () => push({ t: "sep" }),
+    status: (l, r) => { statusL = l || ""; statusR = r || ""; },
+    sys: t => note(String(t)),
+    flash: () => fx("flash"),
+    vibrate: p => fx("vibrate", p),
+    ended: (id, title) => { if (buf) buf.push({ ended: id, title }); reach(id); },
+  };
+
+  // ---- 見た結末・いちばん深いところ・周回（起動画面の札） ----
+  function loadLoop() {
+    const base = { v: 1, endings: [], runs: 0, deep: 0 };
+    try {
+      const v = JSON.parse(localStorage.getItem(LOOP_KEY) || "null");
+      if (v && typeof v === "object" && v.v === 1) {
+        const out = Object.assign(base, v);
+        out.endings = Array.isArray(out.endings) ? out.endings.filter(id => ENDINGS.includes(id)) : [];
+        out.deep = Math.max(0, Math.min(DEEP.length - 1, out.deep | 0));
+        out.runs = Math.max(0, out.runs | 0);
+        return out;
+      }
+    } catch (e) { /* 壊れていたら、はじめから */ }
+    return base;
+  }
+  function saveLoop() { try { localStorage.setItem(LOOP_KEY, JSON.stringify(LOOP)); } catch (e) { /* 残らなくても遊べる */ } }
+  function writeMeta() {
+    const data = { endings: LOOP.endings.slice(), total: ENDINGS.length, deepest: DEEP[LOOP.deep] || DEEP[0],
+      runs: Math.max(1, LOOP.runs || 0), updated: Date.now() };
+    try { localStorage.setItem(META_KEY, JSON.stringify(data)); } catch (e) { /* 残らなくても遊べる */ }
+  }
+  function reach(id) {
+    if (!ENDINGS.includes(id) || LOOP.endings.includes(id)) return;
+    LOOP.endings.push(id);
+    saveLoop();
+    writeMeta();
+  }
+
+  // ---- 保存と読みこみ ----
+  function loadSaved() {
+    if (TK) {
+      let written = false;
+      try { written = TK.global && String(TK.global(TK_VAR)) === "1"; } catch (e) { /* 読めない */ }
+      try { written = written || localStorage.getItem(KEY + ".tk") === "1"; } catch (e) { /* 同上 */ }
+      if (written) {
+        try { const v = JSON.parse(String(TK.readFile(TK_FILE) || "null")); if (v && v.state) return { state: v.state, log: Array.isArray(v.log) ? v.log : [] }; } catch (e) { /* 壊れている */ }
+      }
+    }
+    let state = null, log = [];
+    try { state = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { state = null; }
+    try { log = JSON.parse(localStorage.getItem(LOG_KEY) || "[]"); } catch (e) { log = []; }
+    return state ? { state, log: Array.isArray(log) ? log : [] } : null;
+  }
+  function writeSaved() {
+    let st;
+    try { st = JSON.stringify(game.export()); } catch (e) { return; }
+    const lg = JSON.stringify(rows.slice(-300));
+    try { localStorage.setItem(KEY, st); } catch (e) { /* 残せなくても遊べる */ }
+    try { localStorage.setItem(LOG_KEY, lg); } catch (e) { /* 同上 */ }
+    if (TK) {
+      try {
+        TK.writeFile(TK_FILE, '{"v":1,"state":' + st + ',"log":' + lg + "}", false);
+        try { if (TK.setGlobal) TK.setGlobal(TK_VAR, "1"); } catch (e) { /* 変数に書けない */ }
+        try { localStorage.setItem(KEY + ".tk", "1"); } catch (e) { /* 同上 */ }
+      } catch (e) { /* 書けなくても遊べる */ }
+    }
+  }
+  function clearSaved() {
+    try { localStorage.removeItem(KEY); localStorage.removeItem(LOG_KEY); } catch (e) { /* 消せなくてもよい */ }
+    if (TK) { try { TK.writeFile(TK_FILE, "{}", false); } catch (e) { /* 同上 */ } }
+  }
+
+  // ---- 演出 ----
+  // 音の出る演出（効果音・揺れ・ちらつき・停電）は、出来事の音として、タップから少し遅らせて鳴らす。
+  // ボタンを押したこと自体には、音をつけない。見るだけ・持ち物・手がかり・ヒント・メニューなどは、何も鳴らない
+  const AFTER_TAP = 320;
+  const dbgEvents = [];
+  // 予約した演出。ひとつ戻したとき・結末・はじめからでは、まだ出ていないものを取り消す（前の出来事の音が、あとから鳴らないように）
+  const timers = new Set();
+  function later(ms, f) {
+    const id = setTimeout(() => { timers.delete(id); try { f(); } catch (e) { /* 出なくてもよい */ } }, ms);
+    timers.add(id);
+  }
+  function cancelFx() { for (const id of timers) clearTimeout(id); timers.clear(); }
+  function snd(ms, f) { later(AFTER_TAP + ms, f); }
+  function vis(ms, f) { later(ms, f); }
+  function tru(ms, t) { if (t) vis(ms + 500, () => fx("truism", t[0], t[1], t[2])); }
+  const S_ = name => () => fx("sfx", name);
+  let palHold = 0;
+  const NIGHT_TRU = {
+    1: ["THE ELECTRICITY LEAVES AT NIGHTFALL", "電気は、日が落ちると、いなくなる", "一晩目"],
+    2: ["DO NOT ANSWER WHEN CALLED", "呼ばれても、返事をするな", "二晩目"],
+    3: ["SOMETHING MUST END TONIGHT", "今夜、何かを終わらせなくてはならない", "三晩目"],
+  };
+  const DAWN_TRU = {
+    2: ["CHAPTER TWO: THE BOTTOM VILLAGE", "第二章　底の集落", "二日目"],
+    3: ["CHAPTER THREE: CALLING THE NAMES", "第三章　名を呼ぶ", "三日目"],
+  };
+  const EV = {
+    // 夜の出来事
+    drip: o => snd(o, S_("drip")),
+    steps: o => snd(o, S_("step")),
+    clock: o => { snd(o, S_("clang")); snd(o + 1000, S_("clang")); vis(o + AFTER_TAP, () => fx("glitch", false)); },
+    visit: o => { snd(o, S_("stinger")); snd(o + 60, () => fx("shock", 2)); vis(o + 380, () => fx("flash")); snd(o + 900, () => fx("blackout", 900)); },
+    visitEyes: o => { snd(o, S_("whisper")); snd(o + 500, () => fx("shock", 1)); },
+    visitHid: o => { snd(o, S_("step")); snd(o + 1500, S_("breath")); },
+    warded: o => snd(o, S_("step")),
+    phone: o => snd(o, S_("phone")),
+    ring: o => snd(o, S_("phone")),
+    splash: o => snd(o, S_("splash")),
+    knock: o => { snd(o, S_("knock")); vis(o + AFTER_TAP, () => fx("glitch", false)); },
+    intruder: o => { snd(o, S_("stinger")); snd(o + 60, () => fx("shock", 2)); vis(o + 380, () => fx("flash")); },
+    mioThanks: o => snd(o, S_("chime")),
+    breath: o => snd(o, S_("breath")),
+    tome: o => snd(o, S_("step")),
+    nearDawn: o => snd(o, S_("heart")),
+    nightfall: (o, day) => { palHold = 520; snd(o, () => fx("blackout", 1500)); if (day === 3) snd(o + 1800, S_("stinger")); tru(o + 1900, NIGHT_TRU[day]); },
+    dusk: o => snd(o, () => fx("flicker", 2)),
+    dawn: (o, day) => { snd(o, S_("chime")); vis(o + AFTER_TAP, () => fx("flash")); tru(o + 900, DAWN_TRU[day]); },
+    // 不安
+    dread4: o => snd(o, S_("hum")),
+    dread7: o => snd(o, () => fx("shock", 1)),
+    dread10: o => { snd(o, S_("whisper")); snd(o + 300, () => fx("flicker", 2)); },
+    faint: o => { snd(o, S_("heart")); snd(o + 300, () => fx("shock", 2)); snd(o + 700, () => fx("blackout", 1800)); },
+    blocked: o => snd(o, () => fx("shock", 1)),
+    grab: o => { snd(o, S_("splash")); snd(o + 200, () => fx("shock", 1)); },
+    faces: o => { snd(o, S_("whisper")); snd(o + 300, () => fx("shock", 1)); },
+    glitchv: o => vis(o + AFTER_TAP, () => fx("glitch", false)),
+    // 務めと、蔵
+    bell: o => snd(o, S_("bell")),
+    bellWrong: o => { snd(o, S_("bell")); snd(o + 1000, S_("whisper")); },
+    bellMuffled: o => snd(o, S_("drip")),
+    voices: o => snd(o, S_("whisper")),
+    tarinai: o => { snd(o, S_("whisper")); snd(o + 600, () => fx("shock", 1)); tru(o + 800, ["ONE IS MISSING", "ひとり、たりない", "蔵"]); },
+    duty: o => { snd(o, S_("chime")); vis(o + 500, () => fx("flash")); },
+    call: o => { snd(o, S_("static")); snd(o + 1500, S_("whisper")); vis(o + 1800, () => fx("glitch", false)); },
+    deadline: o => snd(o, S_("static")),
+    creak: o => snd(o, S_("door")),
+    kuraOpen: o => { vis(o + AFTER_TAP, () => fx("glitch", false)); tru(o + 400, ["IT OPENED WITHOUT A SOUND", "戸は、音もなく開いた", "蔵"]); },
+    cut: o => snd(o, S_("drip")),
+    unlock: o => snd(o, S_("clang")),
+    hatch: o => snd(o, S_("thud")),
+    mirror: o => { snd(o, S_("stinger")); snd(o + 60, () => fx("shock", 2)); vis(o + 380, () => fx("flash")); tru(o + 1600, ["THEY ARE ALL LOOKING AT YOU", "みな、こちらを見ている", "水の間"]); },
+    calm: o => snd(o, S_("chime")),
+    placed: o => { snd(o, S_("bell")); vis(o + AFTER_TAP, () => fx("flash")); },
+    seven: o => { snd(o, S_("chime")); snd(o + 1000, S_("chime")); vis(o + AFTER_TAP, () => fx("flash")); },
+    mio: o => snd(o, S_("chime")),
+    abura: o => snd(o, S_("heart")),
+    match: o => snd(o, S_("breath")),
+    keeperAsk: o => snd(o, S_("heart")),
+    // ダム
+    beep: o => snd(o, S_("beep")),
+    beep2: o => { snd(o, S_("beep")); snd(o + 240, S_("beep")); },
+    buzz: o => snd(o, S_("beep")),
+    power: o => { snd(o, S_("hum")); snd(o + 200, () => fx("flicker", 2)); },
+    siren: o => [560, 700, 840, 700, 560, 700, 840].forEach((f, i) => snd(o + i * 280, () => fx("tone", f, 0.34, "sawtooth", 0.02))),
+    gate: o => { snd(o, S_("thud")); snd(o + 150, () => fx("shock", 1)); },
+    safe: o => snd(o, S_("clang")),
+    // はじめて着いたところ（足音は、ここぞという場所でだけ）
+    arriveKura: o => { snd(o, S_("step")); tru(o + 300, ["DO NOT LOOK THROUGH THE GAP", "戸の隙間を、覗いてはならない", "蔵"]); },
+    arriveWade: o => { snd(o, S_("splash")); tru(o + 500, ["THE WATER IS COUNTING", "水が、数をかぞえている", "水の間"]); },
+    arriveSoko: o => { snd(o, S_("step")); tru(o + 500, ["EVERYONE HERE IS WAITING FOR A NAME", "ここにいる誰もが、名を待っている", "底"]); },
+    arriveDrip: o => snd(o, S_("drip")),
+    arriveLake: o => tru(o + 300, ["THE LAKE REMEMBERS A VILLAGE", "湖は、村をおぼえている", "眞木沢"]),
+  };
+  // 結末ごとの音と光
+  const END_FX = {
+    return: o => { palHold = 600; snd(o, S_("bell")); vis(o + AFTER_TAP, () => fx("flash")); snd(o + 1400, S_("chime")); snd(o + 2800, S_("chime")); tru(o + 2000, ["EVERY NAME WAS CALLED", "名は、ひとつ残らず呼ばれた", "底の社"]); },
+    return_plus: o => { palHold = 600; snd(o, S_("bell")); vis(o + AFTER_TAP, () => fx("flash")); snd(o + 1200, S_("chime")); snd(o + 2200, S_("chime")); snd(o + 3300, S_("bell")); tru(o + 2000, ["SEVEN LIGHTS, TWENTY-ONE NAMES", "七つの灯と、二十一の名", "底の社"]); },
+    keeper: o => { palHold = 900; snd(o, S_("bell")); snd(o + 900, () => fx("blackout", 1400)); tru(o + 2600, ["THE ONE WHO COUNTS IS COUNTED", "数える者も、数えられる", "蔵"]); },
+    substitute: o => { palHold = 700; snd(o, S_("bell")); snd(o + 1600, S_("door")); tru(o + 2400, ["SOMEONE ELSE IS COUNTING NOW", "いまは、ほかの誰かが数えている", "蔵"]); },
+    fire: o => { palHold = 300; snd(o, S_("spark")); snd(o + 200, S_("stinger")); snd(o + 260, () => fx("shock", 2)); vis(o + 560, () => fx("flash")); tru(o + 2200, ["FIRE DOES NOT END WATER", "火は、水を終わらせない", "柏木"]); },
+    called: o => { palHold = 900; snd(o, S_("whisper")); snd(o + 700, S_("heart")); snd(o + 900, () => fx("shock", 2)); snd(o + 1200, () => fx("blackout", 2200)); tru(o + 3600, ["TWENTY-TWO", "にじゅうに", "水の間"]); },
+    escape: o => { palHold = 500; snd(o, S_("door")); snd(o + 2600, S_("drip")); tru(o + 1800, ["YOU STOPPED AT TWENTY-ONE", "二十一で、止めた", "町"]); },
+    loop: o => { palHold = 900; snd(o, S_("phone")); snd(o + 1600, () => fx("blackout", 1600)); tru(o + 3400, ["NOTHING ENDS UNTIL YOU END IT", "終わらせないかぎり、終わらない", "四日目"]); },
+  };
+  // 文章の一行 → 出来事。行は改行で分かれて届く
+  const TRIG = [
+    ["ぼーん、と、柱時計が", "clock"],
+    ["どこかで、ぴちゃ、と、水を踏む音がした", "drip"],
+    ["濡れた足音が、近づいたり", "steps"],
+    ["遠くで、足音が、蔵のほうへ、引き返していく", "warded"],
+    ["戸の向こうの廊下を、濡れたものが", "visitHid"],
+    ["目を閉じたまま、息を殺した", "visitEyes"],
+    ["部屋の入口に、濡れた人影が、立っている", "visit"],
+    ["黒電話が、鳴りはじめた", "phone"],
+    ["ざあ、と、水のあふれる音", "splash"],
+    ["玄関の戸が、叩かれた", "knock"],
+    ["濡れた足跡がひとつ。それから、遠くで、笑う声", "mioThanks"],
+    ["背後で、何かが、家の中へ、入っていった", "intruder"],
+    ["息を殺して、返事をしなかった", "breath"],
+    ["蔵の前に、トメが、立っている", "tome"],
+    ["夜明けが、近い", "nearDawn"],
+    ["いつのまにか、日が落ちていた", "glitchv"],
+    ["足が、一歩も、前に出なかった", "blocked"],
+    ["濡れた手が、いくつも伸びてきて", "grab"],
+    ["二十二番目にあたるところで、意識が、途切れた", "faint"],
+    ["耳の奥で、水の音がしている", "dread4"],
+    ["まっすぐ立っているのが、むずかしい", "dread7"],
+    ["視界の端に、人の形がいくつも立っている", "dread10"],
+    ["蔵の内側の水の音が、ゆっくりと、静まっていった", "duty"],
+    [/^りん。$/, "bell"],
+    ["音が、あらぬ方向から返ってきた", "bellWrong"],
+    ["音が、水のなかに、落ちたように、沈んだ", "bellMuffled"],
+    ["澄んだ音は、昼の空気に吸われて", "bell"],
+    ["小さな声が、いっしょに数えた", "voices"],
+    ["声は、ふえている", "voices"],
+    [/^『……ひとり、たりない』$/, "tarinai"],
+    ["受話器を、耳に当てた", "call"],
+    ["ツーという音すらしない", "deadline"],
+    ["蔵じゅうの水が、いっせいに、ざわめいた", "mirror"],
+    ["人々は、道を開けた", "calm"],
+    ["鏡は、ぴたりと収まった", "placed"],
+    ["七つの灯が、水のない湖底に", "seven"],
+    ["名札は、すうっと、布の上にとけて", "mio"],
+    ["わたしの、だいじなやつ", "mio"],
+    [/^「……ハツちゃん？」$/, "glitchv"],
+    ["背後で、戸が、軽く、きしんだ", "creak"],
+    ["音もなく、戸は動いた", "kuraOpen"],
+    ["切れた縄の先から、水が、ぽたり", "cut"],
+    ["乾いた音がして、錠が、外れた", "unlock"],
+    ["板蓋は、重たくはずれて", "hatch"],
+    ["ピッ、という電子音", "beep"],
+    ["ピッ、ピッ、と短い音がして", "beep2"],
+    ["盤全体が、ぶうん、と低く唸って", "power"],
+    ["サイレンが鳴り渡った", "siren"],
+    ["足もとの地面が、ごうと低く鳴った", "gate"],
+    ["ブザーが、短く鳴って", "buzz"],
+    ["ダイヤルが落ちて、重たい扉が、ひらいた", "safe"],
+    ["予備鍵を、鍵穴にさした", "unlock"],
+    ["これから先は、取り返しが、つかない", "abura"],
+    ["マッチを持つ手が、震える", "match"],
+    ["そのかわり、二度と、立ち上がれない", "keeperAsk"],
+    ["画面の中の障子だけが、すこし、閉じた", "glitchv"],
+    ["鏡のなかのあなたが、すこし遅れて", "glitchv"],
+    ["その空に、あなたの顔はない", "glitchv"],
+    ["見知らぬ人の顔が、いくつも", "faces"],
+  ];
+  const ARRIVE = { kuramae: "arriveKura", kura_b: "arriveWade", soko: "arriveSoko", suido1: "arriveDrip", dam_top: "arriveLake" };
+  function react(kind, b, a, lines) {
+    // ひとつ戻したときは、出来事を鳴らし直さない（予約していた演出も取り消す）
+    if (kind === "undo" || lines.some(l => l.text === "（ひとつ前に戻した）")) { cancelFx(); return; }
+    if (!b) return;
+    if (lines.some(l => l.ended)) cancelFx();
+    let at = 0;
+    const fired = new Set();
+    const fire = (name, arg) => {
+      if (name === "tarinai" && fired.has("call")) return;
+      const h = EV[name];
+      if (!h) return;
+      fired.add(name);
+      dbgEvents.push(name);
+      h(at, arg);
+      at += 650;
+    };
+    for (const l of lines) {
+      if (l.ended) {
+        const h = END_FX[l.ended];
+        if (h) { dbgEvents.push("end:" + l.ended); h(at); at += 650; }
+        fx("vibrate", [80, 60, 80, 60, 240]);
+        continue;
+      }
+      for (const [pat, ev] of TRIG) {
+        if (typeof pat === "string" ? l.text.includes(pat) : pat.test(l.text)) { fire(ev); break; }
+      }
+    }
+    if (!a.over) {
+      if (b.phase !== "夜" && a.phase === "夜") fire("nightfall", a.day);
+      else if (a.day === b.day && b.phase !== "夕" && a.phase === "夕") fire("dusk");
+      if (a.day > b.day) fire("dawn", a.day);
+      if (a.room !== b.room && !b.visited[a.room] && ARRIVE[a.room]) fire(ARRIVE[a.room]);
+      // 電話は、時間が進むあいだ、鳴りつづける
+      if (a.turns > b.turns && b.phoneRing && a.phoneRing && Math.random() < 0.6) fire("ring");
+    }
+    if (a.notes > b.notes) {
+      const nb = document.querySelector('[data-act="notes"]');
+      if (nb) nb.classList.add("new");
+    }
+  }
+
+  // ---- 画面を、いまの状態に合わせる ----
+  let curPal = null, curBed = null, curTags = null, palTimer = 0;
+  function applyPal(pk, bed) {
+    const P = PAL[pk] || PAL["omoya-day"];
+    document.body.dataset.pal = pk;
+    document.body.classList.toggle("light", !!P.light);
+    if (themeMeta) themeMeta.setAttribute("content", P.s);
+    if (pk !== curPal) {
+      curPal = pk; curBed = bed;
+      fx("level", P.lv, { a: P.a, b: P.c, mode: P.m, bed });
+      const tg = TAGS[P.t] || TAGS.house;
+      if (tg !== curTags) { curTags = tg; fx("tags", tg); }
+      const bar = $("bar");
+      bar.classList.remove("flicker"); void bar.offsetWidth; bar.classList.add("flicker");
+    } else if (bed !== curBed) { curBed = bed; fx("bed", bed); }
+  }
+  function sync() {
+    const S = game.state();
+    // 状態行
+    if (S.over) {
+      const e = Kura.DEFS.endings[S.over];
+      $("room").textContent = "結末「" + (e && typeof e.title === "string" ? e.title : S.over) + "」";
+      $("score").textContent = "";
+    } else {
+      $("room").textContent = statusL || ((Kura.DEFS.rooms[S.room] || {}).name || "");
+      $("score").textContent = statusR;
+    }
+    // 十字キー：行ける方角だけ光る。行ったことのある先は、名前を小さく出す
+    const ex = S.over || S.prompt ? [] : game.exits();
+    for (const btn of document.querySelectorAll("[data-go]")) {
+      const e = ex.find(x => x.dir === btn.dataset.go);
+      btn.classList.toggle("open", !!e);
+      const sm = btn.querySelector("small");
+      if (sm) sm.textContent = e && e.label.includes("：") ? e.label.split("：").slice(1).join("：") : "";
+      btn.setAttribute("aria-label", e ? e.label : DIR_JA[btn.dataset.go] + "（行けない）");
+    }
+    renderAsk(S);
+    // 配色・背景・環境音（夜が来るとき・結末では、停電や光のあとに切り替える）
+    const pk = palFor(S), bed = bedFor(S, pk);
+    document.body.dataset.area = S.over ? "end" : (AREA[S.room] || "omoya");
+    document.body.dataset.time = S.over ? "end" : S.phase === "夜" ? "night" : S.phase === "夕" ? "dusk" : "day";
+    clearTimeout(palTimer);
+    if (palHold > 0) { const h = palHold; palHold = 0; palTimer = setTimeout(() => applyPal(pk, bed), h); }
+    else applyPal(pk, bed);
+    fx("stress", stressOf(S));
+    document.body.style.setProperty("--water", waterOf(S).toFixed(3));
+    // 札の「最深」
+    const rk = rankOf(S);
+    if (rk > LOOP.deep) { LOOP.deep = rk; saveLoop(); writeMeta(); }
+  }
+  // 問いの答え（はい／いいえなど）と、結末のあとのボタンは、十字キーのかわりに出す
+  let askSig = "";
+  function renderAsk(S) {
+    const box = $("ask");
+    const ch = S.over ? [] : game.choices();
+    const sig = S.over ? "over:" + S.over : ch.map(c => c.label).join("|");
+    if (sig === askSig) return;
+    askSig = sig;
+    box.textContent = "";
+    box.classList.remove("fresh");
+    if (!S.over && !ch.length) { box.hidden = true; $("pad").hidden = false; return; }
+    const head = document.createElement("div");
+    head.className = "q" + (S.over ? " end" : "");
+    head.textContent = S.over ? "物語は、ここで終わった。" : "どうする？";
+    box.append(head);
+    const btn = (label, f) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "pk choice"; b.textContent = label;
+      b.addEventListener("click", f);
+      box.append(b);
+    };
+    if (S.over) {
+      btn("ひとつ戻す", () => run("undo", "ひとつ戻す", () => game.act("undo")));
+      btn("はじめから", () => openSheet(true, true));
+    } else {
+      for (const c of ch) btn(c.label, () => choose(c));
+    }
+    box.hidden = false;
+    $("pad").hidden = true;
+    void box.offsetWidth;
+    box.classList.add("fresh");
+  }
+  function snap() {
+    const S = game.state();
+    if (!S) return null;
+    return { room: S.room, phase: S.phase, day: S.day, nt: S.nt, dread: S.dread, over: S.over, prompt: S.prompt, turns: S.turns,
+      visited: Object.assign({}, S.visited), phoneRing: !!S.f.phoneRing, notes: S.notes.length };
+  }
+  // エンジンを呼ぶ口は、すべてここを通す：命令の行 → 実行 → 出来事の演出 → 画面合わせ → 保存
+  function run(kind, label, f) {
+    if (!game) return;
+    if (label) { gap(); push({ t: "cmd", ja: label }); }
+    const before = snap();
+    buf = [];
+    try { f(); } catch (e) {
+      try { console.error(e); } catch (e2) { /* 出せなくてもよい */ }
+      note("（うまく動かなかった。別の言い方で、もう一度）");
+    }
+    const lines = buf;
+    buf = null;
+    react(kind, before, snap(), lines);
+    sync();
+    writeSaved();
+    scrollDown();
+  }
+  const verbOf = id => game.verbs().find(v => v.id === id);
+  const fmt = (v, a, b) => v.fmt.replace("%", a || "").replace("#", b || "");
+  function act(v, a, b) { run(v.id === "undo" ? "undo" : "act", fmt(v, a && a.label, b && b.label), () => game.act(v.id, a && a.id, b && b.id)); }
+  function go(dir) { run("go", DIR_JA[dir] + "へ行く", () => game.go(dir)); }
+  function choose(c) { run("choose", null, () => { gap(); game.choose(c.id); }); }
+  function quick(id) {
+    if (id === "undo") { run("undo", "ひとつ戻す", () => game.act("undo")); return; }
+    if (id === "notes") { const nb = document.querySelector('[data-act="notes"]'); if (nb) nb.classList.remove("new"); }
+    const v = verbOf(id);
+    run("act", v ? v.fmt : id, () => game.act(id));
+  }
+
+  // ---- 入力 ----
+  $("prompt").addEventListener("submit", e => {
+    e.preventDefault();
+    const v = cmdEl.value.trim();
+    cmdEl.value = "";
+    if (!v) return;
+    run("text", v, () => game.text(v));
+  });
+  $("pad").addEventListener("click", e => {
+    const b = e.target.closest("[data-go],[data-act]");
+    if (!b) return;
+    if (b.dataset.go) go(b.dataset.go); else quick(b.dataset.act);
+  });
+  cmdEl.addEventListener("focus", () => { document.body.classList.add("typing"); scrollDown(); });
+  cmdEl.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== cmdEl) document.body.classList.remove("typing"); }, 120));
+
+  // ---- 命令を作る：動詞 → 物 → （2つ目の物）。問いのあいだは、答えを選ぶ ----
+  const builder = $("builder");
+  const bs = { verb: null, a: null };
+  function bButton(label, onClick, cls) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "bk" + (cls ? " " + cls : ""); b.textContent = label;
+    b.addEventListener("click", onClick);
+    return b;
+  }
+  function emptyNote(list, msg) {
+    const p = document.createElement("p");
+    p.className = "empty"; p.textContent = msg;
+    list.append(p);
+  }
+  function renderBuilder() {
+    const list = $("b-list");
+    list.textContent = ""; list.scrollTop = 0; list.className = "";
+    const S = game.state();
+    const ch = S.over ? [] : game.choices();
+    $("b-back").hidden = !bs.verb || !!ch.length || !!S.over;
+    if (S.over) {
+      $("b-title").textContent = "物語は、ここで終わった。"; $("b-preview").textContent = "";
+      list.append(bButton("ひとつ戻す", () => { closeBuilder(); run("undo", "ひとつ戻す", () => game.act("undo")); }, "choice"));
+      list.append(bButton("はじめから", () => { closeBuilder(); openSheet(true, true); }, "choice"));
+      return;
+    }
+    if (ch.length) {
+      $("b-title").textContent = "どうする？"; $("b-preview").textContent = "";
+      for (const c of ch) list.append(bButton(c.label, () => { closeBuilder(); choose(c); }, "choice"));
+      return;
+    }
+    if (!bs.verb) {
+      $("b-title").textContent = "何をする？"; $("b-preview").textContent = "";
+      list.className = "verbs";
+      for (const v of game.verbs()) list.append(bButton(v.label, () => {
+        if (v.args === 0) { closeBuilder(); act(v); return; }
+        bs.verb = v; bs.a = null; renderBuilder();
+      }, v.quick ? "quick" : ""));
+      return;
+    }
+    const v = bs.verb, second = v.args === 2 && !!bs.a;
+    const who = v.id === "talk" || (v.id === "ask" && !second) || (v.id === "give" && second);
+    $("b-title").textContent = who ? "誰に？" : second ? (v.id === "ask" ? "何について？" : "何に？") : "何を？";
+    $("b-preview").textContent = fmt(v, second ? bs.a.label : "…", "…");
+    const items = game.things(v.id, second ? bs.a.id : null).filter(t => !(second && t.id === bs.a.id));
+    items.sort((x, y) => (y.held ? 1 : 0) - (x.held ? 1 : 0));
+    for (const t of items) list.append(bButton(t.label + (t.held ? "（持）" : ""), () => {
+      if (v.args === 2 && !second) { bs.a = t; renderBuilder(); return; }
+      closeBuilder();
+      if (second) act(v, bs.a, t); else act(v, t);
+    }, t.held ? "held" : ""));
+    if (!items.length) emptyNote(list, who ? "話しかけられる相手が、ここにはいない。" : "選べるものがない。");
+  }
+  function openBuilder() {
+    bs.verb = null; bs.a = null;
+    builder.hidden = false;
+    renderBuilder();
+  }
+  function closeBuilder() { builder.hidden = true; }
+  $("build-btn").addEventListener("click", openBuilder);
+  $("b-close").addEventListener("click", closeBuilder);
+  builder.addEventListener("click", e => { if (e.target === builder) closeBuilder(); });
+  $("b-back").addEventListener("click", () => {
+    if (bs.verb && bs.a) bs.a = null; else bs.verb = null;
+    renderBuilder();
+  });
+
+  // ---- メニュー ----
+  const sheet = $("sheet");
+  function openSheet(open, confirmRestart) {
+    sheet.hidden = !open;
+    $("menu-btn").setAttribute("aria-expanded", String(open));
+    $("restart-yes").hidden = $("restart-no").hidden = !confirmRestart;
+    $("restart-btn").hidden = !!confirmRestart;
+    if (!open) {
+      for (const k of ["howto", "credit"]) { $(k).hidden = true; $(k + "-btn").setAttribute("aria-expanded", "false"); }
+    }
+  }
+  $("menu-btn").addEventListener("click", () => openSheet(sheet.hidden));
+  $("close-sheet").addEventListener("click", () => openSheet(false));
+  sheet.addEventListener("click", e => { if (e.target === sheet) openSheet(false); });
+  $("hint-btn").addEventListener("click", () => { openSheet(false); run("hint", "ヒント", () => game.hint()); });
+  for (const k of ["howto", "credit"]) {
+    $(k + "-btn").addEventListener("click", () => {
+      const show = $(k).hidden;
+      $(k).hidden = !show;
+      $(k + "-btn").setAttribute("aria-expanded", String(show));
+    });
+  }
+  $("restart-btn").addEventListener("click", () => { $("restart-btn").hidden = true; $("restart-yes").hidden = $("restart-no").hidden = false; });
+  $("restart-no").addEventListener("click", () => openSheet(false));
+  $("restart-yes").addEventListener("click", () => { openSheet(false); start(true); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") { closeBuilder(); openSheet(false); } });
+  $("home-btn").addEventListener("click", () => { window.FX ? FX.home() : location.href = "../index.html"; });
+  function optLabels() {
+    const st = window.FX ? window.FX.settings : null;
+    $("snd-btn").hidden = $("vib-btn").hidden = !st;
+    if (!st) return;
+    $("snd-btn").textContent = "音：" + (st.sound ? "入" : "切");
+    $("vib-btn").textContent = "振動：" + (st.vibe ? "入" : "切");
+  }
+  $("snd-btn").addEventListener("click", () => { if (window.FX) { window.FX.set("sound", !window.FX.settings.sound); optLabels(); } });
+  $("vib-btn").addEventListener("click", () => {
+    if (!window.FX) return;
+    const v = !window.FX.settings.vibe;
+    window.FX.set("vibe", v);
+    if (v) window.FX.vibrate(40);
+    optLabels();
+  });
+  optLabels();
+
+  // ---- 起動 ----
+  function start(fresh) {
+    cancelFx();
+    rows = []; logEl.textContent = "";
+    LOOP = loadLoop();
+    curPal = null; curBed = null; curTags = null; askSig = ""; statusL = ""; statusR = "";
+    const nb = document.querySelector('[data-act="notes"]');
+    if (nb) nb.classList.remove("new");
+    game = Kura.create(ui);
+    let saved = null;
+    if (fresh) clearSaved(); else saved = loadSaved();
+    let resumed = false;
+    if (saved && saved.state) {
+      try { resumed = !!game.import(saved.state); } catch (e) { resumed = false; }
+      if (!resumed) game = Kura.create(ui);
+    }
+    if (resumed) {
+      for (const r of saved.log) if (r && typeof r === "object" && typeof r.t === "string") push(r, false);
+      if (!rows.length) game.look(true);
+      gap();
+      note("（前回の続きから）");
+      sync();
+    } else {
+      LOOP.runs = (LOOP.runs || 0) + 1;
+      saveLoop();
+      push({ t: "out", ja: "蔵守", cls: "logo" }, true);
+      run("start", null, () => game.start());
+    }
+    fx("vhs", false);
+    fx("truisms", TRUISMS);
+    writeMeta();
+    scrollDown();
+  }
+  // 自動テスト用の口（ゲームの進み方は変えない）
+  window.KuramoriDebug = {
+    get game() { return game; },
+    get Kura() { return Kura; },
+    events: dbgEvents,
+    act: (id, a, b) => {
+      const v = verbOf(id) || { id, fmt: { undo: "ひとつ戻す", hint: "ヒント" }[id] || id };
+      const T = x => x == null ? null : { id: x, label: String(x).startsWith("t:") ? Kura.DEFS.topics[String(x).slice(2)].name : game.nameOf(x) };
+      act(v, T(a), T(b));
+    },
+    go: d => go(d),
+    choose: label => { const c = game.choices().find(x => x.label === label); if (c) choose(c); return !!c; },
+    text: s => run("text", s, () => game.text(s)),
+    restart: () => start(true),
+  };
+  start(false);
+})();
+</script>
+
+</body>
+</html>
