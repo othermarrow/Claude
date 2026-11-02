@@ -353,7 +353,8 @@ def watch_reply(tap, obs, data):
         L.append(f"\n# 相手がいま押したボタン\n{S['labels'].get(tap, LABELS.get(tap, tap))}" + ("（沈黙）" if tap == "silent" else ""))
     else:
         L.append("\n# 相手は、しばらく何も押していない\nあなたのほうから、独り言のように、とめどなく話す。"
-                 "問いかけでなくてよい。返事は期待しない。研究室の記憶・手首の様子・相手のこと、どれでもよい。")
+                 "問いかけでなくてよい。返事は期待しない。手首の様子（脈・睡眠・ストレス・血中酸素・温度・揺れ・歩数・時刻 など）を、"
+                 "いくつも言葉にする（数字を言ってよい）。研究室の記憶や相手のことを混ぜてもよい。")
     L.append("\nJSON 一つだけで答える。")
     system = story_ai.system_for("minamo", "watch")
     box = {}

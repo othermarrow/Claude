@@ -7,7 +7,7 @@ import {
 import { BasePage } from '@zeppos/zml/base-page'
 import { W, MARGIN, CW, Canvas, textHeight } from '../../shared/ui'
 import { createTalk, GROUPS, labelOf } from '../../shared/talk'
-import { startSense, stopSense, observe, clockText, clockParts, screenOff } from '../../shared/sense'
+import { startSense, stopSense, observe, clockLines, clockParts, screenOff } from '../../shared/sense'
 import { cancelAll, rearm } from '../../shared/alarm'
 import { load, save } from '../../shared/store'
 import { knock } from '../../shared/vibe'
@@ -20,8 +20,9 @@ const KEY = 0x13201b
 const WARN = 0xd9826f
 const TICK = 20000      // スマホのミナモに、手首の様子を送る間隔
 const ASK_WAIT = 16000  // ボタンへの返事を、スマホの AI に頼んで待つ長さ（間に合わなければ、時計の返事）
-const CLOCK_Y = 22, HEAD_Y = 54, BODY_Y = 90
-const IDLE_MIN = 60000, IDLE_MAX = 600000   // 何も押さないと、1〜10 分に一度、ミナモが独り言を話す
+// 上から：日付と曜日（小さめ）・時刻（大きく）・見出し・ミナモの言葉
+const DATE_Y = 14, TIME_Y = 40, HEAD_Y = 104, BODY_Y = 140
+const IDLE_MIN = 60000, IDLE_MAX = 300000   // 何も押さないと、1〜5 分に一度、ミナモが独り言を話す（5 分は空けない）
 const DIM_AFTER = 90000                     // さわらないまま 90 秒で、休む画面（黒・時刻と最後のひとことだけ）
 const FOREVER = 2147483000                  // 画面を点けておく長さの上限（「終わる」まで消さない）
 
@@ -157,17 +158,18 @@ Page(
       }, 6000)
     },
 
-    // ---------- 時計（yyyy/mm/dd hh:mm:ss）。侵食からは、ときどき、あの夜の時刻になる ----------
+    // ---------- 時計（一行目 yyyy/mm/dd（曜）、二行目 hh:mm:ss）。侵食からは、ときどき、あの夜の時刻になる ----------
     clockTick() {
       const st = this.state
       if (st.gone) return
       const ph = st.talk.phase(), p = clockParts()
-      let t = clockText()
-      if (ph >= 2 && Math.random() < (ph === 3 ? 0.06 : 0.025)) t = '1999/12/31 23:59:59'
+      let t = clockLines()
+      if (ph >= 2 && Math.random() < (ph === 3 ? 0.06 : 0.025)) t = { date: '1999/12/31（金）', time: '23:59:59' }
       try {
-        if (st.clock) {
-          st.clock.setProperty(hmUI.prop.TEXT, t)
-          st.clock.setProperty(hmUI.prop.COLOR, p.m === 59 ? WARN : CLOCK)   // 59 分のあいだは、時刻が赤みを帯びる
+        if (st.dateW) st.dateW.setProperty(hmUI.prop.TEXT, t.date)
+        if (st.timeW) {
+          st.timeW.setProperty(hmUI.prop.TEXT, t.time)
+          st.timeW.setProperty(hmUI.prop.COLOR, p.m === 59 ? WARN : CLOCK)   // 59 分のあいだは、時刻が赤みを帯びる
         }
       } catch (e) { /* 消えた部品 */ }
       if (p.m === 59 && st.sig59 !== String(p.h)) { st.sig59 = String(p.h); this.signal59() }
@@ -204,14 +206,18 @@ Page(
       c.clear()
       const touch = (w) => { try { w.addEventListener(hmUI.event.CLICK_UP, () => this.wake()) } catch (e) { /* なくてもよい */ } return w }
       touch(c.add(hmUI.widget.FILL_RECT, { x: 0, y: 0, w: W, h: W, color: 0x000000 }))
-      st.clock = touch(c.add(hmUI.widget.TEXT, {
-        x: MARGIN, y: 120, w: CW, h: 40, text: clockText(), text_size: 30, color: CLOCK, align_h: hmUI.align.CENTER_H
+      const t = clockLines()
+      st.dateW = touch(c.add(hmUI.widget.TEXT, {
+        x: MARGIN, y: 92, w: CW, h: 32, text: t.date, text_size: 24, color: CLOCK, align_h: hmUI.align.CENTER_H
+      }))
+      st.timeW = touch(c.add(hmUI.widget.TEXT, {
+        x: MARGIN, y: 122, w: CW, h: 74, text: t.time, text_size: 62, color: CLOCK, align_h: hmUI.align.CENTER_H
       }))
       st.head = touch(c.add(hmUI.widget.TEXT, {
-        x: MARGIN, y: 168, w: CW, h: 26, text: this.headText(), text_size: 18, color: DIM, align_h: hmUI.align.CENTER_H
+        x: MARGIN, y: 200, w: CW, h: 26, text: this.headText(), text_size: 18, color: DIM, align_h: hmUI.align.CENTER_H
       }))
       touch(c.add(hmUI.widget.TEXT, {
-        x: MARGIN + 10, y: 206, w: CW - 20, h: 190, text: text.replace(/\[間\]\s*/g, ''), text_size: 22, color: DIM,
+        x: MARGIN + 10, y: 236, w: CW - 20, h: 166, text: text.replace(/\[間\]\s*/g, ''), text_size: 22, color: DIM,
         align_h: hmUI.align.CENTER_H, text_style: hmUI.text_style.WRAP
       }))
       touch(c.add(hmUI.widget.TEXT, {
@@ -249,9 +255,12 @@ Page(
       const st = this.state, c = st.canvas, ph = st.talk.phase()
       c.clear()
       c.add(hmUI.widget.FILL_RECT, { x: 0, y: 0, w: W, h: 4000, color: BG })
-      st.clock = c.add(hmUI.widget.TEXT, {
-        x: MARGIN, y: CLOCK_Y, w: CW, h: 30, text: clockText(),
-        text_size: 22, color: CLOCK, align_h: hmUI.align.CENTER_H
+      const t = clockLines()
+      st.dateW = c.add(hmUI.widget.TEXT, {
+        x: MARGIN, y: DATE_Y, w: CW, h: 28, text: t.date, text_size: 22, color: CLOCK, align_h: hmUI.align.CENTER_H
+      })
+      st.timeW = c.add(hmUI.widget.TEXT, {
+        x: MARGIN, y: TIME_Y, w: CW, h: 60, text: t.time, text_size: 50, color: CLOCK, align_h: hmUI.align.CENTER_H
       })
       st.head = c.add(hmUI.widget.TEXT, {
         x: MARGIN, y: HEAD_Y, w: CW, h: 28, text: this.headText(),
@@ -342,7 +351,8 @@ Page(
       st.idleT = setTimeout(() => {
         if (st.ended || st.busy || st.gone) return
         const r = st.talk.idle(observe())
-        if (!st.linked || r.last) { this.say(r.text, r.pulse); return }
+        // 読み上げ（数字をならべたもの）は、時計の言葉のまま。それ以外は、つながっていればスマホの AI に頼む
+        if (!st.linked || r.last || r.kind === 'readout') { this.say(r.text, r.pulse); return }
         const ask = ++st.askId
         this.link('idle', { want: 1, local: r.text, history: st.hist.slice(-6) }, 14000).then((res) => {
           if (ask !== st.askId || st.busy || st.ended || st.gone) return
