@@ -6,6 +6,7 @@
 <title>蔵守</title>
 <link rel="manifest" href="../manifest.webmanifest">
 <meta name="theme-color" content="#0d0c07">
+<link rel="icon" href="../icons/icon-192.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Shippori+Mincho:wght@500;700&display=swap">
@@ -165,13 +166,13 @@ body:not(.light) .row.logo { text-shadow: 0 0 10px var(--fx-a, var(--bright)), 0
 #send:focus-visible, #build-btn:focus-visible { outline: 2px solid var(--bright); outline-offset: 2px; }
 
 #pad {
-  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 0.7em;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: 0.55em;
   padding-inline: 16px; padding-top: 0.6em;
 }
 #compass { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
 #common { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-content: start; }
 .pk {
-  font: inherit; font-size: 0.9em; line-height: 1.2; min-height: 2.4em; min-width: 0;
+  font: inherit; font-size: min(0.9em, 3.75vw); line-height: 1.2; min-height: 2.4em; min-width: 0;
   background: color-mix(in srgb, var(--screen) 70%, transparent); color: var(--wall); border: 1px solid var(--faint);
   padding: 0.3em 0.1em; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
@@ -664,8 +665,15 @@ body.light #fx-bg { opacity: 0.5; }
   // ボタンを押したこと自体には、音をつけない。見るだけ・持ち物・手がかり・ヒント・メニューなどは、何も鳴らない
   const AFTER_TAP = 320;
   const dbgEvents = [];
-  function snd(ms, f) { setTimeout(() => { try { f(); } catch (e) { /* 鳴らなくてもよい */ } }, AFTER_TAP + ms); }
-  function vis(ms, f) { setTimeout(() => { try { f(); } catch (e) { /* 出なくてもよい */ } }, ms); }
+  // 予約した演出。ひとつ戻したとき・結末・はじめからでは、まだ出ていないものを取り消す（前の出来事の音が、あとから鳴らないように）
+  const timers = new Set();
+  function later(ms, f) {
+    const id = setTimeout(() => { timers.delete(id); try { f(); } catch (e) { /* 出なくてもよい */ } }, ms);
+    timers.add(id);
+  }
+  function cancelFx() { for (const id of timers) clearTimeout(id); timers.clear(); }
+  function snd(ms, f) { later(AFTER_TAP + ms, f); }
+  function vis(ms, f) { later(ms, f); }
   function tru(ms, t) { if (t) vis(ms + 500, () => fx("truism", t[0], t[1], t[2])); }
   const S_ = name => () => fx("sfx", name);
   let palHold = 0;
@@ -820,8 +828,10 @@ body.light #fx-bg { opacity: 0.5; }
   ];
   const ARRIVE = { kuramae: "arriveKura", kura_b: "arriveWade", soko: "arriveSoko", suido1: "arriveDrip", dam_top: "arriveLake" };
   function react(kind, b, a, lines) {
-    // ひとつ戻したときは、出来事を鳴らし直さない
-    if (!b || kind === "undo" || lines.some(l => l.text === "（ひとつ前に戻した）")) return;
+    // ひとつ戻したときは、出来事を鳴らし直さない（予約していた演出も取り消す）
+    if (kind === "undo" || lines.some(l => l.text === "（ひとつ前に戻した）")) { cancelFx(); return; }
+    if (!b) return;
+    if (lines.some(l => l.ended)) cancelFx();
     let at = 0;
     const fired = new Set();
     const fire = (name, arg) => {
@@ -897,6 +907,8 @@ body.light #fx-bg { opacity: 0.5; }
     renderAsk(S);
     // 配色・背景・環境音（夜が来るとき・結末では、停電や光のあとに切り替える）
     const pk = palFor(S), bed = bedFor(S, pk);
+    document.body.dataset.area = S.over ? "end" : (AREA[S.room] || "omoya");
+    document.body.dataset.time = S.over ? "end" : S.phase === "夜" ? "night" : S.phase === "夕" ? "dusk" : "day";
     clearTimeout(palTimer);
     if (palHold > 0) { const h = palHold; palHold = 0; palTimer = setTimeout(() => applyPal(pk, bed), h); }
     else applyPal(pk, bed);
@@ -1102,6 +1114,7 @@ body.light #fx-bg { opacity: 0.5; }
 
   // ---- 起動 ----
   function start(fresh) {
+    cancelFx();
     rows = []; logEl.textContent = "";
     LOOP = loadLoop();
     curPal = null; curBed = null; curTags = null; askSig = ""; statusL = ""; statusR = "";
@@ -1138,7 +1151,7 @@ body.light #fx-bg { opacity: 0.5; }
     get Kura() { return Kura; },
     events: dbgEvents,
     act: (id, a, b) => {
-      const v = verbOf(id) || { id, fmt: id };
+      const v = verbOf(id) || { id, fmt: { undo: "ひとつ戻す", hint: "ヒント" }[id] || id };
       const T = x => x == null ? null : { id: x, label: String(x).startsWith("t:") ? Kura.DEFS.topics[String(x).slice(2)].name : game.nameOf(x) };
       act(v, T(a), T(b));
     },
