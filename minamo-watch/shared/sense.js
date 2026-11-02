@@ -134,7 +134,20 @@ export function screenOff() {
   return safe(() => S.screen.getStatus()) === 2
 }
 
-// 時計の表示用（yyyy/mm/dd hh:mm:ss）
+// 時計の表示用：一行目に日付と曜日（yyyy/mm/dd（月））、二行目に時刻（hh:mm:ss）
+const WEEK = ['月', '火', '水', '木', '金', '土', '日']        // Zepp の getDay() は 1 が月曜
+export function clockLines() {
+  const t = S.time, d = new Date(), p = (n) => String(n).padStart(2, '0')
+  const y = safe(() => t.getFullYear()) || d.getFullYear()
+  const mo = safe(() => t.getMonth()) || d.getMonth() + 1
+  const da = safe(() => t.getDate()) || d.getDate()
+  const wd = safe(() => t.getDay())
+  const w = wd >= 1 && wd <= 7 ? WEEK[wd - 1] : WEEK[(d.getDay() + 6) % 7]
+  const { h, m, s } = clockParts()
+  return { date: `${y}/${p(mo)}/${p(da)}（${w}）`, time: `${p(h)}:${p(m)}:${p(s)}` }
+}
+
+// 時計の表示用（yyyy/mm/dd hh:mm:ss。一行のとき）
 export function clockText() {
   const t = S.time, d = new Date()
   const y = safe(() => t.getFullYear()) || d.getFullYear()

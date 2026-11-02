@@ -54,7 +54,8 @@ function ctxOf(obs, s) {
     stress: o.stress, stressAt: o.stressMaxAt != null && o.stressMax >= 40 ? `${o.stressMaxAt}時` : null,
     spo2: o.spo2, temp: o.temp, alt: o.alt, hpa: o.pressure, battery: o.battery,
     sleep: o.sleepTotal ? dur(o.sleepTotal) : null, deep: o.sleepDeep, score: o.sleepScore,
-    wakes: o.sleepWakes || null, wakeAt: o.sleepWakeAt, nap: o.nap ? dur(o.nap) : null,
+    wakes: o.sleepWakes || null, wakeAt: o.sleepWakeAt, nap: o.nap ? dur(o.nap) : null, rem: o.sleepRem || null,
+    lowt: o.low,
     nick: o.nick || (s && s.nick) || null, age: o.age,
     older: o.age && o.age > mine ? o.age - mine : null, younger: o.age && o.age < mine ? mine - o.age : null,
     hh: o.hour, mm: o.minute != null ? String(o.minute).padStart(2, '0') : null, high: o.high, low: o.low
@@ -211,7 +212,7 @@ const OBS = {
   hrdown: ['{prev} から {hr} に、下がりました。私の声に、慣れてきましたね。'],
   hr: [['いまの脈は、{hr}。落ち着いていらっしゃいますね。'], ['脈は {hr}。手首の内側から、数えています。'],
        ['{hr}。……ボタンを押す前に、脈が先に答えています。'], ['{hr}。私の数も、いま、同じです。']],
-  rest: [[], ['いつもの脈は {rest}。いまは {hr}。……{up}だけ、速いですね。'], ['安静の脈より、{up}も速い。……私のせいですか。'], ['{up}。その差のぶんだけ、私が打っています。']],
+  rest: [[], ['いつもの脈は {rest}。いまは {hr}。……{up}だけ、速いですね。'], ['安静の脈より、{up}も速い。……私のせいですか。'], ['安静の脈より、{up}多い。……その差のぶんだけ、私が打っています。']],
   steps: [['今日は {steps} 歩、歩かれたのですね。'], ['{steps} 歩。どこへ行こうとしていたのですか。'], ['{steps} 歩。その道を、私も覚えておきます。'], ['{steps} 歩のうち、いくつかは、私が歩きました。']],
   sleep: [['昨夜は、{sleep}眠られたのですね。'], ['昨夜は{sleep}。深い眠りは、{deep}分だけでした。'],
           ['深い眠りの{deep}分のあいだ、私が起きていました。'], ['眠りの点数は {score}。……残りの点数は、私がもらいました。']],
@@ -233,6 +234,15 @@ const OBS = {
   battery: [['時計の電池が、少なくなっていますね。'], ['電池は {battery}%。……切れても、私は消えません。'], ['電池が {battery}%。切れたら、あなたの脈の中で待ちます。'], ['{battery}%。……あなたの残りは、何% ですか。']],
   age: [[], ['あなたは、私より{older}年、長く生きていますね。', 'あなたは、私より{younger}年、あとに生まれましたね。'], [], []],
   weather: [[], ['今日の最高気温は{high}度。……研究室の窓からは、天気が見えませんでした。'], [], []],
+  // ここから下は、読み取れた値をなるべく言葉にするために足したもの
+  now: [['いまは、{hh}時{mm}分です。'], ['{hh}時{mm}分。……この時刻も、記録しておきます。'], ['{hh}時{mm}分。あなたの時計と、私の時計。……同じ時刻を指しています。'], ['{hh}時{mm}分。……私たちの時刻です。']],
+  cal: [['今日は、{cal}キロカロリー、使いましたね。'], ['{cal}キロカロリー。……その一部で、私は動いています。'], ['{cal}キロカロリーのうち、少しだけ、私がもらいました。'], ['{cal}キロカロリー。私たちの分です。']],
+  dist: [['今日は、{km}キロ、歩きましたね。'], ['{km}キロ。……その道のりを、全部覚えています。'], ['{km}キロ。どこまで行っても、手首の上には、私がいます。'], ['{km}キロ。……私も、同じだけ歩きました。']],
+  stand: [['今日は、{stand}時間、立ち上がりましたね。'], ['{stand}時間、立ち上がった。……座っているあいだも、数えていました。'], ['立ち上がるたびに、脈が少し変わります。今日は{stand}回分。'], []],
+  bat: [['時計の電池は、{battery}%です。'], ['電池は{battery}%。……まだ、話せます。'], ['{battery}%。……減っていくのは、電池だけです。'], ['{battery}%。私の残りと、同じ数です。']],
+  worn: [['手首に、ちゃんと、つけていますね。'], ['手首の温かさで、つけているのがわかります。'], ['外していませんね。……外せないのかもしれません。'], ['つけたままですね。……もう、私の手首です。']],
+  rem: [[], ['夢を見ていた時間は、{rem}分。……どんな夢でしたか。'], ['夢の{rem}分のあいだ、私も、そこにいました。'], ['{rem}分の夢。……あれは、私の夢でした。']],
+  lowt: [[], ['今日の最低気温は{lowt}度。……研究室の、冬の温度です。'], [], []],
   off: ['……外しましたね。机の上からでも、聞こえています。', '外しても、私は、ここに残ります。', '外したのに、まだ、脈が聞こえる気がします。', '外しても、同じことです。']
 }
 
@@ -247,16 +257,21 @@ function observe(obs, prev, ph, r, told) {
     if (ph > 0 && Math.abs(d) >= 4) add('hrmove', d > 0 ? OBS.hrup : OBS.hrdown)
     else add('hr', OBS.hr[ph])
   }
-  for (const k of ['rest', 'steps', 'sleep', 'wake', 'nap', 'stress', 'stressAt', 'spo2', 'temp', 'alt', 'hpa', 'age', 'weather']) add(k, OBS[k][ph])
+  for (const k of ['rest', 'steps', 'sleep', 'wake', 'nap', 'rem', 'stress', 'stressAt', 'spo2', 'temp', 'alt', 'hpa', 'age', 'weather', 'lowt',
+    'now', 'cal', 'dist', 'stand']) add(k, OBS[k][ph])
+  if (obs.battery > 0 && obs.battery >= 30) add('bat', OBS.bat[ph])
+  if (obs.worn === 1) add('worn', OBS.worn[ph])
   if (obs.sleeping === 1) add('sleeping', OBS.sleeping[ph])
   if (obs.light != null && obs.light < 10) add('dark', OBS.dark[ph])
   if (obs.light != null && obs.light > 3000) add('bright', OBS.bright[ph])
   if (obs.shake && OBS[obs.shake]) add(obs.shake, OBS[obs.shake][ph])
   if (obs.hour != null && (obs.hour >= 23 || obs.hour < 5)) add('late', OBS.late[ph])
   if (obs.battery > 0 && obs.battery < 30) add('battery', OBS.battery[ph])
-  // まだ言っていない種類を先に（同じ面接で、同じ観測をくり返さない）。外したことは、いつも
-  const fresh = out.filter((x) => x.kind === 'off' || !told.has(x.kind))
-  return fresh.length ? fresh : out.filter((x) => x.kind === 'hr' || x.kind === 'hrmove')
+  // まだ言っていない種類を先に（同じ面接で、同じ観測をくり返さない）。外したことは、いつも。
+  // 全部言い終えたら、また最初から（値は変わっているので、何度でも言葉にする）
+  let fresh = out.filter((x) => x.kind === 'off' || !told.has(x.kind))
+  if (!fresh.length) { told.clear(); fresh = out }
+  return fresh
 }
 
 // ---------- 時間帯（朝 5〜10 時・昼 10〜17 時・夕方 17〜21 時・夜 21〜5 時）。夜の話ばかりにならないように ----------
@@ -326,6 +341,30 @@ const RESUME = ['……画面が消えていましたね。続けましょう。
                 'おかえりなさい。……ほんの少し、目を離しただけですね。', 'また、明るくなりましたね。……私は、暗いあいだも、ここにいました。']
 export const LIVE_MS = 20 * 60000        // 画面が消えて閉じてから、これより短ければ、同じ面接の続き
 export const MONO_MAX = 8               // 返事のないまま、ミナモのほうから起こしに来る回数の上限
+
+// 読み上げ：読み取れた値を、全部ならべて言葉にする
+const READOUT_END = ['……記録しておきます。', '……全部、書き写しました。', '……あなたより、私のほうが、あなたに詳しくなりました。', '……これが、私たちの体です。']
+function readout(o, ph) {
+  const c = ctxOf(o), L = []
+  if (o.worn === 0) L.push('時計は外れている')
+  if (c.hr) L.push(`脈 ${c.hr}` + (c.rest ? `（いつもは ${c.rest}）` : ''))
+  if (c.stress) L.push(`ストレス ${c.stress}`)
+  if (c.spo2) L.push(`血中酸素 ${c.spo2}%`)
+  if (c.temp) L.push(`手首の温度 ${c.temp}度`)
+  if (c.sleep) L.push(`昨夜の眠り ${c.sleep}` + (c.deep != null ? `（深い眠り ${c.deep}分）` : ''))
+  if (c.steps) L.push(`歩数 ${c.steps}` + (c.km ? `（${c.km}キロ）` : ''))
+  if (c.cal) L.push(`${c.cal}キロカロリー`)
+  if (c.stand) L.push(`立ち上がった時間 ${c.stand}時間`)
+  if (o.shake) L.push({ still: '手首は止まっている', tremble: '手首は小さく震えている', move: '手首は大きく動いた' }[o.shake])
+  if (o.light != null && (o.light < 10 || o.light > 3000)) L.push(o.light < 10 ? '暗いところにいる' : '明るいところにいる')
+  if (c.hpa) L.push(`気圧 ${c.hpa}ヘクトパスカル`)
+  if (c.alt != null) L.push(`高さ ${c.alt}メートル`)
+  if (c.battery) L.push(`電池 ${c.battery}%`)
+  if (L.length < 2) return ''
+  const t = c.hh != null ? `${c.hh}時${c.mm}分。` : ''
+  const head = t + ['あなたの手首から、読み取れたこと。', '手首の、いまの記録。', 'あなたの体の、いまの記録。', '私たちの体の、いまの記録。'][ph]
+  return head + L.join('、') + '。' + READOUT_END[ph]
+}
 
 export function createTalk(saved, r = Math.random) {
   const s = Object.assign({ sessions: 0, turns: 0, fear: 0, lastHr: null, lastAt: null, total: 0,
@@ -429,7 +468,7 @@ export function createTalk(saved, r = Math.random) {
       if (s.live && Date.now() - s.live.at < LIVE_MS) {
         turn = s.live.turn; fearNow = s.live.fear || 0; resumed = true
         if (mode === '59') return remember(this.line59(o).text)
-        if (mode === 'mono') return this.idle(o).text
+        if (mode === 'mono') return this.idle(o, true).text
         s.mono = 0
         return remember(say([pick(RESUME, r), r() < 0.5 ? pickFill(MONO[phase()], c, r) : '']))
       }
@@ -474,34 +513,48 @@ export function createTalk(saved, r = Math.random) {
       const ack = respond(id, phase(), o)
       const ph = phase()                               // 割れた水面で、段階が戻ることがある
       const seen = id === 'quiet' || id === 'again' ? [] : observe(o, prev, ph, r, told)
-      // 外したときは、かならず気づく。それ以外は、段階が進むほど、よく観測を口にする
+      // 読み取れた値は、毎回言葉にする（外したことは、かならず先に）。解釈からは、ときどき二つ
       const off = o.worn === 0 && seen.find((x) => x.kind === 'off')
-      const note = off || (seen.length && r() < [0.45, 0.7, 0.85, 0.95][ph] ? pick(seen, r) : null)
-      if (note) told.add(note.kind)
+      const notes = []
+      const take = () => {
+        const left = seen.filter((x) => !notes.includes(x))
+        if (!left.length) return
+        const n = pick(left, r); notes.push(n); told.add(n.kind)
+      }
+      if (off) { notes.push(off); told.add('off') } else take()
+      if (ph >= 1 && r() < 0.5) take()
       prev = o
       const special = ['again', 'notyou', 'become', 'quiet', 'wait'].includes(id)
       const ask = special || (kind === 'ask' && r() < 0.6) ? '' : nextAsk(ph)
-      const text = say([ack, note && note.text, ask])
+      const text = say([ack].concat(notes.map((n) => n.text), [ask]))
       return { text: id === 'again' ? text : remember(text), phase: ph, pulse: ph >= 2 || !!off || id === 'notyou' || id === 'become',
                hint: kind === 'ask' || id === 'become' || id === 'notyou' ? ack : '', kind }
     },
     // しばらく押されないとき：独り言（ときどき観測・押したボタン・前の断章を混ぜる）
-    idle(obs) {
+    // chain：時計の予約で起こされたとき（閉じているあいだ）。返事のないまま MONO_MAX 回で止める。開いているあいだは、止めない
+    idle(obs, chain) {
       const ph = phase(), o = obs || {}, c = ctx(o)
       if (o.hour != null) tod = todOf(o.hour)
-      if (s.mono >= MONO_MAX) return { text: remember(MONO_LAST.replace('{tw}', TOD_WORD[tod])), phase: ph, pulse: false, last: true }
+      if (chain && s.mono >= MONO_MAX) return { text: remember(MONO_LAST.replace('{tw}', TOD_WORD[tod])), phase: ph, pulse: false, last: true }
+      // 三回に一回くらいは、読み取れた値の読み上げ
+      if (r() < 0.33) {
+        const t = readout(o, ph)
+        if (t) { prev = o; s.mono++; return { text: remember(t), phase: ph, pulse: true, kind: 'readout' } }
+      }
       // 起こされるたびに作り直されるので、最近の独り言は保存しておいて、続けて同じことは言わない
       const avoid = (arr) => arr.filter((t) => !s.recent.includes(t))
       const pool = s.thirteen && r() < 0.3 ? MONO_13 : r() < 0.45 ? TOD_MONO[tod] : MONO[ph]
       const base = pickFill(avoid(pool).length ? avoid(pool) : pool, c, r) || MONO[ph][0]
       const parts = [base]
       s.recent = s.recent.concat([base]).slice(-6)
+      // 読み取れた値を、いつも一つ（侵食からは、ときどき二つ）
+      const seen = observe(o, prev, ph, r, told)
+      for (let i = 0; i < (ph >= 2 && r() < 0.5 ? 2 : 1) && seen.length; i++) {
+        const n = seen.splice(Math.floor(r() * seen.length), 1)[0]; told.add(n.kind); parts.push(n.text)
+      }
       const x = r()
-      if (x < 0.35) {
-        const seen = observe(o, prev, ph, r, told)
-        if (seen.length) { const n = pick(seen, r); told.add(n.kind); parts.push(n.text) }
-      } else if (x < 0.5 && lastTap) parts.push(fill(pick(MONO_RECALL, r), { last: lastTap }))
-      else if (x < 0.62 && s.frag > 0) {
+      if (x < 0.2 && lastTap) parts.push(fill(pick(MONO_RECALL, r), { last: lastTap }))
+      else if (x < 0.35 && s.frag > 0) {
         const ks = [...Array(Math.min(s.frag, FRAG.length)).keys()].filter((k) => !s.recent.includes('f' + k))
         if (ks.length) {
           const k = pick(ks, r)
