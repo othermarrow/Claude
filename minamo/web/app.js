@@ -19,7 +19,7 @@
   const lines = $("lines"), log = $("log"), input = $("input"), send = $("send"),
         label = $("label"), form = $("form");
 
-  const BUILD = "minamo-v35";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
+  const BUILD = "minamo-v36";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
   let cfg = null;               // /api/info
   let S = null;                 // 面接の状態
   let booted = false;
@@ -345,10 +345,17 @@
     if (t) FX.toast(t);
   }
 
+  // 時間帯（朝 5〜10 時・昼 10〜17 時・夕方 17〜21 時・夜 21〜5 時）
+  const todOf = h => (h >= 5 && h < 10 ? "morning" : h >= 10 && h < 17 ? "day" : h >= 17 && h < 21 ? "evening" : "night");
+  const TOD_MEMO = { morning: "朝（これから一日が始まる。夜の話ばかりにしない）", day: "昼（相手は職場や仕事の途中かもしれない。夜の話ばかりにしない）",
+                     evening: "夕方（相手は仕事帰りかもしれない。夜の話ばかりにしない）", night: "夜" };
+  const todMemo = h => TOD_MEMO[todOf(h)];
+
   function memo(o) {
     o = o || {};
     const ph = phase(), idx = cfg.phases.indexOf(ph), now = new Date(), env = cfg.env || {};
     const L = ["- 面接段階: " + ph.name + "（" + (idx + 1) + "/4）、" + S.turn + "回目"];
+    L.push("- 時間帯: " + todMemo(now.getHours()));      // 夜の話ばかりにならないように（kaiwa.TOD_MEMO と同じ）
     if (o.latency != null && settings.count) {
       const avg = S.latencies.reduce((a, b) => a + b, 0) / S.latencies.length;
       L.push("- 返答までの時間: " + o.latency.toFixed(1) + "秒（これまでの平均 " + avg.toFixed(1) + "秒）");

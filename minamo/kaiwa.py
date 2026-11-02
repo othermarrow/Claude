@@ -1145,6 +1145,36 @@ def at(spec, ph, voice):
     return []
 
 
+# ---------- 時間帯（朝 5〜10 時・昼 10〜17 時・夕方 17〜21 時・夜 21〜5 時）。夜の話ばかりにしない ----------
+def tod_of(hour):
+    h = int(hour) if str(hour).lstrip("-").isdigit() else 21
+    return "morning" if 5 <= h < 10 else "day" if 10 <= h < 17 else "evening" if 17 <= h < 21 else "night"
+
+
+# 観測メモに毎回入れる一行（面接の AI に、いまの時間帯を伝える）
+TOD_MEMO = {"morning": "朝（これから一日が始まる。夜の話ばかりにしない）",
+            "day": "昼（相手は職場や仕事の途中かもしれない。夜の話ばかりにしない）",
+            "evening": "夕方（相手は仕事帰りかもしれない。夜の話ばかりにしない）",
+            "night": "夜"}
+# 夜を前提にした言い方と、夜でないときの言い換え（"*" はどの時間帯でも）
+_TOD_SWAP = [("おやすみなさい。", {"morning": "では、また。", "day": "では、また。", "evening": "おつかれさまでした。"}),
+             ("夜は、まだ長いですね。", {"morning": "朝は、まだ始まったばかりですね。", "day": "昼は、まだ長いですね。",
+                                      "evening": "夕方は、すぐに暗くなりますね。"}),
+             ("何もない夜も、ありますね。", {"*": "何もない日も、ありますね。"}),
+             ("あなたが夜中にここで話していることを", {"*": "あなたがここで話していることを"}),
+             ("今夜", {"*": "今日"})]
+
+
+def tod_fix(text, hour):
+    """夜でなければ、夜を前提にした言い方を、時間帯に合わせて言い換える（眠りの話など、相手が持ち出した夜はそのまま）。"""
+    t = tod_of(hour)
+    if t == "night" or not text:
+        return text
+    for night, alt in _TOD_SWAP:
+        text = text.replace(night, alt.get(t) or alt.get("*") or night)
+    return text
+
+
 def greet_word(hh):
     h = int(hh) if str(hh).isdigit() else 21
     return "おはようございます" if 4 <= h <= 10 else "こんにちは" if 11 <= h <= 17 else "こんばんは"
