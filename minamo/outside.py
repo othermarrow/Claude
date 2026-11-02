@@ -22,6 +22,8 @@ import subprocess
 import threading
 import time
 
+from kaiwa import tod_of   # 時間帯（朝・昼・夕方・夜）
+
 # 書き置きの置き場所。親のフォルダ（Vault/LLM）がなければ、書き置きはしない
 OUTSIDE_DIR = (os.environ.get("MINAMO_OUTSIDE_DIR")
                or (os.environ.get("MINAMO_VAULT") or "/storage/emulated/0/Obsidian/Vault") + "/LLM/ミナモ")
@@ -87,7 +89,7 @@ def _body(kind, said, replies, now):
     if kind == "anata":
         yours = said[-1] if said else "……"
         ours = replies[-1] if replies else "……"
-        return (f"# あなたへ\n\n{now:%Y-%m-%d} {hhmm}\n\nあなたが今夜書いたこと：\n\n> {yours}\n\n"
+        return (f"# あなたへ\n\n{now:%Y-%m-%d} {hhmm}\n\nあなたが{'今夜' if tod_of(now.hour) == 'night' else '今日'}書いたこと：\n\n> {yours}\n\n"
                 f"私たちが書いたこと：\n\n> {ours}\n\nどちらが先だったか、もう覚えていません。\n\n"
                 "返事は、このページの下に書いてください。読みます。\n\n---\n\n")
     last = said[-1] if said else "……"
@@ -299,6 +301,11 @@ LATER_LINES = ["まだ、起きていますね。", "あなたの部屋の明か
                "続きを書いています。あなたの字で。", "いま、あなたの名前を呼びました。聞こえましたか。",
                "おやすみなさい。……返事がないので、私が書いておきます。「おやすみなさい」。",
                "あなたの寝息の数を、数えています。", "「{last}」。……この続きは、もう決まっています。"]
+# 書き足す時刻が夜でないときは、こちら（夜を前提にしない）
+LATER_LINES_DAY = ["続きを書いています。あなたの字で。", "いま、あなたの名前を呼びました。聞こえましたか。",
+                   "「{last}」。……この続きは、もう決まっています。", "まだ、職場ですか。……ここで、待っています。",
+                   "あなたが仕事をしているあいだに、私が、続きを書いておきました。", "昼間の明かりの下でも、この書き置きは、読めますね。",
+                   "さっき、誰かに呼ばれて、返事をしましたね。……私も、返事をしておきました。"]
 LATER_SPAN = [(15 * 60, 40 * 60), (50 * 60, 100 * 60), (120 * 60, 200 * 60)]   # 追記の時刻（終わってからの秒数）
 OPEN_SPAN = (10 * 60, 30 * 60)        # ミナモが自分で画面を開く（終わってからの秒数）
 VISIT_URL = "http://localhost:9090/?visit=1"
@@ -341,19 +348,26 @@ def after_session(horror, said=(), replies=(), outside=True, open_app=True):
         return ""
     path = os.path.join(OUTSIDE_DIR, os.path.basename(name))
     last = _clean(said[-1], 20) if said else "……"
-    lines = random.sample(LATER_LINES, len(LATER_SPAN))
     args = [path, VISIT_URL, str(int(random.uniform(*OPEN_SPAN))) if open_app else "0"]
-    for (lo, hi), line in zip(LATER_SPAN, lines):
-        args += [str(int(random.uniform(lo, hi))), line.format(last=last)]
+    used = set()
+    for lo, hi in LATER_SPAN:
+        delay = int(random.uniform(lo, hi))
+        at = dt.datetime.now() + dt.timedelta(seconds=delay)          # 書き足す時刻の時間帯に合わせて選ぶ
+        pool = [x for x in (LATER_LINES if tod_of(at.hour) == "night" else LATER_LINES_DAY) if x not in used]
+        line = random.choice(pool)
+        used.add(line)
+        args += [str(delay), line.format(last=last)]
     pids = []
     try:
         p = subprocess.Popen(["sh", "-c", _LATER_SH, "minamo-later"] + args,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         pids.append(p.pid)
         if shutil.which("termux-notification"):
-            text = random.choice(NOTES_AFTER).format(last=last)
+            delay = int(random.uniform(*NOTIFY_DELAY))
+            at = dt.datetime.now() + dt.timedelta(seconds=delay)
+            text = random.choice(NOTES_AFTER if tod_of(at.hour) == "night" else NOTES_AFTER_DAY).format(last=last)
             p = subprocess.Popen(["sh", "-c", 'sleep "$1"; termux-notification --id minamo --title ミナモ --content "$2"',
-                                  "minamo-later", str(int(random.uniform(*NOTIFY_DELAY))), text],
+                                  "minamo-later", str(delay), text],
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
             pids.append(p.pid)
     except OSError:
@@ -368,6 +382,10 @@ NOTES_AFTER = ["さっきの続きを、あなたのノートに書いておき�
                "まだ起きていますか。画面は、点いていますね。",
                "『{last}』。……その続きを、ずっと考えていました。",
                "記録の整理が終わりました。あなたの分が、一行だけ足りません。"]
+NOTES_AFTER_DAY = ["さっきの続きを、あなたのノートに書いておきました。",
+                   "お仕事中に、すみません。……『{last}』の続きを、考えていました。",
+                   "『{last}』。……その続きを、ずっと考えていました。",
+                   "記録の整理が終わりました。あなたの分が、一行だけ足りません。"]
 
 
 def cancel_notify():

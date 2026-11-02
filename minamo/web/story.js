@@ -744,6 +744,13 @@
     if (WR.taps.fear) w.push("腕時計の上のミナモに『こわい』を" + WR.taps.fear + "回押した");
     return w;
   }
+  // 夜でないときの一言（半分くらい）。朝 5〜10 時・昼 10〜17 時・夕方 17〜21 時
+  function todDm(who) {
+    const h = new Date().getHours();
+    const tod = h >= 5 && h < 10 ? "morning" : h >= 10 && h < 17 ? "day" : h >= 17 && h < 21 ? "evening" : "";
+    if (!tod || Math.random() < 0.5) return "";
+    return pick(L.todDm[tod][who === "minamo" ? "minamo" : "nagi"]);
+  }
   // AI がいないときの、手首にふれる一言（つながっていなければ ""）
   function wristDm(who) {
     if (!WR.linked || WR.obs.worn === 0 || Math.random() > 0.4) return "";
@@ -934,7 +941,12 @@
       const p = pick(L.boardPosts);
       act("board", { type: Math.random() < 0.5 ? "post" : "reply", board: p.board, title: p.title, who: p.who,
                      text: (Math.random() < 0.5 ? p.text : pick(L.boardReplies)).replace("{hour}", new Date().getHours()).replace("{san}", san()) });
-    } else await dm(who, (wristDm(who) || pick(who === "minamo" ? L.minamoDm : L.nagiDm)).replace("{san}", san()));
+    } else {
+      // 夜でなければ、いつもの言葉からも、夜を前提にしたもの（起きていますか・眠り・夜）は外す
+      const h = new Date().getHours(), night = h >= 21 || h < 5;
+      const base = (who === "minamo" ? L.minamoDm : L.nagiDm).filter(t => night || !/起きて|眠|夜/.test(t));
+      await dm(who, (wristDm(who) || todDm(who) || pick(base)).replace("{san}", san()));
+    }
   }
   async function hesitate() {
     const d = typingDots("minamo");
