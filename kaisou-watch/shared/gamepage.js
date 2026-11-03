@@ -32,13 +32,13 @@ function adapt(g) {
   const turnStart = () => (typeof g.turnStart === 'function' ? g.turnStart() : 0)
   return {
     raw: g,
-    VERBS: g.VERBS,
+    get VERBS() { return g.VERBS },
     start: (fresh) => g.start(fresh),
     submit: (label, en) => g.submit(label, en),
     status: () => g.status(),
     fx: () => (typeof g.fx === 'function' ? g.fx() : []),
     meta: () => (typeof g.meta === 'function' ? g.meta() : null),
-    visible: () => g.visible(),
+    visible: (verb, first) => g.visible(verb, first),
     wordsHere: (kind) => g.wordsHere(kind),
     turn: () => (typeof g.turn === 'function' ? g.turn() : g.rows().slice(turnStart())),
     pastCommands: (n) => (typeof g.pastCommands === 'function'
@@ -188,7 +188,7 @@ export function makeGamePage(cfg) {
       let y = 36
       y = cv.text(y, s.room, { size: 28, color: T.bright, center: true, gap: 0 })
       const inf = cfg.info(s)
-      y = cv.text(y, inf.text, { size: 20, color: inf.warn ? T.warn : T.dim, center: true, gap: 12 })
+      y = cv.text(y, inf.text || ' ', { size: 20, color: inf.warn ? T.warn : T.dim, center: true, gap: 12 })
       for (const c of g.pastCommands(3)) y = cv.text(y, '> ' + c, { size: 20, color: T.dim, gap: 2 })
       y += 6
       if (st.flash) y = this.neon(y + 6, st.flash)
@@ -214,6 +214,18 @@ export function makeGamePage(cfg) {
       }
       y += 12
 
+      // 問いの答え（はい／いいえなど）。ある間は、十字キーのかわりに出す
+      const choices = s.choices || []
+      for (const c of choices) {
+        cv.button((W - 330) / 2, y, 330, 62, c.label, () => this.send(c.label, c.cmd), { color: T.text, textColor: T.bg, size: c.label.length > 12 ? 19 : 23, radius: 14 })
+        y += 70
+      }
+      if (choices.length && !s.done) {
+        y += 6
+        cv.button((W - 240) / 2, y, 240, 56, 'はじめから', () => this.confirmNew(), { color: T.faint, textColor: T.warn, size: 22 })
+        cv.button((W - 240) / 2, y + 64, 240, 56, '階層目録へ', () => this.leave(), { color: T.key, textColor: T.dim, size: 22 })
+        return y + 120
+      }
       if (s.done) {
         cv.button((W - 260) / 2, y, 260, 64, 'はじめから', () => this.newGame(), { color: T.text, textColor: T.bg, size: 26 })
         cv.button((W - 260) / 2, y + 74, 260, 56, '階層目録へ', () => this.leave(), { color: T.key, textColor: T.dim, size: 22 })
@@ -281,7 +293,7 @@ export function makeGamePage(cfg) {
       const titles = {
         verb: '何をする？',
         obj: '何を？',
-        obj2: v && v[1].startsWith('give') ? '誰に？' : 'どこに？',
+        obj2: v && v[1].startsWith('give') ? '誰に？' : v && v[1].startsWith('ask') ? '何について？' : 'どこに？',
         word: v && v[1].startsWith('write') ? '何と書く？' : '何と言う？'
       }
       y = cv.text(y, titles[st.mode], { size: 28, color: T.bright, center: true, gap: 4 })
@@ -311,7 +323,7 @@ export function makeGamePage(cfg) {
             y = cv.text(y, kind === 'say' ? '口にできることばが、思いつかない。' : '書くことが、思いつかない。', { size: 22, color: T.dim, center: true, gap: 10 })
           }
         } else {
-          let list = g.visible()
+          let list = g.visible(v, st.mode === 'obj2' ? st.obj1 : null)
           if (st.mode === 'obj2') list = list.filter((o) => o.id !== st.obj1.id)
           list.sort((a, b) => (b.held ? 1 : 0) - (a.held ? 1 : 0))
           for (const o of list) items.push([o.name + (o.held ? '（持）' : ''), () => this.pickObj(o)])

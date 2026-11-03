@@ -1,6 +1,6 @@
 # 階層目録を Amazfit Balance 2 で遊ぶ（kaisou-watch）
 
-階層目録（`backrooms-pwa/`）の札のうち、五本を、一つのミニアプリ「階層目録」（Zepp OS）にまとめたもの。
+階層目録（`backrooms-pwa/`）の六つの札すべてを、一つのミニアプリ「階層目録」（Zepp OS）にまとめたもの。
 起動画面で札を選ぶと、そのゲームが開く。話・仕掛け・結末は階層目録と同じ（時計では、画面の演出と音は出ない）。スマホとの通信はいらない。
 
 | 札 | ゲーム | 元 |
@@ -9,9 +9,10 @@
 | 記録 02 | 野帳（振動つき） | `backrooms-pwa/games/yacho.html` |
 | 記録 03 | 未定稿 | `backrooms-pwa/games/miteiko.html`（`tools/build-miteiko.js` で、画面の処理を切り離して作る） |
 | 記録 04 | 空欄_2 | `backrooms-pwa/games/kuuran2.html`（時計版の `kuuran2-watch/` の本体を写す） |
+| 記録 05 | 蔵守 | `backrooms-pwa/games/kura/*.js` と `kuramori.html` の配色・場所の表（`tools/build-kuramori.js` で、本体と世界を束ねて、ほかと同じ口に包む） |
 | 記録 06 | 控室 | `backrooms-pwa/games/hikae.html` |
 
-**記録 05「蔵守」は、まだ時計にない。** 別の作りのエンジン（`kura/`）なので、時計用の画面を別に作る必要がある。スマホの階層目録では遊べる。
+蔵守は、ほかの五本と作りが違う（問いに「はい／いいえ」で答える場面があり、命令を作るときの「物」が動詞ごとに変わる）ので、画面にも、問いの答えのボタンと、動詞ごとの物の一覧を足した。
 
 ## 画面
 
@@ -62,7 +63,7 @@ zeus preview
 | `shared/themes.js` | noclip と hikae の配色。HTML 版の CSS から自動で作る |
 | `shared/store.js` | 状態・札の要約・設定の保存 |
 | `shared/ui.js` `shared/vibe.js` | 部品を置く小さな道具・振動（ほかの時計アプリと同じ） |
-| `tools/build-engines.js` | 本体と配色を作り直すスクリプト（未定稿の本体は `tools/build-miteiko.js`） |
+| `tools/build-engines.js` | 本体と配色を作り直すスクリプト（未定稿は `tools/build-miteiko.js`、蔵守は `tools/build-kuramori.js`） |
 | `setup.sh` | 初回の準備（`npm i`） |
 
 ## HTML 版を直したとき
@@ -76,6 +77,8 @@ node kaisou-watch/tools/build-engines.js
 空欄_2 だけは、`kuuran2-watch/shared/engine.js` を写すので、先に `node kuuran2-watch/tools/build-engine.js` を実行する。
 
 ## 確かめたこと
+
+- 1.2.0：蔵守（記録 05）を追加。六本すべてで、ランダムな操作を各 1,500 回、例外なし。蔵守は、問い（選ぶ場面）・結末（八つのうち、一つ以上）・「ひとつ戻す」・開き直して続きから・札の要約（最深「三晩目」）まで動いた。**蔵守は、画面の演出（電気がいなくなる停電・水の音・夜の揺れ）が出ない。文章と仕掛けは同じ。実機では、まだ見ていない。**
 
 - 1.1.0：未定稿（記録 03）を追加。起動画面の札の左の余白を広げ、「▶」（時計の字体になく絵文字になっていた）をやめた。未定稿を含む五本で、ランダムな操作を各 1,500 回。その中で、空欄_2 の本体に、周回の記録を書く関数が抜けていて、結末の近くで止まる不具合が見つかり（`kuuran2-watch` の時計版も同じ）、`kuuran2-watch/tools/build-engine.js` を直して作り直した。
 

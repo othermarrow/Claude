@@ -1,4 +1,4 @@
-// 起動画面：階層目録の札（記録 01・02・03・04・06）。押すと、そのゲームの画面が開く。
+// 起動画面：階層目録の札（記録 01〜06）。押すと、そのゲームの画面が開く。
 // 札の下に、結末の数・いちばん深いところ・何周目か（ゲームの側が、1 手ごとに書いたもの）。
 import * as hmUI from '@zos/ui'
 import { scrollTo } from '@zos/page'
@@ -17,6 +17,7 @@ const CARDS = [
   ['yacho', '記録 02', '野帳', 'FIELD NOTES', '見たものを、ただ書きとめる。', 0x3fa9ff],
   ['miteiko', '記録 03', '未定稿', 'UNREVISED', '古い家の下に、書きかけの迷宮。', 0xff9f5a],
   ['kuuran2', '記録 04', '空欄_2', 'BLANK_2', '白い部屋。欄を埋めるのは、誰の字か。', 0xe8f0ff],
+  ['kuramori', '記録 05', '蔵守', 'KURAMORI', '山あいの旧家で、三晩。', 0xb38cff],
   ['hikae', '記録 06', '控室', 'ANTEROOM', '署名した覚えのない同意書の、控えが一枚。', 0xbfe8d0]
 ]
 
@@ -67,8 +68,7 @@ Page({
       }
       y += cardH + 14
     }
-    y = cv.text(y + 4, '記録 05「蔵守」は、まだ時計にありません（スマホの階層目録で遊べます）。', { size: 17, color: DIM, center: true, gap: 8 })
-    bg.setProperty(hmUI.prop.MORE, { x: 0, y: 0, w: W, h: Math.max(480, y + 80) })
+        bg.setProperty(hmUI.prop.MORE, { x: 0, y: 0, w: W, h: Math.max(480, y + 80) })
     scrollTo({ y: 0 })
   }
 })
