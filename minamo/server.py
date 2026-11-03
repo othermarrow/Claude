@@ -194,6 +194,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 text = STATE["llm"].ask(contents, version=version, offline=bool(data.get("offline")))
             except RuntimeError as e:
                 return self._json(502, {"error": str(e)})
+            text = minamo.japanese_only(text)          # 混ざった韓国語・英単語を取り除く
             if not data.get("findings"):
                 wrist.note_interview(contents, text, horror)     # 時計へ漏れ出す材料（ファイルには残さない）
             mode = getattr(STATE["llm"], "mode", "cloud")
