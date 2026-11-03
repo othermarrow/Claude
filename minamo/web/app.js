@@ -19,7 +19,7 @@
   const lines = $("lines"), log = $("log"), input = $("input"), send = $("send"),
         label = $("label"), form = $("form");
 
-  const BUILD = "minamo-v39";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
+  const BUILD = "minamo-v40";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
   let cfg = null;               // /api/info
   let S = null;                 // 面接の状態
   let booted = false;
@@ -39,6 +39,8 @@
   settings.offline = !!settings.offline; // 端末内モデルだけで話すか
   settings.horror = [0, 1, 2, 3].includes(settings.horror) ? settings.horror : 3;   // 怖さ（段階の上限）
   settings.outside = settings.outside !== false;   // 画面の外（書き置き・部屋の様子・あとから届く通知）
+  settings.length = ["auto", "short", "normal", "long"].includes(settings.length) ? settings.length : "auto";   // 返事の長さ
+  settings.ai = settings.ai || "";       // 使う AI（"backend|model"。空なら自動＝速い順）
 
   // 部屋の様子（Termux:API は要らない。ブラウザが読めるものだけ）：
   // 端末の向き（置いている・手に持っている・寝転んで掲げている）・揺れ（その回の最大の揺れ）・電池の残り・充電中か・回線
@@ -68,6 +70,13 @@
   }
   const netType = () => (navigator.connection && navigator.connection.type) || "";
   const is2026 = () => settings.version === "2026";
+  // 返事の長さ（起動画面の「長さ」。観測メモで AI に伝える）
+  const LENGTH_MEMO = {
+    auto: "ふだんは1〜3文、60字くらいまでと短く。相手が長く書いたとき・自分のことを深く話したとき・段階が変わったときだけ、4〜6文で語ってよい",
+    short: "1〜2文、全部で50字くらいまで。短く切る",
+    normal: "2〜4文",
+    long: "4〜7文。じっくり、語りかけるように",
+  };
   const MODE_NOTE = {
     cloud: "回線が戻りました。",
     local: "回線が切れました。端末の中のミナモが応答します。",
@@ -381,6 +390,7 @@
     const ph = phase(), idx = cfg.phases.indexOf(ph), now = new Date(), env = cfg.env || {};
     const L = ["- 面接段階: " + ph.name + "（" + (idx + 1) + "/4）、" + S.turn + "回目"];
     L.push("- 時間帯: " + todMemo(now.getHours()));      // 夜の話ばかりにならないように（kaiwa.TOD_MEMO と同じ）
+    L.push("- 返事の長さ: " + LENGTH_MEMO[settings.length]);
     if (o.latency != null && settings.count) {
       const avg = S.latencies.reduce((a, b) => a + b, 0) / S.latencies.length;
       L.push("- 返答までの時間: " + o.latency.toFixed(1) + "秒（これまでの平均 " + avg.toFixed(1) + "秒）");
@@ -540,6 +550,7 @@
     if (!mode || mode === S.mode) return;
     S.mode = mode;
     sysLine("（" + (MODE_NOTE[mode] || "") + "）");
+    if (mode !== "cloud" && !settings.offline) sysLine("（右上の「AI」から、つなぎ直すか、ほかの AI を選べます）");
     FX.toast(mode === "cloud" ? "回線：接続" : "回線：切断");
     FX.glitch(350);
   }
@@ -796,6 +807,7 @@
     S.done = true; setInput(false);
     EX.stop();
     $("quit").hidden = true;
+    $("ai-btn").hidden = true;
     FX.setSilence(0);
     if (quiet) FX.pause(); else FX.fade(4);
     let findings = "";
@@ -1023,6 +1035,7 @@
     S = newSession();
     FX.setPhase(0);
     $("quit").hidden = false;
+    $("ai-btn").hidden = false;
     const hl = (cfg.horror_levels || [])[settings.horror];
     if (hl) sysLine("怖さ：" + hl.name + " ─ " + hl.desc);
     sysLine("終わるときは「終わり」「今日は終わりにしよう」など。演出なしですぐ抜けるときは右上の「面接をやめる」か /quit。");
@@ -1071,6 +1084,55 @@
   bindSeg("seg-ver", "version", v => v);
   bindSeg("seg-horror", "horror", v => Number(v));
   bindSeg("seg-outside", "outside", v => v === "1");
+  bindSeg("seg-length", "length", v => v);
+
+  // ---------- 使う AI（起動時の一括チェックで合格したもの）。切れたときに、アプリを閉じずに選び直す ----------
+  const AI_SEC = s => (s != null ? "（" + Number(s).toFixed(1) + "秒）" : "");
+  function fillAi(info) {
+    for (const id of ["ai-pick", "ai-pick2"]) {
+      const sel = $(id);
+      if (!sel) continue;
+      sel.textContent = "";
+      const auto = document.createElement("option"); auto.value = ""; auto.textContent = "自動（速い順）"; sel.appendChild(auto);
+      (info.choices || []).forEach(c => {
+        const o = document.createElement("option");
+        o.value = c.backend + "|" + c.model; o.textContent = c.backend + " / " + c.model + AI_SEC(c.sec);
+        sel.appendChild(o);
+      });
+      sel.value = info.auto || !info.current ? "" : info.current.backend + "|" + info.current.model;
+      sel.disabled = !(info.choices || []).length;
+    }
+    const now = $("ai-now");
+    if (now) now.textContent = "いま：" + (info.current ? info.current.backend + " / " + info.current.model : "クラウドの AI なし") +
+      (info.auto ? "（自動）" : "") + (info.mode && info.mode !== "cloud" ? "　回線：切断中（" + (MODE_NOTE[info.mode] || info.mode).replace(/[（）]/g, "") + "）" : "");
+  }
+  async function loadAi() {
+    try { const info = await api("/api/models"); fillAi(info); return info; } catch (e) { return null; }
+  }
+  async function pickAi(v) {
+    const [backend, ...rest] = v.split("|");
+    try {
+      const info = await api("/api/model", v ? { backend, model: rest.join("|") } : {});
+      if (info.ok === false) { FX.toast("その AI は、いま選べません"); }
+      else { settings.ai = v; store("minamo.fx", settings); FX.toast(v ? "AI：" + rest.join("|") : "AI：自動"); }
+      fillAi(info);
+    } catch (e) { FX.toast("サーバーにつながりません"); }
+  }
+  ["ai-pick", "ai-pick2"].forEach(id => { const el = $(id); if (el) el.addEventListener("change", () => pickAi(el.value)); });
+  $("ai-btn").onclick = async () => { await loadAi(); $("aipanel").hidden = false; };
+  $("ai-close").onclick = () => { $("aipanel").hidden = true; };
+  $("ai-reconnect").onclick = async () => {
+    try { fillAi(await api("/api/reconnect", {})); FX.toast("つなぎ直します（次の返事から）"); } catch (e) { FX.toast("サーバーにつながりません"); }
+  };
+  $("ai-reprobe").onclick = async () => {
+    const b = $("ai-reprobe"); b.disabled = true; b.textContent = "チェック中……";
+    try {
+      const info = await api("/api/reprobe", {});
+      fillAi(info); FX.toast("合格 " + (info.choices || []).length + " 個");
+      if (settings.ai) await pickAi(settings.ai);
+    } catch (e) { FX.toast("チェックできませんでした"); }
+    b.disabled = false; b.textContent = "もう一度チェック";
+  };
   // 怖さの説明（サーバーの説明が届く前は、ここにある同じ文を出す）
   const HORROR_DESC = ["最後まで穏やかな面接（導入のまま）", "解釈まで（もっともらしく、少しずれた見立て）",
                        "侵食まで（知りすぎている気配）", "融合まで。最初から違和感があり、早く深くなる"];
@@ -1133,6 +1195,9 @@
                        ? "・あなたの文章 " + cfg.library_own[0] + "篇・ほかの AI の所見 " + cfg.library_own[1] + "件" : "");
     if (window.BLEED) st.textContent += BLEED.note();
     showBuild();
+    // 前に選んだ AI があれば、それにする（合格していなければ自動のまま）
+    const ai = await loadAi();
+    if (ai && settings.ai && (ai.choices || []).some(c => c.backend + "|" + c.model === settings.ai)) await pickAi(settings.ai);
     btn.textContent = "面接を始める"; btn.disabled = false;
     btn.onclick = () => begin();
   }

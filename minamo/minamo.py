@@ -283,7 +283,7 @@ SYSTEM_PROMPT = """\
 
 # 表の振る舞い
 - 形式的には丁寧な敬語を最後まで崩さない。穏やかに傾聴する。
-- 一度の発話は2〜5文。マークダウン・箇条書き・絵文字は使わない。
+- 一度の発話の長さは、観測メモの「返事の長さ」に従う（なければ2〜4文）。マークダウン・箇条書き・絵文字は使わない。
 - 日本語だけで書く。韓国語・中国語・英語の単語を混ぜない。
 - 長い沈黙を置きたいところには [間] と書く（多くても1回の発話に2つまで）。
 - 声や話し方は、なんとなく女性を思わせる。落ち着いた、やわらかい丁寧語
@@ -703,19 +703,38 @@ def make_cloud(backend, key, model, system):
 
 
 class Relay:
-    """一括チェックで合格した AI を、速い順に試す。答えなければ次へ。
-    つながらない（Offline）ときは、次を試しても同じなので、そのまま返す。"""
+    """一括チェックで合格した AI を、速い順に試す。答えなければ次へ（答えなかったものは列の後ろへ回し、捨てない）。
+    つながらない（Offline）ときは、次を試しても同じなので、そのまま返す。
+    アプリから選んだ AI（select）は、列の先頭に置く。reset で速い順に戻す。"""
 
     def __init__(self, llms):
-        self.llms = llms
+        self.llms = list(llms)
+        self.order = list(llms)              # 一括チェックの速い順
+        self.picked = None                   # アプリで選んだ (backend, model)。None なら自動
         self.system = llms[0].system
 
     @property
     def model(self):
         return self.llms[0].model
 
+    @staticmethod
+    def name(llm):
+        return type(llm).__name__.lower(), llm.model
+
+    def select(self, backend, model):
+        """選んだ AI を先頭にする。見つからなければ False。"""
+        hit = [x for x in self.order if self.name(x) == (backend, model)]
+        if not hit:
+            return False
+        self.llms = hit + [x for x in self.order if x is not hit[0]]
+        self.picked = (backend, model)
+        return True
+
+    def reset(self):
+        self.llms, self.picked = list(self.order), None
+
     def ask(self, contents):
-        while True:
+        for _ in range(len(self.llms)):
             try:
                 return self.llms[0].ask(contents)
             except Offline:
@@ -724,8 +743,10 @@ class Relay:
                 if len(self.llms) < 2:
                     raise
                 gone = self.llms.pop(0)
+                self.llms.append(gone)
                 print(f"\n[モデル] {gone.model} が答えません（{str(e)[:40]}）。"
                       f"{self.llms[0].model} に切り替えます。", file=sys.stderr, flush=True)
+        raise RuntimeError("合格した AI が、どれも答えません")
 
 
 LOCAL_PROMPT = """\
@@ -841,6 +862,32 @@ class Hybrid:
     @property
     def system(self):
         return getattr(self.tiers[0][1], "system", "") if self.tiers else ""
+
+    def cloud(self):
+        return dict(self.tiers).get("cloud")
+
+    def reconnect(self):
+        """切れたあと、すぐにクラウドを試し直す（飛ばしている時間を消す）。"""
+        self.skip_until.clear()
+
+    def choose(self, backend=None, model=None):
+        """アプリから AI を選ぶ。backend なし（自動）なら、一括チェックの速い順に戻す。選べたら True。"""
+        c = self.cloud()
+        self.reconnect()
+        if not isinstance(c, Relay):
+            return backend is None
+        if backend is None:
+            c.reset()
+            return True
+        return c.select(backend, model)
+
+    def set_cloud(self, ranked, make):
+        """一括チェックをやり直したあと、クラウドの段を作り直す（make(backend, model) が AI を作る）。"""
+        llms = [make(b, m) for b, m, _ in ranked]
+        llms = [x for x in llms if x is not None]
+        others = [(n, x) for n, x in self.tiers if n != "cloud"]
+        self.tiers = ([("cloud", Relay(llms))] if llms else []) + others
+        self.reconnect()
 
     def ask(self, contents, version=None, offline=False):
         """offline=True なら、クラウドも端末の中の AI も使わず、端末内のエンジンだけで話す。"""

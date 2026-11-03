@@ -82,6 +82,46 @@ def info():
     }
 
 
+def models_info():
+    """GET /api/models：一括チェックで合格した AI と、いま選んでいるもの。"""
+    llm = STATE.get("llm")
+    c = llm.cloud() if llm is not None and hasattr(llm, "cloud") else None
+    picked = getattr(c, "picked", None)
+    first = minamo.Relay.name(c.llms[0]) if isinstance(c, minamo.Relay) and c.llms else None
+    choices = [{"backend": r["backend"], "model": r["model"], "sec": r.get("sec")}
+               for r in STATE.get("probe") or [] if r.get("ok")]
+    return {"choices": choices, "auto": picked is None,
+            "current": {"backend": first[0], "model": first[1]} if first else None,
+            "mode": getattr(llm, "mode", ""), "probing": bool(STATE.get("probing"))}
+
+
+def reprobe():
+    """一括チェックをやり直して、合格した AI で、面接と物語・時計の AI を作り直す。"""
+    STATE["probing"] = True
+    try:
+        args = STATE.get("args")
+        ranked, probed = minamo.probe_models(getattr(args, "backend", None), getattr(args, "no_karte", False))
+    finally:
+        STATE["probing"] = False
+    STATE["probe"] = probed
+    llm = STATE["llm"]
+    system = llm.system or minamo.SYSTEM_PROMPT
+
+    def make(b, m):
+        key = minamo.load_key(minamo.KEY_NAMES[b])
+        if not key:
+            return None
+        x = minamo.make_cloud(b, key, m, system)
+        if b != "gemini":
+            x.candidates = [m]
+        return x
+    llm.set_cloud(ranked, make)
+    c = story_ai._CONF
+    story_ai.setup(ranked, offline=c["offline"], local=c["local"], fake=c["fake"])
+    print(f"AI の一括チェックをやり直しました：合格 {len(ranked)} 個")
+    return models_info()
+
+
 def clean_contents(raw):
     """画面から来た会話を、決まった形だけに揃える。"""
     out = []
@@ -151,6 +191,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if self.path == "/api/watch":
                 # 腕時計（minamo-watch）から届いた、手首の様子
                 return self._json(200, wrist.snapshot())
+            if self.path == "/api/models":
+                return self._json(200, models_info())
             if self.path == "/api/senses":
                 # スマホの感覚（予定・居場所・天気・通知）。裏の糸で 3 分おきに読んだもの
                 return self._json(200, senses.snapshot())
@@ -239,6 +281,31 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             room["erased"] = str(data.get("erased") or "")[:40]
             return self._json(200, {"lines": outside.room_lines(room) if minamo.OUTSIDE else []})
 
+        if self.path == "/api/model":
+            # アプリから AI を選ぶ（backend なしなら自動＝速い順）。物語・時計の AI も同じ順にする
+            llm = STATE.get("llm")
+            if llm is None or not hasattr(llm, "choose"):
+                return self._json(503, {"error": "not ready"})
+            b = data.get("backend") if data.get("backend") in minamo.KEY_NAMES else None
+            m = str(data.get("model") or "")[:120]
+            ok = llm.choose(b, m) if b else llm.choose()
+            if ok:
+                ranked = [(r["backend"], r["model"], r.get("sec") or 0) for r in STATE.get("probe") or [] if r.get("ok")]
+                if b:
+                    ranked = [x for x in ranked if (x[0], x[1]) == (b, m)] + [x for x in ranked if (x[0], x[1]) != (b, m)]
+                c = story_ai._CONF
+                story_ai.setup(ranked or c["ranked"], offline=c["offline"], local=c["local"], fake=c["fake"])
+                print("AI を選びました：" + (f"{b} / {m}" if b else "自動（速い順）"))
+            return self._json(200, dict(models_info(), ok=ok))
+        if self.path == "/api/reconnect":
+            # 切れたあと、すぐにクラウドを試し直す
+            if STATE.get("llm") is not None and hasattr(STATE["llm"], "reconnect"):
+                STATE["llm"].reconnect()
+            return self._json(200, models_info())
+        if self.path == "/api/reprobe":
+            if STATE.get("llm") is None or STATE.get("probing"):
+                return self._json(409, {"error": "busy"})
+            return self._json(200, reprobe())
         if self.path == "/api/memory/clear":
             STATE["llm"].engines["2026"].memory.clear()
             print("メモリを消去しました")
@@ -338,6 +405,7 @@ def main():
     if minamo.PROBE_ON_START and not (a.no_probe or a.model or a.fake or a.offline):
         ranked, probed = minamo.probe_models(a.backend, a.no_karte)
     STATE["probe"] = probed
+    STATE["args"] = a
     story_ai.setup(ranked, offline=a.offline, local=not a.no_local, fake=a.fake)
     llm = minamo.make_llm(a.backend, a.model, a.no_karte, a.fake, a.offline, not a.no_local,
                           library=library, ranked=ranked, local_mode=a.local_mode)
