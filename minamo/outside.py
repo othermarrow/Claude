@@ -128,7 +128,8 @@ def write_note(kind, said=(), replies=()):
     return shown_name(path)
 
 
-STORY_NAMES = {"minamo": "ミナモより.md", "nagi": "ナギより.md", "board": "夢網のお知らせ.md"}
+# 掲示板の水面・底の凪（面接室のミナモ・腕時計の minamo とは別の存在）。分かれる前に書いた「ミナモより」「ナギより」は、そのまま残る
+STORY_NAMES = {"minamo": "水面より.md", "nagi": "凪より.md", "board": "夢網のお知らせ.md"}
 
 
 def story_note(who, text):

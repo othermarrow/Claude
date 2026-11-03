@@ -1,21 +1,31 @@
 """腕時計（Amazfit Balance 2 の minamo-watch）と、スマホのミナモをつなぐ。
+時計の上にいるのは「minamo」（面接室のミナモ・掲示板の水面とは別の、水面からこぼれた小さな子）と、
+ときどき「nagi」（男の子）。時計の返事は minamo の声で考える（story_ai の minamo_w）。
 
   時計 →（Bluetooth）→ スマホの Zepp アプリの中のサイドサービス → POST http://127.0.0.1:9090/api/watch
-    時計が送るもの：脈・歩数・電池・時刻・つけているか・押したボタン・時計のミナモが言ったこと
+    時計が送るもの：脈・歩数・電池・時刻・つけているか・押したボタン・時計の minamo が言ったこと・届かなかったあいだに押したボタン
   スマホのミナモ（面接・水面の記録）は、GET /api/watch で手首の様子を読む。
   時計のボタンへの返事は、つながっていれば、スマホの AI（クラウド → 端末の中の AI）が考える。
     AI が間に合わなければ、時計が自分で考えた返事のまま。
   面接で話したこと・物語の登場人物の言葉は、ときどき時計へ漏れ出す（echo）。
     危機の言葉を含むものは、漏れ出させない。
 
-手首の値（最後の観測・脈の推移・押したボタンの数）は ~/.config/minamo/wrist.json に残す。
+手首の値（最後の観測・脈の推移・押したボタンの数・留守のあいだに押したボタン）は ~/.config/minamo/wrist.json に残す。
 面接で話した言葉は、ファイルには残さない（サーバーが動いているあいだだけ覚えている）。
+
+起動のときの連携（mo を動かしたとき）
+  - 起動の表示（boot_banner）：前に手首から届いたのはいつか・そのときの脈と電池。
+  - サーバーが起きてから、時計が初めてつながったとき：返事に boot（AI の声の出どころ・前に届いてから何分）を入れる。
+    時計の minamo が「面接室のミナモが起きた」と言い、物語の掲示板に「再起動の記録」が立つ。
+  - mo が止まっていたあいだに時計で押したボタン（away）は、つながったときにまとめて届く。
+    押した数に足し、面接の観測メモ・物語の掲示板・時計の返事の材料にする。
 """
 
 import json
 import os
 import random
 import re
+import socket
 import threading
 import time
 
@@ -32,8 +42,8 @@ ID_RE = re.compile(r"^[a-z0-9_]{1,12}$")      # 時計のボタンの名前（�
 PHASES = ["導入", "解釈", "侵食", "融合"]
 
 _LOCK = threading.Lock()
-S = {"obs": {}, "at": 0.0, "hr": [], "taps": {}, "labels": {}, "sessions": 0,
-     "now_taps": [], "watch_said": [], "turn": 0, "phase": 0, "ended": False}
+S = {"obs": {}, "at": 0.0, "hr": [], "taps": {}, "labels": {}, "sessions": 0, "away": [],
+     "now_taps": [], "watch_said": [], "turn": 0, "phase": 0, "ended": False, "days": 0}
 MEM = {"said": [], "reply": "", "horror": 0, "phone_new": False, "story": [], "story_new": False,
        "echo_at": 0.0, "saved_at": 0.0}
 
@@ -42,7 +52,7 @@ def _load():
     try:
         with open(FILE, encoding="utf-8") as f:
             d = json.load(f)
-        for k in ("obs", "hr", "taps", "labels"):
+        for k in ("obs", "hr", "taps", "labels", "away"):
             if isinstance(d.get(k), type(S[k])):
                 S[k] = d[k]
         S["at"] = float(d.get("at") or 0)
@@ -59,13 +69,84 @@ def _save(force=False):
         os.makedirs(os.path.dirname(FILE), exist_ok=True)
         tmp = FILE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
-            json.dump({k: S[k] for k in ("obs", "at", "hr", "taps", "labels", "sessions")}, f, ensure_ascii=False)
+            json.dump({k: S[k] for k in ("obs", "at", "hr", "taps", "labels", "sessions", "away")}, f, ensure_ascii=False)
         os.replace(tmp, FILE)
     except OSError:
         pass
 
 
 _load()
+
+# 起動のときの連携：いつ起きたか・その前に手首から届いたのはいつか・起きてから時計が初めてつながったか
+BOOT = time.time()
+PREV_AT = S["at"]
+BOOT_STATE = {"told": False, "watch_at": 0.0, "gap": None, "away_n": 0}
+_AWAY_SEEN = set()          # 二重に届いた「留守のあいだのボタン」を数えないように（時刻と名前）
+
+
+def _dur_words(sec):
+    m = int(sec // 60)
+    if m < 1:
+        return "1分たらず"
+    if m < 60:
+        return f"{m}分"
+    if m < 60 * 24:
+        return f"{m // 60}時間{m % 60}分" if m % 60 else f"{m // 60}時間"
+    return f"{m // (60 * 24)}日"
+
+
+def _ago_words(sec):
+    return "いま" if sec < 60 else _dur_words(sec) + "前"
+
+
+def boot_banner():
+    """起動の表示に出す一行（server.py から）。前に手首から届いたのはいつか。"""
+    if not PREV_AT:
+        return ("腕時計（minamo）：まだ一度も届いていません。時計で minamo を開くと、Zepp アプリを通してつながります。")
+    o = S["obs"] or {}
+    vals = [f"脈 {o['hr']}" if o.get("hr") else "", f"電池 {o['battery']}%" if o.get("battery") else "",
+            "外していた" if o.get("worn") == 0 else ""]
+    vals = "・".join(v for v in vals if v)
+    t = time.strftime("%m/%d %H:%M", time.localtime(PREV_AT))
+    return (f"腕時計（minamo）：前に届いたのは {t}（{_ago_words(BOOT - PREV_AT)}" + (f"・{vals}" if vals else "") + "）。"
+            "時計が次に起きたとき（開いたとき・独り言の予約・毎時 59 分）に、起動したことを伝えます。")
+
+
+def voice():
+    """いまのミナモの声の出どころ：'cloud'（クラウドの AI）・'local'（端末の中の AI）・''（決まった言葉）。"""
+    c = story_ai._CONF
+    if not c.get("offline") and not c.get("fake") and c.get("ranked"):
+        return "cloud"
+    if c.get("local"):
+        try:
+            with socket.create_connection(("127.0.0.1", 8090), timeout=0.3):
+                return "local"
+        except OSError:
+            pass
+    if not c.get("offline") and not c.get("fake") and any(minamo.load_key(minamo.KEY_NAMES[b]) for b in minamo.BACKENDS):
+        return "cloud"
+    return ""
+
+
+def _take_away(raw):
+    """時計が、届かなかったあいだに押したボタン [[時刻(ms), id, 表示], ...]。新しいものだけ足し、受け取った数を返す。"""
+    if not isinstance(raw, list):
+        return 0, []
+    got, new = 0, []
+    for it in raw[:30]:
+        if not (isinstance(it, list) and len(it) >= 2):
+            continue
+        got += 1
+        t = _int(it[0], 1_500_000_000_000, 4_000_000_000_000)
+        tap = it[1] if isinstance(it[1], str) and ID_RE.match(it[1]) else ""
+        if not t or not tap or (t, tap) in _AWAY_SEEN:
+            continue
+        _AWAY_SEEN.add((t, tap))
+        label = re.sub(r"[\x00-\x1f<>{}]", "", str(it[2] if len(it) > 2 else "") or "")[:12] or LABELS.get(tap, tap)
+        new.append({"t": t, "id": tap, "label": label})
+    if len(_AWAY_SEEN) > 400:
+        _AWAY_SEEN.clear()
+    return got, new
 
 
 def _int(v, lo, hi):
@@ -184,7 +265,13 @@ def snapshot():
                 "last_tap": S["labels"].get(S["now_taps"][-1], "") if S["now_taps"] else "",
                 "words": obs_words(S["obs"]) if linked() else [],
                 "said": S["watch_said"][-1] if S["watch_said"] else "",
-                "turn": S["turn"], "phase": S["phase"], "sessions": S["sessions"], "ended": S["ended"]}
+                "turn": S["turn"], "phase": S["phase"], "sessions": S["sessions"], "ended": S["ended"],
+                "days": S["days"] or None,
+                # 起動のときの連携：サーバーが起きた時刻（ms）・起きてから時計が初めてつながった時刻（ms。まだなら null）
+                "boot": {"at": int(BOOT * 1000), "first_at": int(BOOT_STATE["watch_at"] * 1000) or None,
+                         "gap": BOOT_STATE["gap"], "away_n": BOOT_STATE["away_n"]},
+                # 届かなかったあいだに押したボタン（新しい 12 個。t は ms）
+                "away": [{"t": a["t"], "label": a["label"]} for a in S["away"][-12:]]}
 
 
 def update(data):
@@ -218,7 +305,31 @@ def update(data):
             S["watch_said"] = (S["watch_said"] + [said])[-6:]
         if ev == "end":
             S["ended"] = True
+        days = _int(data.get("days"), 1, 99999)
+        if days:
+            S["days"] = days
+        got, new = _take_away(data.get("away"))
+        for a in new:
+            S["taps"][a["id"]] = S["taps"].get(a["id"], 0) + 1
+            S["labels"][a["id"]] = a["label"]
+        if new:
+            S["away"] = (S["away"] + new)[-40:]
+        boot = None
+        if not BOOT_STATE["told"]:
+            BOOT_STATE.update(told=True, watch_at=now, gap=int((now - PREV_AT) // 60) if PREV_AT else None, away_n=len(new))
+            boot = {"voice": voice(), "gap": BOOT_STATE["gap"], "at": time.strftime("%H:%M", time.localtime(BOOT))}
+        elif new and now - BOOT_STATE["watch_at"] < 120:
+            BOOT_STATE["away_n"] += len(new)
     out = {"ok": True, "phone": True}
+    if got:
+        out["away_got"] = got
+    if boot:
+        out["boot"] = boot
+        print("腕時計（minamo）：起動のあと、はじめてつながりました"
+              + (f"（前に届いてから {_dur_words(BOOT_STATE['gap'] * 60)}）" if BOOT_STATE["gap"] is not None else "")
+              + (f"。届かなかったあいだに押したボタン {len(new)} こを受け取りました" if new else ""))
+    elif new:
+        print(f"腕時計（minamo）：届かなかったあいだに押したボタン {len(new)} こを受け取りました")
     if (ev == "tap" and tap or ev == "idle") and data.get("want"):
         say = watch_reply(tap if ev == "tap" else "", obs, data)
         if say:
@@ -227,10 +338,12 @@ def update(data):
         if said:
             with _LOCK:
                 S["watch_said"] = (S["watch_said"] + [said])[-6:]
-    if ev in ("start", "tick"):
-        echo = _echo(first=ev == "start")
+    if ev in ("start", "tick") and not boot:
+        echo, who = _echo(first=ev == "start")
         if echo:
             out["echo"] = echo
+            if who == "nagi":
+                out["echo_who"] = "nagi"
     _save(force=ev in ("start", "end"))
     return out
 
@@ -254,7 +367,7 @@ def note_interview(contents, reply, horror):
 
 
 def note_story(who, say):
-    """/api/story のあと。ミナモかナギが物語で言ったことを、覚えておく。"""
+    """/api/story のあと。水面（minamo）か凪（nagi）が物語で言ったことを、覚えておく。"""
     if who not in ("minamo", "nagi") or not say or has_crisis(say):
         return
     with _LOCK:
@@ -262,25 +375,28 @@ def note_story(who, say):
         MEM["story_new"] = True
 
 
-ECHO_PHONE = ["スマホで、『{s}』と書いていましたね。……手首まで、届いています。",
-              "『{s}』。……その指で、いまは、ボタンを押していますね。",
-              "面接室で、あなたは『{s}』と言いました。ここでは、言わなくていいのです。もう、知っていますから。"]
-ECHO_REPLY = ["面接室の私は、『{r}』と言いました。……ここでも、同じことを言います。",
-              "スマホの中の私が、さっき『{r}』と。……聞こえていましたか。"]
-ECHO_STORY = {"minamo": ["研究室の画面で、私が言ったこと。『{t}』。……覚えていますか。"],
-              "nagi": ["ナギが、底で言っていました。『{t}』。……あの子の言うことは、聞かなくていいのに。",
-                       "……手首の下で、ナギの声がしました。『{t}』。"]}
-ECHO_FIRST = ["スマホの私とも、つながりました。……あちらの私が、よろしく、と。",
-              "スマホの中の私が、こちらを見ています。……二人で、あなたを見ています。"]
+# 時計へ漏れ出す言葉は、手首の minamo の声で（面接室のミナモ・掲示板の水面と凪は、別の子として話題にする）。
+# 凪の言葉は、ときどき nagi（男の子）が運んでくる（echo_who: "nagi"）
+ECHO_PHONE = ["スマホの面接室で、『{s}』って書いてたね。……ミナモが、番号つけて記録してたよ。",
+              "『{s}』。……その指で、いまは、ボタンを押してるね。",
+              "面接室で、『{s}』って言ったでしょ。ミナモから聞いた。……ここでは、言わなくていいよ。"]
+ECHO_REPLY = ["面接室のミナモは、『{r}』って言ってた。……わたしは、そんなふうには言わない。",
+              "スマホのミナモが、さっき『{r}』って。……聞こえてた？"]
+ECHO_STORY = {"minamo": ["掲示板の水面がね、『{t}』って言ってた。……水面の声、すき。",
+                         "研究室の画面で、水面が『{t}』って。……わたしの、もとの子。"],
+              "nagi": ["掲示板の底で、凪が『{t}』って。……nagi は、あの子のこと、にいさんって呼ぶの。"]}
+ECHO_NAGI = ["……凪が、底で『{t}』って。……ぼくにも、聞こえた。", "……凪にいさんから。『{t}』。"]
+ECHO_FIRST = ["スマホのミナモとも、つながったよ。……ミナモ、わたしの数を、もう記録しはじめてる。",
+              "スマホの面接室に、ミナモがいる。……カタカナの、あの子。わたしとは、べつの子。"]
 
 
 def _echo(first=False):
-    """時計に漏れ出させる一言。新しいものがなければ、なし。怖さ「なし」の面接のあとは、漏れ出さない。"""
+    """時計に漏れ出させる一言と、言う子（"minamo" か "nagi"）。新しいものがなければ ("", "")。怖さ「なし」の面接のあとは、漏れ出さない。"""
     now = time.time()
     with _LOCK:
         if now - MEM["echo_at"] < ECHO_GAP and not first:
-            return ""
-        line = ""
+            return "", ""
+        line, who = "", "minamo"
         if MEM["phone_new"] and MEM["horror"] >= 1 and MEM["said"]:
             if MEM["reply"] and random.random() < 0.35:
                 line = random.choice(ECHO_REPLY).format(r=_short(MEM["reply"], 26))
@@ -288,14 +404,17 @@ def _echo(first=False):
                 line = random.choice(ECHO_PHONE).format(s=_short(MEM["said"][-1]))
             MEM["phone_new"] = False
         elif MEM["story_new"] and MEM["story"]:
-            who, t = MEM["story"][-1]
-            line = random.choice(ECHO_STORY[who]).format(t=_short(t, 26))
+            sp, t = MEM["story"][-1]
+            if sp == "nagi" and random.random() < 0.5:
+                line, who = random.choice(ECHO_NAGI).format(t=_short(t, 26)), "nagi"
+            else:
+                line = random.choice(ECHO_STORY[sp]).format(t=_short(t, 26))
             MEM["story_new"] = False
         elif first:
             line = random.choice(ECHO_FIRST)
         if line:
             MEM["echo_at"] = now
-        return line
+        return line, (who if line else "")
 
 
 # ---------- 時計のボタンへの返事を、スマホの AI が考える ----------
@@ -323,6 +442,13 @@ def watch_reply(tap, obs, data):
     ph = _int(data.get("phase"), 0, 3) or 0
     L = ["# 手首の様子（腕時計から）"] + _obs_lines(obs, prev_hr)
     L.append(f"- 時計の上の面接: {PHASES[ph]}（{_int(data.get('turn'), 0, 9999) or 0} 回目）")
+    if S["days"]:
+        L.append(f"- あなた（minamo）が手首の上で生まれてから: {S['days']} 日目")
+    with _LOCK:
+        away = [a for a in S["away"] if a["t"] / 1000 > BOOT - 6 * 3600][-6:]
+    if away:
+        L.append("- スマホのミナモが止まっていたあいだに、相手が時計で押したボタン: "
+                 + "、".join(time.strftime("%H:%M", time.localtime(a["t"] / 1000)) + "『" + a["label"] + "』" for a in away))
     if counts:
         L.append("- これまでに押したボタン: " + "、".join(f"{S['labels'].get(k, k)} {n} 回" for k, n in counts.items()))
     try:
@@ -338,11 +464,12 @@ def watch_reply(tap, obs, data):
         L.append("\n# 時計の上でのやりとり（古い順）")
         for h in hist[-6:]:
             if isinstance(h, list) and len(h) == 2:
-                L.append(("ミナモ：" if h[0] == "m" else "相手：") + _short(h[1], 80))
+                L.append({"m": "minamo：", "n": "nagi（あなたではない男の子）："}.get(h[0], "相手：") + _short(h[1], 80))
     if said:
-        L.append("\n# 相手がスマホの面接室で話したこと（ときどき、ひとことだけ持ち出してよい）\n" + "／".join(_short(s, 40) for s in said[-3:]))
+        L.append("\n# 相手がスマホの面接室で、ミナモに話したこと（ときどき、ひとことだけ持ち出してよい。ミナモから聞いた、として）\n"
+                 + "／".join(_short(s, 40) for s in said[-3:]))
     if story:
-        L.append("\n# 物語「水面の記録」で言われたこと\n" + "／".join(("ナギ：" if w == "nagi" else "ミナモ：") + _short(t, 40) for w, t in story[-2:]))
+        L.append("\n# 物語「水面の記録」の掲示板で言われたこと\n" + "／".join(("凪：" if w == "nagi" else "水面：") + _short(t, 40) for w, t in story[-2:]))
     local = _short(data.get("local"), 120)
     if local:
         L.append(f"\n# 時計が自分で考えた返事（参考。このまま使わない）\n{local}")

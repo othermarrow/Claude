@@ -14,7 +14,7 @@ function stamp() {
   const d = new Date()
   return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
 }
-// 設定画面（Zepp アプリ → ミナモ → 設定）に、つながっているかを出す。変わったときだけ書く
+// 設定画面（Zepp アプリ → minamo → 設定）に、つながっているかを出す。変わったときだけ書く
 function status(text, always) {
   if (text === last && !always) return
   last = text
@@ -51,7 +51,7 @@ AppSideService(
       const p = req.params || {}
       post(p)
         .then((data) => {
-          status('スマホのミナモとつながっています', p.ev === 'start')
+          status(data && data.boot ? 'スマホのミナモ（mo）が起きて、つながりました' : 'スマホのミナモとつながっています', p.ev === 'start' || !!(data && data.boot))
           res(null, data)
         })
         .catch((e) => {

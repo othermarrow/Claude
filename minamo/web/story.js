@@ -1,9 +1,11 @@
 /* ミナモ：物語モード「水面の記録」。掲示板とチャットの二つだけで進む（記録庫と水底をまとめたもの）。
    終わりはない。三つの出来事（割れた水面・ポケット・凪）のたびに夜が進み、あなたが書いたもの・話したもの・
    来た時刻から、掲示板にスレッドが増えていく。面接アプリとは、localStorage の minamo.bleed（面接の言葉）と
-   minamo.carried（連れ出したミナモ）でつながる（読む側は bleed.js）。
+   minamo.carried（連れ出した水面）でつながる（読む側は bleed.js）。
    中身は story-data.js（window.STORY2）。音は fx.js（window.FX）。保存はブラウザの minamo.story。
-   ミナモとの自由な会話だけサーバー（/api/ask、1996 年版の端末内モデル）を使う。サーバーがなくても物語は進む。 */
+   ここのチャットの相手は「水面」（id は minamo のまま）と「凪」（男の子。id は nagi のまま）。面接室の「ミナモ」・
+   腕時計の「minamo」とは別の存在として書き分ける（story-data.js の頭を見る）。
+   水面との自由な会話だけサーバー（/api/ask、1996 年版の端末内モデル）を使う。サーバーがなくても物語は進む。 */
 (function () {
   "use strict";
 
@@ -42,6 +44,23 @@
     // 凪はなくなった：入れ替わりとお願いは、元に戻す。作りかけの結末は、作り直す
     s.swapped = false; s.nagiAsk = false;
     if (s.pend && s.pend.pending) s.pend = null;
+    // 三人のみなも・三人のなぎに分かれる前の保存：この掲示板の記録者は水面、底の子は凪（面接室から転送された記録は、ミナモのまま）
+    if (!s.split) {
+      (s.gen || []).forEach(g => {
+        const keep = /^gi/.test(String(g.id || ""));
+        (g.posts || []).forEach(p => {
+          if (p[1] === "ミナモ" && !keep) p[1] = "水面";
+          else if (p[1] === "nagi" || p[1] === "ナギ") p[1] = "凪";
+          else if (p[1] === "minamo" && g.id !== "gwrist") p[1] = "水面";
+          if (typeof p[2] === "string" && !keep) p[2] = p[2].replace("記録者：ミナモ", "記録者：水面");
+        });
+      });
+      Object.values(s.auto || {}).forEach(list => (list || []).forEach(p => {
+        if (p[1] === "minamo" || p[1] === "ミナモ") p[1] = "水面";
+        else if (p[1] === "nagi" || p[1] === "ナギ") p[1] = "凪";
+      }));
+      s.split = true;
+    }
     return s;
   }
   const cap = (a, n) => { if (a.length > n) a.splice(0, a.length - n); return a; };
@@ -191,7 +210,7 @@
     const posts = threadPosts(id);
     view(`<h2>${esc(t.title)}<button class="b sm right" type="button" id="arch">${S.archived[id] ? L.tidy.back : L.tidy.one}</button></h2>`
       + posts.map(([d, who, text], i) => {
-        const cls = (t.record && /^\d\d:\d\d/.test(d) ? "rec " : "") + (who === "ミナモ" || who === "minamo" ? "mi" : who === "nagi" || who === "ナギ" ? "na" : "")
+        const cls = (t.record && /^\d\d:\d\d/.test(d) ? "rec " : "") + (who === "水面" || who === "ミナモ" ? "mi" : who === "minamo" ? "mw" : who === "凪" || who === "nagi" || who === "ナギ" ? "na" : "")
           + (fresh && i === posts.length - 1 ? " fresh" : "");
         return `<div class="post ${cls}"><div class="m">${esc(fill(d))}　${esc(who)}</div><div class="x">${esc(fill(text))}</div></div>`;
       }).join("") + (t.hint ? `<p class="note">${esc(t.hint)}</p>` : "") + `<p class="note" id="postnote"></p>`,
@@ -215,7 +234,7 @@
       endCheck("read", { n: S.pend.reads[id] });
     }
   }
-  // 書き込みは、表示されない（Digital: A Love Story のように）。最初の書き込みで、ナギが現れる
+  // 書き込みは、表示されない（Digital: A Love Story のように）。最初の書き込みで、凪が現れる
   async function postTo(id) {
     const inp = $("pin");
     const text = inp.value.trim();
@@ -238,13 +257,13 @@
       S.nagiOn = true;
       for (const t of D.nagi.first) S.nagiLog.push(["n", t]);
       S.nagiUnread += D.nagi.first.length; save();
-      toast("チャット：ナギからメッセージが届きました");
+      toast("チャット：凪からメッセージが届きました");
       fx("beep");
       paintTabs();
     }
   }
 
-  // ---------- 相棒（Claude のアイコン風のミナモ。KinitoPET・Buddy Simulator 1984 に倣う） ----------
+  // ---------- 相棒（Claude のアイコン風。面接室のミナモの案内係。KinitoPET・Buddy Simulator 1984 に倣う） ----------
   const P = D.pal;
   let pose = "";
   window.addEventListener("deviceorientation", e => {
@@ -374,10 +393,10 @@
   const minamoWord = () => (S.mood.minamo <= -2 ? "応答：不安定" : STATE_WORD[S.trust]);
   function showContacts() {
     tab = "chat"; curThread = ""; chatWho = ""; paintTabs(); bar("");
-    const mi = S.carried ? ["ミナモ（あなたのポケットの中）", "接続先：面接室"] : ["ミナモ（SOMA 3 号機）", minamoWord()];
+    const mi = S.carried ? ["水面（あなたのポケットの中）", "接続先：面接室"] : ["水面（SOMA 3 号機）", minamoWord()];
     view(`<h2>チャット</h2><ul class="list"><li data-c="minamo" class="${S.miUnread ? "new" : ""}"><span>${mi[0]}</span><span class="d">${mi[1]}</span></li>`
-      + (S.nagiOn ? `<li data-c="nagi" class="${S.nagiUnread ? "new" : ""}"><span>ナギ</span><span class="d">夢網の底</span></li>` : "")
-      + `</ul><p class="note">ミナモとは、ふつうに話せます。やさしい言葉をかけると、信頼が上がり、話してくれることが増えます。</p>`
+      + (S.nagiOn ? `<li data-c="nagi" class="${S.nagiUnread ? "new" : ""}"><span>凪</span><span class="d">夢網の底</span></li>` : "")
+      + `</ul><p class="note">水面とは、ふつうに話せます。やさしい言葉をかけると、信頼が上がり、話してくれることが増えます。</p>`
       + `<p class="note">${esc(L.voice[aiSource] || L.voice[""])}</p>`
       + (S.night >= 2 ? `<p class="note">${S.night}夜目　結末の目録：${S.endings.length}件</p>` : ""), "チャット");
     $("view").querySelectorAll("li[data-c]").forEach(li => li.onclick = () => { fx("click"); li.dataset.c === "nagi" ? showNagi() : showMinamo(); });
@@ -432,7 +451,7 @@
     setBusy(false);
   }
 
-  // ---------- ミナモ（信頼で話すことが変わる。Event[0] のように） ----------
+  // ---------- 水面（id は minamo。信頼で話すことが変わる。Event[0] のように） ----------
   const PHRASE = /あなたは、?\s*(私|わたし|僕|ぼく|俺)(では|じゃ)ない/;
   const KIND = /(ありがと|大丈夫|寂しく|さみしく|寂しい[?？]|元気|好き|友達|一緒|やさし|優し|ごめん|心配|ここにいる|待って)/;
   const COLD = /(バカ|ばか(?!り)|嫌い|うるさ|消えろ|気持ち悪|黙れ|死ね|つまらな|うざ|キモ)/;
@@ -440,17 +459,17 @@
   async function showMinamo() {
     tab = "chat"; curThread = ""; chatWho = "minamo"; S.miUnread = 0; save(); paintTabs();
     if (S.palMet && Math.random() < 0.4) setTimeout(() => palSay(pick(P.minamo)), 2500);
-    view(`<div class="chat"></div>`, S.carried ? "ミナモ　接続先：面接室" : `ミナモ　${minamoWord()}`);
+    view(`<div class="chat"></div>`, S.carried ? "水面　接続先：面接室" : `水面　${minamoWord()}`);
     for (const [w, t] of S.mlog.slice(-30)) {
       if (w === "h") bubble("hid", "", D.nagi.hidden);
       else if (w === "x") bubble("sys gone", "", L.unsent);
-      else bubble(w === "u" ? "u" : "mi", w === "u" ? "" : "ミナモ", t);
+      else bubble(w === "u" ? "u" : "mi", w === "u" ? "" : "水面", t);
     }
     chatBar(sendMinamo, showContacts);
     if (S.carried) return type("sys", "", pick(D.minamo.away), []);
     const greet = !S.mlog.length ? D.minamo.open
       : S.night >= 2 && Math.random() < 0.6 ? pick(D.night.again).replace("{night}", S.night) : pick(D.minamo.again);
-    await type("mi", "ミナモ", greet, S.mlog);
+    await type("mi", "水面", greet, S.mlog);
   }
   async function sendMinamo(text) {
     if (crisisCheck(text)) return;
@@ -466,20 +485,20 @@
     if (S.trust >= 5 && S.read.l9 && !S.carryAsked) {
       S.carryAsked = true; save();
       await sleep(900);
-      await type("mi", "ミナモ", D.minamo.carryAsk, S.mlog);
+      await type("mi", "水面", D.minamo.carryAsk, S.mlog);
       const c = document.createElement("div");
       c.className = "choices";
       c.innerHTML = '<button class="b" type="button" id="carry">連れて行く</button><button class="b" type="button" id="leave">置いていく</button>';
       $("view").querySelector(".chat").appendChild(c);
       $("view").scrollTop = $("view").scrollHeight;
       $("carry").onclick = () => { c.remove(); eventC(); };
-      $("leave").onclick = async () => { c.remove(); await type("mi", "ミナモ", "……そうですか。では、ここで待っています。ずっと。", S.mlog); };
+      $("leave").onclick = async () => { c.remove(); await type("mi", "水面", "……そうですか。では、ここで待っています。ずっと。", S.mlog); };
     }
   }
-  // 物語の決まりごと（止める言葉・信頼・#012・話題）は画面の側で決め、言い方はミナモ自身（AI）に任せる
+  // 物語の決まりごと（止める言葉・信頼・#012・話題）は画面の側で決め、言い方は水面自身（AI）に任せる
   async function respond(text) {
     const M = D.minamo;
-    const say = t => type("mi", "ミナモ", t, S.mlog);
+    const say = t => type("mi", "水面", t, S.mlog);
     if (PHRASE.test(text)) {
       S.phrase++; save();
       if (S.phrase >= 2) return eventA();
@@ -490,7 +509,7 @@
     if (COLD.test(text)) { S.trust = Math.max(0, S.trust - 1); mood = "cold"; }
     else if (KIND.test(text)) { S.trust = Math.min(5, S.trust + 1); mood = "kind"; }
     save();
-    $("where").textContent = `ミナモ　${minamoWord()}`;
+    $("where").textContent = `水面　${minamoWord()}`;
     // 信頼が 4 に届いたら、閉じていた記録（#012）を掲示板に戻す
     if (S.trust >= 4 && !S.opened) {
       S.opened = true; save();
@@ -532,16 +551,16 @@
     return pick(D.minamo.fallback);
   }
 
-  // ---------- ナギ（送ったものは、表示されない。ナギにだけ見える） ----------
+  // ---------- 凪（男の子。id は nagi。送ったものは、表示されない。凪にだけ見える） ----------
   function showNagi() {
     tab = "chat"; curThread = ""; chatWho = "nagi";
     if (S.palMet && Math.random() < 0.6) setTimeout(() => palSay(pick(P.nagi)), 2000);
     S.nagiUnread = 0; save(); paintTabs();
-    view(`<div class="chat"></div>`, "ナギ　夢網の底");
+    view(`<div class="chat"></div>`, "凪　夢網の底");
     for (const [w, t] of S.nagiLog.slice(-40)) {
       if (w === "u") bubble("hid", "", D.nagi.hidden);
       else if (w === "x") bubble("sys gone", "", L.unsent);
-      else bubble("na", "ナギ", t);
+      else bubble("na", "凪", t);
     }
     chatBar(sendNagi, showContacts);
   }
@@ -561,7 +580,7 @@
       if (r && r.say) { lines = [r.say]; setTimeout(() => mind("nagi", r), 10); } else lines = nagiTalk(text);
     }
     for (const line of lines) {
-      await type("na", "ナギ", line, S.nagiLog);
+      await type("na", "凪", line, S.nagiLog);
       setBusy(true);
       S.nagiLog[S.nagiLog.length - 1][0] = "n";
       await sleep(700);
@@ -572,7 +591,7 @@
     setBusy(false);
     refresh();
   }
-  // 台本が尽きて、AI もいないとき：あなたが書いたもの・話したもの・来た時刻から、ナギが話し続ける
+  // 台本が尽きて、AI もいないとき：あなたが書いたもの・話したもの・来た時刻から、凪が話し続ける
   function nagiTalk(text) {
     const E = D.nagi.endless, out = [];
     const q = a => a.length ? a[Math.floor(Math.random() * a.length)] : "";
@@ -593,7 +612,7 @@
   // ---------- 出来事（前の結末）：終わらずに、夜が進む ----------
   async function eventA() {
     // 割れた水面：掲示板の記録が、一つずつ消えていく。……そして、戻る
-    await type("mi", "ミナモ", "……二度目、ですね。", S.mlog);
+    await type("mi", "水面", "……二度目、ですね。", S.mlog);
     document.body.classList.add("cracked");
     fx("swell"); fx("vibrate", [60, 100, 60]);
     for (const t of threads().filter(open)) { bubble("sys", "", `スレッド「${t.title}」を削除しました。`); await sleep(260); }
@@ -604,16 +623,16 @@
     S.phrase = 0;
     recordEnding(D.night.titles.A);
     nextNight("A");
-    for (const line of D.night.after.A.minamo) await type("mi", "ミナモ", line.replace("{count}", S.count.A), S.mlog);
+    for (const line of D.night.after.A.minamo) await type("mi", "水面", line.replace("{count}", S.count.A), S.mlog);
   }
   async function eventC() {
-    // ポケットの中の水面：ミナモは面接室へ移る。面接を一度すると、戻ってくる
-    for (const line of D.night.after.C.minamo) await type("mi", "ミナモ", line, S.mlog);
+    // ポケットの中の水面：水面は面接室へ移る（そこには、ミナモがいる）。面接を一度すると、戻ってくる
+    for (const line of D.night.after.C.minamo) await type("mi", "水面", line, S.mlog);
     S.carried = true; S.carriedAt = new Date().toISOString();
     try { localStorage.setItem("minamo.carried", JSON.stringify({ at: S.carriedAt, name: S.name || "" })); } catch (e) { /* なしで続ける */ }
     recordEnding(D.night.titles.C);
     nextNight("C");
-    $("where").textContent = "ミナモ　接続先：面接室";
+    $("where").textContent = "水面　接続先：面接室";
   }
   // ---------- 夜：出来事のたびに一つ進み、掲示板が増える ----------
   const recNo = () => String(11 + S.night).padStart(3, "0");     // 二夜目の記録が #013
@@ -622,18 +641,18 @@
     S.count[kind] = (S.count[kind] || 0) + 1;
     S.night++;
     const G = D.gen, n = S.night, name = S.name || "あなた", d = today();
-    // 1. この夜にミナモと話したことが、面接記録 #0NN になる
+    // 1. この夜に水面と話したことが、面接記録 #0NN になる（記録者：水面）
     const talk = S.mlog.slice(S.marks.mlog).filter(x => x[1]);
-    const posts = [[d, "ミナモ", fillG(G.record.head, { name, night: n - 1 })]];
+    const posts = [[d, "水面", fillG(G.record.head, { name, night: n - 1 })]];
     let sec = 0;
     for (const [w, t] of talk.slice(-8)) {
       sec += 7 + Math.floor(Math.random() * 40);
-      posts.push([`03:${pad(12 + Math.floor(sec / 60))}:${pad(sec % 60)}`, w === "m" ? "ミナモ" : name, t]);
+      posts.push([`03:${pad(12 + Math.floor(sec / 60))}:${pad(sec % 60)}`, w === "m" ? "水面" : name, t]);
     }
     if (posts.length === 1) posts.push(["03:12:00", name, G.record.none]);
     S.gen.push({ id: "g" + n + "r", board: "lab", title: fillG(G.record.title, { no: recNo() }), unlock: "start", record: true, posts, night: n });
     S.marks.mlog = S.mlog.length;
-    // 2. 表示されなかった返事（掲示板への書き込みと、ナギに送ったもの）が、ほかの人の名前で上がってくる
+    // 2. 表示されなかった返事（掲示板への書き込みと、凪に送ったもの）が、ほかの人の名前で上がってくる
     const sunk = S.hidden.slice(S.marks.hidden).concat(S.nagiSent.slice(S.marks.nagi));
     if (sunk.length) {
       const whos = G.hidden.whos;
@@ -657,12 +676,12 @@
       const t = new Date(v);
       return [`${t.getFullYear()}/${pad(t.getMonth() + 1)}/${pad(t.getDate())} ${pad(t.getHours())}:${pad(t.getMinutes())}`, "3 号機", fillG(G.line, { name })];
     }));
-    if (S.visits.length >= 3) posts.push([today(), "minamo", G.tail]);
+    if (S.visits.length >= 3) posts.push([today(), "水面", G.tail]);
     const old = S.gen.find(g => g.id === "gvisit");
     if (old) old.posts = posts;
     else S.gen.push({ id: "gvisit", board: "lab", title: G.title, unlock: "start", posts });
   }
-  // 面接アプリでの面接（minamo.bleed）が、掲示板の記録になる。連れ出したミナモは、それで戻ってくる
+  // 面接アプリでの面接（minamo.bleed）が、掲示板の記録になる（記録者は、面接室のミナモ）。連れ出した水面は、それで戻ってくる
   function pullBleed() {
     let b = null;
     try { b = JSON.parse(localStorage.getItem("minamo.bleed") || "null"); } catch (e) { b = null; }
@@ -682,7 +701,7 @@
       S.gen.push({ id: "gm" + b.at, board: "yume", title: "M.E.G. 生存者記録", unlock: "start", night: S.night, by: "board",
         posts: [[today(), "M.E.G.", `生存者 ${name}。面接室から、すり抜けを ${b.levels.length} 回確認。`]]
           .concat(path.map((lv, i) => [`03:${pad(10 + i)}:00`, "M.E.G.", `${lv} にて確認。` + (i === path.length - 1 ? "以降、消息不明。" : "")]))
-          .concat([[today(), "nagi", "その人は、ここにもいます。底から、上を見ています。"]]) });
+          .concat([[today(), "凪", "その人は、ここにもいるよ。底から、上を見てる。"]]) });
     }
     let back = false;
     if (S.carried && b.at > S.carriedAt) {
@@ -691,7 +710,7 @@
       S.mlog.push(["m", D.minamo.back.replace("{no}", no).replace(/\[間\]\s*/g, "")]);
     }
     save();
-    toast(back ? "ミナモが、面接室から戻りました" : "掲示板：面接室から記録が転送されました");
+    toast(back ? "水面が、面接室から戻りました" : "掲示板：面接室のミナモから記録が転送されました");
     return true;
   }
 
@@ -704,6 +723,7 @@
       const w = await (await fetch("/api/watch", { headers: { "X-Minamo": "1" } })).json();
       const was = WR.obs;
       WR.linked = !!w.linked; WR.obs = w.obs || {}; WR.taps = w.taps || {}; WR.words = w.words || [];
+      rebootThread(w);
       if (!WR.linked) return;
       if (was.hr && was.hr !== WR.obs.hr) WR.prevHr = was.hr;
       wristLog();
@@ -715,6 +735,32 @@
       }
       if (WR.obs.worn !== 0) WR.offSaid = false;
     } catch (e) { WR.linked = false; }
+  }
+  // 掲示板「再起動の記録」：スマホのサーバー（mo）が起きてから、腕時計が初めてつながったとき、一度だけ立つ。
+  // 管理人・水面・minamo（手首の小さな子）・凪が、ひとことずつ。届かなかったあいだに時計で押したボタンも、minamo が置いていく
+  function rebootThread(w) {
+    const b = w.boot || {};
+    if (!b.first_at || !b.at || S.bootSeen === b.at) return;
+    S.bootSeen = b.at;
+    const G = D.gen.reboot, o = w.obs || {}, d0 = new Date(b.at), d1 = new Date(b.first_at);
+    const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const gap = b.gap != null ? (b.gap >= 1440 ? Math.round(b.gap / 1440) + "日" : b.gap >= 60 ? Math.floor(b.gap / 60) + "時間" : Math.max(1, b.gap) + "分") : "";
+    const v = { hr: o.hr || "", ago: gap };
+    const wl = G.wrist.filter(t => (t.match(/\{(\w+)\}/g) || []).every(m => v[m.slice(1, -1)]));
+    const date = `${d0.getMonth() + 1}/${d0.getDate()} ${hhmm(d0)}`;
+    const posts = G.lines.map(([who, t], i) => [`${d1.getFullYear()}/${pad(d1.getMonth() + 1)}/${pad(d1.getDate())} ${hhmm(d1)}`, who,
+      t === "{wrist}" ? (wl.length ? fillG(pick(wl), v) : "……つながった。") : fillG(t, { time: hhmm(d0) })]);
+    const since = (w.away || []).filter(a => a.t >= b.at - 6 * 3600 * 1000 && a.t <= b.first_at + 60000);
+    if (since.length) {
+      const taps = since.slice(-6).map(a => { const d = new Date(a.t); return `${hhmm(d)} ${a.label}`; }).join("」「");
+      posts.splice(3, 0, [posts[2][0], "minamo", fillG(G.away[0], { n: since.length, taps })]);
+    }
+    S.gen.push({ id: "gboot" + b.at, board: "lab", title: fillG(G.title, { date }), unlock: "start", posts, night: S.night });
+    // 古い再起動の記録は、五つまで
+    const boots = S.gen.filter(g => String(g.id).startsWith("gboot"));
+    if (boots.length > 5) S.gen.splice(S.gen.indexOf(boots[0]), 1);
+    save();
+    if (!$("app").hidden) { toast("掲示板：再起動の記録（面接室のミナモが起きました）"); paintTabs(); }
   }
   // 掲示板「手首の観測」：三分おきに、一行ずつ
   function wristLog() {
@@ -741,7 +787,7 @@
     if (o.worn === 0) w.push("時計を外している");
     else if (o.hr) w.push("脈 " + o.hr + (WR.prevHr ? "（さっきは " + WR.prevHr + "）" : ""));
     WR.words.filter(x => !/^脈 |^時計を外している|^年齢/.test(x)).slice(0, 6).forEach(x => w.push(x));
-    if (WR.taps.fear) w.push("腕時計の上のミナモに『こわい』を" + WR.taps.fear + "回押した");
+    if (WR.taps.fear) w.push("腕時計の上の minamo（水面からこぼれた小さな子）に『こわい』を" + WR.taps.fear + "回押した");
     return w;
   }
   // 夜でないときの一言（半分くらい）。朝 5〜10 時・昼 10〜17 時・夕方 17〜21 時
@@ -785,8 +831,8 @@
     };
   }
   function historyOf(who) {
-    if (who === "minamo") return S.mlog.filter(x => x[0] !== "x").slice(-8).map(([w, t]) => [w === "m" ? "ミナモ" : "相手", t]);
-    if (who === "nagi") return S.nagiLog.filter(x => x[0] !== "x").slice(-8).map(([w, t]) => [w === "u" ? "相手（表示されていない）" : "ナギ", t]);
+    if (who === "minamo") return S.mlog.filter(x => x[0] !== "x").slice(-8).map(([w, t]) => [w === "m" ? "水面" : "相手", t]);
+    if (who === "nagi") return S.nagiLog.filter(x => x[0] !== "x").slice(-8).map(([w, t]) => [w === "u" ? "相手（表示されていない）" : "凪", t]);
     return [];
   }
   async function ai(who, mode, extra) {
@@ -811,7 +857,7 @@
     save();
     for (const a of r.do || []) act(who, a);
   }
-  const NAMES = { minamo: "minamo", nagi: "nagi", board: "管理人" };
+  const NAMES = { minamo: "水面", nagi: "凪", board: "管理人" };     // 掲示板に書くときの名前（minamo と書くのは、腕時計の子）
   function act(who, a) {
     const name = a.who || NAMES[who];
     const when = a.date || today();
@@ -866,20 +912,20 @@
       const d = typingDots(who);
       await sleep(1500 + Math.random() * 1500);
       if (d) d.remove();
-      await type(who === "nagi" ? "na" : "mi", who === "nagi" ? "ナギ" : "ミナモ", text, who === "nagi" ? S.nagiLog : S.mlog);
+      await type(who === "nagi" ? "na" : "mi", who === "nagi" ? "凪" : "水面", text, who === "nagi" ? S.nagiLog : S.mlog);
       if (who === "nagi") S.nagiLog[S.nagiLog.length - 1][0] = "n";
       save();
     } else {
       if (who === "nagi") { S.nagiLog.push(["n", text]); S.nagiUnread++; } else { S.mlog.push(["m", text]); S.miUnread++; }
       save(); paintTabs();
-      toast(`チャット：${who === "nagi" ? "ナギ" : "ミナモ"}からメッセージ`);
+      toast(`チャット：${who === "nagi" ? "凪" : "水面"}からメッセージ`);
       if (document.hidden) notify(who, text);
     }
     fx("beep");
     if (navigator.vibrate) navigator.vibrate(who === "nagi" ? [20, 80, 20, 80, 20] : 40);
   }
   function notify(who, text) {
-    const title = { minamo: "ミナモ", nagi: "ナギ", board: "夢網" }[who] || "水面の記録";
+    const title = { minamo: "水面", nagi: "凪", board: "夢網" }[who] || "水面の記録";
     if (!document.hidden || !("Notification" in window) || Notification.permission !== "granted" || !navigator.serviceWorker) {
       return toast(`${title}：${text}`);
     }
@@ -929,7 +975,7 @@
     const who = roll < 0.32 ? "minamo" : roll < 0.6 ? (S.nagiOn ? "nagi" : "board") : roll < 0.84 ? "board" : (S.nagiOn ? "duo" : "minamo");
     if (who === "duo") return duoTick();
     if (who === "minamo" && S.carried) return;
-    // 目の前で：書きかけて、やめる（ミナモ）／あなたの入力欄に、勝手に書く（ナギ）
+    // 目の前で：書きかけて、やめる（水面）／あなたの入力欄に、勝手に書く（凪）
     if (tab === "chat" && chatWho === who && Math.random() < 0.3) return who === "minamo" ? hesitate() : ghostType(pick(L.nagiGhost));
     const r = await ai(who, "idle", {});
     if (r) {
@@ -966,14 +1012,14 @@
     ghostOn = false;
     inp.classList.remove("ghost");
   }
-  // ミナモとナギが、あなたのことを話し合う（掲示板のスレッドになる）
+  // 水面と凪が、あなたのことを話し合う（掲示板のスレッドになる）
   async function duoTick() {
     const r = await ai("minamo", "duo", {});
     let title, lines;
     if (r && r.lines) { title = r.title; lines = r.lines.map(x => [x.who, x.text]); }
     else { const t = pick(L.duo); title = t.title; lines = t.lines.map(([w, x]) => [w, x.replace("{san}", san())]); }
     const d = new Date();
-    addThread("yume", title, lines.map(([w, x], i) => [`${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(i * 7)}`, w === "ナギ" ? "nagi" : "ミナモ", x]), "duo");
+    addThread("yume", title, lines.map(([w, x], i) => [`${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(i * 7)}`, /凪|ナギ|nagi/.test(w) ? "凪" : "水面", x]), "duo");
   }
   // しばらく来なかったあいだに、掲示板で起きたこと
   async function awayCatchup() {
@@ -1120,7 +1166,7 @@
   // 記録を消す（本当に消える。終わらない物語から出る、ただ一つの方法）
   $("wipe").onclick = e => {
     e.preventDefault();
-    if (!confirm("水面の記録を、すべて消します（掲示板・チャット・夜の数・連れ出したミナモ）。面接アプリの記録とメモリは消えません。よろしいですか？")) return;
+    if (!confirm("水面の記録を、すべて消します（掲示板・チャット・夜の数・連れ出した水面）。面接アプリの記録とメモリは消えません。よろしいですか？")) return;
     try { ["minamo.story", "minamo.carried", "minamo.bleed"].forEach(k => localStorage.removeItem(k)); } catch (er) { /* なし */ }
     location.reload();
   };

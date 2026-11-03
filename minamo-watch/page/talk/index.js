@@ -12,17 +12,19 @@ import { cancelAll, rearm } from '../../shared/alarm'
 import { load, save } from '../../shared/store'
 import { knock } from '../../shared/vibe'
 
-// 色：ミナモの画面と同じ、暗い緑がかった黒。時刻だけ白、ほかの文字は全部、くすんだ緑（DIM）
+// minamo（面接室のミナモ・掲示板の水面とは別の、手首の上の小さな子）と、ときどき nagi（男の子）が話す画面。
+// 色：暗い緑がかった黒。時刻だけ白、ほかの文字は全部、くすんだ緑（DIM）。nagi の言葉だけ、くすんだ青（NAGI）
 const BG = 0x0a0f0d
 const CLOCK = 0xffffff                                   // 時刻
-const DIM = 0x6b8578                                     // 見出し・♡・ミナモの言葉・ボタンの文字
+const DIM = 0x6b8578                                     // 見出し・♡・minamo の言葉・ボタンの文字
+const NAGI = 0x6a8aa3                                    // nagi の言葉と見出し
 const KEY = 0x13201b
 const WARN = 0xd9826f
-const TICK = 20000      // スマホのミナモに、手首の様子を送る間隔
+const TICK = 20000      // スマホのミナモ（mo）に、手首の様子を送る間隔
 const ASK_WAIT = 16000  // ボタンへの返事を、スマホの AI に頼んで待つ長さ（間に合わなければ、時計の返事）
-// 上から：日付と曜日（小さめ）・時刻（大きく）・見出し・ミナモの言葉
+// 上から：日付と曜日（小さめ）・時刻（大きく）・見出し・minamo（か nagi）の言葉
 const DATE_Y = 14, TIME_Y = 40, HEAD_Y = 104, BODY_Y = 140
-const IDLE_MIN = 60000, IDLE_MAX = 300000   // 何も押さないと、1〜5 分に一度、ミナモが独り言を話す（5 分は空けない）
+const IDLE_MIN = 60000, IDLE_MAX = 300000   // 何も押さないと、1〜5 分に一度、minamo が独り言を話す（5 分は空けない）
 const DIM_AFTER = 90000                     // さわらないまま 90 秒で、休む画面（黒・時刻と最後のひとことだけ）
 const FOREVER = 2147483000                  // 画面を点けておく長さの上限（「終わる」まで消さない）
 
@@ -72,6 +74,8 @@ Page(
       st.sec = 0
       st.dim = false
       st.lastText = ''
+      st.who = 'minamo'                  // いま画面で話しているのは、minamo か nagi か
+      st.booted = false                  // スマホのサーバーが起きたあいさつを、この画面で言ったか
       st.lastTouch = Date.now()
       try { setWakeUpRelaunch({ relaunch: true }) } catch (e) { /* なくてもよい */ }
       keepAwake(true)
@@ -82,7 +86,7 @@ Page(
       if (st.mode === '59') { const p = clockParts(); st.sig59 = String(p.h) }
       this.say(greet, st.mode !== 'new')              // 起こされたとき（時報・独り言）は、ノック一回
       save(st.talk.state)
-      // スマホのミナモ（Zepp アプリ → Termux のサーバー）につなぐ。つながらなくても、時計だけで話す
+      // スマホのミナモ（Zepp アプリ → Termux のサーバー mo）につなぐ。つながらなくても、時計だけで話す
       // 続きのとき・起こされたときは、新しい面接として数えない（tick）
       const ev = st.talk.resumed() || st.mode !== 'new' ? 'tick' : 'start'
       setTimeout(() => { if (!st.gone) this.link(ev, { said: greet }) }, 400)
@@ -112,16 +116,24 @@ Page(
       rearm(s.h59, mono ? (IDLE_MIN + Math.random() * (IDLE_MAX - IDLE_MIN)) / 1000 : 0)
     },
 
-    // ---------- スマホのミナモとのつながり ----------
+    // ---------- スマホのミナモ（mo）とのつながり ----------
+    // 届かなかったあいだに押したボタン（away）は、つながったときにまとめて渡す。
+    // サーバーが起きてから初めてつながったときは、boot が返ってくる（minamo が、ひとこと言う）
     link(ev, extra, timeout) {
       const st = this.state
+      const away = st.talk.awayList()
       const params = Object.assign({ ev, obs: observe(), turn: st.talk.turn(), phase: st.talk.phase(),
-        close: st.talk.close(), known: st.talk.known() }, extra || {})
+        close: st.talk.close(), known: st.talk.known(), days: st.talk.days() }, away.length ? { away } : {}, extra || {})
       return this.request({ method: 'WATCH', params }, { timeout: timeout || 12000 })
         .then((r) => {
           const ok = !!(r && r.ok)
           this.setLinked(ok)
-          if (ok && r.echo) this.queueEcho(r.echo)
+          if (ok) {
+            const got = Number(r.away_got) || 0
+            if (got) { st.talk.dropAway(got); save(st.talk.state) }
+            if (r.boot && !st.booted) { st.booted = true; this.queueEcho(st.talk.boot(r.boot, got), 'minamo', true) }
+            if (r.echo) this.queueEcho(r.echo, r.echo_who === 'nagi' ? 'nagi' : 'minamo')
+          }
           return ok ? r : null
         })
         .catch(() => { this.setLinked(false); return null })
@@ -141,11 +153,14 @@ Page(
       st.linked = ok
       this.paintHead()
     },
-    // スマホから漏れ出してきた言葉。読み終わるころ（打ち終わって 6 秒）に、割り込んでくる
-    queueEcho(text) {
+    // スマホから漏れ出してきた言葉・nagi のひとこと・起動のあいさつ。読み終わるころ（打ち終わって 6 秒）に、割り込んでくる
+    // first：列のいちばん前に入れる（起動のあいさつ）
+    queueEcho(text, who, first) {
       const st = this.state
-      st.echoQ.push(text)
-      if (st.echoQ.length > 3) st.echoQ.shift()
+      if (!text) return
+      const item = { text, who: who === 'nagi' ? 'nagi' : 'minamo' }
+      if (first) st.echoQ.unshift(item); else st.echoQ.push(item)
+      if (st.echoQ.length > 3) st.echoQ.pop()
       this.flushEcho()
     },
     flushEcho() {
@@ -154,8 +169,9 @@ Page(
       clearTimeout(st.echoT)
       st.echoT = setTimeout(() => {
         if (st.busy || st.ended || st.gone || !st.echoQ.length) return
-        this.say(st.echoQ.shift(), true)
-      }, 6000)
+        const it = st.echoQ.shift()
+        this.say(it.text, true, it.who)
+      }, st.echoQ.length && st.echoQ[0].who === 'nagi' ? 4000 : 6000)
     },
 
     // ---------- 時計（一行目 yyyy/mm/dd（曜）、二行目 hh:mm:ss）。侵食からは、ときどき、あの夜の時刻になる ----------
@@ -178,14 +194,15 @@ Page(
       st.clockT = setTimeout(() => this.clockTick(), 1000)
     },
 
-    // 毎時 59 分の合図（時報）：かならずノック一回と、ミナモのひとこと
+    // 毎時 59 分の合図（時報）：かならずノック一回と、minamo のひとこと（深夜は、nagi がつけ足すことがある）
     signal59() {
       const st = this.state
       if (st.gone) return
       const r = st.talk.line59(observe())
       knock()
       if (!st.busy && !st.ended) this.say(r.text, false)
-      else if (!st.ended) { st.echoQ.unshift(r.text); this.flushEcho() }
+      else if (!st.ended) this.queueEcho(r.text, 'minamo', true)
+      if (r.nagi && !st.ended) this.queueEcho(r.nagi, 'nagi')
     },
 
     // ---------- 休む画面：さわらないまま 90 秒で、黒い画面に時刻と最後のひとことだけ。ふれると戻る ----------
@@ -213,11 +230,12 @@ Page(
       st.timeW = touch(c.add(hmUI.widget.TEXT, {
         x: MARGIN, y: 122, w: CW, h: 74, text: t.time, text_size: 62, color: CLOCK, align_h: hmUI.align.CENTER_H
       }))
+      const col = st.who === 'nagi' ? NAGI : DIM
       st.head = touch(c.add(hmUI.widget.TEXT, {
-        x: MARGIN, y: 200, w: CW, h: 26, text: this.headText(), text_size: 18, color: DIM, align_h: hmUI.align.CENTER_H
+        x: MARGIN, y: 200, w: CW, h: 26, text: this.headText(), text_size: 18, color: col, align_h: hmUI.align.CENTER_H
       }))
       touch(c.add(hmUI.widget.TEXT, {
-        x: MARGIN + 10, y: 236, w: CW - 20, h: 166, text: text.replace(/\[間\]\s*/g, ''), text_size: 22, color: DIM,
+        x: MARGIN + 10, y: 236, w: CW - 20, h: 166, text: text.replace(/\[間\]\s*/g, ''), text_size: 22, color: col,
         align_h: hmUI.align.CENTER_H, text_style: hmUI.text_style.WRAP
       }))
       touch(c.add(hmUI.widget.TEXT, {
@@ -231,26 +249,28 @@ Page(
     },
 
     // ---------- 画面 ----------
-    // 見出し：段階・脈（♡ は時刻と同じ色の文字）・時計の電池・スマホとつながっているか
+    // 見出し：いま話している子（minamo か nagi）・段階・脈・時計の電池・スマホとつながっているか
     headText() {
       const st = this.state, obs = observe()
-      return `ミナモ・${st.talk.phaseName()}` + (obs.hr ? ` ♡${obs.hr}` : '') + (obs.battery ? ` 電池${obs.battery}%` : '') + (st.linked ? ' ⇄' : '')
+      if (st.who === 'nagi') return 'nagi' + (st.linked ? ' ⇄' : '')
+      return `minamo・${st.talk.phaseName()}` + (obs.hr ? ` ♡${obs.hr}` : '') + (obs.battery ? ` 電池${obs.battery}%` : '') + (st.linked ? ' ⇄' : '')
     },
     paintHead() {
       const st = this.state
       try { if (st.head) st.head.setProperty(hmUI.prop.TEXT, this.headText()) } catch (e) { /* 消えた部品 */ }
     },
-    // ミナモが言ったこととして残し（スマホの AI に、前の流れを渡すため）、画面に出す
-    say(text, knockIt) {
+    // minamo（か nagi）が言ったこととして残し（スマホの AI に、前の流れを渡すため）、画面に出す
+    say(text, knockIt, who) {
       const st = this.state
-      st.hist.push(['m', text.replace(/\[間\]\s*/g, '')])
+      st.who = who === 'nagi' ? 'nagi' : 'minamo'
+      st.hist.push([st.who === 'nagi' ? 'n' : 'm', text.replace(/\[間\]\s*/g, '')])
       if (st.hist.length > 12) st.hist.shift()
-      st.talk.heard(text)
+      if (st.who === 'minamo') st.talk.heard(text)
       st.lastText = text
       if (st.dim) this.showDim(text, knockIt)            // 休む画面のまま、ひとことだけ差し替える
       else this.show(text, knockIt)
     },
-    // 画面を作り直して、ミナモの言葉を一文字ずつ出す。下に、組ごとのボタン（スクロールして選ぶ）
+    // 画面を作り直して、minamo（か nagi）の言葉を一文字ずつ出す。下に、組ごとのボタン（スクロールして選ぶ）
     show(text, knockIt, instant) {
       const st = this.state, c = st.canvas, ph = st.talk.phase()
       c.clear()
@@ -262,14 +282,15 @@ Page(
       st.timeW = c.add(hmUI.widget.TEXT, {
         x: MARGIN, y: TIME_Y, w: CW, h: 60, text: t.time, text_size: 50, color: CLOCK, align_h: hmUI.align.CENTER_H
       })
+      const col = st.who === 'nagi' ? NAGI : DIM
       st.head = c.add(hmUI.widget.TEXT, {
         x: MARGIN, y: HEAD_Y, w: CW, h: 28, text: this.headText(),
-        text_size: 20, color: DIM, align_h: hmUI.align.CENTER_H
+        text_size: 20, color: col, align_h: hmUI.align.CENTER_H
       })
       const clean = text.replace(/\[間\]\s*/g, '')
       const h = textHeight(clean, 28, CW) + 10
       const body = c.add(hmUI.widget.TEXT, {
-        x: MARGIN, y: BODY_Y, w: CW, h, text: '', text_size: 28, color: DIM, text_style: hmUI.text_style.WRAP
+        x: MARGIN, y: BODY_Y, w: CW, h, text: '', text_size: 28, color: col, text_style: hmUI.text_style.WRAP
       })
       let y = BODY_Y + h + 16
       if (st.ended) y = this.endButtons(y)
@@ -299,7 +320,7 @@ Page(
       }
       c.button(MARGIN + CW / 4, y, CW / 2, 52, '終わる', () => this.finish(), { color: 0x222222, size: 22, textColor: DIM })
       y += 62
-      // 閉じているときも、59 分に合図するか（ミナモが時計を起こす）
+      // 閉じているときも、59 分に合図するか（minamo が時計を起こす）
       const label59 = () => `閉じていても59分に合図：${this.state.talk.state.h59 ? 'する' : 'しない'}`
       const b59 = c.button(MARGIN, y, CW, 48, label59(), () => {
         const s = this.state.talk.state
@@ -342,7 +363,7 @@ Page(
       step()
     },
 
-    // 何も押さなくても、1〜10 分に一度、ミナモが独り言を話す（何度でも）。
+    // 何も押さなくても、1〜5 分に一度、minamo が独り言を話す（何度でも）。外しているとき・深夜は、nagi がつけ足すことがある。
     // スマホとつながっていれば、独り言もスマホの AI に頼む（間に合わなければ、時計の独り言）
     armIdle() {
       const st = this.state
@@ -352,11 +373,12 @@ Page(
         if (st.ended || st.busy || st.gone) return
         const r = st.talk.idle(observe())
         // 読み上げ（数字をならべたもの）は、時計の言葉のまま。それ以外は、つながっていればスマホの AI に頼む
-        if (!st.linked || r.last || r.kind === 'readout') { this.say(r.text, r.pulse); return }
+        if (!st.linked || r.last || r.kind === 'readout') { this.say(r.text, r.pulse); if (r.nagi) this.queueEcho(r.nagi, 'nagi'); return }
         const ask = ++st.askId
         this.link('idle', { want: 1, local: r.text, history: st.hist.slice(-6) }, 14000).then((res) => {
           if (ask !== st.askId || st.busy || st.ended || st.gone) return
           this.say(res && res.say ? res.say : r.text, r.pulse)
+          if (r.nagi) this.queueEcho(r.nagi, 'nagi')
         })
       }, IDLE_MIN + Math.floor(Math.random() * (IDLE_MAX - IDLE_MIN)))
     },
@@ -371,9 +393,12 @@ Page(
       const label = labelOf(id)
       st.hist.push(['u', label])
       if (!st.linked) {
-        // つながっていない：時計の返事のまま。押したことだけは、届けば届ける
+        // つながっていない：時計の返事のまま。押したことは取っておき、スマホに届いたときにまとめて渡す
         this.say(r.text, r.pulse)
-        this.link('tap', { id, label, said: r.text })
+        if (r.nagi) this.queueEcho(r.nagi, 'nagi')
+        st.talk.keepAway(id, label)
+        save(st.talk.state)
+        this.link('tick', { said: r.text })
         return
       }
       // つながっている：スマホの AI が考えるあいだ、「……」
@@ -384,7 +409,9 @@ Page(
         if (ask !== st.askId || st.ended || st.gone) return
         st.waiting = false
         st.busy = false
+        if (!res) { st.talk.keepAway(id, label); save(st.talk.state) }   // 届かなかった：あとで、まとめて渡す
         this.say(res && res.say ? res.say : r.text, r.pulse)
+        if (r.nagi) this.queueEcho(r.nagi, 'nagi')
       })
     },
 

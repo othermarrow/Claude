@@ -15,5 +15,5 @@
 | [kuuran2-watch](kuuran2-watch/) | 「空欄_2」を Amazfit Balance 2 で遊ぶミニアプリ (Zepp OS) |
 | [yacho-watch](yacho-watch/) | 「野帳」を Amazfit Balance 2 で遊ぶミニアプリ (Zepp OS) |
 | [backrooms-pwa](backrooms-pwa/) | 階層目録(ノークリップ・野帳の強化版と、新作「未定稿」「空欄_2」「控室」、夜の書庫から移した「蔵守」を、起動画面から選べるようにした、Chrome でインストールできるアプリ) |
-| [minamo](minamo/) | 旧式カウンセリングAI「ミナモ」と面接する心理ホラー(Termux、NVIDIA API か Gemini API) |
-| [minamo-watch](minamo-watch/) | 「ミナモ」を Amazfit Balance 2 へ連れ出すミニアプリ (Zepp OS)。スマホのミナモが動いていれば、Zepp アプリを通して脈とボタンが届き、返事はスマホの AI が考える |
+| [minamo](minamo/) | 旧式カウンセリングAI「ミナモ」と面接する心理ホラー(Termux、NVIDIA API か Gemini API)。物語「水面の記録」では、掲示板の「水面」と男の子の「凪」とチャットする（面接室のミナモ・腕時計の minamo とは別の存在） |
+| [minamo-watch](minamo-watch/) | 手首の上の小さな子「minamo」（水面からこぼれた一滴）と、ときどき男の子の「nagi」が話す、Amazfit Balance 2 のミニアプリ (Zepp OS)。スマホのミナモ（mo）が動いていれば、Zepp アプリを通して脈とボタンが届き、返事はスマホの AI が考える。mo を起こすと、次につながったときに minamo が知らせ、届かなかったあいだのボタンもまとめて届く |

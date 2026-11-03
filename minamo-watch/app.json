@@ -2,11 +2,11 @@
   "configVersion": "v3",
   "app": {
     "appId": 1098780,
-    "appName": "Minamo",
+    "appName": "minamo",
     "appType": "app",
     "version": {
-      "code": 8,
-      "name": "1.5.0"
+      "code": 9,
+      "name": "1.6.0"
     },
     "icon": "icon.png",
     "vender": "zepp",
@@ -60,10 +60,10 @@
   },
   "i18n": {
     "ja-JP": {
-      "appName": "ミナモ"
+      "appName": "minamo"
     },
     "en-US": {
-      "appName": "Minamo"
+      "appName": "minamo"
     }
   },
   "defaultLanguage": "ja-JP",

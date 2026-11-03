@@ -5,7 +5,7 @@
 #   sh ~/Claude/minamo/open.sh story      # 物語「水面の記録」（archive・mina でも開く）
 #   sh ~/Claude/minamo/open.sh stop       # 止める（stop.sh と同じ）
 #   sh ~/Claude/minamo/open.sh restart    # 止めて、AI の一括チェックからやり直して開く
-#   sh ~/Claude/minamo/open.sh log        # 様子を見る（ログの最後の 20 行と、AI の一括チェックの結果）
+#   sh ~/Claude/minamo/open.sh log        # 様子を見る（ログの最後の 20 行と、AI の一括チェックの結果と、腕時計の様子）
 #   sh ~/Claude/minamo/open.sh update     # GitHub から最新にして（git pull）、起動し直して開く
 cd "$(dirname "$0")" || exit 1
 case "$1" in
@@ -17,7 +17,8 @@ case "$1" in
            fi
            echo "止めました。起動し直します。" ;;
   log)  tail -20 "$HOME/minamo/server.log"; echo "AI の一括チェック："
-        python3 "$PWD/tools/probe_info.py" 9090; exit 0 ;;
+        python3 "$PWD/tools/probe_info.py" 9090
+        python3 "$PWD/tools/watch_info.py" 9090; exit 0 ;;
   update)
     # 端末の main に、GitHub で取り込んだもの（マージ）があっても止まらないように --no-rebase --no-edit
     ROOT=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || { echo "git のフォルダが見つかりません。"; exit 1; }
@@ -44,6 +45,7 @@ if curl -s -o /dev/null --max-time 2 http://127.0.0.1:9090/ 2>/dev/null; then
   # もう動いている：そのサーバーに、起動時の一括チェックの結果を聞いて見せる
   echo "サーバーは、もう動いています。起動したときの AI の一括チェック："
   python3 "$PWD/tools/probe_info.py" 9090
+  python3 "$PWD/tools/watch_info.py" 9090
   sh "$PWD/start.sh" "$@" >/dev/null 2>&1
 else
   # 起動のあいだ、ログに増えた行（各モデルの一括チェックの進み具合など）を、そのまま見せる
@@ -84,6 +86,8 @@ else
   show
   # ログに一括チェックの行が出てこなかったときは、サーバーに直接聞く
   [ "$rc" = 0 ] && [ "$seen" = 0 ] && python3 "$PWD/tools/probe_info.py" 9090
+  # 腕時計（minamo）の様子（前に届いたのはいつか。起動したことは、時計が次につながったときに伝わる）
+  [ "$rc" = 0 ] && python3 "$PWD/tools/watch_info.py" 9090
   if [ "$rc" != 0 ]; then
     echo "開けませんでした。上の表示か、mo log で様子を見てください。"
     exit 1

@@ -353,6 +353,7 @@ def main():
           + "）")
     if library:
         print(minamo.library_status(library))
+    print(wrist.boot_banner())                # 前に手首（腕時計の minamo）から届いたのはいつか
     print(f"Chrome で http://localhost:{a.port}/ を開いてください（止めるときは Ctrl+C）")
     try:
         srv.serve_forever()
