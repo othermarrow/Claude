@@ -1,7 +1,7 @@
 /* 階層目録：オフラインでも開けるようにする。
    まずネットワーク（Termux のサーバー）から取り、取れないときは前に取っておいたものを返す。
    ファイルを足したら FILES に足し、VERSION を上げる。 */
-const VERSION = "kaisou-v12";
+const VERSION = "kaisou-v13";
 const FILES = [
   "./",
   "./index.html",
@@ -20,6 +20,7 @@ const FILES = [
   "./games/kura/village.js",
   "./games/kura/night.js",
   "./games/kura/extra.js",
+  "./games/hikae.html",
 ];
 
 self.addEventListener("install", e => {

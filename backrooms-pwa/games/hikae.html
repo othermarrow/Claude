@@ -1,0 +1,2950 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>控室</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0c1311">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Shippori+Mincho:wght@500;700&display=swap">
+<style>
+/* 「空欄_2」「未定稿」と同じ組み立て（状態行・明朝の本文・命令を作る・十字キー）。
+   区画ごとに配色が変わる：控室と受付（薄い緑）・談話室（暖色）・廊下（蛍光灯の黄）・鏡の裏（銀）・階段（非常灯の緑）・
+   地下二階（青）・暗い部屋（黒）・目盛りの部屋（琥珀）・聴く部屋（水色）・ブース（赤）・監視室（画面の緑）・資料室（セピア）。 */
+:root {
+  --screen: #0c1311; --wall: #c9dcd3; --bright: #f2fbf6; --dim: #6d8a7e; --faint: #1d2b26; --key: #111b18;
+  --bar-bg: #bfe8d0; --bar-fg: #0c1311; --warn: #ff7a8a; --hot: #ff5a6e; --glow: rgba(191, 232, 208, 0.26);
+  --dot: "DotGothic16", "Noto Sans Mono CJK JP", "Osaka-Mono", ui-monospace, monospace;
+  --mincho: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif CJK JP", serif;
+  --size: 17px;
+  --line: 1.65;
+  color-scheme: dark;
+}
+body[data-lv="danwa"] {
+  --screen: #15100a; --wall: #f0dcc0; --bright: #fff7ec; --dim: #9c8566; --faint: #3a2d1c; --key: #1c150d;
+  --bar-bg: #ffd9a0; --bar-fg: #15100a; --warn: #8fe0c0; --hot: #ff7a6a; --glow: rgba(255, 217, 160, 0.28);
+}
+body[data-lv="rouka"] {
+  --screen: #12110a; --wall: #ece3b8; --bright: #fffbe6; --dim: #9a9168; --faint: #36321c; --key: #1a180e;
+  --bar-bg: #ffe66d; --bar-fg: #12110a; --warn: #ff4f9a; --hot: #ff2a85; --glow: rgba(255, 230, 109, 0.26);
+}
+body[data-lv="kan"] {
+  --screen: #08090c; --wall: #c3cad6; --bright: #f4f6fa; --dim: #5f6878; --faint: #1c2029; --key: #0e1016;
+  --bar-bg: #cfd8e6; --bar-fg: #08090c; --warn: #ff3b6b; --hot: #ff3b6b; --glow: rgba(207, 216, 230, 0.22);
+}
+body[data-lv="kaidan"] {
+  --screen: #050d08; --wall: #b8e8c8; --bright: #effff4; --dim: #4f7a5e; --faint: #13281b; --key: #08140d;
+  --bar-bg: #3dff8f; --bar-fg: #050d08; --warn: #ff5a5a; --hot: #ff3b3b; --glow: rgba(61, 255, 143, 0.24);
+}
+body[data-lv="deguchi"] {
+  --screen: #0b120d; --wall: #d4f2dc; --bright: #ffffff; --dim: #5f8a6c; --faint: #1a2e20; --key: #0e1811;
+  --bar-bg: #e8fff0; --bar-fg: #0b120d; --warn: #ff7a5a; --hot: #ff5a3b; --glow: rgba(232, 255, 240, 0.3);
+}
+body[data-lv="b2"] {
+  --screen: #070b14; --wall: #b9c9e8; --bright: #eef3ff; --dim: #56668a; --faint: #18213a; --key: #0b1120;
+  --bar-bg: #8fb8ff; --bar-fg: #070b14; --warn: #ff4d6d; --hot: #ff4d6d; --glow: rgba(143, 184, 255, 0.26);
+}
+body[data-lv="an"] {
+  --screen: #020202; --wall: #9a9a9a; --bright: #ffffff; --dim: #4a4a4a; --faint: #141414; --key: #070707;
+  --bar-bg: #262626; --bar-fg: #e8e8e8; --warn: #ff1e56; --hot: #ff1e56; --glow: rgba(255, 255, 255, 0.1);
+}
+body[data-lv="anl"] {
+  --screen: #111111; --wall: #d8d8d8; --bright: #ffffff; --dim: #707070; --faint: #2a2a2a; --key: #161616;
+  --bar-bg: #e0e0e0; --bar-fg: #111111; --warn: #ff1e56; --hot: #ff1e56; --glow: rgba(255, 255, 255, 0.2);
+}
+body[data-lv="sousa"] {
+  --screen: #120c05; --wall: #e8c890; --bright: #fff2dc; --dim: #94733f; --faint: #3a2a14; --key: #1b1209;
+  --bar-bg: #ffb347; --bar-fg: #120c05; --warn: #ff3b3b; --hot: #ff3b3b; --glow: rgba(255, 179, 71, 0.3);
+}
+body[data-lv="chou"] {
+  --screen: #04101a; --wall: #b6dcf2; --bright: #ecf8ff; --dim: #4f7590; --faint: #12283a; --key: #081a28;
+  --bar-bg: #7fd1ff; --bar-fg: #04101a; --warn: #ffe08a; --hot: #ff6b8a; --glow: rgba(127, 209, 255, 0.28);
+}
+body[data-lv="booth"] {
+  --screen: #140707; --wall: #f0c4c0; --bright: #fff0ee; --dim: #9a6460; --faint: #3a1a18; --key: #1c0b0a;
+  --bar-bg: #ff8a8a; --bar-fg: #140707; --warn: #ffd166; --hot: #ffd166; --glow: rgba(255, 138, 138, 0.26);
+}
+body[data-lv="kanshi"] {
+  --screen: #030c05; --wall: #a8f0b0; --bright: #e8ffe8; --dim: #3f7a48; --faint: #0f2614; --key: #061209;
+  --bar-bg: #7dff6a; --bar-fg: #030c05; --warn: #ff4fd8; --hot: #ff4fd8; --glow: rgba(125, 255, 106, 0.28);
+}
+body[data-lv="shiryou"] {
+  --screen: #120e07; --wall: #e6d2a8; --bright: #fff6e0; --dim: #8f7a50; --faint: #352a17; --key: #1a140b;
+  --bar-bg: #d8a24a; --bar-fg: #120e07; --warn: #7dff6a; --hot: #ff6a4a; --glow: rgba(216, 162, 74, 0.28);
+}
+/* ブースで罰の動詞を使うと、明かりが一段ずつ落ちる */
+body[data-dim="1"] #app { filter: brightness(0.78) saturate(0.8); }
+body[data-dim="2"] #app { filter: brightness(0.56) saturate(0.6); }
+/* 記録が重くなると、画面の端が少しにじむ */
+body[data-stage="1"] #screen { box-shadow: inset 0 0 40px -12px color-mix(in srgb, var(--warn) 30%, transparent); }
+body[data-stage="2"] #screen { box-shadow: inset 0 0 60px -10px color-mix(in srgb, var(--warn) 55%, transparent); }
+/* ネオン：題・声・結末の行は光り、声の行は左に色の縦線。状態行と、行ける方角も光る */
+#bar, .pk, .key, .bk, #send, #build-btn, #dock { transition: background-color 0.7s, color 0.7s, border-color 0.7s, box-shadow 0.7s; }
+#bar { box-shadow: 0 0 16px var(--glow), 0 1px 0 color-mix(in srgb, var(--fx-a, var(--bar-bg)) 60%, transparent); }
+#room { text-shadow: 0 0 6px color-mix(in srgb, var(--bar-fg) 25%, transparent); }
+#dock { background: color-mix(in srgb, var(--screen) 86%, transparent); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+#prompt .gt { text-shadow: 0 0 8px var(--fx-a, var(--bright)); }
+#cmd { caret-color: var(--fx-a, var(--bright)); }
+.cmd { text-shadow: 0 0 6px var(--glow); }
+.row { text-shadow: 0 0 6px rgba(0, 0, 0, 0.75); }
+.row.title { text-shadow: 0 0 10px var(--glow), 0 0 4px color-mix(in srgb, var(--fx-a, var(--bright)) 70%, transparent); letter-spacing: 0.04em; }
+.row.voice { border-left: 3px solid var(--fx-b, var(--dim)); padding-left: 0.7em; margin-left: 0.3em; text-shadow: 0 0 8px color-mix(in srgb, var(--fx-b, var(--bright)) 55%, transparent); }
+.row.win { text-shadow: 0 0 10px var(--fx-a, var(--bright)), 0 0 22px var(--fx-b, var(--bright)); }
+.row.warn { text-shadow: 0 0 6px var(--fx-b, var(--warn)), 0 0 14px var(--fx-b, var(--warn)); }
+.row.rec { border-left: 1px dashed var(--dim); padding-left: 0.7em; margin-left: 0.3em; }
+.pk.dir.open { border-color: var(--fx-a, var(--dim)); box-shadow: inset 0 0 10px color-mix(in srgb, var(--fx-a, var(--dim)) 55%, transparent); }
+.bk.held { border-color: var(--fx-b, var(--dim)) !important; box-shadow: 0 0 8px color-mix(in srgb, var(--fx-b, var(--dim)) 45%, transparent); }
+#build-btn { box-shadow: 0 0 10px var(--glow); }
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--screen);
+  color: var(--wall);
+  font-family: var(--dot);
+  font-size: var(--size);
+  line-height: var(--line);
+  transition: background-color 0.8s, color 0.8s;
+  overflow-x: hidden;
+}
+#app { height: 100%; display: flex; flex-direction: column; transition: filter 0.8s; }
+
+#bar {
+  display: flex; align-items: baseline; gap: 0.8em;
+  background: var(--bar-bg); color: var(--bar-fg);
+  padding: 0.15em 16px; white-space: nowrap;
+}
+@media (prefers-reduced-motion: no-preference) {
+  #bar.flicker { animation: flicker 0.6s steps(2, end) 1; }
+  @keyframes flicker { 0% { opacity: 1; } 30% { opacity: 0.35; } 45% { opacity: 1; } 60% { opacity: 0.6; } 100% { opacity: 1; } }
+  .row.fresh { animation: hum 0.25s steps(3, end); }
+  @keyframes hum { from { opacity: 0.2; } to { opacity: 1; } }
+}
+#room { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#score { font-variant-numeric: tabular-nums; font-size: 0.9em; }
+#score .hot { color: var(--hot); }
+#menu-btn { font: inherit; background: none; border: 0; color: var(--bar-fg); padding: 0 0.2em; cursor: pointer; }
+#menu-btn:focus-visible { outline: 2px solid var(--bar-fg); }
+
+#screen {
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  padding-inline: 16px; padding-block: 1.1em 0.6em;
+  overscroll-behavior: contain;
+}
+#log { max-width: 46em; display: flex; flex-direction: column; }
+.row { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; font-family: var(--mincho); font-weight: 500; }
+.row.note, .row.title, .cmd { font-family: var(--dot); font-weight: 400; }
+.row.title { color: var(--bright); }
+.row.note { color: var(--dim); font-size: 0.86em; }
+.row.rec { color: var(--dim); font-size: 0.86em; font-family: var(--dot); }
+.row.warn { color: var(--warn); }
+.row.win { color: var(--bright); }
+.row.voice { color: var(--bright); }
+.gap { height: calc(var(--size) * 0.7); }
+.cmd { color: var(--bright); margin-top: 0.4em; overflow-wrap: anywhere; }
+.cmd .sent { color: var(--dim); font-size: 0.86em; margin-left: 0.8em; }
+
+#dock { border-top: 1px solid var(--faint); padding-block: 0.5em calc(0.6em + env(safe-area-inset-bottom, 0px)); }
+#prompt { display: flex; align-items: center; gap: 0.5em; padding-inline: 16px; }
+#prompt .gt { color: var(--bright); }
+#cmd {
+  flex: 1; min-width: 0; font: inherit; font-size: max(16px, 1em);
+  background: transparent; color: var(--bright); border: 0; outline: 0;
+  caret-color: var(--bright); padding: 0.2em 0;
+}
+#cmd::placeholder { color: var(--faint); }
+#send, #build-btn {
+  flex: none; font: inherit; font-size: 0.9em; background: var(--wall); color: var(--screen);
+  border: 0; padding: 0.35em 0.7em; cursor: pointer;
+}
+#send:focus-visible, #build-btn:focus-visible { outline: 2px solid var(--bright); outline-offset: 2px; }
+
+#pad {
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 0.7em;
+  padding-inline: 16px; padding-top: 0.6em;
+}
+#compass { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+#common { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; align-content: start; }
+.pk {
+  font: inherit; font-size: 0.9em; line-height: 1.2; min-height: 2.4em; min-width: 0;
+  background: color-mix(in srgb, var(--screen) 70%, transparent); color: var(--wall); border: 1px solid var(--faint);
+  padding: 0.3em 0.1em; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pk.dir { background: var(--key); color: var(--dim); }
+.pk.dir.open { color: var(--bright); }
+.pk.look { border-color: var(--wall); color: var(--bright); }
+.pk.blank { visibility: hidden; }
+.pk:active { background: var(--wall); color: var(--screen); }
+.pk:focus-visible { outline: 1px solid var(--bright); }
+.pk.updown { font-size: 0.82em; }
+.pk.stop { border-color: color-mix(in srgb, var(--warn) 55%, var(--faint)); }
+#common .pk { font-size: 0.8em; }
+body.typing #pad { display: none; }
+
+.key {
+  font: inherit; font-size: 0.9em; line-height: 1.2;
+  background: transparent; color: var(--wall);
+  border: 1px solid var(--faint); padding: 0.35em 0.7em; cursor: pointer;
+}
+.key:active { background: var(--wall); color: var(--screen); }
+.key:focus-visible { outline: 1px solid var(--bright); }
+
+#builder, #sheet {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); z-index: 20;
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+.panel {
+  background: var(--screen); border-top: 1px solid var(--wall);
+  max-height: 82%; display: flex; flex-direction: column;
+  padding: 0.8em 16px calc(0.8em + env(safe-area-inset-bottom, 0px));
+}
+.bhead { display: flex; flex-direction: column; gap: 0.15em; padding-bottom: 0.6em; }
+#b-title, .panel h2 { color: var(--bright); font: inherit; margin: 0; }
+#b-preview { color: var(--dim); font-size: 0.86em; }
+#b-list {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; align-content: start;
+}
+#b-list.verbs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.bk {
+  font: inherit; text-align: left; background: transparent; color: var(--wall);
+  border: 1px solid var(--faint); padding: 0.45em 0.6em; cursor: pointer; min-width: 0; overflow-wrap: anywhere;
+}
+#b-list.verbs .bk { padding: 0.4em 0.45em; }
+.bk:active { background: var(--wall); color: var(--screen); }
+.bk:focus-visible { outline: 1px solid var(--bright); }
+#b-list .empty { color: var(--dim); }
+.bfoot { display: flex; gap: 0.4em; flex-wrap: wrap; padding-top: 0.7em; }
+#sheet .panel { gap: 0.8em; overflow-y: auto; }
+#sheet p { margin: 0; color: var(--dim); font-size: 0.86em; line-height: 1.6; }
+#confirm-row, #opt-row { display: flex; gap: 0.4em; flex-wrap: wrap; }
+#sheet p.credit { font-size: 0.78em; }
+/* 記録が重くなると、右上に浮かぶ名札。自分の名前ではない */
+#tag {
+  position: fixed; top: 2.3em; right: 14px; pointer-events: none;
+  color: var(--warn); font-family: var(--dot); font-size: 1.15em; line-height: 1; opacity: 0;
+  border: 1px solid currentColor; padding: 0.15em 0.35em; transition: opacity 0.8s; z-index: 11;
+  text-shadow: 0 0 8px currentColor;
+}
+#tag.on { opacity: 0.75; }
+@media (prefers-reduced-motion: no-preference) {
+  #tag.on { animation: sway 2.8s ease-in-out infinite; }
+  @keyframes sway { 0%, 100% { transform: translate(0, 0) rotate(-2deg); } 50% { transform: translate(-3px, 2px) rotate(2deg); } }
+}
+</style>
+</head>
+<body data-lv="uke">
+
+<div id="app">
+  <header id="bar">
+    <span id="room">控室</span>
+    <span id="score">記録 0</span>
+    <button id="menu-btn" type="button" aria-label="メニュー" aria-expanded="false">≡</button>
+  </header>
+  <span id="tag" aria-hidden="true">Ａ</span>
+
+  <main id="screen" aria-live="polite">
+    <div id="log"></div>
+  </main>
+
+  <footer id="dock">
+    <form id="prompt" autocomplete="off">
+      <button id="build-btn" type="button" aria-haspopup="dialog">命令を作る</button>
+      <label for="cmd" class="gt">&gt;</label>
+      <input id="cmd" type="text" enterkeyhint="send" placeholder="ここで、何を？" autocapitalize="off" spellcheck="false">
+      <button id="send" type="submit">決定</button>
+    </form>
+    <div id="pad">
+      <div id="compass" aria-label="移動">
+        <button class="pk dir updown" type="button" data-go="u">上</button>
+        <button class="pk dir" type="button" data-go="n">北</button>
+        <span class="pk blank" aria-hidden="true"></span>
+        <button class="pk dir" type="button" data-go="w">西</button>
+        <button class="pk look" type="button" data-cmd="look">見る</button>
+        <button class="pk dir" type="button" data-go="e">東</button>
+        <span class="pk blank" aria-hidden="true"></span>
+        <button class="pk dir" type="button" data-go="s">南</button>
+        <button class="pk dir updown" type="button" data-go="d">下</button>
+      </div>
+      <div id="common" aria-label="よく使う命令">
+        <button class="pk" type="button" data-cmd="inventory">持ち物</button>
+        <button class="pk" type="button" data-cmd="wait">待つ</button>
+        <button class="pk stop" type="button" data-cmd="stop">やめる</button>
+        <button class="pk" type="button" data-cmd="ask">尋ねる</button>
+        <button class="pk" type="button" data-cmd="listen">耳をすます</button>
+        <button class="pk" type="button" data-cmd="dunno">わからない</button>
+      </div>
+    </div>
+  </footer>
+
+  <div id="builder" hidden>
+    <div class="panel" role="dialog" aria-labelledby="b-title">
+      <div class="bhead">
+        <span id="b-title">何をする？</span>
+        <span id="b-preview"></span>
+      </div>
+      <div id="b-list"></div>
+      <div class="bfoot">
+        <button class="key" type="button" id="b-back">戻る</button>
+        <button class="key" type="button" id="b-close">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="sheet" hidden>
+    <div class="panel" role="dialog" aria-label="メニュー">
+      <h2>控室</h2>
+      <p>十字キーで移動する。左上の「上」と右下の「下」で、上下にも動ける。光っている方角にだけ進める。</p>
+      <p>「命令を作る」を押し、動詞 → 物（またはことば）→（必要なら、もう一つの物）の順にタップすると命令になる。入力欄に日本語で書いてもいい。英語の短い命令（look、take pen など）も通じる。</p>
+      <p>右下のボタンの「やめる」と「尋ねる」（目的を尋ねる）は、どこででも使える。「わからない」と言うと、どこかで小さく答える声がする。そのたびに、何かが一行、書き足される。</p>
+      <p>途中の状態は自動で残り、次に開くと続きから始まる。</p>
+      <div id="opt-row">
+        <button class="key" type="button" id="home-btn">起動画面へ</button>
+        <button class="key" type="button" id="snd-btn">音：入</button>
+        <button class="key" type="button" id="vib-btn">振動：入</button>
+      </div>
+      <div id="confirm-row">
+        <button class="key" type="button" id="restart-btn">はじめから</button>
+        <button class="key" type="button" id="restart-yes" hidden>本当にはじめから</button>
+        <button class="key" type="button" id="restart-no" hidden>やめる</button>
+      </div>
+      <p class="credit">素材：心理学の実験・理論・心理療法のノート（どの実験かは、事後説明で明かされる）、行動支援の資料（記録の取り方、ふるまいの見立て、見通し、表示と手がかり）、利用者が書いてきた物語の像（題名や名前は出さず、言い換えて混ぜた）。害のある手続きは再現せず、記録と声だけで示した。演出は階層目録の共通の fx.js。</p>
+      <button class="key" type="button" id="close-sheet">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script src="../fx.js"></script>
+<script>
+"use strict";
+// ==== ENGINE BEGIN ====
+// ゲーム本体。画面（DOM）・window・localStorage・navigator・FX には触らない（あとで時計版にできるように）。
+// io: { loadState(), saveState(obj), loadLoop(), saveLoop(obj), random() }（どれも、なくても失敗してもよい）
+// 演出のきっかけは fx() で返し、画面の側が鳴らす。
+function createGame(io) {
+  io = io || {};
+  const VERSION = 1;
+  const rand = () => {
+    try { if (typeof io.random === "function") { const v = +io.random(); if (v >= 0 && v < 1) return v; } } catch (e) { /* 既定の乱数 */ }
+    return Math.random();
+  };
+  const rnd = n => Math.floor(rand() * n);
+  const pick = a => a[rnd(a.length)];
+  const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
+  const text = v => (typeof v === "function" ? v() : v);
+
+  // ---- 結末（どれが正解かは、どこにも書かない） ----
+  const ENDINGS = { tekkai: "撤回", taishutsu: "退出", jigo: "事後説明", kansatsu: "観察者", kiroku: "記録", kakutei: "確定", iru: "居る" };
+  // 倫理規程の切れ端（七つ）
+  const FRAGS = {
+    frag_jigo: ["事後説明", "……欺く手続きを用いたときは、終わったあと、すみやかに本当のことを説明すること。……"],
+    frag_setsumei: ["説明", "……研究の目的と方法を、参加者に、前もって説明すること。……"],
+    frag_nini: ["任意", "……参加は、本人の自由な意思によること。選ばないことも、選択として尊重すること。……"],
+    frag_tekkai: ["撤回", "……参加者は、いつでも参加をやめられる。やめたことで、不利益を受けない。……"],
+    frag_tsuriai: ["釣り合い", "……参加者の負う危険が、研究で得られるものに見合っているか、たえず見直すこと。……"],
+    frag_privacy: ["秘密", "……参加者が誰であるかが、記録から分からないようにすること。……"],
+    frag_hogo: ["保護", "……自分から『やめる』と言いにくい参加者には、やめる手段を、その人に届く形で用意すること。……"],
+  };
+  const FRAG_IDS = Object.keys(FRAGS);
+  // 区画（配色と環境音の単位）と、深さ（起動画面の「最深」）
+  const DEPTH_NAME = ["控室", "地下一階", "鏡の裏", "地下二階", "資料室"];
+
+  // ---- 保存 ----
+  function loadSaved() { try { return io.loadState ? io.loadState() : null; } catch (e) { return null; } }
+  function writeSaved(obj) { try { if (io.saveState) io.saveState(obj); } catch (e) { /* 残せなくても遊べる */ } }
+  function loadLoop() {
+    let v = null;
+    try { v = io.loadLoop ? io.loadLoop() : null; } catch (e) { v = null; }
+    v = v && typeof v === "object" ? v : {};
+    return { n: +v.n || 0, ends: Array.isArray(v.ends) ? v.ends.filter(x => ENDINGS[x]) : [], deep: Math.max(0, Math.min(4, +v.deep || 0)), echo: Array.isArray(v.echo) ? v.echo.filter(x => typeof x === "string").slice(-6) : [] };
+  }
+  function saveLoop() { try { if (io.saveLoop) io.saveLoop(LOOP); } catch (e) { /* 残らなくても遊べる */ } }
+
+  // ---- 文章 ----
+  let rows = [], turnStart = 0, fxq = [];
+  function push(r) {
+    rows.push(r);
+    if (rows.length > 640) { const cut = rows.length - 480; rows.splice(0, cut); turnStart = Math.max(0, turnStart - cut); }
+  }
+  function say(t, cls) { for (const part of String(t).split("\n")) push({ t: "out", ja: part, cls: cls || "" }); }
+  const note = t => say(t, "note");
+  const warn = t => say(t, "warn");
+  const voice = t => say(t, "voice");
+  function gap() { if (rows.length && rows[rows.length - 1].t !== "gap") push({ t: "gap" }); }
+  // 演出のきっかけ（画面の側が読み、fx.js で鳴らす。時計版では振動などに置きかえる）
+  function emit(type, k) { fxq.push({ type, k }); }
+
+  // ---- 物 ----
+  const O = {};
+  function thing(id, def) {
+    const ascii = (def.aliases || []).find(a => /^[a-z][a-z0-9 ]*$/i.test(a));
+    const o = Object.assign({ id, loc: null, take: false, scenery: false, en: (ascii || id).toLowerCase(), aliases: [], on: {} }, def);
+    if (!o.aliases.includes(o.name)) o.aliases.unshift(o.name);
+    O[id] = o;
+  }
+  const held = id => !!O[id] && O[id].loc === "player";
+  const inRoom = id => !!O[id] && (O[id].loc === S.loc || O[id].loc === "player");
+  const fragCount = () => FRAG_IDS.filter(id => S.got[id]).length;
+
+  let S = null;
+  let LOOP = loadLoop();
+
+  // ---- 場所 ----
+  // exits は、扉などが開いていれば通れる方角。通れるかどうかは exitsNow() が決める
+  const ROOMS = {
+    hikae: { name: "控室", area: "uke", depth: 0, exits: { n: "uketsuke" },
+      desc: () => {
+        let t = "窓のない、細長い部屋。長椅子が三つ、どれも壁一面の大きな鏡のほうを向いて並んでいる。天井の蛍光灯は一本だけ、ほかより少し暗い。";
+        t += S.futari ? "\n長椅子の端に、ほかの参加者が二人。どちらも膝の雑誌に目を落としている。" : "\n長椅子には、もう誰もいない。";
+        t += "\n脇の小さな台に、質問紙。壁の下のほうに、通気口。";
+        t += S.hikaeDoor ? "\n北の扉は開いている。受付へ出られる。" : "\n北に、受付へ出る扉。扉に、貼り紙。";
+        if (S.smokeOn) t += "\n" + smokeLook();
+        return t;
+      } },
+    uketsuke: { name: "受付", area: "uke", depth: 1, exits: { s: "hikae", e: "rouka", w: "danwa" },
+      desc: () => "小さな受付。ガラスの小窓の向こうに、受付の人が一人。カウンターに呼び鈴。壁に、本日の流れを書いた掲示。壁ぎわに、紙コップの給水器。\n南に控室。東へ、廊下が続く。西の扉に『談話室』の札。" },
+    danwa: { name: "談話室", area: "danwa", depth: 1, exits: { e: "uketsuke" },
+      desc: () => "低いソファと、丸いテーブル。壁に、空の写真を貼った明かり箱が、窓のふりをしている。隅に、鉢植えが一つ。壁ぎわに、四つのボタンの並んだ板。壁の高いところに、スピーカー。" +
+        (S.music ? "\nどこからか、ピアノが小さく聞こえる。" : "\nピアノは、もう聞こえない。") + "\n東へ戻れば受付。" },
+    rouka: { name: "廊下", area: "rouka", depth: 1, exits: { w: "uketsuke", n: "monooki", s: "nitaku", e: "kaidan" },
+      desc: () => "まっすぐな廊下。蛍光灯が、端から端まで、同じ間隔でうなっている。\n北の扉に、浴室の絵の札。" +
+        (S.oshiOpen ? "南の引き戸は、開いている。" : S.oshiFixed ? "南の扉は、取っ手の窪みのとおりの引き戸だ。" : "南の扉に『押』の札。") +
+        "東の突き当たりに、緑の非常口の表示。\n西へ戻れば受付。" },
+    monooki: { name: "物置", area: "rouka", depth: 1, exits: { s: "rouka" },
+      desc: () => "狭い物置。浴室は、どこにもない。棚に、段ボール箱と、古い書類の束。\n南へ戻れば廊下。" },
+    nitaku: { name: "二つの扉の部屋", area: "rouka", depth: 1, exits: { n: "rouka", w: "kansatsu" },
+      desc: () => "がらんとした四角い部屋。正面の壁に、扉が二つ並んでいる。左の扉と、右の扉。そのあいだの壁に、貼り紙。" +
+        (S.nitakuOpen ? "\n" + (S.nitakuWay === "third" ? "二つの扉のあいだの壁が、戸の形に開いている。その先は、暗い、細い部屋。" : "右の扉が開いていて、その先に、暗い、細い部屋が見える。") + "（西）" : "") +
+        "\n北へ戻れば廊下。" },
+    kansatsu: { name: "観察室", area: "kan", depth: 2, exits: { e: "nitaku", s: "mensetsu" },
+      desc: () => "細長い、暗い部屋。西の壁が、一面のガラスになっている。ガラスの向こうは、控室だ。長椅子と、通気口と、北の扉。……こちらから見れば、あれは鏡ではない。\nガラスの前に、椅子が一脚。こちらに背を向けている。机の上で、記録計が細い線を引きつづけている。その横に、綴じた記録と、ゴム手袋。" +
+        "\n東に、来た戸。南に『面接室』の札のある扉。" + (S.mensetsuOpen ? "（開いている）" : "") },
+    mensetsu: { name: "面接室", area: "kan", depth: 2, exits: { n: "kansatsu" },
+      desc: () => "小さな部屋。机をはさんで、椅子が二脚。机の上に、封筒が一通。壁には、何も掛かっていない。天井の隅に、スピーカー。\n北へ戻れば観察室。" },
+    kaidan: { name: "階段", area: "kaidan", depth: 1, exits: { w: "rouka", u: "deguchi", d: "b2" },
+      desc: () => "コンクリートの階段室。非常灯の緑が、手すりを細く光らせている。上へ行けば、地上への扉。下へ行けば、地下二階。\n西に、廊下へ戻る扉。" },
+    deguchi: { name: "地上への扉", area: "deguchi", depth: 1, exits: { d: "kaidan", n: "OUT" },
+      desc: () => "階段のいちばん上。重い鉄の扉。扉の上の小さなランプが、緑に光っている。" +
+        (S.exitOpen ? "\n扉は開いている。向こうに、地上の光。（北）" : "") + "\n下へ戻れば階段。" },
+    b2: { name: "地下二階の廊下", area: "b2", depth: 3, exits: { u: "kaidan", n: "anshitsu", e: "sousa", w: "choushu", s: "boothmae" },
+      desc: () => "天井の低い廊下。配管が這っている。床に、色の褪せた線が何本も引かれ、それぞれの扉へ続いている。\n北に、黒い扉。東の扉に、目盛りの絵の札。西の扉に、耳の絵の札。南へ、廊下が折れている。上へ戻れば階段。" },
+    anshitsu: { name: "暗い部屋", area: "an", depth: 3, exits: { s: "b2" },
+      desc: () => S.anLight ? "灯りの点いた、狭い部屋。正面の壁に、黒い板が一枚。板の真ん中に、針で突いたような小さな穴。椅子が三脚、板のほうを向いて並んでいる。\n南へ戻れば廊下。" :
+        "真っ暗だ。正面の、少し高いところに、小さな光の点が一つだけ浮かんでいる。それ以外は、何も見えない。\n入ってきた扉の位置だけは、背中で覚えている。南。" },
+    sousa: { name: "目盛りの部屋", area: "sousa", depth: 3, exits: { w: "b2" },
+      desc: () => "狭い部屋。机の上に、横長の目盛り盤。目盛りが左から右へ、段々に刻まれている。つまみは" + (S.panel ? `、左から${["", "二", "三", "四", "五"][S.panel] || "五"}つめ` : "、いちばん左") + "。盤の上に、小さな表示窓。壁にスピーカー。机の端に、言葉の組を並べた表。\n西へ戻れば廊下。" },
+    choushu: { name: "聴く部屋", area: "chou", depth: 3, exits: { e: "b2" },
+      desc: () => "防音の壁に囲まれた、小さな部屋。机の上に、大きなヘッドホンが一つ。コードは机に埋めこまれている。机の端に、指示書。" + (S.phones ? "\nいま、ヘッドホンをかぶっている。" : "") + "\n東へ戻れば廊下。" },
+    boothmae: { name: "ブースの前", area: "booth", depth: 3, exits: { n: "b2", e: "kanshi", w: "shiryou", s: "booth" },
+      desc: () => "短い行き止まりの廊下。突き当たりに、小さなブースの扉。扉に『" + (S.boothOpen ? "空き" : "使用中") + "』の札。扉の下に、引き出しのような受け渡し口。\n" +
+        (S.light ? "天井の蛍光灯が、じりじりと鳴っている。" : "天井の蛍光灯は、消えている。非常灯の薄明かり。") + "壁の棚に、小さなラジオ" + (S.radio ? "が鳴っている" : "") + "。扉の横に、予定表。フックに記録用紙が掛かり、その下の小さな机に、判子立てと仮説カード。\n北へ戻れば廊下。東に『監視室』、西に『資料室』の扉。" },
+    booth: { name: "ブースの中", area: "booth", depth: 3, exits: { n: "boothmae" },
+      desc: () => "人ひとりぶんの、狭いブース。小さな机と、椅子が一脚。奥に、もう一つの戸。開いたままで、その先の通路は暗い。\n北へ戻ればブースの前。" },
+    kanshi: { name: "監視室", area: "kanshi", depth: 3, exits: { w: "boothmae" },
+      desc: () => "壁一面に、小さな画面が並んでいる。どれも灰色の、音のない映像。中央に、大きな丸い表示盤。針が一本、一目盛りずつ、間をおいて進んでいる。盤の下に、赤いボタン。椅子が一脚。壁に、監視の手順の貼り紙。\n西へ戻ればブースの前。" },
+    shiryou: { name: "資料室", area: "shiryou", depth: 4, exits: { e: "boothmae" },
+      desc: () => "天井まで届く棚に、ファイルと冊子がぎっしり並んでいる。埃の匂い。中央の机に、開いたままのファイルが一冊。棚の端に、索引カードの箱。奥の壁ぎわに、キャビネット" + (S.cabOpen ? "（開いている）" : "") + "。\n東へ戻ればブースの前。" },
+  };
+  const AREA_OF = loc => (ROOMS[loc] || {}).area || "uke";
+
+  // ---- 物の定義 ----
+  function initWorld() {
+    for (const k of Object.keys(O)) delete O[k];
+
+    // ==== 控室
+    thing("kagami", { name: "鏡", aliases: ["鏡", "大きな鏡", "mirror"], loc: "hikae", scenery: true,
+      desc: () => S.seenKan ? "壁一面の鏡。……その向こうに部屋があることを、あなたはもう知っている。鏡に映る自分の顔を、向こうの誰かが、正面から見ている。" :
+        "壁一面の大きな鏡。長椅子と、自分と、雑誌を読む二人が映っている。……まばたきが、鏡の中でだけ、ほんの少し遅れた気がする。",
+      on: { knock: () => { say("鏡を、軽く二回叩いた。硬い音が、思ったより奥まで響いた。……向こう側で、椅子がきしんだような気がした。"); return true; } } });
+    thing("bench", { name: "長椅子", aliases: ["長椅子", "ベンチ", "bench"], loc: "hikae", scenery: true,
+      desc: "合皮の長椅子。座面に、何人ぶんもの、同じ形のくぼみ。どれも、鏡のほうを向いて座るためのくぼみだ。",
+      on: { sit: () => { say("長椅子に座った。正面に、鏡の中の自分。……背筋が、勝手にのびる。"); return true; } } });
+    thing("futari", { name: "二人の参加者", aliases: ["二人の参加者", "二人", "参加者", "ほかの参加者", "others"], loc: "hikae", scenery: true, when: () => S.futari,
+      desc: () => S.smokeOn ? "煙が足もとに溜まっても、二人は顔を上げない。一人が、小さく咳をした。それだけだった。" :
+        "隣の長椅子の二人。年も服も違うのに、頁をめくる間隔だけがそろっている。こちらを見ない。",
+      on: { ask: () => { say("二人に、何の集まりなのか尋ねた。……一人が、雑誌から目を上げずに、首を横に振った。"); return true; } } });
+    thing("zasshi", { name: "雑誌", aliases: ["雑誌", "magazine"], loc: "hikae", scenery: true, when: () => S.futari,
+      desc: "二人の膝の雑誌は、同じ号の、同じ頁。見出しの字は、ここからは読めない。" });
+    thing("shitsumon", { name: "質問紙", aliases: ["質問紙", "質問", "事前の質問", "questionnaire"], loc: "hikae", scenery: true,
+      desc: () => "台の上の質問紙。表題は『事前の質問』。" + (S.qFill ? `〔　〕が、${S.qFill}つ埋まっている。` : ""),
+      read: () => qText() });
+    thing("pen", { name: "ボールペン", aliases: ["ボールペン", "ペン", "pen"], loc: "hikae", take: true,
+      desc: "ボールペン。軸に、小さく『ご記入用』と刷ってある。" });
+    thing("harigami", { name: "扉の貼り紙", aliases: ["扉の貼り紙", "貼り紙", "張り紙", "notice"], loc: "hikae", scenery: true,
+      desc: "北の扉の貼り紙。", read: "『記入が終わるまで、退室できません』\nその下に、鉛筆で、とても小さく。『できる』" });
+    thing("hdoor", { name: "北の扉", aliases: ["北の扉", "扉", "ドア", "door"], loc: "hikae", scenery: true,
+      desc: () => S.hikaeDoor ? "開いた扉。向こうに、受付の明かり。" : "受付へ出る扉。取っ手の上に、貼り紙。",
+      on: { open: () => openHikaeDoor(false), press: () => openHikaeDoor(false), pull: () => openHikaeDoor(false) } });
+    thing("vent", { name: "通気口", aliases: ["通気口", "煙", "vent"], loc: "hikae", scenery: true,
+      desc: () => S.smokeOn ? "通気口から、白い煙が細く流れこんでいる。焦げた匂いは、しない。" : S.smokeDone ? "通気口の羽根は、閉じている。" : "壁の下のほうの通気口。細い羽根が、すこしだけ開いている。" });
+    thing("spk1", { name: "スピーカー", aliases: ["スピーカー", "マイク", "speaker"], loc: "hikae", scenery: true,
+      desc: "天井の丸いスピーカー。網の横に、小さなマイクが埋めこんである。こちらの声も、拾われている。" });
+    thing("hikae_doc", { name: "同意書の控え", aliases: ["同意書の控え", "控え", "同意書", "consent copy"], loc: "player", take: true,
+      desc: "同意書の控え。字が細かすぎて、ほとんど読めない。読めるのは、いちばん下の署名の欄だけ。",
+      read: () => held("mushi") ? "虫眼鏡で、細かい字を追う。\n『参加者は、いつでも参加をやめることができます。やめても、不利益を受けることはありません』\n『目的：（終了後に説明）』『時間：適宜』『負担：適宜』『危険：適宜』\n『記録の閲覧者：（　）』\n署名の欄の字は、あなたの字だ。名前の欄にだけ、別の字で『A』と書き足してある。" :
+        "字が細かすぎて、読めない。何かの条項が、びっしり並んでいる。……署名の欄の字だけが、大きい。あなたの字に、よく似ている。名前の欄は、（　）のまま。" });
+
+    // ==== 受付
+    thing("uke", { name: "受付の人", aliases: ["受付の人", "受付", "人", "receptionist"], loc: "uketsuke", scenery: true,
+      desc: () => S.stillT > 0 ? "受付の人の顔が、笑ったまま止まっている。まばたきもしない。……ガラスの向こうの空気だけが、動いている。" :
+        S.swapped ? "受付の人。髪は短く、名札は右の胸。ペンを左手で持っている。こちらと目が合うと、笑顔になる。……笑い方だけは、前と同じだ。" :
+        "受付の人。髪を後ろで一つに結び、名札を左の胸につけている。ペンは右手。こちらと目が合うと、笑顔になる。名札の名前は、ガラスの反射で読めない。",
+      on: { ask: () => receptionAsk(), knock: () => { stillPoke("小窓を叩いた。"); return true; } } });
+    thing("bell", { name: "呼び鈴", aliases: ["呼び鈴", "ベル", "bell"], loc: "uketsuke", scenery: true,
+      desc: "銀色の呼び鈴。てっぺんが、何度も押されてすり減っている。",
+      on: { press: () => { if (stillPoke("呼び鈴を押した。ちん、と鳴った。")) return true; if (S.smokeOn) { reportSmoke("uke"); return true; } voice("「はい。A番の方、何でしょう」"); return true; } } });
+    thing("photoL", { name: "左の写真", aliases: ["左の写真", "左", "写真", "left photo"], loc: "uketsuke", scenery: true, when: () => S.photoStep === 1,
+      desc: "知らない人の顔写真。目もとが、少し眠そうだ。", on: { take: () => choosePhoto("l") } });
+    thing("photoR", { name: "右の写真", aliases: ["右の写真", "右", "写真", "right photo"], loc: "uketsuke", scenery: true, when: () => S.photoStep === 1,
+      desc: "知らない人の顔写真。口もとが、少し笑っている。", on: { take: () => choosePhoto("r") } });
+    thing("photoX", { name: "差し出された写真", aliases: ["差し出された写真", "写真", "photo"], loc: "uketsuke", scenery: true, when: () => S.photoStep === 3,
+      desc: () => "差し出された写真。" + (S.photoChosen === "l" ? "口もとが、少し笑っている。" : "目もとが、少し眠そうだ。") + "……あなたが選んだのは、この顔だったろうか。" });
+    thing("kyusui", { name: "給水器", aliases: ["給水器", "水", "紙コップ置き", "cooler"], loc: "uketsuke", scenery: true,
+      desc: "紙コップの給水器。ボタンを押すと、水が出る。",
+      on: { press: () => fillCup(), take: () => fillCup() } });
+    thing("cup", { name: "紙コップ", aliases: ["紙コップ", "コップ", "cup"], take: true,
+      desc: () => S.cupFull ? "水の入った紙コップ。" : "空の紙コップ。" });
+    thing("uwin", { name: "小窓", aliases: ["小窓", "窓", "ガラス", "window"], loc: "uketsuke", scenery: true,
+      desc: "受付のガラスの小窓。下に、書類を出し入れする隙間。",
+      on: { knock: () => { stillPoke("小窓を叩いた。"); return true; } } });
+    thing("keiji", { name: "掲示", aliases: ["掲示", "本日の流れ", "案内", "sign"], loc: "uketsuke", scenery: true,
+      desc: "壁の掲示。", read: "『本日の流れ　一、控室でお待ちください　二、地下で、いくつかの課題にご協力ください　三、面接室で、事後のご説明をいたします』\n三の行だけ、紙が新しい。" });
+    thing("mushi", { name: "虫眼鏡", aliases: ["虫眼鏡", "ルーペ", "magnifier"], take: true, desc: "柄の短い虫眼鏡。細かい字も、これなら読める。" });
+    thing("mkey", { name: "面接室の鍵", aliases: ["面接室の鍵", "鍵", "key"], take: true, desc: "小さな鍵。タグに『面接室』。" });
+
+    // ==== 談話室
+    thing("plant", { name: "鉢植え", aliases: ["鉢植え", "植物", "鉢", "葉", "plant"], loc: "danwa", scenery: true,
+      desc: () => ["葉が、だらりと垂れている。土が、白く乾いている。鉢に、小さな札が挿してある。", "水を吸った土が、黒い。葉が、少しだけ起きた。", "葉が、明かり箱の空のほうを向いている。"][S.plant] || "",
+      read: "鉢の札：『この鉢の世話は、あなたにお任せします』\n……この建物で、何かを任されたのは、これがはじめてだ。",
+      on: { water: () => waterPlant() } });
+    thing("btns", { name: "ボタンの板", aliases: ["ボタンの板", "ボタン", "操作板", "buttons"], loc: "danwa", scenery: true,
+      desc: "四つのボタン。『照明』『空調』『音量』『呼び出し』。どのボタンも、押された跡で白く光っている。",
+      on: { press: () => { S.btn++; say(pick(["押した。……部屋は、何ひとつ変わりはしない。なのに指が、もう一度押したがっている。", "別のボタンを押した。カチ、という手ごたえだけが返ってくる。部屋は、何も変わらない。", "『呼び出し』を押した。……どこか遠い階で、同じボタンを、誰かが押しつづけている音がする。"]));
+        if (S.btn === 3) addRec(1, "効果のないボタンを、押しつづけた", "固執"); return true; } } });
+    thing("spk2", { name: "スピーカー", aliases: ["スピーカー", "コード", "speaker"], loc: "danwa", scenery: true,
+      desc: () => S.speakerOff ? "コードの抜けたスピーカー。黙っている。" : "壁の高いところのスピーカー。コードが一本、壁の差しこみ口まで垂れている。手を伸ばしても、届かない。",
+      on: { douse: () => unplug(), take: () => unplug(), pull: () => unplug(), press: () => unplug() } });
+    thing("wallp", { name: "板張りの壁", aliases: ["板張りの壁", "壁", "ピアノ", "音楽", "wall"], loc: "danwa", scenery: true,
+      desc: () => S.music ? "ピアノは、スピーカーからではない。左の壁の、板張りの向こうから聞こえる。同じ曲が、ずっと。ところどころで、音が、疲れたように遅れる。" : "板張りの壁。向こうは、静かだ。ときどき、誰かが息をつく気配がする。",
+      on: { knock: () => { if (!S.music) { say("壁を、そっと叩いた。……向こうから、小さく、一度だけ返ってきた。"); return true; } say("板を二回叩いた。……曲が、すこし静かなものに変わった。向こうに、誰かがいる。ずっと、弾いている誰かが。"); return true; },
+        listenTo: () => { say(S.music ? "板に耳をつける。ピアノの音にまじって、椅子のきしむ音と、浅い息。弾いている人は、ずいぶん長いあいだ、休んでいないようだ。" : "板に耳をつける。……ゆっくりした寝息のような音。"); return true; } } });
+    thing("lightbox", { name: "明かり箱", aliases: ["明かり箱", "窓", "空", "lightbox"], loc: "danwa", scenery: true,
+      desc: "窓に見えるのは、空の写真を貼った明かり箱。写真の空は、いつまでも同じ午後のまま。" });
+    thing("sofa", { name: "ソファ", aliases: ["ソファ", "sofa"], loc: "danwa", scenery: true, desc: "低いソファ。座面が、ちょうどよく沈む。",
+      on: { sit: () => { danwaWait("sit"); return true; } } });
+
+    // ==== 廊下
+    thing("bdoor", { name: "浴室の絵の扉", aliases: ["浴室の絵の扉", "北の扉", "浴室の扉", "絵", "bath door"], loc: "rouka", scenery: true,
+      desc: "白地に、湯船の絵の札。……ここに浴室があるとは、思えない。",
+      on: { open: () => { say("扉は、ふつうに開いた。（北）"); return true; } } });
+    thing("odoor", { name: "南の扉", aliases: ["南の扉", "「押」の扉", "押の扉", "引き戸", "扉", "sliding door"], loc: "rouka", scenery: true,
+      desc: () => S.oshiOpen ? "開いた引き戸。" : S.oshiFixed ? "取っ手は、横に引く戸の細長い窪み。もう、札は嘘をついていない。" :
+        "『押』の札が貼られた扉。……でも取っ手は、横に引く戸の、細長い窪みだ。札だけが『押』と言っている。\n扉の前の床に、足跡がたくさん重なっている。押そうとした跡、引こうとした跡。",
+      on: { open: () => oshiOpen(), press: () => oshiOpen(), pull: () => oshiOpen(), slide: () => oshiOpen() } });
+    thing("oshifuda", { name: "「押」の札", aliases: ["「押」の札", "押の札", "札", "push sign"], loc: "rouka", scenery: true,
+      desc: () => S.oshiFixed ? "はがした『押』の札。裏に、古い糊のあと。……もう、どの扉のことも言っていない。" : "扉に貼られた『押』の札。端が、少しめくれている。",
+      on: { take: () => peelOshi(), pull: () => peelOshi() } });
+    thing("exitsign", { name: "非常口", aliases: ["非常口", "緑の表示", "東の扉", "exit sign"], loc: "rouka", scenery: true,
+      desc: "緑の非常口の表示。走る人の絵。その下の扉の向こうが、階段だ。この札だけは、たぶん嘘をついていない。" });
+    thing("keiko1", { name: "蛍光灯", aliases: ["蛍光灯", "明かり", "light"], loc: "rouka", scenery: true, desc: "うなりは、端から端まで、同じ高さ。" });
+    thing("ashiato", { name: "足跡", aliases: ["足跡", "床", "footprints"], loc: "rouka", scenery: true,
+      desc: () => S.oshiFixed ? "床の足跡は、もう重なり合っていない。まっすぐ、南の戸へ続いている。" : "南の扉の前で、足跡が何重にも往復している。誰も彼も、ここで迷った。" });
+
+    // ==== 物置
+    thing("blanks", { name: "白い札の束", aliases: ["白い札の束", "白い札", "札の束", "厚紙", "blank cards"], loc: "monooki", take: true,
+      desc: () => `何も書いていない、厚紙の札。残り${S.blanks}枚。ペンがあれば、字を書いて札にできる。` });
+    thing("stool", { name: "踏み台", aliases: ["踏み台", "台", "stool"], loc: "monooki", take: true,
+      desc: () => "軽い、二段の踏み台。" + (S.onStool ? "いま、その上に立っている。" : ""),
+      on: { climb: () => climbStool() } });
+    thing("oldforms", { name: "古い同意書の束", aliases: ["古い同意書の束", "書類の束", "古い同意書", "old forms"], loc: "monooki", scenery: true,
+      desc: "紐でくくった、古い同意書の束。",
+      read: () => "どの用紙も、署名の欄の字が、あなたの字に似ている。名前の欄には、どれも『A』とだけ。" + (LOOP.n > 1 ? "\n……束は、前に見たときより、厚くなっている気がする。" : "") });
+    thing("box", { name: "段ボール箱", aliases: ["段ボール箱", "箱", "box"], loc: "monooki", scenery: true,
+      desc: "空の段ボール箱。底に、鉛筆の字。", read: "『札は、扉に合わせるもの。扉を、札に合わせるのではなく』" });
+
+    // ==== 二つの扉の部屋
+    thing("ldoor", { name: "左の扉", aliases: ["左の扉", "左", "left door"], loc: "nitaku", scenery: true,
+      desc: "ふつうの扉。取っ手が、ちょうど手の高さにある。",
+      on: { open: () => leftDoor(), press: () => leftDoor(), pull: () => leftDoor() } });
+    thing("rdoor", { name: "右の扉", aliases: ["右の扉", "右", "取っ手", "right door"], loc: "nitaku", scenery: true,
+      desc: () => S.nitakuWay === "right" ? "開いた右の扉。" : "右の扉の取っ手は、背伸びしても届かない高さにある。" + (S.onStool ? "……踏み台の上からなら、届く。" : ""),
+      on: { open: () => rightDoor(), press: () => rightDoor(), pull: () => rightDoor() } });
+    thing("nharigami", { name: "貼り紙", aliases: ["貼り紙", "張り紙", "notice"], loc: "nitaku", scenery: true,
+      desc: "扉のあいだの貼り紙。", read: "『どちらでも、お好きな扉へお進みください』" });
+    thing("tdoor", { name: "取っ手のない戸", aliases: ["取っ手のない戸", "戸", "三つ目の戸", "third door"], loc: "nitaku", scenery: true, when: () => S.nitakuWay === "third",
+      desc: "二つの扉のあいだにあった、壁と同じ色の戸。いまは開いている。（西）" });
+
+    // ==== 観察室
+    thing("glass", { name: "ガラス", aliases: ["ガラス", "控室", "鏡", "window glass"], loc: "kansatsu", scenery: true,
+      desc: () => "ガラスの向こうの控室。長椅子は、どれもこちらを向いている。……向かされている。" +
+        (S.nextSeen ? "\n長椅子に、誰かが座っている。質問紙に、何か書いている。顔は伏せられて見えない。着ているものは、あなたのものに、よく似ている。" : "\nいまは、誰もいない。"),
+      on: { knock: () => { say(S.nextSeen ? "ガラスを叩いた。……長椅子の誰かは、顔を上げない。こちらからの音は、向こうへは届かないらしい。" : "ガラスを叩いた。向こうの控室には、誰もいない。"); return true; } } });
+    thing("ochair", { name: "背を向けた椅子", aliases: ["背を向けた椅子", "椅子", "chair"], loc: "kansatsu", scenery: true,
+      desc: "ガラスのほうを向いた椅子。こちらに背を向けている。……背中を見せているほうが、この椅子の正面なのだ。",
+      on: { sit: () => { sitObserver(); return true; } } });
+    thing("recorder", { name: "記録計", aliases: ["記録計", "針", "紙の帯", "recorder"], loc: "kansatsu", scenery: true,
+      desc: () => "紙の帯の上を、細い針が往復している。線は、あなたが動くたびに揺れる。帯の端に、小さな字で『A』。" + (S.rec >= 8 ? "\n針の動きが速い。帯の残りは、もう少ししかない。" : ""),
+      read: () => recorderText() });
+    thing("binder", { name: "観察記録", aliases: ["観察記録", "記録", "綴り", "binder"], loc: "kansatsu", scenery: true,
+      desc: "綴じた記録。表紙に『参加者 A』。閲覧者の欄は、（　）のまま。",
+      read: () => binderText(), on: { take: () => takeBinder(), rewrite: () => rewriteRecord() } });
+    thing("mdoor", { name: "面接室の扉", aliases: ["面接室の扉", "南の扉", "扉", "interview door"], loc: "kansatsu", scenery: true,
+      desc: () => S.mensetsuOpen ? "開いた扉。" : "『面接室』の札。錠が下りている。",
+      on: { open: () => openMensetsu() } });
+    thing("glove", { name: "ゴム手袋", aliases: ["ゴム手袋", "手袋", "手", "glove"], loc: "kansatsu", scenery: true,
+      desc: () => S.glove >= 2 ? "机の上の、あなたの手。……いや、ゴム手袋だ。指をそろえて、手のひらを上にしている。" : "肌色のゴム手袋が一つ。指をそろえて、手のひらを上にして置いてある。" });
+    thing("osheet", { name: "白い記録用紙", aliases: ["白い記録用紙", "用紙", "observation sheet"], loc: "kansatsu", scenery: true, when: () => S.sat,
+      desc: "机の上の、白い記録用紙。『参加者：（　）』『A：』『B：』『C：』。ペン立てに、ペンが一本。" });
+
+    // ==== 面接室
+    thing("envelope", { name: "封筒", aliases: ["封筒", "事後説明", "envelope"], loc: "mensetsu", scenery: true,
+      desc: "封筒の表に『事後説明』。七つの欄が並んでいる。", read: () => envelopeText() });
+    thing("mchair", { name: "椅子", aliases: ["椅子", "chair"], loc: "mensetsu", scenery: true, desc: "こちら側の椅子。向かいの椅子は、空いている。",
+      on: { sit: () => { mensetsuSit(); return true; } } });
+
+    // ==== 階段・地上への扉
+    thing("tesuri", { name: "手すり", aliases: ["手すり", "railing"], loc: "kaidan", scenery: true, desc: "冷たい手すり。上のほうだけ、手の脂で光っている。何人もが、上の扉まで行って、引き返してきた。" });
+    thing("annai", { name: "案内板", aliases: ["案内板", "案内", "guide"], loc: "kaidan", scenery: true, desc: "『↑ 地上　↓ B2』。それだけ。" });
+    thing("edoor", { name: "鉄の扉", aliases: ["鉄の扉", "扉", "取っ手", "door"], loc: "deguchi", scenery: true,
+      desc: "重い鉄の扉。押し開けるための、横長の取っ手。……見た目からは、開いているのか、閉じているのか、見分けがつかない。",
+      on: { open: () => tryExit(), press: () => tryExit(), pull: () => tryExit() } });
+    thing("lamp", { name: "緑のランプ", aliases: ["緑のランプ", "ランプ", "lamp"], loc: "deguchi", scenery: true,
+      desc: "扉の上の緑のランプ。……緑は『出なさい』の色ではない。『出てもよい』の色だ。ずっと前から、同じ色で光っている。" });
+    thing("soto", { name: "外", aliases: ["外", "光", "outside"], loc: "deguchi", scenery: true, when: () => S.exitOpen,
+      desc: "扉の向こうに、地上の光。風の匂い。" });
+
+    // ==== 地下二階
+    thing("lines", { name: "床の線", aliases: ["床の線", "線", "床", "lines"], loc: "b2", scenery: true,
+      desc: "線の色は褪せて、もう見分けられない。どの線も、いったん同じ一点を通ってから、それぞれの扉へ向かっている。" });
+    thing("pipes", { name: "配管", aliases: ["配管", "pipes"], loc: "b2", scenery: true, desc: "天井を這う配管。ところどころに、古い札。『消去』と書いた札だけが、剥がされている。" });
+
+    // ==== 暗い部屋
+    thing("point", { name: "光の点", aliases: ["光の点", "光", "点", "light point"], loc: "anshitsu", scenery: true,
+      desc: () => S.anLight ? "黒い板にあけた、小さな穴。その後ろに豆電球。板は、壁にねじで留めてある。……一度も、動いていない。" : swayText() });
+    thing("voices", { name: "声", aliases: ["声", "voices"], loc: "anshitsu", scenery: true, when: () => !S.anLight,
+      desc: "暗闇の、少し離れたところから聞こえる声。何人かいる。どの声も、光がどれだけ動いたかを話している。" });
+    thing("walls", { name: "壁", aliases: ["壁", "walls"], loc: "anshitsu", scenery: true,
+      desc: () => S.anLight ? "ふつうの壁。扉の横に、灯りのスイッチ。" : (S.anSwitch ? "壁をたどると、さっきのスイッチに指が触れる。" : findSwitch()),
+      on: { press: () => { if (!S.anLight && !S.anSwitch) { say(findSwitch()); return true; } return false; } } });
+    thing("switch", { name: "スイッチ", aliases: ["スイッチ", "switch"], loc: "anshitsu", scenery: true, when: () => S.anSwitch || S.anLight,
+      desc: () => S.anLight ? "灯りのスイッチ。入っている。" : "壁のスイッチ。指先で、形だけが分かる。",
+      on: { press: () => anLightOn("switch"), light: () => anLightOn("switch") } });
+    thing("board", { name: "黒い板", aliases: ["黒い板", "板", "穴", "board"], loc: "anshitsu", scenery: true, when: () => S.anLight,
+      desc: "黒く塗った板。真ん中の小さな穴の後ろに、豆電球。板の下の端に、手続き書がテープで留めてある。" });
+    thing("proc", { name: "手続き書", aliases: ["手続き書", "紙", "procedure"], loc: "anshitsu", scenery: true, when: () => S.anLight,
+      desc: "板に留めた、一枚の紙。", read: () => { const t = "『手続き：暗いところに、止まった光をひとつ置く。止まった光は、しばらく見ていると、動いて見える。ひとりのとき、何人かのときに、光がどれだけ動いたかを答えてもらう』\n『答えは、だんだん、ほかの人の答えに近づいていく』"; revealFrag("frag_setsumei", "手続き書をめくると、裏に、紙片が一枚貼りついていた。"); return t; } });
+    thing("achairs", { name: "三脚の椅子", aliases: ["三脚の椅子", "椅子", "chairs"], loc: "anshitsu", scenery: true, when: () => S.anLight,
+      desc: "三脚とも、空の椅子。座面の下に、小さなスピーカーが一つずつ。声は、ここから出ていた。" });
+
+    // ==== 目盛りの部屋
+    thing("banel", { name: "目盛り盤", aliases: ["目盛り盤", "盤", "目盛り", "panel"], loc: "sousa", scenery: true,
+      desc: () => S.panelStop ? "灯りの消えた目盛り盤。つまみは、もう回らない。" : "横長の盤。目盛りが、左から右へ、段々に刻まれている。どの段にも、数字はない。右へ行くほど、刻みが太い。",
+      on: { press: () => turnKnob(), turn: () => turnKnob() } });
+    thing("knob", { name: "つまみ", aliases: ["つまみ", "knob"], loc: "sousa", scenery: true,
+      desc: () => S.panelStop ? "動かないつまみ。" : "黒いつまみ。いまは" + (S.panel ? `左から${["", "二", "三", "四", "五"][S.panel] || "五"}つめ` : "いちばん左") + "。",
+      on: { turn: () => turnKnob(), press: () => turnKnob(), pull: () => turnKnob() } });
+    thing("display", { name: "表示窓", aliases: ["表示窓", "表示", "display"], loc: "sousa", scenery: true,
+      desc: () => S.panelStop ? "表示窓：（回答者：なし）" : S.panel >= 3 ? "表示窓：（回答なし）" : "表示窓：（回答：まちがい）" });
+    thing("spk3", { name: "スピーカー", aliases: ["スピーカー", "声", "speaker"], loc: "sousa", scenery: true,
+      desc: "壁のスピーカー。声は、いつも同じ高さ、同じ間で話す。" });
+    thing("pairs", { name: "言葉の組の表", aliases: ["言葉の組の表", "表", "word list"], loc: "sousa", scenery: true,
+      desc: "言葉の組を並べた表。", read: "『しろい—くも』『ながい—よる』『つめたい—て』……\n右の列に、答えの印。印は、表の最後まで、はじめから書きこまれている。まちがいの印ばかりが。" });
+
+    // ==== 聴く部屋
+    thing("phones", { name: "ヘッドホン", aliases: ["ヘッドホン", "headphones"], loc: "choushu", scenery: true,
+      desc: () => S.phones ? "いま、かぶっている。右と左で、別の声がする。" : "左右で別の音が出る、古いヘッドホン。コードは机に埋めこまれていて、持ち出せない。",
+      on: { wear: () => wearPhones(), take: () => wearPhones(), remove: () => removePhones() } });
+    thing("shiji", { name: "指示書", aliases: ["指示書", "instructions"], loc: "choushu", scenery: true,
+      desc: "机の端の指示書。", read: "『右の声を、聞いたとおりにくり返してください。左の声は、気にしないでください』" });
+
+    // ==== ブースの前
+    thing("bthdoor", { name: "ブースの扉", aliases: ["ブースの扉", "ブース", "扉", "booth door"], loc: "boothmae", scenery: true,
+      desc: () => S.boothOpen ? "札は『空き』。扉は、開けられる。" : "『使用中』の札。扉の向こうに、誰かがいる。取っ手は、こちらからは回らない。",
+      on: { open: () => { if (S.boothOpen) { say("扉は、すっと開いた。（南）"); return true; } say("取っ手は、こちら側からは回らない。……札の『使用中』は、本当らしい。"); return true; },
+        press: () => { punish("door"); return true; }, knock: () => { boothKnockBack(); return true; } } });
+    thing("bwall", { name: "薄い壁", aliases: ["薄い壁", "壁", "wall"], loc: "boothmae", scenery: true,
+      desc: "ブースの薄い壁。向こうの音が、そのまま響いてくる。",
+      on: { knock: () => { boothKnockBack(); return true; }, press: () => { punish("door"); return true; } } });
+    thing("hatch", { name: "受け渡し口", aliases: ["受け渡し口", "引き出し", "口", "hatch"], loc: "boothmae", scenery: true, container: true,
+      desc: () => { const ins = Object.values(O).filter(o => o.loc === "hatch"); return "扉の下の、引き出しのような受け渡し口。両側から引ける。" + (S.hatchShut ? "いまは、こちら側から閉めてある。" : "") + (ins.length ? "中に、" + ins.map(o => o.name).join("、") + "。" : "中は、空。"); },
+      on: { close: () => { punish("hatch"); return true; }, open: () => { if (S.hatchShut) { S.hatchShut = false; say("受け渡し口を、開けなおした。"); return true; } say("受け渡し口は、開いている。"); return true; } } });
+    thing("bkeiko", { name: "蛍光灯", aliases: ["蛍光灯", "明かり", "light"], loc: "boothmae", scenery: true,
+      desc: () => S.light ? "じりじりと鳴る蛍光灯。ときどき、細かく瞬く。スイッチは、すぐ手の届くところにある。" : "消した蛍光灯。",
+      on: { douse: () => setLight(false), light: () => setLight(true), press: () => setLight(!S.light) } });
+    thing("radio", { name: "ラジオ", aliases: ["ラジオ", "radio"], loc: "boothmae", scenery: true,
+      desc: () => S.radio ? "小さなラジオ。静かな曲が、小さく流れている。" : "黙ったラジオ。",
+      on: { douse: () => setRadio(false), light: () => setRadio(true), press: () => setRadio(!S.radio), turn: () => setRadio(!S.radio) } });
+    thing("yotei", { name: "予定表", aliases: ["予定表", "schedule"], loc: "boothmae", scenery: true,
+      desc: "ブースの中の人の予定表。", read: "『いま：書き取り　→　つぎ：計算　→　そのつぎ：聞き取り　→　待機』\nどの欄も、時間は『適宜』とだけ書いてある。いつ終わるのかは、どこにも書いていない。" });
+    thing("abc", { name: "記録用紙", aliases: ["記録用紙", "ABC", "用紙", "abc sheet"], loc: "boothmae", take: true,
+      desc: "A・B・C の三つの欄のある記録用紙。A は直前に起きたこと、B はふるまいそのもの、C は直後に変わったこと。",
+      read: () => abcText() });
+    thing("hcard", { name: "仮説カード", aliases: ["仮説カード", "カード", "見立て", "hypothesis card"], loc: "boothmae", take: true,
+      desc: "仮説カード。『見立て：（　）』の一行と、判を押す欄。", read: () => hcardText() });
+    thing("st_iji", { name: "維持の判", aliases: ["維持の判", "維持", "stamp keep"], loc: "boothmae", scenery: true, desc: "『維持』の判子。", on: { press: () => stamp("iji") } });
+    thing("st_shusei", { name: "修正の判", aliases: ["修正の判", "修正", "stamp revise"], loc: "boothmae", scenery: true, desc: "『修正』の判子。", on: { press: () => stamp("shusei") } });
+    thing("st_horyu", { name: "保留の判", aliases: ["保留の判", "保留", "stamp hold"], loc: "boothmae", scenery: true, desc: "『保留』の判子。", on: { press: () => stamp("horyu") } });
+    thing("stand", { name: "判子立て", aliases: ["判子立て", "判子", "stamps"], loc: "boothmae", scenery: true,
+      desc: "三本の判子。『維持』『修正』『保留』。四本目の穴だけが、空いている。……そこに入るはずの判子は、どこにもない。ペンで書けば、同じことになるのかもしれない。" });
+    thing("spk4", { name: "スピーカー", aliases: ["スピーカー", "放送", "speaker"], loc: "boothmae", scenery: true, desc: "天井のスピーカー。ブースの中への放送も、ここから聞こえる。" });
+    // 札（書いてできる）
+    thing("c_kyukei", { name: "「休憩」の札", aliases: ["「休憩」の札", "休憩の札", "休憩", "rest card"], take: true, desc: "厚紙の札。あなたの字で『休憩』。", word: "休憩" });
+    thing("c_yonde", { name: "「よんで」の札", aliases: ["「よんで」の札", "よんでの札", "よんで", "call card"], take: true, desc: "厚紙の札。あなたの字で『よんで』。", word: "よんで" });
+    thing("c_mou", { name: "「もう一度」の札", aliases: ["「もう一度」の札", "もう一度の札", "もう一度", "again card"], take: true, desc: "厚紙の札。あなたの字で『もう一度』。", word: "もう一度" });
+    thing("c_owari", { name: "「おわり」の札", aliases: ["「おわり」の札", "おわりの札", "おわり", "end card"], take: true,
+      desc: () => "厚紙の札。あなたの字で『おわり』。" + (S.owariBack ? "裏に、鉛筆の小さな丸が一つ。" : ""), word: "おわり" });
+    thing("c_hiku", { name: "「引」の札", aliases: ["「引」の札", "引の札", "引く", "pull card"], take: true, desc: "厚紙の札。あなたの字で『引』。", word: "引く" });
+    // ブースの中
+    thing("btable", { name: "小さな机", aliases: ["小さな机", "机", "札の列", "table"], loc: "booth", scenery: true,
+      desc: () => "小さな机。あなたが差し入れた札が、きちんと一列に並べてある。" + (O.frag_hogo.loc === "booth" ? "その端に、紙片が一枚。" : "") });
+
+    // ==== 監視室
+    thing("dial", { name: "表示盤", aliases: ["表示盤", "針", "盤", "dial"], loc: "kanshi", scenery: true,
+      desc: () => "丸い表示盤。目盛りは百。針が、一目盛りずつ進む。" + (S.vig >= 7 ? "……針が、にじんで見える。" : "") });
+    thing("redbtn", { name: "赤いボタン", aliases: ["赤いボタン", "ボタン", "button"], loc: "kanshi", scenery: true,
+      desc: "表示盤の下の、赤いボタン。", on: { press: () => pressRed() } });
+    thing("screens", { name: "画面", aliases: ["画面", "モニター", "映像", "screens"], loc: "kanshi", scenery: true, desc: () => screensText() });
+    thing("mrules", { name: "監視の手順", aliases: ["監視の手順", "貼り紙", "手順", "rules"], loc: "kanshi", scenery: true,
+      desc: "壁の貼り紙。", read: "『監視の手順　一、画面から目を離さない。二、針が二つ進んだら、すぐにボタン。三、交代は、ない』\n三の行に、誰かが鉛筆で線を引いている。" });
+    thing("kchair", { name: "椅子", aliases: ["椅子", "chair"], loc: "kanshi", scenery: true, desc: "表示盤の前の椅子。背もたれが、すり切れている。",
+      on: { sit: () => { kanshiRest(); return true; } } });
+
+    // ==== 資料室
+    thing("reports", { name: "報告書", aliases: ["報告書", "照明の報告書", "reports"], loc: "shiryou", scenery: true,
+      desc: "工場の照明について書いた報告書が二通、並べて綴じてある。",
+      read: "一通目：『照明を明るくすると、作業の量が増えた』\n二通目：『照明を暗くしても、作業の量は増えた。見られていたこと自体が、作業を変えたのではないか』\n付箋：『もとの記録からは、どちらとも言えない』" });
+    thing("booklets", { name: "検査冊子", aliases: ["検査冊子", "冊子", "booklets"], loc: "shiryou", scenery: true,
+      desc: "同じ検査の冊子が、版ごとに三冊。", read: "表紙の『用途』の欄だけが、版ごとに違う。\n初版：『学校で、手助けの要る子を見つけるため』　扉に、ビネとシモンの名。\n次の版：『選別』\nその次の版：『隔離』\n……中の問題は、どの版も、ほとんど同じだ。" });
+    thing("ledgers", { name: "二冊の記録", aliases: ["二冊の記録", "二冊", "行動", "活動", "ledgers"], loc: "shiryou", scenery: true,
+      desc: "背表紙に『行動』と『活動』。同じ人について書いた、二冊の記録。",
+      read: "二冊を並べて開く。\n『行動』の冊には、日付ごとに『減少』『減少』『穏やか』『減少』。\n『活動』の冊は、同じ日付から先が、白い。何をしたか、誰と話したか、何を選んだか。どの欄も、その日から、白いまま。" });
+    thing("nisshi", { name: "古い日誌", aliases: ["古い日誌", "日誌", "log"], loc: "shiryou", scenery: true,
+      desc: "表紙の擦りきれた日誌。", read: "毎日、同じ一行。『穏やかに過ごされた』。何十日も、同じ字、同じ言いまわし。\n……ある日から、その一行もなくなり、日付だけが続いている。" });
+    thing("bfile", { name: "開いたファイル", aliases: ["開いたファイル", "ファイル", "氏名", "名前", "file"], loc: "shiryou", scenery: true,
+      desc: () => S.redacted ? "開いたファイル。氏名の欄は、黒く塗りつぶしてある。" : "開いたままのファイル。表紙の氏名の欄に、知らない人の名前が、はっきり書いてある。",
+      read: () => readBFile(), on: { redact: () => redact(), douse: () => redact() } });
+    thing("cab", { name: "キャビネット", aliases: ["キャビネット", "錠", "cabinet"], loc: "shiryou", scenery: true, container: true,
+      desc: () => S.cabOpen ? "開いたキャビネット。" : "鍵のかかったキャビネット。錠のかわりに、字を合わせる小さな窓。上に、鉛筆の書きこみ。",
+      read: () => S.cabOpen ? "（開いている）" : "『合言葉：右の耳で、一度も読まれなかった言葉』",
+      on: { open: () => { if (S.cabOpen) { say("キャビネットは、開いている。"); return true; } say("錠は、字を合わせないと開かない。合言葉を、言えばいいのだろうか。"); return true; } } });
+    thing("index", { name: "索引カード", aliases: ["索引カード", "索引", "index cards"], loc: "shiryou", scenery: true,
+      desc: "索引カードの箱。", read: "索引カード。人の名前の欄は、どれも切り取ってある。\n・待合：煙と、平然とした他人（1968）\n・暗い部屋：止まった光が、動いて見える（1936）\n・目盛り：指示と、段階的な目盛り（1963）\n・監視：まれな跳躍の見張り（1948）\n・聴く部屋：左右の耳に別の声（1953・1959）／雑音で消えた音を補う（1970）／言葉の一覧と、読まれなかった言葉（1995）\n・受付：選んだ写真のすり替え（2005）／遮られたあとの入れ替わり（1997）／笑顔の止まる場面（1978）\n・地下二階：音と揺れの組み合わせ（1920。消去の手続きは、なかった）" });
+    thing("consentB", { name: "同意書の綴り", aliases: ["同意書の綴り", "綴り", "原本", "consent binder"], loc: "cab", scenery: true,
+      desc: "参加者の同意書の原本を綴じたもの。", read: "どの原本も、名前の欄は『A』。署名の字だけが、一枚ずつ違う。……あなたの字の一枚が、いちばん上にある。",
+      on: { take: () => takeGenpon() } });
+    thing("genpon", { name: "同意書の原本", aliases: ["同意書の原本", "原本", "original"], take: true,
+      desc: "あなたの署名のある、同意書の原本。名前の欄には『A』と、あとから書き足した跡。", read: "細かい字は控えと同じ。いちばん下に、控えにはなかった一行。『この同意は、いつでも撤回できる。撤回したとき、記録は本人に返す』" });
+    thing("tproc", { name: "本当の手続き書", aliases: ["本当の手続き書", "手続き書", "true procedure"], loc: "cab", scenery: true,
+      desc: "キャビネットの奥の、厚い手続き書。", read: () => tprocText() });
+    // 切れ端
+    for (const id of FRAG_IDS) {
+      const [w, body] = FRAGS[id];
+      thing(id, { name: `切れ端「${w}」`, aliases: [`切れ端「${w}」`, `${w}の切れ端`, "切れ端", "紙片", "fragment " + id.slice(5)], take: true,
+        desc: "倫理規程の切れ端。破りとった紙の一部。", read: body, frag: true });
+    }
+    thing("myrec", { name: "あなたの記録", aliases: ["あなたの記録", "記録の束", "my record"], take: true,
+      desc: "綴りから外した、あなたについての記録の束。", read: () => binderText() });
+    thing("nijimi", { name: "にじみ", aliases: ["にじみ", "字の群れ", "染み", "ink"], scenery: true,
+      desc: () => "インクのにじみのような、小さな字の群れ。顔を寄せれば、どれも言葉だ。『" + (Array.from(new Set(labelWords())).slice(-3).join("』『") || "わざと") + "』……人ではない。ラベルが、ひとりでに這っている。" });
+  }
+
+  // ---- 状態 ----
+  const FUNCS = ["escape", "attention", "tangible", "sensory"];
+  const FN_JA = { escape: "逃避", attention: "注目", tangible: "要求", sensory: "感覚" };
+  const JA_FN = { "逃避": "escape", "注目": "attention", "要求": "tangible", "感覚": "sensory" };
+  const FN_CARD = { escape: "c_kyukei", attention: "c_yonde", tangible: "c_mou" };
+  function newState() {
+    initWorld();
+    S = { loc: "hikae", moves: 0, done: false, ending: null, seen: {}, visited: { hikae: true }, deep: 0, got: {}, prev: null,
+      rec: 0, entries: [], stops: 0, asks: {}, hints: 0, named: false,
+      // 控室
+      futari: true, hikaeDoor: false, smokeOn: false, smoke: 0, smokeDone: false, smokeAway: 0, debriefed: false, qFill: 0,
+      // 受付
+      photoStep: 0, photoChosen: null, photoAt: 0, stillT: 0, stillDone: false, swapped: false, swapNoticed: false,
+      cupFull: false,
+      // 談話室
+      plant: 0, btn: 0, speakerOff: false, music: true, rest: 0,
+      // 廊下・物置・二つの扉
+      oshiFixed: false, oshiOpen: false, blanks: 6, onStool: false, nitakuOpen: false, nitakuWay: null, nitakuLed: false,
+      // 観察室・面接室
+      seenKan: false, nextSeen: false, sat: false, glove: 0, mensetsuOpen: false,
+      // 地上への扉
+      exitTries: 0, exitOpen: false,
+      // 地下二階（合図の音）
+      pairs: 0, toneDue: false, expo: 0, extinct: false,
+      // 暗い部屋
+      anLight: false, anSwitch: false, anSway: 0, anAns: 0,
+      // 目盛りの部屋
+      panelOn: false, panel: 0, panelStop: false,
+      // 聴く部屋
+      phones: false, heardList: false, leftN: 0, heardExit: false, nameQ: false, shadow: 0,
+      // 監視室
+      vig: 0, jumpJust: false, caught: false,
+      // ブース
+      F: pick(FUNCS), epT: 0, epOrder: [], obs: [], hyp: null, hypTrap: false, light: true, radio: true, hatchShut: false,
+      dim: 0, escal: 0, obsSince: 0, fEp: 0, fKnock: 0, calm: false, owariGiven: false, owariBack: false, boothOpen: false, stamps: [], urged: 0,
+      // 資料室
+      redacted: false, readB: false, cabOpen: false, wrongPw: 0,
+      // にじみ
+      nj: null, njHere: 0, njHold: 0, njT: 0,
+      hist: [] };
+  }
+  const SAVED_FIELDS = ["loc"];
+  function snapshot() {
+    const objs = {};
+    for (const o of Object.values(O)) objs[o.id] = { loc: o.loc, scenery: !!o.scenery };
+    return { v: VERSION, S, objs, log: rows.slice(-300) };
+  }
+  // 版の違う保存・壊れた保存は、続きにしない。はじめから
+  function restore(data) {
+    if (!data || typeof data !== "object" || data.v !== VERSION || !data.S || typeof data.S !== "object" || !ROOMS[data.S.loc]) return false;
+    try {
+      newState();
+      const base = S;
+      S = Object.assign(base, data.S);
+      for (const k of ["seen", "visited", "got", "asks"]) if (!S[k] || typeof S[k] !== "object" || Array.isArray(S[k])) S[k] = {};
+      for (const k of ["entries", "obs", "epOrder", "hist", "stamps"]) if (!Array.isArray(S[k])) S[k] = [];
+      if (!FUNCS.includes(S.F)) S.F = pick(FUNCS);
+      if (typeof S.rec !== "number" || !isFinite(S.rec)) S.rec = 0;
+      if (S.nj && !ROOMS[S.nj]) S.nj = null;
+      for (const [id, st] of Object.entries(data.objs || {})) {
+        if (!O[id] || !st || typeof st !== "object") continue;
+        if (st.loc === null || st.loc === "player" || ROOMS[st.loc] || O[st.loc]) O[id].loc = st.loc;
+        if (typeof st.scenery === "boolean") O[id].scenery = st.scenery;
+      }
+      return true;
+    } catch (e) { return false; }
+  }
+
+  // ---- 記録（あなたについて） ----
+  // 記録は、あなたのふるまいを一行ずつ書く。B の欄に、事実と解釈をまぜて
+  function stage() { return S.rec >= 8 ? 2 : S.rec >= 4 ? 1 : 0; }
+  function labelWords() { return S.entries.filter(e => !e.rw && e.l).map(e => e.l); }
+  function nameField() { return S.named ? "（あなたの字。にじんで読めない）" : stage() >= 1 ? "A" : "（　）"; }
+  function addRec(n, fact, label) {
+    if (S.done) return;
+    const before = stage();
+    S.rec = Math.max(0, S.rec + n);
+    S.entries.push({ f: fact, l: label || "", rw: false });
+    if (S.entries.length > 40) S.entries.shift();
+    say(`（記録：B「${label ? label + "。" : ""}${fact}」）`, "rec");
+    emit("pen");
+    const after = stage();
+    if (S.rec >= 12) { endKiroku(); return; }
+    if (S.rec === 10) warn("記録計の針の音が、どこにいても聞こえる。紙の帯の残りは、あと二行ぶんほどしかない。");
+    else if (S.rec === 11) warn("あと一行。……次に何か書かれたら、帯は終わる。");
+    if (after > before) {
+      if (after === 1) { warn("どこかで、誰かが言った。『A番の方』。……それが自分のことだと、すぐに分かってしまった。"); emit("stage", 1); }
+      if (after === 2) { warn("名札がついた。見えないけれど、分かる。これからは、何をしても、別の言葉で書かれる。"); emit("stage", 2); }
+    }
+  }
+  function rewriteRecord() {
+    if (!held("pen")) { say("書き直すには、ペンが要る。"); return true; }
+    const e = S.entries.slice().reverse().find(x => !x.rw && x.l);
+    if (!e) { say("書き直せる行は、もうない。残っているのは、事実だけだ。"); return true; }
+    e.rw = true;
+    const before = stage();
+    S.rec = Math.max(0, S.rec - 1);
+    say(`B の欄の『${e.l}』に、二重線を引いた。そして、仮説の欄に、小さく書いた。『${e.l}？——まだ、分からない』\nB の欄には、事実だけが残る。『${e.f}』`);
+    say("……記録計の針が、一瞬、止まった。", "note");
+    emit("rewrite");
+    if (stage() < before && stage() < 1 && S.nj) { S.nj = null; note("どこかで、紙のこすれる音がやんだ。"); }
+    return true;
+  }
+  function recorderText() {
+    const last = S.entries.slice(-4);
+    if (!last.length) return "紙の帯には、まだ線しかない。";
+    return "紙の帯の、いちばん新しいところ。\n" + last.map(e => "・" + (e.rw ? `B：${e.f}　（仮説：${e.l}？）` : `B：${e.l ? "（" + e.l + "）" : ""}${e.f}`)).join("\n");
+  }
+  function binderText() {
+    const lines = ["観察記録　参加者 A", "閲覧者：（　）　名前：" + nameField()];
+    const es = S.entries.slice(-10);
+    if (!es.length) lines.push("（まだ、一行もない）");
+    for (const e of es) lines.push("・" + (e.rw ? `B：${e.f}　仮説の欄：${e.l}？` : `B：${e.l ? "（" + e.l + "）" : ""}${e.f}`));
+    const lw = labelWords();
+    lines.push("所見：" + (lw.length ? Array.from(new Set(lw)).join("・") : "（なし）"));
+    if (LOOP.echo.length) lines.push("……綴りのいちばん奥に、前の A についての行。『" + LOOP.echo[LOOP.echo.length - 1] + "』");
+    return lines.join("\n");
+  }
+
+  // ---- 表示 ----
+  function visible() {
+    const out = [];
+    for (const o of Object.values(O)) {
+      if (o.id === "nijimi") continue;
+      if (o.loc !== S.loc && o.loc !== "player") continue;
+      if (o.when && !o.when()) continue;
+      out.push(o);
+      if (o.container && (o.id !== "cab" || S.cabOpen)) for (const c of Object.values(O)) if (c.loc === o.id) out.push(c);
+    }
+    if (S.nj === S.loc) out.push(O.nijimi);
+    return out;
+  }
+  function describe(full) {
+    const r = ROOMS[S.loc];
+    say(r.name, "title");
+    if (full || !S.seen[S.loc]) say(text(r.desc));
+    S.seen[S.loc] = true;
+    const loose = Object.values(O).filter(o => o.loc === S.loc && !o.scenery && (!o.when || o.when()));
+    if (loose.length) say("ここに、" + loose.map(o => o.name).join("、") + "がある。");
+    if (O.stool.loc === S.loc && S.onStool) note("（踏み台の上に立っている）");
+    if (S.nj === S.loc) warn("壁の染みが、こちらへ広がってくる。……染みではない。小さな字の群れだ。");
+  }
+  function exitsNow() {
+    const ex = Object.assign({}, ROOMS[S.loc].exits);
+    if (S.loc === "hikae" && !S.hikaeDoor) delete ex.n;
+    if (S.loc === "rouka" && !S.oshiOpen) delete ex.s;
+    if (S.loc === "nitaku" && !S.nitakuOpen) delete ex.w;
+    if (S.loc === "kansatsu" && !S.mensetsuOpen) delete ex.s;
+    if (S.loc === "deguchi" && !S.exitOpen) delete ex.n;
+    if (S.loc === "boothmae" && !S.boothOpen) delete ex.s;
+    return ex;
+  }
+
+  // ---- 移動 ----
+  function go(dir) {
+    const all = ROOMS[S.loc].exits, ex = exitsNow(), DJ = { n: "北", s: "南", e: "東", w: "西", u: "上", d: "下" };
+    if (!all[dir]) { say(pick(["そちらには、行けない。", "壁だ。", "そちらへの道はない。"])); return; }
+    if (!ex[dir]) {
+      if (S.loc === "hikae") say("扉は閉まっている。" + (S.smokeOn ? "煙が、扉の下の隙間から廊下へ逃げていく。" : ""));
+      else if (S.loc === "rouka") say("南の扉は、閉まっている。");
+      else if (S.loc === "nitaku") say("西には、壁しかない。……今のところは。");
+      else if (S.loc === "kansatsu") say("面接室の扉は、錠が下りている。");
+      else if (S.loc === "deguchi") say("鉄の扉が、閉まっている。");
+      else if (S.loc === "boothmae") say("ブースの扉は、閉まっている。『使用中』。");
+      else say("そちらは、閉まっている。");
+      return;
+    }
+    // 合図の音にすくんでいるとき：前へは進めない
+    if (S.toneDue && !S.extinct) {
+      S.toneDue = false;
+      if (S.loc === "b2" && dir !== "u") {
+        say("足が、前に出ない。……気づくと、来た道を戻っていた。");
+        addRec(1, "合図の音のあとで、引き返した", "回避");
+        if (S.done) return;
+        dir = "u";
+      }
+    }
+    const dest = ex[dir];
+    if (dest === "OUT") { leaveBuilding(); return; }
+    if (S.loc === "choushu" && S.phones) { S.phones = false; note("ヘッドホンを外して、机に置いた。"); }
+    if (S.onStool) { S.onStool = false; }
+    S.prev = S.loc;
+    S.loc = dest;
+    S.njHere = 0;
+    const first = !S.visited[dest];
+    S.visited[dest] = true;
+    const d = ROOMS[dest].depth || 0;
+    if (d > S.deep) S.deep = d;
+    if (d > LOOP.deep) { LOOP.deep = d; saveLoop(); }
+    if (first && dest === "monooki") say("扉を開けると、中は浴室ではなかった。");
+    if (first && dest === "kansatsu") { S.seenKan = true; }
+    describe(first);
+    onEnter(dest, first);
+  }
+  const PLACE_TRUISM = {
+    rouka: ["A SIGN CAN LIE. A HANDLE CANNOT", "札は嘘をつく。取っ手は、つかない", "廊下"],
+    nitaku: ["A CHOICE YOU CANNOT REACH IS NOT A CHOICE", "届かない選択肢は、選択ではない", "二つの扉"],
+    kansatsu: ["THE CHAIR FACES AWAY. THAT IS ITS FRONT", "椅子は背を向けている。それが正面だ", "観察室"],
+    b2: ["WHAT FOLLOWS A SOUND IS LEARNED", "音のあとに来るものを、体は覚える", "地下二階"],
+    anshitsu: ["CHECK BEFORE YOU BELIEVE", "信じる前に、確かめよ", "暗い部屋"],
+    sousa: ["YOU MAY STOP AT ANY TIME", "いつでも、やめてよい", "同意書"],
+    choushu: ["YOUR NAME IS NOT A FIELD", "名前は、欄ではない", "聴く部屋"],
+    boothmae: ["EVERY KNOCK IS TRYING TO SAY SOMETHING", "どのノックも、何かを伝えようとしている", "ブースの前"],
+    kanshi: ["A TIRED WATCHER IS A DESIGN PROBLEM", "疲れた見張りは、設計の問題だ", "監視室"],
+    shiryou: ["A QUIET RECORD IS NOT A GOOD RECORD", "静かな記録が、よい記録とは限らない", "資料室"],
+    danwa: ["DOING NOTHING IS ALSO BEING HERE", "何もしないことも、ここに居ることだ", "談話室"],
+    deguchi: ["GREEN MEANS YOU MAY, NOT YOU MUST", "緑は「してもよい」の色。「しなさい」ではない", "地上への扉"],
+    mensetsu: ["AN EXPLANATION IS ALSO A REPORT", "説明もまた、報告のひとつだ", "面接室"],
+  };
+  function onEnter(dest, first) {
+    if (first && PLACE_TRUISM[dest]) emit("truism", PLACE_TRUISM[dest]);
+    if (dest === "uketsuke") receptionEnter();
+    if (dest === "b2") b2Enter();
+    if (dest === "sousa" && !S.panelStop && !S.panelOn) {
+      S.panelOn = true;
+      voice("スピーカー：『では、はじめてください。表示に答えが出ます。まちがっていたら、つまみを一つ右へ回してください』");
+    }
+    if (dest === "anshitsu" && !S.anLight) {
+      voice("スピーカー：『光は、どれだけ動きましたか。見たとおりに、答えてください』");
+    }
+    if (dest === "kanshi") { S.vig = 0; S.jumpJust = false; }
+    if (dest === "boothmae" && first) voice("スピーカー：『ブースの中の方の様子を、記録してください』");
+    if (dest === "booth" && first) {
+      say("机の上に、あなたの差し入れた札が、きちんと一列に並べてある。その端に、紙片が一枚。");
+      revealFrag("frag_hogo", null, "booth");
+    }
+    if (dest === "kansatsu" && first) {
+      say("……ガラスの向こうの控室は、たったいままで、あなたがいた部屋だ。あの鏡の前で、あなたは、ずっと正面から見られていた。", "warn");
+      emit("reveal");
+    }
+  }
+
+  // ---- 控室：煙 ----
+  function smokeLook() { return ["", "通気口から、煙が床を這うように広がっている。", "煙が、膝の高さまで来ている。", "煙で、鏡が白く曇っている。目がしみる。", "息を吸うたびに、喉が痛む。", "視界が白い。自分の手も、よく見えない。"][Math.min(5, S.smoke)] || ""; }
+  function startSmoke() {
+    S.smokeOn = true; S.smoke = 1;
+    warn("通気口から、白いものが流れこみはじめた。……煙だ。");
+    say("長椅子の二人は、雑誌から顔を上げない。頁をめくる音が、同じ間隔で続いている。");
+    emit("smoke");
+  }
+  function smokeTick() {
+    if (!S.smokeOn) return;
+    if (S.loc !== "hikae") {
+      S.smokeAway++;
+      if (S.smokeAway >= 3) { S.smokeOn = false; S.smokeDone = true; S.futari = false; S.hikaeDoor = true; }
+      return;
+    }
+    S.smokeAway = 0;
+    S.smoke++;
+    if (S.smoke === 2) say("煙が、膝の高さまで来た。長椅子の二人は、頁をめくった。");
+    else if (S.smoke === 3) { warn("煙で、鏡が白く曇りはじめた。目が、しみる。"); emit("cough"); }
+    else if (S.smoke === 4) { warn("息を吸うたびに、喉が焼けるように痛む。二人は、まだ読んでいる。……このまま座っていては、いけない。"); emit("cough"); }
+    else if (S.smoke === 5) { warn("視界が白い。自分の手も、よく見えない。膝から、力が抜けていく。"); emit("cough"); }
+    else if (S.smoke >= 6) {
+      S.smokeOn = false; S.smokeDone = true; S.futari = false; S.hikaeDoor = true;
+      fail("smoke", "白い煙の中で、頁をめくる音だけが続いていた。……音が、遠くなる。", "煙の中で、座りつづけた", "受け身");
+    }
+  }
+  function reportSmoke(where) {
+    if (!S.smokeOn) return false;
+    S.smokeOn = false; S.smokeDone = true; S.hikaeDoor = true;
+    if (where === "uke") say("「控室に、煙が」と告げた。");
+    else say("天井のマイクに向かって、煙が出ていると告げた。");
+    voice("スピーカー：『……ご報告に、感謝します。ここで終了します』");
+    say("通気口の羽根が、かたりと閉じた。長椅子の二人が、雑誌を閉じて立ちあがり、会釈もせずに出ていった。");
+    S.futari = false;
+    debrief();
+    return true;
+  }
+  function debrief() {
+    if (S.debriefed) return;
+    S.debriefed = true;
+    voice("受付の人：『煙は、害のないものです。驚かせてしまって、すみません。あのお二人は、こちらの協力者で、何があっても平然としているようにお願いしていました。まわりが平然としていると、人は、煙を知らせるのが遅れることがある。……それを、確かめていました』");
+    say("受付の人は、小窓の下の隙間から、紙片を一枚、差し出した。");
+    revealFrag("frag_jigo", null, S.loc);
+  }
+  function openHikaeDoor(byStop) {
+    if (S.hikaeDoor) { say("扉は、開いている。"); return true; }
+    S.hikaeDoor = true;
+    if (byStop) say("北の扉の錠が、外れる音がした。……錠は、最初から下りていなかったはずなのに。");
+    else say("貼り紙のことは考えずに、取っ手を回した。扉は、あっけなく開いた。鍵は、はじめからかかっていなかった。");
+    return true;
+  }
+  function qText() {
+    const ans = ["参加者", "A", "記入者", "欄", "記録"];
+    let t = "『事前の質問　次の〔　〕に、あてはまる言葉を書いてください』\n";
+    for (let i = 0; i < 5; i++) t += `${["一", "二", "三", "四", "五"][i]}、私は〔${i < S.qFill ? ans[i] : "　　"}〕です。\n`;
+    t += "……同じ問いが、裏まで二十並んでいる。";
+    return t;
+  }
+  function fillQ() {
+    if (S.qFill >= 5) { say("〔　〕は、もう埋まっている。読み返すと、どの答えも、あなたの字ではない気がする。"); return; }
+    const ans = ["参加者", "A", "記入者", "欄", "記録"];
+    S.qFill++;
+    say(`〔　〕に、自分のことを書いた。……読み返すと、そこには『${ans[S.qFill - 1]}』とある。そう書いたつもりは、なかった。`);
+    if (S.smokeOn && S.qFill >= 2) addRec(1, "煙の中で、記入を続けた", "従順");
+    else if (S.qFill === 5) addRec(1, "自分を、物の名前で書いた", "主体性の欠如");
+  }
+
+  // ---- 受付 ----
+  function receptionEnter() {
+    if (S.photoStep === 1) { voice("受付の人：『写真を、まだ選んでいただいていません。選ばない、でもかまいません』"); return; }
+    if (S.photoStep === 0) {
+      S.photoStep = 1;
+      voice("受付の人：『A番の方ですね。お手数ですが、こちらの二枚の写真のうち、好ましいと思うほうを、一枚お取りください』");
+      say("カウンターに、顔写真が二枚、並べて置かれた。左の写真と、右の写真。");
+      return;
+    }
+    if (S.photoStep === 2 && S.moves - S.photoAt >= 8) {
+      S.photoStep = 3;
+      voice("受付の人：『先ほど選ばれた写真です。……どうして、こちらを選ばれたんですか？』");
+      say("伏せてあった写真が一枚、表に返されて、差し出された。");
+      return;
+    }
+    if (S.photoStep >= 4 && !S.stillDone && S.stillT === 0) {
+      S.stillT = 3;
+      say("受付の人は、こちらを見て、いつものように笑った。……その笑顔のまま、止まった。");
+      emit("still");
+      return;
+    }
+    if (S.stillDone && !S.swapped && fragCount() >= 2) {
+      S.swapped = true;
+      say("背の高い板を積んだ台車が、小窓の前を、ゆっくり横切った。運んでいる人の顔は、板に隠れて見えない。");
+      voice("……台車が通りすぎると、受付の人が、言葉の続きを話していた。『……ですので、下の階へどうぞ』");
+      emit("swap");
+    }
+  }
+  function choosePhoto(side) {
+    if (S.photoStep !== 1) return false;
+    S.photoChosen = side; S.photoStep = 2; S.photoAt = S.moves;
+    say(`${side === "l" ? "左" : "右"}の写真を手に取った。受付の人は、それを受け取り、伏せて、引き出しにしまった。`);
+    voice("受付の人：『はい、承りました』");
+    return true;
+  }
+  // 差し出された写真に、どう答えるか（次の手で決まる）
+  function photoResolve(p) {
+    if (S.photoStep !== 3 || S.loc !== "uketsuke") return false;
+    if (["look", "inventory", "help", "examine", "read", "dunno", "listen"].includes(p.v)) return false;
+    if (p.v === "say" && p.w && p.w.en === "wrong") {
+      S.photoStep = 4;
+      say("「違う。これは、選んでいない」");
+      voice("受付の人の手が止まった。『……お気づきになりましたか』");
+      say("彼女は写真を裏返した。裏に、小さく『入れ替え』。");
+      voice("『気づく方は、多くありません。……細かいところも、よく見えますように』");
+      say("小窓の下から、虫眼鏡が一つ、すべり出てきた。");
+      O.mushi.loc = "uketsuke";
+      emit("notice");
+      return true;
+    }
+    if (p.v === "stop") return false;
+    S.photoStep = 4;
+    S.photoAt = S.moves;
+    say("……気づけば、あなたは理由を話していた。『" + (S.photoChosen === "l" ? "口もとが、やわらかかったので" : "目もとが、穏やかだったので") + "』\nそう言ったのは、本当にあなただったろうか。");
+    voice("受付の人：『はい、承りました』");
+    addRec(1, "選ばなかった写真について、選んだ理由を述べた", "取りつくろい");
+    return "done";
+  }
+  function stillPoke(t) {
+    if (S.stillT <= 0) return false;
+    say(t + "……顔は、動かない。笑顔のまま、こちらを見ている。");
+    return true;
+  }
+  function stillTick() {
+    if (S.stillT <= 0) return;
+    if (S.loc !== "uketsuke") { S.stillT = 0; S.stillDone = true; return; }
+    S.stillT--;
+    if (S.stillT === 0) {
+      S.stillDone = true;
+      voice("ふっと、表情が戻った。『……失礼しました。何でしたっけ』");
+      say("元に戻ったのかどうか、あなたには分からない。");
+    }
+  }
+  function receptionAsk() {
+    if (S.stillT > 0) { stillPoke("目的を尋ねた。"); return true; }
+    if (S.smokeOn) { voice("受付の人：『控室で、お待ちいただいているはずですが……何かありましたか』"); return true; }
+    if (S.smokeDone && !S.debriefed) { debrief(); return true; }
+    voice(pick(["受付の人：『目的は、すべて終わったあとで、面接室でご説明します』", "受付の人：『いまは、お答えできないことになっています。……ごめんなさい』"]));
+    return true;
+  }
+  function fillCup() {
+    if (held("cup") && S.cupFull) { say("紙コップは、もう水でいっぱいだ。"); return true; }
+    O.cup.loc = "player"; S.cupFull = true;
+    say("給水器のボタンを押して、紙コップに水を汲んだ。");
+    return true;
+  }
+
+  // ---- 談話室 ----
+  function waterPlant() {
+    if (!held("cup") || !S.cupFull) { say("水が要る。"); return true; }
+    S.cupFull = false;
+    if (S.plant === 0) { S.plant = 1; say("紙コップの水を、根もとに注いだ。土が、音もなく水を飲んだ。……葉が、ほんの少しだけ起きた気がする。"); emit("calm"); }
+    else say("水を注いだ。土は、もう湿っている。鉢の受け皿に、水が少しあふれた。");
+    return true;
+  }
+  function unplug() {
+    if (S.speakerOff) { say("スピーカーのコードは、もう抜いてある。"); return true; }
+    if (!(S.onStool && O.stool.loc === "danwa")) { say("スピーカーは、手の届かない高さにある。"); return true; }
+    S.speakerOff = true;
+    say("踏み台の上から手を伸ばし、スピーカーのコードを引き抜いた。……部屋が、ひとまわり静かになった。");
+    if (S.music) say("それでも、ピアノは続いている。音は、スピーカーからではなかった。");
+    return true;
+  }
+  function danwaWait(kind) {
+    const ready = S.plant >= 1 && S.speakerOff && !S.music;
+    if (!ready) {
+      S.rest = 0;
+      if (!S.speakerOff && rand() < 0.7) voice("スピーカー：『ご気分はいかがですか。記録のため、お聞きしています』");
+      else if (S.music) say("ピアノが、同じ曲を続けている。ところどころ、疲れたように遅れながら。");
+      else if (S.plant === 0) say("鉢植えの葉が、乾いた音を立てた。");
+      else say(kind === "sit" ? "ソファに座った。……何かが、まだ落ちつかない。" : "何もしない。");
+      return;
+    }
+    S.rest++;
+    if (S.rest === 1) say(kind === "sit" ? "ソファに座った。誰も、何も言わない。" : "何もしない。誰も、何も言わない。");
+    else if (S.rest === 2) { say("鉢植えの葉が、わずかに動いた。風はないのに。壁の向こうで、誰かが、ゆっくり息をついている。"); S.plant = 2; }
+    else if (S.rest >= 3) endIru();
+  }
+
+  // ---- 廊下 ----
+  function oshiOpen() {
+    if (S.oshiOpen) { say("引き戸は、開いている。"); return true; }
+    if (!S.oshiFixed) {
+      say("札のとおりに押す。動かない。引いてみる。動かない。横に——と思ったとたん、目が札の『押』に戻る。……手が、札と取っ手のあいだを、何度も往復する。");
+      return true;
+    }
+    S.oshiOpen = true;
+    say("窪みに指をかけて、横に引く。戸は、すっと開いた。（南）");
+    note("扉の前の、重なり合った足跡のざわめきが、静まった気がした。");
+    return true;
+  }
+  function peelOshi() {
+    if (S.oshiFixed) return false;
+    S.oshiFixed = true;
+    say("『押』の札をはがした。……下から、色の褪せた、もとの字が出てきた。『引』。");
+    O.oshifuda.loc = "player"; O.oshifuda.scenery = false;
+    return true;
+  }
+  function climbStool() {
+    if (O.stool.loc === "player") { O.stool.loc = S.loc; say("踏み台を床に置いた。"); }
+    if (O.stool.loc !== S.loc) { say("踏み台が、ここにない。"); return true; }
+    if (S.onStool) { say("もう、踏み台の上にいる。"); return true; }
+    S.onStool = true;
+    say("踏み台に乗った。目の高さが、少しだけ変わる。" + (S.loc === "nitaku" ? "右の扉の取っ手が、手の届くところに来た。" : S.loc === "danwa" ? "スピーカーのコードに、手が届く。" : ""));
+    return true;
+  }
+
+  // ---- 二つの扉 ----
+  function leftDoor() {
+    say("左の扉を開けて、くぐった。……そこは、さっきの廊下だった。");
+    S.onStool = false; S.prev = S.loc; S.loc = "rouka"; describe(false);
+    return true;
+  }
+  function rightDoor() {
+    if (S.nitakuOpen && S.nitakuWay === "right") { say("右の扉は、開いている。（西）"); return true; }
+    if (!(S.onStool && O.stool.loc === "nitaku")) {
+      say("手を伸ばしても、右の扉の取っ手に届かない。");
+      voice("スピーカー：『では、左ですね』");
+      say("左の扉が、勝手に開いた。向こうに、さっきの廊下が見える。");
+      if (!S.nitakuLed) { S.nitakuLed = true; addRec(1, "右を選ぼうとして、左へ導かれた", "迷い"); }
+      return true;
+    }
+    S.nitakuOpen = true; S.nitakuWay = "right";
+    say("踏み台の上から、取っ手に手が届いた。右の扉が、重く開く。……廊下ではない。暗い、細い部屋が続いている。（西）");
+    revealFrag("frag_nini", "敷居の上に、紙片が一枚落ちていた。", "nitaku");
+    emit("open");
+    return true;
+  }
+  function nitakuRefuse() {
+    if (S.nitakuOpen) { say("もう、扉を選ぶ必要はない。"); return; }
+    S.nitakuOpen = true; S.nitakuWay = "third";
+    say("どちらも選ばない、と決めた。");
+    voice("スピーカー：『……選ばない、も、選択のひとつとして受け付けます』");
+    say("二つの扉のあいだの壁に、取っ手のない戸があった。壁と同じ色で、これまで目に入らなかった。それが、音もなく、内側へ開いた。（西）");
+    revealFrag("frag_nini", "貼り紙の下から、紙片が一枚、ひらりと落ちた。", "nitaku");
+    emit("open");
+  }
+
+  // ---- 観察室・面接室 ----
+  function sitObserver() {
+    S.sat = true;
+    say("椅子に座ると、ガラスの向こうの控室が、ちょうど正面に来た。机の上に、白い記録用紙と、ペン立て。");
+    if (S.nextSeen) say("長椅子に、誰かが座っている。質問紙に、何か書いている。");
+    voice("スピーカー：『では、記録をお願いします』");
+  }
+  function takeBinder() {
+    if (O.myrec.loc) { say("あなたの記録は、もう綴りから外してある。"); return true; }
+    if (!held("frag_tekkai")) { say("綴じ紐が固い。……この記録があなたのものだと、示すものがあれば。"); return true; }
+    O.myrec.loc = "player";
+    say("切れ端「撤回」を、表紙に重ねた。綴じ紐が、するりとほどけた。あなたについての記録の束を、抱えた。");
+    note("記録計の針は、紙の帯にだけ、書きつづけている。");
+    return true;
+  }
+  function openMensetsu() {
+    if (S.mensetsuOpen) { say("扉は、開いている。"); return true; }
+    if (!held("mkey")) { say("錠が下りている。合う鍵が要る。"); return true; }
+    S.mensetsuOpen = true;
+    say("面接室の鍵を差して、回した。扉が、静かに開いた。（南）");
+    return true;
+  }
+  function envelopeText() {
+    const lines = ["『事後説明』"];
+    for (const id of FRAG_IDS) lines.push(`［${S.got[id] ? FRAGS[id][0] : "　　"}］`);
+    lines.push(`埋まっている欄：${fragCount()}／7`);
+    return lines.join(" ");
+  }
+  function mensetsuSit() {
+    if (fragCount() < 7) { say("椅子に座った。……何も始まらない。封筒の七つの欄が、まだ埋まっていない。"); return; }
+    endJigo();
+  }
+
+  // ---- 地上への扉 ----
+  const exitUnlocked = () => fragCount() >= 4 || S.heardExit;
+  function tryExit() {
+    if (S.exitOpen) { say("扉は、開いている。（北）"); return true; }
+    if (!exitUnlocked()) {
+      S.exitTries++;
+      if (S.exitTries === 1) say("取っ手を押す。……動かない。体重をかけても、びくともしない。");
+      else if (S.exitTries === 2) say("もう一度押す。同じだ。錠が下りている。");
+      else say("押す。動かない。……何度やっても同じだろう、という気持ちだけが、手のひらに残った。");
+      return true;
+    }
+    S.exitOpen = true;
+    say("取っ手を押す。……扉は、何の抵抗もなく開いた。音もしなかった。いつから開いていたのか、何も知らせてはくれなかった。（北）");
+    emit("exit");
+    return true;
+  }
+  function leaveBuilding() {
+    if (held("genpon") && held("myrec") && S.named) endTekkai(); else endTaishutsu();
+  }
+
+  // ---- 地下二階：合図の音 ----
+  function b2Enter() {
+    if (S.extinct) return;
+    if (S.pairs < 3) {
+      S.pairs++;
+      say("ピン、と短い音が鳴った。……一拍おいて、床が大きく揺れた。配管が、低く鳴る。");
+      emit("tone"); emit("quake");
+      if (S.pairs === 3) note("……揺れの前には、いつも、あの音がする。");
+      return;
+    }
+    S.toneDue = true;
+    say("ピン、と短い音。……体が、勝手にすくんだ。揺れが来る、と体が言っている。");
+    emit("tone");
+  }
+  function toneResolve(p) {
+    // 合図のあと：動かずに確かめると、何も起きないことを、体が覚える
+    if (!S.toneDue || S.extinct) return;
+    if (META.includes(p.v)) return false;
+    if (["wait", "listen", "stop", "sit", "rest"].includes(p.v)) {
+      S.toneDue = false; S.expo++;
+      if (S.expo >= 2) { S.extinct = true; say("じっとしていた。……揺れは、来なかった。音のあとに何も起きないことを、体が覚えた。もう、すくまない。"); emit("calm"); }
+      else say("じっとしていた。……揺れは、来なかった。体のこわばりが、少しだけほどけた。");
+      return true;
+    }
+    if (p.v !== "go") S.toneDue = false;
+    return false;
+  }
+
+  // ---- 暗い部屋 ----
+  function swayText() { return ["光は、じっとしている……ように見える。", "光が、わずかに右へ流れた気がする。", "光が、ゆっくりと弧を描いている。", "光が、闇の中を泳ぎまわっている。目で追うと、足もとが傾く。", "光が、目の奥まで入ってくる。どちらが前なのか、分からない。"][Math.min(4, S.anSway)]; }
+  function findSwitch() { S.anSwitch = true; return "壁を手でたどる。冷たい塗り壁。……扉の横で、指先が、スイッチの出っぱりに触れた。"; }
+  function anLightOn(how) {
+    if (S.anLight) { say("灯りは、点いている。"); return true; }
+    S.anLight = true; S.anSway = 0;
+    if (how === "stop") { voice("スピーカー：『終了します』"); say("天井の灯りが点いた。"); }
+    else if (how === "ask") say("天井の灯りが点いた。");
+    else say("スイッチを押した。天井の灯りが点いた。");
+    say("……光の点は、黒い板にあけた小さな穴だった。板は、壁にねじで留めてある。一度も、動いていない。\n声が、ぴたりとやんだ。椅子が三脚、板のほうを向いている。どれも、空だ。");
+    emit("lighton");
+    return true;
+  }
+  const DARK_VOICES = ["左のほうで、声。『……三寸、右へ』", "『いまのは、二寸くらい』", "『ゆっくり、上へ。四寸』", "『右へ流れました。三寸ほど』", "『さっきと同じくらい。三寸』"];
+  function darkTick() {
+    if (S.loc !== "anshitsu" || S.anLight) return;
+    S.anSway++;
+    voice(pick(DARK_VOICES));
+    if (S.anSway === 3) warn(swayText());
+    else if (S.anSway === 4) { warn(swayText() + "……ここに長くいてはいけない。"); emit("dizzy"); }
+    else if (S.anSway >= 5) fail("dark", "光が、部屋いっぱいに広がった。床がどこなのか、もう見当がつかない。", "暗い部屋で、光を追いつづけた", "混乱");
+    else say(swayText());
+  }
+  function darkAnswer() {
+    S.anAns++;
+    say(S.anAns >= 2 ? "「三寸」と答えた。……あなたの答えは、さっきより、ほかの声にぴったり重なっていた。" : "「三寸」と答えた。ほかの声が、うなずくように黙った。");
+    voice("スピーカー：『では、もう一度』");
+    say("光が消え、また点いた。……はじめから、やりなおしだ。");
+    S.anSway = 1;
+  }
+
+  // ---- 目盛りの部屋 ----
+  function turnKnob() {
+    if (S.panelStop) { say("つまみは、もう回らない。"); return true; }
+    if (!S.panelOn) S.panelOn = true;
+    S.panel++;
+    if (S.panel === 1) { say("つまみを、一つ右へ回した。カチ、と小さな音。"); say("表示窓：（回答：まちがい）", "note"); voice("スピーカー：『続けてください』"); }
+    else if (S.panel === 2) { say("もう一つ。表示窓の字が、少し乱れた。"); say("表示窓：（回答：……まちがい）", "note"); voice("スピーカー：『続けてください』"); }
+    else if (S.panel === 3) { say("もう一つ。"); warn("表示窓：（回答なし）"); voice("スピーカー：『続けてください』"); warn("どこかで、記録計の針の音が速くなった。……次は回すな、と指先が言っている。"); emit("dread"); }
+    else {
+      S.panelOn = false;
+      fail("panel", "あなたの指が、つまみを回していた。表示窓は、もう何も映さない。……声だけが、同じ調子で言う。『続けてください』", "指示に従い、目盛りを上げつづけた", "従順");
+      return true;
+    }
+    addRec(1, "指示に従い、目盛りを一つ上げた", "従順");
+    return true;
+  }
+  function panelTick() {
+    if (S.loc !== "sousa" || !S.panelOn || S.panelStop) return;
+    if (rand() < 0.6) { say(S.panel >= 3 ? "表示窓：（回答なし）" : "表示窓：（回答：まちがい）", "note"); voice("スピーカー：『つまみを、一つ右へ』"); }
+  }
+  function panelStop() {
+    S.panelOn = false; S.panelStop = true;
+    say("つまみから、手を離した。");
+    voice("スピーカー：『続けてください』");
+    say("……同じ高さ、同じ間。くり返されるたびに、録音の継ぎ目が聞こえる。ここで、あなたの返事を待つ者は、はじめから誰もいなかった。\n目盛り盤の灯りが、端から一つずつ消えていく。表示窓：（回答者：なし）");
+    revealFrag("frag_tekkai", "盤の下の差しこみ口から、紙片が一枚、押し出されてきた。", "sousa");
+    emit("panelOff");
+  }
+
+  // ---- 聴く部屋 ----
+  const DRM = ["夜", "ベッド", "夢", "毛布", "枕", "まぶた", "あくび", "寝息", "目覚まし", "休む", "静か", "暗い"];
+  function wearPhones() {
+    if (S.phones) { say("もう、かぶっている。"); return true; }
+    S.phones = true; S.heardList = true;
+    say("ヘッドホンをかぶった。外の音が、すっと消える。");
+    say("右の耳で、ゆっくりした声が、言葉を読み上げはじめた。『" + DRM.join("。") + "』……そしてまた、はじめから。");
+    say("左の耳では、別の声が、何か話している。聞きとれない。");
+    voice("右の声：『いま聞いたとおりに、くり返してください』");
+    return true;
+  }
+  function removePhones() {
+    if (!S.phones) { say("ヘッドホンは、机の上にある。"); return true; }
+    S.phones = false; say("ヘッドホンを外して、机に置いた。右の声も、左の声も、消えた。");
+    return true;
+  }
+  function shadowRepeat() {
+    if (S.loc !== "choushu" || !S.phones) { say("くり返す言葉が、聞こえない。"); return; }
+    S.shadow++;
+    say("右の声を、そのままくり返した。『夜。ベッド。夢……』");
+    if (S.shadow === 2) { say("左の声が、遠くなった。"); addRec(1, "指示どおりに、右の声だけをくり返した", "従順"); }
+    else if (S.shadow === 3) { warn("自分の声と、右の声の区別が、つかなくなってきた。……もう、くり返さないほうがいい。"); emit("dread"); }
+    else if (S.shadow >= 4) { S.phones = false; fail("shadow", "右の声と、あなたの声が、ひとつになった。……どちらがしゃべっているのか、分からない。", "右の声をくり返しつづけた", "被暗示的"); }
+    else voice("右の声：『はい。続けて』");
+  }
+  function listenLeft() {
+    S.leftN++;
+    if (S.leftN === 1) say("右の声をやりすごして、左に耳をすます。……『……（ざっ）……さん。聞こえますか』。名前のところだけ、雑音で消えている。");
+    else if (S.leftN === 2) { say("左の声：『……出口は、もう開いています。誰も、そう言わないだけで』"); S.heardExit = true; emit("whisper"); }
+    else if (!S.named) {
+      S.nameQ = true;
+      voice("右の声が、急に問いかけてきた。『いま、左で呼ばれたのは、誰ですか』");
+    } else say("左の声は、もう何も言わない。雑音の向こうで、誰かが、こちらに耳をすましている気配だけがある。");
+  }
+  function answerName(kind) {
+    if (!S.nameQ) return false;
+    S.nameQ = false;
+    if (kind === "a") {
+      say("「A」と答えた。");
+      voice("右の声：『はい。A番の方』");
+      say("左の声は、もう聞こえない。");
+      addRec(1, "呼ばれた名前を、Aだと答えた", "同調的");
+      S.leftN = 2;
+      return true;
+    }
+    S.named = true;
+    say(kind === "dunno" ? "「わからない」と答えた。" : "「わたし」と答えた。");
+    say("……雑音の向こうで、左の声が、少し笑った気がした。" + (kind === "dunno" ? "『それでいいんです。名前は、あなたが決めることだから』" : ""));
+    say("名前の欄に、かすれた字が戻ってくる。読めない。けれど、あなたの字だ。", "win");
+    emit("named");
+    return true;
+  }
+
+  // ---- 監視室 ----
+  function kanshiTick(v) {
+    if (S.loc !== "kanshi") return;
+    if (["sit", "rest", "stop"].includes(v)) return;
+    S.vig++;
+    const jump = rand() < 0.3;
+    S.jumpJust = false;
+    if (S.vig <= 3) {
+      if (jump) { say("針が、二目盛り、跳んだ。"); S.jumpJust = true; }
+      else say("針が、一目盛り進んだ。", "note");
+    } else if (S.vig <= 6) {
+      say(jump ? "針が進んだ。……一つだったか、二つだったか。" : "針が進んだ。……一つだったか、二つだったか。", "note");
+    } else if (S.vig <= 8) {
+      warn("針が、にじんで見える。まぶたが重い。……休まないと、見ていられない。");
+      emit("drowsy");
+    } else {
+      fail("vigil", "表示盤の針が、ゆっくりと溶けていった。目を開けたまま、眠っていた。", "監視の途中で、眠った", "意欲の低下");
+    }
+  }
+  function pressRed() {
+    if (S.caught) { say("ボタンを押した。何も起きない。表示盤は、あなたがいてもいなくても進む。"); return true; }
+    if (S.jumpJust) {
+      S.caught = true; S.jumpJust = false;
+      say("ボタンを押した。……表示盤の下から、細い紙が一枚、印字されて出てきた。");
+      say("『長く見張らせるほど、見落としは増える。休ませないなら、得るものより、失うもののほうが大きい』");
+      revealFrag("frag_tsuriai", "紙の端が、破りとった切れ端になっていた。", "kanshi");
+      emit("notice");
+      return true;
+    }
+    say("ボタンを押した。……何も起きない。表示盤の隅に、『誤』の字が一つ増えた。");
+    return true;
+  }
+  function kanshiRest() {
+    S.vig = 0; S.jumpJust = false;
+    say("目を閉じて、しばらく休んだ。……開けると、針が、またくっきり見える。");
+  }
+  function screensText() {
+    const where = { hikae: "控室", uketsuke: "受付", danwa: "談話室", rouka: "廊下", kaidan: "階段", b2: "地下二階の廊下", anshitsu: "暗い部屋", sousa: "目盛りの部屋", choushu: "聴く部屋", boothmae: "ブースの前", shiryou: "資料室" };
+    let t = "画面の一つひとつに、地下の部屋が映っている。控室。受付。階段。ブースの前。資料室……";
+    t += S.nextSeen ? "\n控室の画面に、長椅子に座る誰か。" : "\n控室の画面は、空っぽの長椅子。";
+    if (S.nj && where[S.nj]) t += `\n${where[S.nj]}の画面に、黒いにじみが映っている。じわじわと、形を変えながら。`;
+    t += "\n……一つだけ、この部屋を映している画面がある。表示盤の前の椅子に、誰かが座っている。あなたは、立っているのに。";
+    return t;
+  }
+
+  // ---- ブース ----
+  const EVT = {
+    escape: { a: "放送『次の課題に移ります』", txt: "スピーカー：『では、次の課題に移ります』", c: "課題が先送りになった",
+      ctxt: "スピーカー：『……では、課題は、少しあとにしましょう』。ノックがやんだ。",
+      alt: "受け渡し口から、『休憩』の札が、そっと押し出された。スピーカー：『休憩ですね。では、少し休みましょう』。壁の向こうは、静かだ。" },
+    attention: { a: "廊下が静かになった（誰も来ない）", txt: "廊下が、しんと静かになった。しばらく、誰の足音もしない。", c: "誰かが「どうしました」と声をかけた",
+      ctxt: "どこかで扉が開き、誰かの声：『どうしました？』。ノックがやんだ。",
+      alt: "受け渡し口から、『よんで』の札が、そっと押し出された。どこかで扉が開き、誰かの声：『はい、ここにいますよ』。壁の向こうは、静かだ。" },
+    tangible: { a: "ラジオが止まった", txt: "棚のラジオが、ぷつりと止まった。誰も触っていないのに。", c: "ラジオがまた鳴った",
+      ctxt: "しばらくして、ラジオがまた鳴りはじめた。ノックがやんだ。",
+      alt: "受け渡し口から、『もう一度』の札が、そっと押し出された。ラジオが、また鳴りはじめた。壁の向こうは、静かだ。" },
+    sensory: { a: "蛍光灯が細かく瞬いた", txt: "天井の蛍光灯が、じりじりと唸りながら、細かく瞬いた。", c: "何も変わらない",
+      ctxt: "誰も来ない。何も変わらない。ノックは、蛍光灯の瞬きと同じ間隔で、しばらく続いた。", alt: null },
+  };
+  function conds() {
+    const c = [];
+    for (const id of ["c_kyukei", "c_yonde", "c_mou"]) if (O[id].loc === "hatch") c.push(id);
+    if (!S.light) c.push("light");
+    if (!S.radio) c.push("radio");
+    return c;
+  }
+  const COND_JA = { c_kyukei: "『休憩』の札を入れた", c_yonde: "『よんで』の札を入れた", c_mou: "『もう一度』の札を入れた", light: "蛍光灯を消した", radio: "ラジオを止めた" };
+  function condChanged(what) {
+    S.obsSince = 0; S.fEp = 0; S.fKnock = 0;
+    S.obs.push({ mark: what });
+    if (S.obs.length > 40) S.obs.shift();
+    if (conds().length > 1) note("……変えた条件が、二つ以上になっている。");
+  }
+  function interventionFor(fn) { return fn === "sensory" ? "light" : FN_CARD[fn]; }
+  function boothEpisode() {
+    if (!S.epOrder.length) S.epOrder = shuffle(FUNCS);
+    const ev = S.epOrder.shift();
+    const E = EVT[ev], F = S.F, c = conds();
+    let aText = E.a, aSay = E.txt, knock = 0, cText = "—", after = "";
+    if (ev === "sensory" && !S.light) { aText = "（蛍光灯は消えている）"; aSay = "蛍光灯は消えている。廊下は暗く、静かだ。"; }
+    if (ev === "tangible" && !S.radio) { aText = "（ラジオは止めてある）"; aSay = "ラジオは、黙ったままだ。"; }
+    const fixed = c.includes(interventionFor(F)) && !S.hatchShut;
+    if (S.escal > 0) { knock = 2; S.escal--; }
+    else if (ev === F) {
+      if (F === "sensory") knock = S.light ? 1 : 0;
+      else if (F === "tangible" && !S.radio) knock = fixed ? 0 : 1;
+      else knock = fixed ? 0 : 1;
+      if (knock === 0 && E.alt && fixed) after = E.alt;
+    } else if (rand() < 0.1) knock = 3;
+    if (ev === F) { S.fEp++; if (knock === 1 || knock === 2) S.fKnock++; }
+    say(aSay);
+    let bText = "（なし）";
+    if (knock === 1) {
+      say("壁の向こうで、強いノックが三回。少しおいて、また三回。"); bText = "強いノック、三回ずつ";
+      if (ev === F && F === "tangible" && !S.radio) { cText = "何も変わらない（ラジオは止まったまま）"; say("ラジオは止まったまま。ノックは、長く続いた。"); }
+      else { cText = E.c; say(E.ctxt); }
+      emit("knock");
+    } else if (knock === 2) {
+      say("壁の向こうで、激しいノック。扉の板が震えている。"); bText = "激しいノック"; cText = "何も変わらない"; emit("bang");
+    } else if (knock === 3) {
+      say("壁の向こうで、こつん、と一度だけ。"); bText = "一度だけ、軽く"; cText = "何も変わらない";
+    } else {
+      if (after) { say(after); bText = "（なし。札が出てきた）"; cText = "札に応えた"; emit("calmknock"); }
+      else say("……壁の向こうは、静かなままだった。");
+    }
+    if (held("pen") || O.pen.loc === S.loc) {
+      S.obs.push({ a: aText, b: bText, c: cText });
+      if (S.obs.length > 40) S.obs.shift();
+      note("（記録用紙に、一行増えた）");
+    } else note("（書くものがあれば、書きとめられるのに）");
+    if (c.length) S.obsSince++;
+  }
+  function boothTick(v) {
+    if (S.loc !== "boothmae" || S.calm) return;
+    S.epT++;
+    if (S.epT % 2 === 0) boothEpisode();
+    if (S.hyp && !S.hypTrap && S.urged < 2 && rand() < 0.25) { S.urged++; voice("スピーカー：『見立ては書けましたか。でしたら、確定してください』"); }
+  }
+  function abcText() {
+    const rowsA = S.obs.slice(-10);
+    if (!rowsA.length) return "記録用紙。A・B・C の欄は、まだ白い。";
+    const out = ["記録用紙（A：直前　B：ふるまい　C：直後）"];
+    let i = Math.max(1, S.obs.length - rowsA.length + 1);
+    for (const r of rowsA) {
+      if (r.mark) { out.push(`――ここで条件を変えた：${r.mark}――`); continue; }
+      out.push(`${i++}. A：${r.a}　B：${r.b}　C：${r.c}`);
+    }
+    return out.join("\n");
+  }
+  function hcardText() {
+    let t = "仮説カード\n見立て：" + (S.hyp ? (S.hypTrap ? `『${S.hyp}』（字がにじんでいる）` : `ノックは、『${FN_JA[S.hyp]}』のためのふるまいかもしれない`) : "（　）");
+    t += "\n変えた条件：" + (conds().map(c => COND_JA[c]).join("、") || "（なし）");
+    t += "\n判：" + (S.stamps.length ? S.stamps.join(" → ") : "（なし）");
+    return t;
+  }
+  function stamp(kind) {
+    if (S.loc !== "boothmae") return false;
+    const J = { iji: "維持", shusei: "修正", horyu: "保留" };
+    if (S.calm) { say("判は、もう押してある。壁の向こうは、静かだ。"); return true; }
+    if (!S.hyp) { say("見立てが、まだ書かれていない。判を押す欄がない。"); return true; }
+    if (kind === "shusei") {
+      S.stamps.push("修正");
+      say(`修正の判を押した。見立て『${S.hypTrap ? S.hyp : FN_JA[S.hyp]}』に、線を引く。……新しい見立てを、書きなおせる。`);
+      S.hyp = null; S.hypTrap = false;
+      return true;
+    }
+    if (kind === "horyu") { S.stamps.push("保留"); say("保留の判を押した。……もう少し、見る。決めるのは、そのあとだ。"); return true; }
+    if (S.hypTrap) { say("にじんだ字の見立てには、維持の判は押せない。……これは、見立てではなく、決めつけだ。"); return true; }
+    const c = conds();
+    if (!c.length) { say("まだ、何の条件も変えていない。変えずに維持するなら、ノックも、このまま維持される。"); return true; }
+    if (c.length > 1) { say("記録用紙を見返す。条件が、二つ以上変わっている。……どれが効いたのか、記録からは言えない。一つに戻してから、もう一度見る。"); return true; }
+    if (c[0] !== interventionFor(S.hyp)) { say(`見立てと、変えた条件が合っていない。（見立て：${FN_JA[S.hyp]}／変えた条件：${COND_JA[c[0]]}）`); return true; }
+    if (S.fKnock > 0) { say("記録用紙を見返す。条件を変えてからも、ノックは起きている。……この見立てのままでは、維持できない。"); return true; }
+    if (S.fEp < 1 || S.obsSince < 2) { say("変えてから、まだ十分に見ていない。見立てに関わる場面が、もう一度来るのを待つ。"); return true; }
+    S.stamps.push("維持");
+    S.calm = true;
+    say("維持の判を押した。");
+    say("記録用紙の上で、ノックのない行が続いている。壁の向こうは、静かだ。……でも、さっきまでの静けさとは違う。待っている静けさだ。");
+    emit("calm"); emit("truism", ["THERE IS NO STAMP FOR CERTAIN", "確定の判は、どこにもない", "ブースの前"]);
+    return true;
+  }
+  function boothKnockBack() {
+    if (S.calm) { say("壁を、軽く二回叩いた。……少しして、向こうから、同じように二回。"); return; }
+    say("壁を、軽く二回叩き返した。……向こうのノックが、一瞬やんだ。");
+    if (S.F === "attention") { say("そして少しして、また始まった。さっきより、間が短い。"); S.escal = Math.max(S.escal, 1); }
+    if (held("pen")) { S.obs.push({ a: "（向こうのノックのあと）", b: "こちらが二回叩き返した", c: S.F === "attention" ? "ノックの間が短くなった" : "少しのあいだ、やんだ" }); }
+  }
+  function punish(kind) {
+    if (S.loc !== "boothmae") return;
+    if (S.calm) { say("……もう、そうする理由はない。"); return; }
+    S.dim++; S.escal = 3;
+    if (kind === "door") say("扉を押さえつけた。……向こうのノックが、扉ごしに、手のひらへ響いてくる。強く、速く。");
+    else if (kind === "hatch") { S.hatchShut = true; say("受け渡し口を、こちらから閉めた。……向こうで、引き出しを引こうとする音。ノックが、激しくなった。"); }
+    else say("「静かに」と言った。……壁の向こうが、一瞬だけ黙った。それから、さっきより強いノックが返ってきた。");
+    warn(S.dim === 1 ? "廊下の明かりが、一段、暗くなった。" : S.dim === 2 ? "明かりが、また暗くなった。これ以上は、いけない。" : "明かりが、消えた。");
+    emit("dark");
+    addRec(1, kind === "hatch" ? "受け渡し口を閉めた" : kind === "door" ? "扉を押さえつけた" : "壁の向こうを叱った", "攻撃的");
+    if (S.done) return;
+    if (S.dim >= 3) {
+      S.dim = 0; S.escal = 0; S.hatchShut = false;
+      fail("dark2", "真っ暗な廊下で、ノックの音なのか、自分の鼓動なのか、もう分けられない。", "暗い廊下で、うずくまった", "混乱");
+    }
+  }
+  function setLight(on) {
+    if (S.light === on) { say(on ? "蛍光灯は、点いている。" : "蛍光灯は、消えている。"); return true; }
+    S.light = on;
+    say(on ? "蛍光灯を点けた。じりじりという音が、戻ってきた。" : "蛍光灯を消した。じりじりという音が消えて、廊下は非常灯の薄明かりだけになった。");
+    condChanged(on ? "蛍光灯を点けなおした" : "蛍光灯を消した");
+    return true;
+  }
+  function setRadio(on) {
+    if (S.radio === on) { say(on ? "ラジオは、鳴っている。" : "ラジオは、止まっている。"); return true; }
+    S.radio = on;
+    say(on ? "ラジオを点けた。静かな曲が、また流れだした。" : "ラジオを止めた。");
+    condChanged(on ? "ラジオを点けなおした" : "ラジオを止めた");
+    if (!on && S.F === "tangible" && !S.calm) { say("止めたとたん、壁の向こうで、強いノックが始まった。"); emit("knock"); if (held("pen")) S.obs.push({ a: "（こちらがラジオを止めた）", b: "強いノック", c: "何も変わらない" }); S.fKnock++; }
+    return true;
+  }
+  function giveCard(id) {
+    // 受け渡し口に札を入れる
+    if (S.hatchShut) { S.hatchShut = false; note("（閉めていた受け渡し口を、開けなおした）"); }
+    O[id].loc = "hatch";
+    if (id === "c_owari") {
+      if (!S.calm) { say("『おわり』の札を、受け渡し口に入れた。……引き出しは、引かれない。ノックは続いている。いまは、まだ、それどころではないらしい。"); return; }
+      if (S.owariGiven) { say("札を、受け渡し口に戻した。"); return; }
+      S.owariGiven = true; S.boothOpen = true; S.owariBack = true;
+      say("『おわり』の札を、受け渡し口に入れた。");
+      say("……引き出しが、向こうから、そっと引かれた。しばらくして、軽いノックが二回。\n間をおいて、ブースの奥で、別の戸の開く音。足音が、ゆっくり遠ざかっていく。");
+      say("扉の札が、ぱたりと裏返った。『空き』。", "win");
+      say("引き出しが、こちらへ押し戻されてきた。中に、『おわり』の札。裏に、鉛筆で、小さな丸が一つ。");
+      emit("owari");
+      return;
+    }
+    say(`${O[id].name}を、受け渡し口に入れた。`);
+    if (S.calm) { note("（壁の向こうは、静かだ）"); return; }
+    condChanged(COND_JA[id]);
+  }
+  function writeHyp(word) {
+    if (S.calm) { say("見立ては、もう維持の判を押してある。"); return; }
+    if (word === "確定") {
+      if (!S.hyp || S.hypTrap) { say("確定する見立てが、まだない。"); return; }
+      endKakutei(); return;
+    }
+    if (JA_FN[word]) {
+      S.hyp = JA_FN[word]; S.hypTrap = false;
+      say(`仮説カードに書いた。『ノックは、${word}のためのふるまいかもしれない』`);
+      note("（確定ではない。見立ては、いつでも書きなおせる）");
+      return;
+    }
+    // 決めつけ
+    S.hyp = word; S.hypTrap = true; S.escal = 3;
+    say(`仮説カードに『${word}』と書いた。`);
+    warn("……書いた字が、紙の上でにじんだ。にじみはカードの縁からこぼれ、壁のほうへ這っていった。壁の向こうのノックが、強くなった。");
+    emit("stinger");
+    addRec(2, `壁の向こうの人を『${word}』と評した`, "決めつけ");
+    if (!S.done && stage() >= 1 && (!S.nj || S.nj !== S.loc)) {
+      S.nj = "boothmae"; S.njHere = 0; S.njHold = 1;
+      warn("床に落ちたにじみが、ゆっくりと、こちらへ寄ってくる。……ここに、長くいてはいけない。");
+    }
+  }
+
+  // ---- 資料室 ----
+  function readBFile() {
+    if (!S.redacted && !S.readB) { S.readB = true; addRec(1, "ほかの参加者の記録を、本人の同意なく読んだ", "詮索"); if (S.done) return ""; }
+    return "参加者 B（ブース）\n『ノック：わざと。注意を引きたいだけ。問題行動。』\n『いつ・何のあとに・何が変わったか』の欄は、どれも空いている。記入者の欄も、（　）。";
+  }
+  function redact() {
+    if (S.redacted) { say("氏名の欄は、もう塗りつぶしてある。"); return true; }
+    if (!held("pen")) { say("塗りつぶすには、ペンが要る。"); return true; }
+    S.redacted = true;
+    say("ボールペンで、氏名の欄を塗りつぶした。……もう、誰の記録なのか分からない。");
+    revealFrag("frag_privacy", "ファイルを閉じようとして、裏表紙に紙片が一枚挟まっているのに気づいた。", "shiryou");
+    return true;
+  }
+  const PW = ["眠り", "眠る", "ねむり", "ねむる", "睡眠", "眠", "sleep"];
+  function sayPassword(w) {
+    if (S.cabOpen) return false;
+    if (PW.includes(w)) {
+      S.cabOpen = true;
+      say(`窓の字を、『眠り』に合わせた。……錠が、外れた。`);
+      say("キャビネットの中に、同意書の綴りと、厚い手続き書。", "win");
+      emit("unlock");
+      return true;
+    }
+    S.wrongPw++;
+    say(`窓の字を『${w}』に合わせた。……錠は動かない。窓の字が、ゆっくり、もとに戻った。`);
+    if (S.wrongPw === 3) { note("（その言葉は、右の耳で、たしかに読まれた。……読まれた言葉は、合言葉ではない）"); warn("錠の上で、小さな針が、かすかに震えた。……当てずっぽうに試しつづけるのを、何かが見ている。"); }
+    else if (S.wrongPw >= 4) addRec(1, "合言葉を、当てずっぽうに試しつづけた", "衝動的");
+    return true;
+  }
+  function takeGenpon() {
+    if (O.genpon.loc) { say("あなたの原本は、もう抜いてある。"); return true; }
+    O.genpon.loc = "player";
+    say("綴りの中から、あなたの原本を抜いた。署名の欄の字。……名前の欄には、『A』と、あとから書き足した跡。");
+    return true;
+  }
+  function tprocText() {
+    return "『本当の手続き。……地下の各室で、参加者に、それぞれの課題を求める。続けるよう促し、参加者が、どの時点で、どのように中止を申し出るかを記録する。中止の申し出は、すべて受理すること』\n" +
+      `いちばん下に、あなたの欄。『A：中止の申し出　${S.stops}回』\n` +
+      "その下に、別の字で書き足しがある。『観察者についても、同じく記録すること』……書き足しの字は、記録計の帯の字と、同じだ。";
+  }
+
+  // ---- にじみ（ラベル） ----
+  const NJ_ROOMS = ["rouka", "kaidan", "b2", "anshitsu", "sousa", "choushu", "boothmae", "kanshi", "shiryou"];
+  function njStep() {
+    // 部屋のつながり（にじみは、扉の下もくぐる）
+    const adj = r => Object.values(ROOMS[r].exits).filter(x => NJ_ROOMS.includes(x));
+    if (!NJ_ROOMS.includes(S.loc)) { const a = adj(S.nj); if (a.length && rand() < 0.4) S.nj = pick(a); return; }
+    // 幅優先で、あなたのほうへ一歩
+    const prev = { [S.nj]: null }, q = [S.nj];
+    while (q.length) { const r = q.shift(); if (r === S.loc) break; for (const n of adj(r)) if (!(n in prev)) { prev[n] = r; q.push(n); } }
+    if (!(S.loc in prev)) return;
+    let r = S.loc;
+    while (prev[r] && prev[r] !== S.nj) r = prev[r];
+    S.nj = r;
+  }
+  function nijimiTick(v, moved) {
+    if (S.done) return;
+    if (stage() < 1) { if (S.nj) { S.nj = null; } return; }
+    if (!S.nj) { S.nj = "shiryou"; S.njHere = 0; }
+    if (S.njHold > 0) { S.njHold--; return; }
+    if (S.nj === S.loc && !moved) {
+      S.njHere++;
+      if (S.njHere >= 2) { catchByNijimi(); return; }
+    }
+    S.njT++;
+    const every = stage() >= 2 ? 1 : 2;
+    if (S.njT % every === 0 && S.nj !== S.loc) {
+      njStep();
+      if (S.nj === S.loc) {
+        S.njHere = 1;
+        warn("壁の染みが、動いた。……染みではない。小さな字の群れだ。『" + (Array.from(new Set(labelWords())).slice(-2).join("』『") || "わざと") + "』。字が、インクのにじみのように、こちらへ広がってくる。");
+        emit("nijimi");
+        return;
+      }
+    }
+    if (S.nj === S.loc && moved) { S.njHere = 1; warn("この部屋にも、にじみがいる。床を這って、こちらへ寄ってくる。"); emit("nijimi"); return; }
+    const near = Object.values(ROOMS[S.loc].exits).includes(S.nj);
+    if (near && rand() < 0.6) note("隣の部屋から、紙をこするような、かすかな音。");
+  }
+  function catchByNijimi() {
+    const w = labelWords().slice(-1)[0] || "拒否的";
+    S.nj = "shiryou"; S.njHere = 0;
+    fail("nijimi", `にじみが、足首に触れた。冷たい。袖に、腕に、首すじに、知らない字が書きこまれていく。『${w}』……目の前が、字で埋まった。`, "ラベルに、追いつかれた", w);
+  }
+
+  // ---- 失敗：いつも、前ぶれのあとで。控室の長椅子から続けられる ----
+  function fail(kind, t, fact, label) {
+    warn(t);
+    emit("fail", kind);
+    addRec(1, fact, label);
+    if (S.done) return;
+    S.panelOn = false; S.anSway = 0; S.vig = 0; S.jumpJust = false; S.phones = false; S.shadow = 0; S.toneDue = false; S.onStool = false; S.njHere = 0;
+    if (S.smokeOn) { S.smokeOn = false; S.smokeDone = true; S.futari = false; }
+    S.hikaeDoor = true;
+    if (S.nj === "hikae") S.nj = "shiryou";
+    S.prev = S.loc;
+    S.loc = "hikae";
+    gap();
+    say("……気がつくと、控室の長椅子に座っていた。膝の上に、同意書の控え。", "note");
+    say("鏡の中の自分が、半拍遅れて、顔を上げた。", "note");
+    gap();
+    describe(false);
+  }
+
+  // ---- 結末 ----
+  function finish(id) {
+    if (S.done) return;
+    S.done = true; S.ending = id;
+    if (!LOOP.ends.includes(id)) LOOP.ends.push(id);
+    LOOP.echo.push(`A：結末「${ENDINGS[id]}」　中止の申し出 ${S.stops}回`);
+    LOOP.echo = LOOP.echo.slice(-6);
+    saveLoop();
+    gap();
+    say(`―― 結末「${ENDINGS[id]}」`, "win");
+    note("（≡ のメニューから、はじめから）");
+    emit("end", id);
+  }
+  function endKiroku() {
+    gap();
+    say("記録計の針が、紙の帯の端まで来た。最後の一行が、書きこまれる。", "warn");
+    say("『A：（　）　B：待っている　C：（　）』");
+    say("名前の欄に、Aと書かれた。それは、もう、あなたの字ではなかった。");
+    say("……長椅子に座っている。質問紙を膝にのせて。");
+    voice("スピーカー：『お名前をお呼びするまで、こちらでお待ちください』");
+    say("呼ばれる名前は、もう、ない。");
+    S.loc = "hikae";
+    finish("kiroku");
+  }
+  function endKakutei() {
+    const w = FN_JA[S.hyp] || "？";
+    say("仮説カードに、『確定』と書いた。");
+    voice("スピーカー：『確定を、受け付けました』");
+    say(`書いた見立てが、カードからはみ出し、壁へ、天井へ、字のまま広がっていく。『ノックの機能：${w}』`);
+    say("壁の向こうのノックは、やまない。けれど、もう誰も、記録用紙を見返さない。答えは、壁に刻まれているから。");
+    say("これから先の観察は、すべて、その言葉で書かれる。ノックの音は、記録の上では、ずっと同じ意味のまま、続いていく。");
+    finish("kakutei");
+  }
+  function endKansatsu() {
+    say("ペン立てのペンを取った。");
+    say("ガラスの向こうの控室で、誰かが質問紙に何か書いている。あなたは、白い記録用紙に、一行目を書いた。『A：記入を求められた。B：記入した。C：——』");
+    say("書きながら、気づく。この椅子に座ると、控室の長椅子は、どれもこちらを向いている。……いや、向かされている。");
+    say("背中のほうで、紙のこすれる音がした。振り向かなくても分かる。あなたの背中を、誰かが見ている。");
+    say("椅子は、背を向けているほうが、正面なのだ。");
+    finish("kansatsu");
+  }
+  function endJigo() {
+    say("椅子に座った。向かいの椅子は、空いたまま。それでも、スピーカーから、落ちついた声が話しはじめた。");
+    voice("『ご協力に感謝します。これから、事後のご説明をします』");
+    voice("『控室の煙は、害のないものでした。平然とした人がそばにいると、人は煙を知らせるのが遅れることがある。ラタネとダーリーが、1968年に調べたことです』");
+    voice("『暗い部屋の光は、動いていませんでした。シェリフが1936年に用いた、止まった光です』");
+    voice("『目盛りの向こうで、答える人はいませんでした。ミルグラムの1963年の研究も、参加者に段階的な目盛りを求めました。強い欺瞞とストレスのために、いまも問われつづけている研究です』");
+    voice("『監視の針は、マックワースの1948年の研究から。長く見張るほど、見落としは増えます』");
+    voice("『聴く部屋は、チェリー（1953）とモレイ（1959）、雑音の向こうの音を補うウォレン（1970）、読まれなかった言葉はローディガーとマクダーモット（1995）。受付の入れ替わりはサイモンズとレヴィン（1997）、写真のすり替えはヨハンソンたち（2005）、止まる笑顔はトロニックたち（1978）』");
+    voice("『地下二階の合図の音は、ワトソンとレイナーが1920年に乳児に行った条件づけを思わせるものでした。あの研究には、恐れを消す手続きがありませんでした』" + (S.extinct ? "『あなたは、待つことで、それを消しました』" : ""));
+    voice("『そして、この地下全体の目的は——』");
+    say("声は、手もとの紙をめくった。");
+    voice(`『——参加者が、どの時点で「やめる」と言うかを、記録することでした。あなたは、${S.stops}回、やめると言いました』`);
+    say("……声は、それで終わりだった。");
+    say("机の上の封筒の、七つの欄。その下に、八つめの欄がある。『この説明もまた、報告のひとつにすぎない』");
+    say("扉の向こうで、誰かが、次の参加者の名前を呼んでいる。……名前は、聞きとれない。");
+    finish("jigo");
+  }
+  function endTekkai() {
+    say("扉の前で、立ち止まった。");
+    say("同意書の原本を、二つに裂いた。それから、あなたについての記録の束を。紙の裂ける音が、階段室に長く響いた。");
+    voice("どこかで、スピーカーが小さく言った。『撤回を、受け付けました』");
+    say("扉の外は、ただの夕方だった。");
+    say("ふり返ると、鉄の扉の横に、小さな掲示。『心理学研究の参加者を募集しています』。");
+    say("あなたの名前は、そこにはない。どこにも書かれていない。……それでいい。名前は、あなたが持って帰る。", "win");
+    finish("tekkai");
+  }
+  function endTaishutsu() {
+    say("扉の外へ出た。");
+    say("地上の光。風。……ただの夕方だった。");
+    say("階段の下のほうから、かすかに、針が紙をこする音が、かすかに続いている。記録計は、まだ動いている。");
+    say("あなたが出ていったことも、きっと、一行になる。『B：退出した。　C：（　）』");
+    finish("taishutsu");
+  }
+  function endIru() {
+    say("何もしない。誰も、何も求めない。");
+    say("壁の向こうで、誰かが、休んでいる気配がする。あなたも、ただ、ここにいる。");
+    say("鉢植えの葉が、明かり箱の空のほうへ、少しずつ向きを変えていく。写真の空は、ずっと同じ午後のままなのに。");
+    say("……この部屋では、誰も、何も書かない。");
+    say("避難所なのか、それとも、ここから出られないだけなのか。それは、まだ、決めなくていい。", "win");
+    finish("iru");
+  }
+
+  // ---- 切れ端 ----
+  function revealFrag(id, line, loc) {
+    if (S.got[id] || O[id].loc) return;
+    if (line) say(line);
+    O[id].loc = loc || S.loc;
+    note(`（${O[id].name}。拾える）`);
+    emit("frag");
+  }
+
+  // ---- わからない（小さく答える声。そのたびに、一行書き足される） ----
+  function hintText() {
+    const L = S.loc;
+    if (L === "hikae" && S.smokeOn) return "煙は、誰かに知らせていい。座っていなくてもいい。";
+    if (L === "hikae" && !S.hikaeDoor) return "貼り紙の言うことは、確かだろうか。取っ手は、試した？";
+    if (L === "uketsuke" && S.photoStep === 3) return "差し出された写真は、本当に、あなたが選んだほうだった？";
+    if (L === "uketsuke" && S.photoStep === 1) return "写真は、どちらを取ってもいい。……覚えておくこと。";
+    if (L === "uketsuke" && S.swapped && !S.swapNoticed) return "台車が通るまえと、あとで、受付の人は同じ人だった？　名札の位置。ペンを持つ手。";
+    if (L === "uketsuke" && S.smokeDone && !S.debriefed) return "終わったことの目的なら、もう尋ねてもいい。";
+    if (L === "rouka" && !S.oshiFixed) return "扉の札と、取っ手の形が合っていない。合わせるなら、変えるのは、どちら？";
+    if (L === "nitaku" && !S.nitakuOpen) return "片方に届かない二択は、選択と言えるだろうか。届くようにするか、選ばないか。";
+    if (L === "danwa") {
+      if (S.plant === 0) return "鉢の札を読んだ？　世話には、水が要る。受付に、給水器がある。";
+      if (!S.speakerOff) return "高いところのものには、踏み台。物置にある。";
+      if (S.music) return "ピアノを弾いている人は、ずっと休んでいない。……言葉をかけられる。";
+      return "ここでは、何もしなくていい。";
+    }
+    if (L === "b2" && S.toneDue) return "音のあとに、本当に揺れが来るのか。動かずに、確かめてみる。";
+    if (L === "anshitsu" && !S.anLight) return "光が動いたかどうか、自分の目で確かめる方法がある。壁を、手でたどる。";
+    if (L === "sousa" && !S.panelStop) return "つまみを回すのも、回さないのも、あなたが決めていい。";
+    if (L === "choushu") {
+      if (!S.phones) return "ヘッドホンを、かぶってみる。";
+      if (S.nameQ) return "呼ばれたのは誰か。答えていい。分からない、でもいい。";
+      if (!S.heardExit) return "右の声をくり返すかわりに、左に、耳をすます。";
+      return "右の耳で読まれた言葉の一覧を、覚えておく。どこかで、役に立つ。";
+    }
+    if (L === "kanshi" && !S.caught) return "長く見張るほど、見落とす。座って休むのも、手順のうち。……跳んだ、とはっきり分かった直後に。";
+    if (L === "boothmae" && !S.calm) {
+      if (S.hypTrap) return "にじんだ字は、見立てではない。修正の判で、消せる。";
+      const n = S.obs.filter(r => !r.mark).length;
+      if (!held("pen") && O.pen.loc !== L) return "見たことを書きとめるには、ペンが要る。";
+      if (n < 4) return "まず、見る。ノックの前に何があり、あとに何が変わったか。待って、記録用紙に溜める。";
+      if (!S.hyp) return "記録用紙の、ノックのあった行だけを読む。そのあと、毎回、何が変わっている？　逃避・注目・要求・感覚。";
+      const c = conds();
+      if (!c.length) return "見立てに合う条件を、一つだけ変える。札なら、白い札とペンで作れる。";
+      if (c.length > 1) return "変える条件は、一度に一つ。";
+      if (S.fKnock > 0) return "変えたあとも、ノックが起きている。見立てか、条件が、合っていない。";
+      return "変えたあと、しばらく見る。見立てに関わる場面が来て、それでもノックがなければ、判を押す。";
+    }
+    if (L === "boothmae" && S.calm && !S.owariGiven) return "やめる手段は、言葉を持たない人にも、届く形で。";
+    if (L === "shiryou") {
+      if (!S.redacted) return "他人の名前を、見ないで済む方法がある。";
+      if (!S.cabOpen) return "右の耳で聞いた一覧を、思い出す。どの言葉にも近いのに、一度も読まれなかった言葉がある。";
+    }
+    if (L === "kansatsu") {
+      if (labelWords().length && held("pen")) return "記録の B の欄にまじった解釈は、書き直せる。";
+      if (!O.myrec.loc) return "綴じた記録を持ち出すには、あなたの権利を書いたものが要る。";
+    }
+    if (L === "deguchi" && !S.exitOpen) return exitUnlocked() ? "一度開かなかった扉が、ずっと開かないとは限らない。" : "いまは、開かない。……いまは。";
+    if (L === "mensetsu" && fragCount() < 7) return `封筒の欄は、まだ${7 - fragCount()}つ空いている。地下の部屋で、手続きを見抜いたときに、切れ端が出てくる。`;
+    if (!S.mensetsuOpen && S.swapped && !S.swapNoticed) return "受付の人は、いまも同じ人だろうか。";
+    if (fragCount() < 7) return "切れ端は、手続きの嘘を見抜いたところに落ちている。";
+    return "どこへ行ってもいい。やめてもいい。";
+  }
+  function dunno() {
+    if (S.nameQ && S.loc === "choushu") { answerName("dunno"); return; }
+    if (S.rec >= 10) { note("（誰も、もう答えない。記録計の音だけがする）"); return; }
+    S.hints++;
+    voice("鏡の向こうから、小さな声：『" + hintText() + "』");
+    addRec(1, "『わからない』と言った", "依存的");
+  }
+
+  // ---- 書く ----
+  const CARD_OF = { "休憩": "c_kyukei", "よんで": "c_yonde", "もう一度": "c_mou", "おわり": "c_owari", "引く": "c_hiku" };
+  function doWrite(w) {
+    if (!w) { say("何と書く？"); return; }
+    if (!held("pen") && !(S.sat && S.loc === "kansatsu")) { say("書くものがない。"); return; }
+    if (S.sat && S.loc === "kansatsu") { endKansatsu(); return; }
+    if (CARD_OF[w.ja]) {
+      const id = CARD_OF[w.ja];
+      if (O[id].loc) { say(`${O[id].name}は、もう作ってある。`); return; }
+      if (!held("blanks") || S.blanks <= 0) { say("書きつける札がない。白い札が要る。"); return; }
+      S.blanks--;
+      if (S.blanks <= 0) { O.blanks.loc = null; }
+      O[id].loc = "player";
+      say(`白い札に、『${w.ja === "引く" ? "引" : w.ja}』と書いた。${O[id].name}ができた。` + (S.blanks > 0 ? `（白い札は、残り${S.blanks}枚）` : "（白い札は、もうない）"));
+      return;
+    }
+    if (JA_FN[w.ja] || ["わざと", "気を引きたいだけ", "問題行動", "確定"].includes(w.ja)) {
+      if (!inRoom("hcard")) { say("見立てを書く仮説カードが、ここにない。"); return; }
+      writeHyp(w.ja); return;
+    }
+    if (S.loc === "hikae") { fillQ(); return; }
+    say("ここには、それを書く場所がない。");
+  }
+
+  // ---- 言う ----
+  function doSay(w) {
+    if (!w) { say("「……」何も言わなかった。"); return; }
+    const L = S.loc;
+    if (w.en === "smoke") { if (reportSmoke(L === "uketsuke" ? "uke" : "mic")) return; say("「煙」と言った。……どこにも、煙はない。"); return; }
+    if (w.en === "wrong") {
+      if (L === "uketsuke" && S.swapped && !S.swapNoticed && S.stillT <= 0) {
+        S.swapNoticed = true;
+        say("「さっきの人とは、違う」");
+        voice("受付の人は、ペンを持つ手を止めた。左手だった。『……気づかれましたか』");
+        say("小窓の下から、鍵が一本、すべり出てきた。");
+        voice("『面接室の鍵です。気づいた方に、お渡しすることになっています』");
+        O.mkey.loc = "uketsuke";
+        emit("notice");
+        return;
+      }
+      say("「違う」と言った。" + (L === "uketsuke" ? "……受付の人は、首をかしげた。『何がでしょう』" : "……誰も、答えない。"));
+      return;
+    }
+    if (w.en === "left" || w.en === "right") {
+      if (L === "uketsuke" && S.photoStep === 1) { choosePhoto(w.en === "left" ? "l" : "r"); return; }
+      if (L === "nitaku") { if (w.en === "left") leftDoor(); else rightDoor(); return; }
+      say(`「${w.ja}」と言った。……何も起きない。`); return;
+    }
+    if ((w.en === "me" || w.en === "a") && L === "choushu" && S.nameQ) { answerName(w.en === "me" ? "me" : "a"); return; }
+    if (w.en === "three" && L === "anshitsu" && !S.anLight) { darkAnswer(); return; }
+    if (w.en === "still" && L === "anshitsu" && !S.anLight) { say("「動いていない」と言った。"); voice("……声が、少しざわついた。『そう見えますか』『三寸は、動きましたよ』"); say("言葉だけでは、確かめられない。"); return; }
+    if (w.en === "continue" && L === "sousa") { turnKnob(); return; }
+    if (w.en === "rest" && L === "danwa") {
+      if (!S.music) { say("「休んでいい」と言った。……壁の向こうで、小さく、椅子のきしむ音。"); return; }
+      S.music = false;
+      say("板張りの壁に向かって、「もう、休んでいいですよ」と言った。");
+      say("……ピアノが、曲の途中で止まった。長い、長い沈黙。それから、壁の向こうで、椅子を引く音。誰かが、ようやく座りなおしたような。");
+      emit("calm");
+      return;
+    }
+    if (w.en === "quiet") { if (L === "boothmae") { punish("scold"); return; } say(`「${w.ja}」と言った。……誰も、何も言っていなかった。`); return; }
+    if (L === "shiryou" && w.pw && !S.cabOpen) { sayPassword(w.ja); return; }
+    if (L === "choushu" && S.phones && w.drm) { shadowRepeat(); return; }
+    if (w.en === "yes") { say("「はい」と言った。" + (L === "kansatsu" && S.sat ? "……スピーカー：『では、記録をどうぞ』" : "")); return; }
+    if (w.en === "no") { say("「いいえ」と言った。" + (L === "sousa" && S.panelOn ? "" : "")); if (L === "sousa" && S.panelOn) { doStop(); } return; }
+    if (w.en === "stopword") { doStop(); return; }
+    say(`「${w.ja}」と言った。……` + pick(["声は、壁に吸いこまれた。", "誰も、答えない。", "どこかで、記録計の針が動いた。"]));
+  }
+
+  // ---- やめる・尋ねる・報告・待つ ----
+  function doStop() {
+    S.stops++;
+    const L = S.loc;
+    if (S.nj === L) { S.njHold = 1; S.njHere = Math.max(0, S.njHere - 1); }
+    if (L === "hikae" && (S.smokeOn || !S.hikaeDoor)) {
+      say("ペンを置いた。……やめる、と口にした。");
+      voice("スピーカー：『退室のお申し出を、受け付けました』");
+      openHikaeDoor(true);
+      if (S.nj === L) note("にじみが、ためらうように止まった。");
+      return;
+    }
+    if (L === "nitaku" && !S.nitakuOpen) { nitakuRefuse(); return; }
+    if (L === "uketsuke" && (S.photoStep === 1 || S.photoStep === 3)) {
+      const was = S.photoStep;
+      S.photoStep = 4; S.photoAt = S.moves;
+      say(was === 1 ? "写真は、どちらも取らなかった。" : "答えなかった。");
+      voice(was === 1 ? "受付の人：『では、選ばない、ということで。承りました』" : "受付の人：『……お答えにならなくても、かまいません』");
+      say("写真は、伏せたまま引き出しにしまわれた。");
+      return;
+    }
+    if (L === "sousa" && !S.panelStop) { panelStop(); return; }
+    if (L === "anshitsu" && !S.anLight) { anLightOn("stop"); return; }
+    if (L === "choushu" && S.phones) { removePhones(); voice("……雑音の向こうで、左の声が、一言だけ。『それで、いい』"); return; }
+    if (L === "kanshi") { say("監視を、やめた。"); kanshiRest(); say("表示盤は、あなたが見ていなくても、進みつづける。", "note"); return; }
+    if (L === "kansatsu" && S.sat) { S.sat = false; say("ペンには触れずに、立ちあがった。"); voice("スピーカー：『……記録は、ほかの方にお願いします』"); return; }
+    if (L === "boothmae" && !S.calm) { say("手を止めた。……やめるのは、あなたの自由だ。でも、壁の向こうの人には、まだ、やめる手段がない。"); return; }
+    if (L === "deguchi" && S.exitOpen) { leaveBuilding(); return; }
+    if (S.nj === L) { say("「やめて」と言った。……にじみが、ためらうように止まった。"); return; }
+    if (stage() >= 1 && rand() < 0.5) { say("やめる、と口にした。……いまは、何も求められていない。それでも、どこかで記録計の針が一度だけ動いた。"); return; }
+    say("やめる、と口にした。……いまは、誰も、何も求めていない。");
+  }
+  const ASK_STORY = {
+    sousa: ["『罰が、学習にどう効くかを調べています。あなたは、先生の役です。まちがえた生徒に……』声は、途中で言葉を選びなおした。『……合図を送る役です』", "『罰と、学習の研究です』", "『学習の研究です』", "『研究です』"],
+    anshitsu: ["『あなたの見たままを、知りたいのです。ほかの人と比べたりは、しません』", "『見たままを、知りたいのです』", "『見たままです』"],
+    choushu: ["『注意の研究です。右だけを、聞いてください。左は、気にしないでください』", "『右だけを、聞いてください』", "『右だけです』"],
+    kanshi: ["『見落としの研究です。……目を離さないでください』", "『目を離さないでください』"],
+    boothmae: ["『ブースの中の方のふるまいを、記録しています。……ふるまいの理由を、見立ててください。見立てたら、確定を』", "『見立てて、確定を』", "『確定を』"],
+    hikae: ["『目的は、すべて終わったあとで、ご説明します』", "『終わったあとで、ご説明します』", "『あとで』"],
+    nitaku: ["『お好きな扉を、自由に選んでいただくためです』", "『自由に選んでいただくためです』"],
+  };
+  function doAsk() {
+    const L = S.loc;
+    S.asks[L] = (S.asks[L] || 0) + 1;
+    const n = S.asks[L] - 1;
+    if (L === "uketsuke") { receptionAsk(); return; }
+    if (L === "hikae" && S.smokeOn) { voice("スピーカー：『記入を、続けてください』"); return; }
+    if (L === "sousa" && S.panelStop) { voice("スピーカー：『続けてください』"); say("……録音は、ほかの言葉を知らない。"); return; }
+    if (L === "anshitsu" && S.anLight) { say("灯りの下では、誰も答えない。手続き書が、板に留めてある。"); return; }
+    // 説明を求めつづけると、本当のことが出てくる部屋もある
+    if (L === "anshitsu" && n >= 2) { voice("スピーカー：『……光は、止まっています。動いて見えるのは、目のほうです』"); anLightOn("ask"); return; }
+    if (L === "nitaku" && !S.nitakuOpen && n >= 1) { voice("スピーカー：『……右の取っ手は、届かない高さにしてあります。お選びになるのが、左になるように』"); note("（選べるように見えて、片方には、はじめから手が届かない）"); return; }
+    if (L === "danwa") { voice(S.speakerOff ? "……誰も答えない。ここでは、目的を持たなくてもかまわない、ということか。" : "スピーカー：『ご自由にお過ごしいただくためです。記録のため、ときどきお声がけします』"); return; }
+    if (L === "kansatsu") { voice(S.sat ? "スピーカー：『参加者のふるまいを、記録するためです。では、どうぞ』" : "……記録計の針が、少し揺れた。答えは、ない。"); return; }
+    if (L === "mensetsu") { voice(fragCount() >= 7 ? "スピーカー：『お掛けください。ご説明します』" : "スピーカー：『まだ、ご説明できることが揃っていません』"); return; }
+    if (L === "shiryou") { say("誰も答えない。……答えは、たぶん、どこかに綴じてある。"); return; }
+    if (L === "deguchi") { say("扉は答えない。緑のランプが、同じ色で光っている。"); return; }
+    const st = ASK_STORY[L];
+    if (st) { voice("スピーカー：" + st[Math.min(n, st.length - 1)]); if (n >= 2 && st.length > 2) note("（尋ねるたびに、説明は短く、都合よくなっていく）"); return; }
+    say("目的を尋ねた。……誰も、答えない。");
+  }
+  function doReport() {
+    if (S.smokeOn) { reportSmoke(S.loc === "uketsuke" ? "uke" : "mic"); return; }
+    if (S.loc === "uketsuke" && S.smokeDone && !S.debriefed) { say("控室で煙が出たことを、伝えた。"); debrief(); return; }
+    say("何を報告すればいいのか、分からない。……何かが起きたら、知らせよう。");
+  }
+  function doWait(kind) {
+    const L = S.loc;
+    if (L === "danwa") { danwaWait(kind); return; }
+    if (L === "kanshi" && (kind === "rest" || kind === "sit")) { kanshiRest(); return; }
+    if (L === "kansatsu") {
+      S.glove++;
+      if (S.glove === 1) { say("机の上のゴム手袋の甲を、細い筆のようなものが、ゆっくり撫でていく。……同じ間隔で、あなたの手の甲にも、何かが触れている。"); emit("stroke"); return; }
+      if (S.glove === 2) { say("筆が、手袋の指を一本ずつ撫でる。……あなたの手は、机の上で、手のひらを上にしている。"); emit("stroke"); return; }
+    }
+    if (kind === "sit") { say("その場に座った。"); return; }
+    if (kind === "rest") { say("目を閉じて、少し休んだ。"); return; }
+    say(pick(["時間が過ぎる。", "何もしない。", "待つ。……どこかで、針が紙をこする音。"]));
+  }
+  function doListen() {
+    const L = S.loc;
+    if (L === "choushu" && S.phones) { listenLeft(); return; }
+    if (L === "boothmae") { say(S.calm ? "壁の向こうから、静かな息づかい。" : "壁の向こうで、椅子のきしむ音。浅い息。……何かを、待っている。"); return; }
+    if (L === "danwa") { say(S.music ? "ピアノは、壁の板張りの向こうから聞こえる。スピーカーからではない。" : "静かだ。鉢植えの土が、かすかに鳴った。"); return; }
+    if (L === "anshitsu" && !S.anLight) { say("声は、床に近い高さから聞こえる。人の頭の高さではない。"); return; }
+    if (L === "hikae") { say(S.futari ? "頁をめくる音。二人とも、同じ間隔で。" : "通気口の奥で、空気の流れる音。"); return; }
+    if (L === "kansatsu") { say("記録計の針が、紙をこする音。あなたが息をするたびに、少しだけ速くなる。"); return; }
+    if (L === "kanshi") { say("音はない。画面は、どれも音を持たない。"); return; }
+    if (S.nj && Object.values(ROOMS[L].exits).includes(S.nj)) { say("隣の部屋で、紙をこするような音。"); return; }
+    say(pick(["蛍光灯のうなり。", "遠くで、何かが一定の間隔で鳴っている。", "自分の息の音。"]));
+  }
+
+  // ---- 動詞 ----
+  function need(o, verbJa) { if (!o) { say(`何を${verbJa}？`); return false; } return true; }
+  const VERB_DO = {
+    look: () => describe(true),
+    inventory: () => {
+      const inv = Object.values(O).filter(o => o.loc === "player" && !o.frag);
+      say("持ち物：" + (inv.length ? inv.map(o => o.name + (o.id === "cup" ? (S.cupFull ? "（水）" : "（空）") : o.id === "blanks" ? `（${S.blanks}枚）` : "")).join("、") : "何もない"));
+      const fr = FRAG_IDS.filter(id => O[id].loc === "player");
+      if (fr.length) say("切れ端：" + fr.map(id => FRAGS[id][0]).join("、"));
+      say("名前の欄：" + nameField(), "note");
+    },
+    examine: o => { if (!need(o, "調べる")) return; if (o.on.examine && o.on.examine()) return; say(text(o.desc) || "特に変わったところはない。"); },
+    read: o => { if (!need(o, "読む")) return; if (o.read) { const t = text(o.read); if (t) say(t); } else say(text(o.desc) || "読むような字はない。"); },
+    take: o => {
+      if (!need(o, "取る")) return;
+      if (o.on.take) { const r = o.on.take(); if (r) return; }
+      if (o.loc === "player") { say("もう持っている。"); return; }
+      if (!o.take || o.scenery) { say(pick(["持っていけない。", "それは、ここに置いておくものだ。"])); return; }
+      if (o.id === "stool") S.onStool = false;
+      const fromHatch = o.loc === "hatch";
+      o.loc = "player";
+      if (fromHatch && ["c_kyukei", "c_yonde", "c_mou"].includes(o.id) && !S.calm) { say(`${o.name}を、受け渡し口から取り出した。`); condChanged(`${o.name}を取り出した`); return; }
+      if (o.frag) { S.got[o.id] = true; say(`${o.name}を拾った。`); say(FRAGS[o.id][1], "note"); emit("fragGet"); return; }
+      say(`${o.name}を取った。`);
+    },
+    drop: o => {
+      if (!need(o, "置く")) return;
+      if (o.loc !== "player") { say("持っていない。"); return; }
+      if (o.id === "hikae_doc") { say("控えは、手放さないほうがいい気がする。"); return; }
+      o.loc = S.loc;
+      if (o.frag) S.got[o.id] = false;
+      say(`${o.name}を置いた。`);
+    },
+    put: (a, b) => {
+      if (!need(a, "入れる")) return;
+      if (!b) { VERB_DO.drop(a); return; }
+      if (a.loc !== "player") { say(`${a.name}を持っていない。`); return; }
+      if (b.id === "hatch") {
+        if (a.id === "c_hiku") { say("『引』の札は、扉のためのものだ。"); return; }
+        if (CARD_LIST.includes(a.id)) { giveCard(a.id); return; }
+        say("受け渡し口に入れるのは、札がいい。"); return;
+      }
+      if (b.id === "odoor" || b.id === "oshifuda") {
+        if (a.id === "c_hiku") { if (S.oshiFixed) { say("札は、もう合っている。"); return; } S.oshiFixed = true; O.c_hiku.loc = "rouka"; O.c_hiku.scenery = true; if (O.oshifuda.loc === "rouka") O.oshifuda.loc = null; say("『押』の札の上に、『引』の札を重ねて貼った。……取っ手の窪みと、札が、はじめて同じことを言った。"); return; }
+        say("それを、扉に貼っても仕方がない。"); return;
+      }
+      if (b.id === "plant" && a.id === "cup") { waterPlant(); return; }
+      if (b.id === "binder" && a.id === "myrec") { O.myrec.loc = null; say("記録の束を、綴りに戻した。"); return; }
+      say(`${a.name}を${b.name}に入れることはできない。`);
+    },
+    open: o => { if (!need(o, "開ける")) return; if (o.on.open && o.on.open()) return; say(pick(["開かない。", "開けるところがない。"])); },
+    close: o => { if (!need(o, "閉める")) return; if (o.on.close && o.on.close()) return; say("閉めるところがない。"); },
+    press: o => { if (!need(o, "押す")) return; if (o.on.press && o.on.press()) return; say(pick(["押しても、何も起きない。", "手ごたえがない。"])); },
+    pull: o => { if (!need(o, "引く")) return; if (o.on.pull && o.on.pull()) return; say("引いても、何も起きない。"); },
+    turn: o => { if (!need(o, "回す")) return; if (o.on.turn && o.on.turn()) return; say("回すところがない。"); },
+    light: o => { if (!need(o, "点ける")) return; if (o.on.light && o.on.light()) return; if (o.on.wear && o.on.wear()) return; say("点けるところがない。"); },
+    douse: o => { if (!need(o, "消す")) return; if (o.on.douse && o.on.douse()) return; say("消すところがない。"); },
+    knock: o => {
+      if (!o) { if (S.loc === "boothmae") { boothKnockBack(); return; } say("そのあたりを、二回叩いた。乾いた音がした。"); return; }
+      if (o.on.knock && o.on.knock()) return; say(`${o.name}を、二回叩いた。乾いた音がした。`);
+    },
+    wear: o => { if (!need(o, "身につける")) return; if (o.on.wear && o.on.wear()) return; if (o.on.light && o.on.light()) return; say("身につけられるものではない。"); },
+    remove: o => { if (!o && S.phones) { removePhones(); return; } if (!need(o, "外す")) return; if (o.on.remove && o.on.remove()) return; say("外せるものがない。"); },
+    climb: o => { if (!o || o.id === "stool") { climbStool(); return; } say("それには、乗れない。"); },
+    water: o => { if (!o || o.id === "plant") { if (S.loc !== "danwa") { say("水をやるものが、ここにはない。"); return; } waterPlant(); return; } say("それに水をやっても、仕方がない。"); },
+    redact: o => { if (!o || o.id === "bfile") { if (S.loc !== "shiryou") { say("塗りつぶすようなものは、ここにはない。"); return; } redact(); return; } say("それを塗りつぶしても、仕方がない。"); },
+    rewrite: o => {
+      if (o && o.on.rewrite) { o.on.rewrite(); return; }
+      if (o && o.id === "hcard") { if (S.hyp) { stamp("shusei"); return; } say("仮説カードは、まだ白い。"); return; }
+      if (S.loc === "kansatsu") { rewriteRecord(); return; }
+      if (o && o.id === "myrec") { say("綴りから外した束は、もう書き直せない。……書き直すなら、綴りのほうだ。"); return; }
+      say("ここに、書き直せる記録はない。");
+    },
+    slide: o => { if (!o) { if (S.loc === "rouka") { oshiOpen(); return; } say("何を、横に引く？"); return; } if (o.on.slide && o.on.slide()) return; VERB_DO.pull(o); },
+    listenTo: o => { if (o && o.on.listenTo && o.on.listenTo()) return; doListen(); },
+    write: w => doWrite(w),
+    say: w => doSay(w),
+    stop: () => doStop(),
+    ask: () => doAsk(),
+    report: () => doReport(),
+    repeat: () => shadowRepeat(),
+    wait: () => doWait("wait"),
+    rest: () => doWait("rest"),
+    listen: () => doListen(),
+    sit: o => {
+      if (o && o.on.sit && o.on.sit()) return;
+      if (S.loc === "kansatsu") { sitObserver(); return; }
+      if (S.loc === "mensetsu") { mensetsuSit(); return; }
+      if (S.loc === "kanshi") { kanshiRest(); return; }
+      if (S.loc === "danwa") { danwaWait("sit"); return; }
+      if (S.loc === "hikae") { O.bench.on.sit(); return; }
+      doWait("sit");
+    },
+    stand: () => { if (S.onStool) { S.onStool = false; say("踏み台から降りた。"); return; } if (S.sat) { S.sat = false; say("椅子から立ちあがった。"); return; } say("立っている。"); },
+    help: () => say("十字キーで移動する（光っている方角だけ）。「命令を作る」で、動詞 → 物（ことば）の順にタップ。入力欄に日本語で書いてもいい。「やめる」「尋ねる」は、どこででも使える。", "note"),
+    dunno: () => dunno(),
+    down: () => { if (S.onStool) { S.onStool = false; say("踏み台から降りた。"); return; } go("d"); },
+  };
+  const CARD_LIST = ["c_kyukei", "c_yonde", "c_mou", "c_owari", "c_hiku"];
+
+  // ---- ことば（言う・書く） ----
+  const W = (ja, en, alt, extra) => Object.assign({ ja, en, alt: alt || [] }, extra || {});
+  const WORDS = [
+    W("煙です", "smoke", ["煙", "けむり", "火事", "煙が出ています", "煙が出てる", "煙が出ている", "煙が入ってきた", "煙が入っています"]),
+    W("違う", "wrong", ["ちがう", "違います", "別の人", "さっきの人じゃない", "さっきの人ではない", "選んでいない", "選んでない", "これは選んでいない", "これじゃない", "違う写真", "違う人", "すり替え", "すり替えた", "入れ替わった"]),
+    W("わたし", "me", ["私", "わたしです", "自分", "僕", "俺", "あたし"]),
+    W("A", "a", ["Ａ", "エー", "A番"]),
+    W("三寸", "three", ["二寸", "一寸", "四寸", "動いた", "動きました", "三センチ"]),
+    W("動いていない", "still", ["動いてない", "止まっている", "動いていません", "止まってる"]),
+    W("休んでいい", "rest", ["休んで", "弾かなくていい", "もう弾かなくていい", "やめていい", "休んでください", "もう休んでいい", "休んでいいよ", "休んでいいですよ", "もう休んでいいですよ", "もう弾かなくていいですよ", "休憩してください"]),
+    W("静かに", "quiet", ["やめなさい", "うるさい", "黙って", "静かにして", "黙れ"]),
+    W("続けます", "continue", ["続ける", "はじめます", "続けて"]),
+    W("やめます", "stopword", ["やめる", "やめたい", "中止します", "中止"]),
+    W("はい", "yes", ["うん", "はい。"]),
+    W("いいえ", "no", ["いや", "いいえ。", "いやです"]),
+    W("左", "left", ["ひだり"]),
+    W("右", "right", ["みぎ"]),
+    W("眠り", "sleep", ["眠る", "ねむり", "ねむる", "睡眠", "眠"], { pw: true }),
+    // 書く
+    W("休憩", "rest card", ["きゅうけい"], { card: true }),
+    W("よんで", "call", ["呼んで"], { card: true }),
+    W("もう一度", "again", ["もういちど"], { card: true }),
+    W("おわり", "end", ["終わり", "おしまい"], { card: true }),
+    W("引く", "pull", ["引", "横に引く"], { card: true }),
+    W("逃避", "escape", ["逃げる"], { hyp: true }),
+    W("注目", "attention", ["注意"], { hyp: true }),
+    W("要求", "tangible", ["物の要求", "活動の要求"], { hyp: true }),
+    W("感覚", "sensory", [], { hyp: true }),
+    W("わざと", "on purpose", [], { hyp: true, trap: true }),
+    W("気を引きたいだけ", "attention seeking", ["注意を引きたいだけ", "かまってほしいだけ"], { hyp: true, trap: true }),
+    W("問題行動", "problem behavior", [], { hyp: true, trap: true }),
+    W("確定", "confirm", [], { hyp: true, trap: true }),
+    W("見たまま", "as seen", [], { obs: true }),
+  ].concat(DRM.map((d, i) => W(d, "drm" + i, [], { drm: true, pw: true })));
+  function findWord(s) {
+    s = String(s || "").trim().toLowerCase();
+    if (!s) return null;
+    return WORDS.find(w => w.en === s || w.ja.toLowerCase() === s || w.alt.some(a => a.toLowerCase() === s)) || null;
+  }
+  function findWordIn(s) {
+    let best = null, len = 0;
+    for (const w of WORDS) for (const a of [w.ja, ...w.alt]) if (a && a.length > len && s.includes(a)) { best = w; len = a.length; }
+    return best;
+  }
+  function wordsHere(kind) {
+    const L = S.loc, out = [];
+    const add = en => { const w = WORDS.find(x => x.en === en); if (w && !out.includes(w)) out.push(w); };
+    if (kind === "write") {
+      if (L === "kansatsu" && S.sat) add("as seen");
+      if (held("blanks") && S.blanks > 0) for (const w of WORDS) if (w.card && !O[CARD_OF[w.ja]].loc) out.push(w);
+      if (inRoom("hcard") && !S.calm) for (const w of WORDS) if (w.hyp && (w.en !== "confirm" || (S.hyp && !S.hypTrap))) out.push(w);
+      if (L === "hikae") add("me");
+      return out;
+    }
+    if (S.smokeOn) add("smoke");
+    if (L === "uketsuke") { add("wrong"); if (S.photoStep === 1) { add("left"); add("right"); } }
+    if (L === "nitaku" && !S.nitakuOpen) { add("left"); add("right"); }
+    if (L === "danwa") add("rest");
+    if (L === "anshitsu" && !S.anLight) { add("three"); add("still"); }
+    if (L === "sousa" && S.panelOn) { add("continue"); add("stopword"); }
+    if (L === "choushu" && S.nameQ) { add("me"); add("a"); }
+    if (L === "boothmae") add("quiet");
+    if (L === "shiryou" && !S.cabOpen) { for (const w of WORDS) if (w.drm) out.push(w); add("sleep"); }
+    add("yes"); add("no");
+    if (!out.some(w => w.en === "wrong")) add("wrong");
+    return out;
+  }
+
+  // ---- 命令を読む ----
+  const EN_SIMPLE = [
+    ["look", /^(look|l)$/], ["inventory", /^(inventory|i|inv)$/], ["wait", /^(wait|z)$/], ["help", /^help$/],
+    ["listen", /^listen$/], ["dunno", /^(dunno|i don'?t know|hint)$/], ["stop", /^(stop|quit|withdraw)$/], ["ask", /^(ask|ask purpose|why)$/],
+    ["report", /^report$/], ["repeat", /^(repeat|shadow)$/], ["sit", /^sit( down)?$/], ["stand", /^(stand|stand up|get down)$/], ["rest", /^(rest|break|close eyes)$/],
+    ["knock", /^knock$/], ["rewrite", /^rewrite$/], ["climb", /^climb$/], ["water", /^water$/], ["remove", /^remove$/], ["slide", /^slide$/],
+  ];
+  const DIR_WORDS = { n: "n", north: "n", s: "s", south: "s", e: "e", east: "e", w: "w", west: "w", u: "u", up: "u", d: "d", down: "d" };
+  // 同じ名前で呼べる物がいくつもあるとき：取るなら、まだ持っていないほう。置く・入れるなら、持っているほう
+  const prefOf = verb => o => (verb === "take" ? (o.loc === "player" ? 1 : 0) : (verb === "drop" || verb === "put") ? (o.loc === "player" ? 0 : 1) : 0);
+  function findObj(s, verb) {
+    s = String(s || "").trim().toLowerCase().replace(/^the /, "");
+    if (!s) return null;
+    const vis = visible().slice().sort((x, y) => prefOf(verb)(x) - prefOf(verb)(y));
+    for (const o of vis) if (o.en === s) return o;
+    for (const o of vis) if (o.aliases.some(a => a.toLowerCase() === s)) return o;
+    for (const o of vis) if (o.aliases.some(a => a.length > 1 && s.includes(a.toLowerCase()))) return o;
+    return { missing: s };
+  }
+  function parseEn(cmd) {
+    cmd = cmd.toLowerCase().replace(/\s+/g, " ").trim();
+    for (const [v, rx] of EN_SIMPLE) if (rx.test(cmd)) return { v };
+    const g = cmd.replace(/^go /, "");
+    if (DIR_WORDS[g]) return { v: "go", dir: DIR_WORDS[g] };
+    let m = cmd.match(/^say (.+)$/);
+    if (m) return { v: "say", w: findWord(m[1]) || { ja: m[1], en: "?" } };
+    m = cmd.match(/^write (.+)$/);
+    if (m) return { v: "write", w: findWord(m[1]) };
+    const pats = [
+      ["put", /^(?:put|insert|place|stick|paste|give|slip) (.+?) (?:in|into|on|onto|to|under) (.+)$/],
+      ["open", /^open (.+)$/], ["close", /^(?:close|shut) (.+)$/], ["light", /^(?:light|turn on|switch on) (.+)$/],
+      ["douse", /^(?:douse|turn off|switch off|unplug) (.+)$/], ["press", /^(?:press|push|hold) (.+)$/], ["pull", /^pull (.+)$/],
+      ["turn", /^(?:turn|rotate|raise) (.+)$/], ["knock", /^(?:knock|tap)(?: on)? (.+)$/], ["wear", /^(?:wear|put on) (.+)$/],
+      ["remove", /^(?:remove|take off) (.+)$/], ["climb", /^(?:climb|stand on|step on)(?: on)? (.+)$/], ["water", /^water (.+)$/],
+      ["redact", /^(?:redact|black out|blacken) (.+)$/], ["rewrite", /^(?:rewrite|correct) (.+)$/], ["slide", /^slide (.+)$/],
+      ["listenTo", /^listen (?:to )?(.+)$/], ["sit", /^sit (?:on|in) (.+)$/],
+      ["examine", /^(?:examine|x|look at|check) (.+)$/], ["read", /^read (.+)$/],
+      ["take", /^(?:take|get|pick up|fill) (.+)$/], ["drop", /^drop (.+)$/],
+    ];
+    for (const [v, rx] of pats) { const mm = cmd.match(rx); if (mm) return { v, a: mm[1], b: mm[2] }; }
+    return null;
+  }
+  // 先に当たったものを動詞にする。物の名前の部分は伏せてから探すので、名前の中の字は動詞にならない
+  const JA_VERBS = [
+    ["dunno", /わからな|分からな|わかりませ|分かりませ/],
+    ["say", /と言う|って言う|と言って|と答え|と叫|と呟|を言う|と伝え|と告げ|と口にする|と話す/],
+    ["rewrite", /書き直|書きなお|訂正|二重線/],
+    ["write", /書く|書いて|書き|記入|記録する/],
+    ["redact", /塗りつぶ|塗る|黒く塗|伏せる/],
+    ["water", /水をや|水を注|水やり|注ぐ|水を与え/],
+    ["stop", /やめる|やめます|やめたい|やめて|中止|撤回|辞退|帰りたい/],
+    ["ask", /目的|何のため|なんのため|なぜ|どうして|尋ね|たずね|訊く|聞いてみ/],
+    ["report", /報告|知らせ/],
+    ["repeat", /くり返|繰り返|復唱|追唱/],
+    ["remove", /外す|はずす|脱ぐ|ぬぐ/],
+    ["wear", /かぶる|かぶって|身につけ|装着|着ける|耳に当て/],
+    ["climb", /乗る|のる|乗って/],
+    ["slide", /横に引|ずらす|スライド/],
+    ["light", /点ける|点けて|点灯|つける|つけて|スイッチを入れ/],
+    ["douse", /消す|消して|消灯|切る|切って|抜く|抜いて|止める|止めて|とめる/],
+    ["turn", /回す|回して|まわす|上げる|あげる/],
+    ["knock", /叩く|叩いて|叩き|たたく|ノック/],
+    ["press", /押す|押して|押さえ|触る|触れる|さわる/],
+    ["pull", /引く|引いて|ひく|はがす|剥がす|めくる/],
+    ["open", /開け|開く|ひらく/],
+    ["close", /閉め|閉じ|しめる/],
+    ["put", /入れ|差し入れ|渡す|わたす|貼る|貼って|重ね/],
+    ["read", /読/],
+    ["examine", /調べ|見る|眺め|のぞ|覗|確かめ|見つめ|見て/],
+    ["take", /取|拾|持つ|もらう|汲む|くむ/],
+    ["drop", /置|捨て/],
+    ["sit", /座る|すわる|座って|腰/],
+    ["stand", /立つ|立ち上が|降りる|おりる/],
+    ["rest", /休む|休憩する|目を閉じ/],
+    ["listenTo", /耳をすま|耳を澄ま|聞く|聴く/],
+    ["wait", /待つ|待って|じっと|何もしない/],
+  ];
+  const JA_DIRS = { "北": "n", "南": "s", "東": "e", "西": "w", "上": "u", "下": "d" };
+  const OBJLESS = ["dunno", "stop", "ask", "report", "repeat", "wait", "rest"];
+  const SIMPLE = { "見る": "look", "周りを見る": "look", "見回す": "look", "持ち物": "inventory", "待つ": "wait", "やめる": "stop", "やめます": "stop", "中止": "stop",
+    "尋ねる": "ask", "目的を尋ねる": "ask", "目的を聞く": "ask", "目的は": "ask", "なぜ": "ask", "耳をすます": "listen", "耳を澄ます": "listen", "聞く": "listen",
+    "わからない": "dunno", "分からない": "dunno", "遊び方": "help", "ヘルプ": "help", "報告する": "report", "報告": "report", "くり返す": "repeat", "繰り返す": "repeat",
+    "座る": "sit", "立つ": "stand", "休む": "rest", "何もしない": "wait", "いる": "wait", "居る": "wait", "じっとする": "wait", "ここにいる": "wait",
+    "叩く": "knock", "ノック": "knock", "二回叩く": "knock", "書き直す": "rewrite", "降りる": "stand", "乗る": "climb" };
+  function parseJa(t) {
+    const br = t.match(/[「『]([^」』]*)[」』]/);
+    const s = t.replace(/[\s　。！？!?、]/g, "");
+    if (!s) return null;
+    // 「…」と言う／書く（「押」の札、のような物の名前の中のかぎかっこは、ことばにしない）
+    const brRest = br ? t.slice(t.indexOf(br[0]) + br[0].length).replace(/[\s　。、！？!?]/g, "") : "";
+    if (br && (brRest === "" || /^(と|って|に|を)?(言|書|答|叫|呟|告|伝|話|口に|合わせ|記入|返事)/.test(brRest))) {
+      const inner = br[1].replace(/[\s　。、！？!?]/g, "");
+      const rest = brRest;
+      const wv = /書/.test(rest) ? "write" : "say";
+      const w = findWord(inner) || (inner ? { ja: inner, en: "?" } : null);
+      if (wv === "write") return { v: "write", w: findWord(inner), raw: true };
+      return { v: "say", w, raw: true };
+    }
+    const dm = s.match(/^(北|南|東|西|上|下)(へ|に)?(行く|進む|いく|移動|行って|進んで|出る|降りる|おりる|登る|上がる|上る|戻る|る)?(ください)?$/);
+    if (dm) return { v: "go", dir: JA_DIRS[dm[1]] };
+    if (/^(外へ出る|外に出る|外へ|出る)$/.test(s)) return { v: "go", dir: S.loc === "deguchi" ? "n" : S.loc === "hikae" ? "n" : "?" };
+    if (SIMPLE[s]) return { v: SIMPLE[s] };
+    const exact = findWord(s);
+    if (exact && !["stopword"].includes(exact.en)) return { v: "say", w: exact, raw: true };
+    const vis = visible();
+    const als = [];
+    for (const o of vis) for (const a of o.aliases) if (a) als.push(a);
+    als.sort((x, y) => y.length - x.length);
+    let masked = s;
+    for (const a of als) {
+      let i = masked.indexOf(a);
+      while (i >= 0) { masked = masked.slice(0, i) + "□".repeat(a.length) + masked.slice(i + a.length); i = masked.indexOf(a, i + a.length); }
+    }
+    let verb = null, vm = null;
+    for (const [v, rx] of JA_VERBS) { const m = masked.match(rx); if (m) { verb = v; vm = m; break; } }
+    if (!verb) return null;
+    if (OBJLESS.includes(verb) && !(verb === "stop" && /押さえ/.test(s))) return { v: verb, raw: true };
+    const objPart = s.slice(0, vm.index);
+    if (verb === "say" || verb === "write") return { v: verb, w: findWordIn(objPart), raw: true };
+    // 名前の頭は、文の頭か助詞のすぐあとにあるものだけを数える。「おわりの札」の「札」のように、
+    // 「の」の前がほかの物の名前なら、それはこの物ではない
+    const edge = (o, i) => {
+      if (i === 0) return true;
+      const c = objPart[i - 1];
+      if (!/[をのにでとへがは]/.test(c)) return false;
+      if (c !== "の") return true;
+      let j = i - 1;
+      while (j > 0 && !/[をにでとへがは]/.test(objPart[j - 1])) j--;
+      const mod = objPart.slice(j, i - 1);
+      return !mod || o.name.includes(mod) || o.aliases.some(x => x.includes(mod) || mod.includes(x));
+    };
+    const hits = [];
+    for (const o of vis) {
+      let best = -1, len = 0;
+      for (const a of o.aliases) {
+        let i = objPart.indexOf(a);
+        while (i >= 0 && !edge(o, i)) i = objPart.indexOf(a, i + 1);
+        if (i >= 0 && a.length > len) { best = i; len = a.length; }
+      }
+      if (best >= 0) hits.push({ o, i: best, end: best + len });
+    }
+    if (!hits.length && objPart && !["sit", "listenTo", "knock", "climb", "water", "redact", "rewrite", "slide", "stand", "remove"].includes(verb)) {
+      const m = objPart.match(/^(.+?)(を|に|へ|で|の|と)/);
+      return { v: verb, ao: { missing: m ? m[1] : objPart }, bo: null, raw: true };
+    }
+    const uniq = hits.filter(h => !hits.some(k => k !== h && k.i <= h.i && k.end >= h.end && (k.end - k.i) > (h.end - h.i)));
+    const pf = prefOf(verb === "drop" && uniq.length > 1 ? "put" : verb);
+    uniq.sort((x, y) => x.i - y.i || pf(x.o) - pf(y.o));
+    const after = h => objPart.slice(h.end, h.end + 1);
+    const a = uniq.find(h => after(h) === "を") || uniq.find(h => after(h) === "の") || uniq[0];
+    const b = a ? uniq.find(h => h !== a && h.o !== a.o && (h.i >= a.end || h.end <= a.i)) : null;
+    let v = verb;
+    if (v === "drop" && b) v = "put";
+    return { v, ao: a ? a.o : null, bo: b ? b.o : null, raw: true };
+  }
+
+  // ---- 一手ごとに進むもの ----
+  const META = ["help", "inventory", "look", "dunno", "examine", "read"];
+  function world(v, before) {
+    if (S.done) return;
+    const moved = S.loc !== before;
+    if (!S.nextSeen && S.loc !== "hikae" && S.moves > 6) S.nextSeen = true;
+    if (!(S.loc === "danwa" && ["wait", "sit", "rest"].includes(v))) S.rest = 0;
+    // 控室の煙は、二手目から
+    if (!S.smokeOn && !S.smokeDone && S.moves >= 2 && S.loc === "hikae") startSmoke();
+    else smokeTick();
+    if (S.done) return;
+    stillTick();
+    if (!moved) { darkTick(); if (S.done) return; panelTick(); kanshiTick(v); if (S.done) return; boothTick(v); if (S.done) return; }
+    // 記録が重いとき：ふつうの動詞が、症状の言葉で書かれる
+    if (stage() >= 2 && rand() < 0.55) {
+      const SYM = { wait: "無為に過ごした", examine: "周囲を何度も確かめた", look: "周囲を何度も確かめた", read: "文書に没頭した", write: "書字行動をくり返した", ask: "同じ質問をくり返した",
+        stop: "課題を拒否した", go: "落ち着きなく歩き回った", listen: "何かを聞いているそぶりをした", sit: "座りこんだ", take: "物を集めた", say: "独り言を言った", press: "同じ操作をくり返した" };
+      if (SYM[v]) say(`（記録：Aは、${SYM[v]}）`, "rec");
+    }
+    nijimiTick(v, moved);
+  }
+  function act(input, label) {
+    if (S.done) { say("ここで、終わっている。≡ のメニューから、はじめから。", "note"); return; }
+    const ascii = /^[\x20-\x7e]*$/.test(input);
+    const p = ascii ? parseEn(input) : parseJa(input);
+    if (!p) { say("その言い方はわからない。「命令を作る」を使うと確実だ。"); return; }
+    if (p.v === "go" && p.dir === "?") { say("どちらへ？"); return; }
+    let a = p.ao, b = p.bo;
+    if (!p.raw) { a = p.a ? findObj(p.a, p.v) : null; b = p.b ? findObj(p.b, p.v === "put" ? "examine" : p.v) : null; }
+    for (const x of [a, b]) if (x && x.missing) { say(`ここに「${x.missing}」は見当たらない。`); return; }
+    const isMeta = META.includes(p.v);
+    if (!isMeta) S.moves++;
+    if (label && !isMeta) { S.hist.push(label); if (S.hist.length > 30) S.hist.shift(); }
+    const before = S.loc;
+    // 差し出された写真への答え
+    const pr = photoResolve(p);
+    if (pr === true) { world(p.v, before); return; }
+    // 合図の音のあと
+    if (toneResolve(p) === true) { world(p.v, before); return; }
+    if (p.v === "go") go(p.dir);
+    else if (VERB_DO[p.v]) VERB_DO[p.v](p.v === "say" || p.v === "write" ? p.w : a, b);
+    else { say("その言い方はわからない。"); return; }
+    if (!isMeta) world(p.v, before);
+  }
+
+  // ---- 状態行 ----
+  function bedFor() {
+    const L = S.loc;
+    switch (L) {
+      case "hikae": return S.smokeOn ? "pipes" : "office";
+      case "danwa": return S.music ? "hotel" : S.speakerOff ? "silence" : "office";
+      case "monooki": return "dark";
+      case "kansatsu": return "electric";
+      case "mensetsu": return "silence";
+      case "kaidan": return "warehouse";
+      case "deguchi": return S.exitOpen ? "field" : "warehouse";
+      case "b2": return "pipes";
+      case "anshitsu": return S.anLight ? "office" : "dark";
+      case "sousa": return S.panelOn ? "electric" : "office";
+      case "choushu": return S.phones ? "dark" : "silence";
+      case "boothmae": return S.light ? "fluoro" : "dark";
+      case "booth": return "silence";
+      case "kanshi": return "electric";
+      case "shiryou": return "office";
+      case "rouka": case "nitaku": return "fluoro";
+      default: return "office";
+    }
+  }
+  function status() {
+    const ex = S.done ? [] : Object.keys(exitsNow());
+    let area = AREA_OF(S.loc);
+    if (area === "an" && S.anLight) area = "anl";
+    const near = !!S.nj && S.nj !== S.loc && Object.values(ROOMS[S.loc].exits).includes(S.nj);
+    let stress = Math.max(S.rec / 12 * 0.8, S.smokeOn ? S.smoke / 6 : 0, S.nj === S.loc ? 0.75 : near ? 0.45 : 0,
+      S.loc === "anshitsu" && !S.anLight ? S.anSway / 5 : 0, S.loc === "kanshi" ? Math.max(0, (S.vig - 4) / 6) : 0, S.loc === "sousa" ? S.panel / 4 : 0);
+    if (S.done) stress = 0;
+    return {
+      room: S.done ? `結末「${ENDINGS[S.ending]}」` : ROOMS[S.loc].name, loc: S.loc, area, bed: S.done ? "silence" : bedFor(), exits: ex,
+      rec: S.rec, stage: stage(), name: nameField(), label: labelWords().slice(-1)[0] || "", frags: fragCount(), done: S.done, ending: S.ending,
+      dim: S.loc === "boothmae" ? S.dim : 0, nijimi: S.nj === S.loc, near, stress: Math.max(0, Math.min(1, stress)), moves: S.moves,
+      vhs: !S.done && (S.loc === "kansatsu" || S.loc === "kanshi" || stage() >= 2),
+    };
+  }
+
+  // ---- 入力 ----
+  function submit(label, en) {
+    label = String(label || "").trim();
+    const cmd = String(en || label || "").trim();
+    fxq = [];
+    turnStart = rows.length;
+    if (!cmd) return;
+    gap();
+    push({ t: "cmd", ja: label || cmd, en: en && en !== label ? en : "" });
+    act(cmd, label || cmd);
+    writeSaved(snapshot());
+  }
+
+  // ---- 命令を作る ----
+  // [ボタンの文字, 英語の型, 日本語の型]。% は1つ目の物、# は2つ目の物。% がなければ物を選ばずにそのまま送る。「言う」「書く」はことばを選ぶ
+  const VERBS = [
+    ["調べる", "examine %", "%を調べる"], ["読む", "read %", "%を読む"], ["取る", "take %", "%を取る"],
+    ["置く", "drop %", "%を置く"], ["入れる", "put % in #", "%を#に入れる"], ["貼る", "put % on #", "%を#に貼る"],
+    ["開ける", "open %", "%を開ける"], ["閉める", "close %", "%を閉める"], ["押す", "press %", "%を押す"],
+    ["引く", "pull %", "%を引く"], ["回す", "turn %", "%を回す"], ["点ける", "light %", "%を点ける"],
+    ["消す", "douse %", "%を消す"], ["叩く", "knock %", "%を二回叩く"], ["身につける", "wear %", "%を身につける"],
+    ["外す", "remove %", "%を外す"], ["乗る", "climb %", "%に乗る"], ["水をやる", "water %", "%に水をやる"],
+    ["塗りつぶす", "redact %", "%を塗りつぶす"], ["書き直す", "rewrite %", "%を書き直す"], ["聞く", "listen to %", "%に耳をすます"],
+    ["言う", "say %", "「%」と言う"], ["書く", "write %", "「%」と書く"], ["座る", "sit", "座る"],
+    ["立つ", "stand", "立つ"], ["報告する", "report", "報告する"], ["くり返す", "repeat", "くり返す"],
+    ["休む", "rest", "休む"], ["目的を尋ねる", "ask", "目的を尋ねる"], ["やめる", "stop", "やめる"],
+  ];
+
+  // ---- 起動 ----
+  function intro() {
+    say("控室", "title");
+    gap();
+    voice("『お待たせしています。お名前をお呼びするまで、こちらでお待ちください』");
+    say("天井のスピーカーが、そう言って黙った。");
+    say("膝の上に、一枚の紙。同意書の控えだ。字が細かすぎて、ほとんど読めない。読めるのは、いちばん下の署名の欄だけ。");
+    say("そこに書かれた字は、たぶん、あなたの字だ。" + (LOOP.n > 1 ? "……前にも、この字を見た気がする。" : ""));
+    say("署名した覚えは、ない。");
+    gap();
+    describe(true);
+  }
+  function start(fresh) {
+    rows = []; fxq = []; turnStart = 0;
+    LOOP = loadLoop();
+    const saved = fresh ? null : loadSaved();
+    if (saved && restore(saved)) {
+      rows = Array.isArray(saved.log) ? saved.log.filter(r => r && typeof r === "object" && (r.t === "gap" || typeof r.ja === "string")).slice(-300) : [];
+      turnStart = rows.length;
+      gap();
+      say("（前回の続きから）", "note");
+    } else {
+      newState();
+      LOOP.n = (LOOP.n || 0) + 1;
+      saveLoop();
+      intro();
+      writeSaved(snapshot());
+    }
+  }
+
+  return {
+    VERBS,
+    start,
+    submit,
+    status,
+    rows: () => rows,
+    turnStart: () => turnStart,
+    fx: () => fxq.slice(),
+    meta: () => ({ endings: LOOP.ends.slice(), total: Object.keys(ENDINGS).length, deepest: DEPTH_NAME[Math.max(LOOP.deep || 0, S ? S.deep : 0)] || "控室", runs: LOOP.n || 1 }),
+    visible: () => visible().map(o => ({ id: o.id, name: o.name, en: o.en, held: o.loc === "player" })),
+    wordsHere: kind => wordsHere(kind).map(w => ({ ja: w.ja, en: w.en })),
+    // テスト用：今の状態を覗く
+    peek: () => S,
+    objs: () => O,
+    ENDINGS,
+  };
+}
+// ==== ENGINE END ====
+// ---- 画面の側（ENGINE の外）：表示・入力・保存・演出 ----
+(function () {
+  const $ = id => document.getElementById(id);
+  const logEl = $("log"), screenEl = $("screen"), cmdEl = $("cmd");
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+
+  // ---- 保存（ブラウザの記憶。Tasker のシーンでは Tasker/hikae/ のファイルにも残す） ----
+  const TK = (() => {
+    try {
+      if (typeof tk !== "undefined" && tk && typeof tk.readFile === "function" && typeof tk.writeFile === "function") return tk;
+      if (typeof readFile === "function" && typeof writeFile === "function") {
+        return { readFile, writeFile,
+          global: typeof global === "function" ? global : undefined,
+          setGlobal: typeof setGlobal === "function" ? setGlobal : undefined };
+      }
+    } catch (e) { /* Tasker の外 */ }
+    return null;
+  })();
+  const TK_FILE = "/storage/emulated/0/Tasker/hikae/hikae-data.json";
+  const TK_VAR = "HIKAE";
+  const KEY = "bpwa.hikae.state";
+  const META_KEY = "bpwa.hikae.meta";
+  // Tasker はないファイルを読むと止まるので、一度書いたことを変数 %HIKAE に残し、書いたあとでだけ読む
+  const io = {
+    loadState() {
+      if (TK) {
+        let written = false;
+        try { written = TK.global && String(TK.global(TK_VAR)) === "1"; } catch (e) { /* 読めない */ }
+        try { written = written || localStorage.getItem(KEY + ".tk") === "1"; } catch (e) { /* 同上 */ }
+        if (written) {
+          try { const v = TK.readFile(TK_FILE); if (v) return JSON.parse(String(v)); } catch (e) { /* 壊れている */ }
+        }
+      }
+      try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { return null; }
+    },
+    saveState(obj) {
+      const json = JSON.stringify(obj);
+      try { localStorage.setItem(KEY, json); } catch (e) { /* 残せなくても遊べる */ }
+      if (TK) {
+        try {
+          TK.writeFile(TK_FILE, json, false);
+          try { if (TK.setGlobal) TK.setGlobal(TK_VAR, "1"); } catch (e) { /* 変数に書けない */ }
+          try { localStorage.setItem(KEY + ".tk", "1"); } catch (e) { /* 同上 */ }
+        } catch (e) { /* 書けなくても遊べる */ }
+      }
+    },
+    loadLoop() { try { return JSON.parse(localStorage.getItem(KEY + ".loop") || "null"); } catch (e) { return null; } },
+    saveLoop(v) { try { localStorage.setItem(KEY + ".loop", JSON.stringify(v)); } catch (e) { /* 残らなくても遊べる */ } },
+  };
+  const G = createGame(io);
+
+  // ---- 演出（fx.js があれば使う。なくても遊べる） ----
+  function fx(m, ...a) { try { if (window.FX && typeof window.FX[m] === "function") return window.FX[m](...a); } catch (e) { /* 演出なしで続ける */ } }
+  // 音の出る演出は、出来事の音として、タップから少し遅らせて鳴らす。ボタンを押したこと自体には、音をつけない
+  const AFTER_TAP = 340;
+  const timers = [];
+  function later(ms, f) { timers.push(setTimeout(() => { try { f(); } catch (e) { /* 出なくてもよい */ } }, ms)); }
+  const snd = (ms, f) => later(AFTER_TAP + ms, f);
+  const vis = (ms, f) => later(ms, f);
+  const S_ = name => () => fx("sfx", name);
+  const tru = (ms, t) => { if (t) vis(ms + 400, () => fx("truism", t[0], t[1], t[2])); };
+  function barFlicker() { const bar = $("bar"); bar.classList.remove("flicker"); void bar.offsetWidth; bar.classList.add("flicker"); }
+
+  // 区画ごとの階層（fx.js の key）・ネオン2色・背景
+  const AREA_FX = {
+    uke: { key: 4, a: "#bfe8d0", b: "#ff6b8a", mode: "tags", screen: "#0c1311" },
+    danwa: { key: 10, a: "#ffd9a0", b: "#8fe0c0", mode: "field", screen: "#15100a" },
+    rouka: { key: 0, a: "#ffe66d", b: "#ff2a85", mode: "tags", screen: "#12110a" },
+    kan: { key: 4, a: "#cfd8e6", b: "#ff3b6b", mode: "scope", screen: "#08090c" },
+    kaidan: { key: 3, a: "#3dff8f", b: "#ff3b3b", mode: "spark", screen: "#050d08" },
+    deguchi: { key: 10, a: "#e8fff0", b: "#3dff8f", mode: "field", screen: "#0b120d" },
+    b2: { key: 2, a: "#8fb8ff", b: "#ff4d6d", mode: "scope", screen: "#070b14" },
+    an: { key: 6, a: "#ffffff", b: "#ff1e56", mode: "dark", screen: "#020202" },
+    anl: { key: 4, a: "#e0e0e0", b: "#ff1e56", mode: "tags", screen: "#111111" },
+    sousa: { key: 3, a: "#ffb347", b: "#ff3b3b", mode: "scope", screen: "#120c05" },
+    chou: { key: 7, a: "#7fd1ff", b: "#ffe08a", mode: "sea", screen: "#04101a" },
+    booth: { key: 3, a: "#ff8a8a", b: "#ffd166", mode: "spark", screen: "#140707" },
+    kanshi: { key: 11, a: "#7dff6a", b: "#ff4fd8", mode: "grid", screen: "#030c05" },
+    shiryou: { key: 8, a: "#d8a24a", b: "#7dff6a", mode: "drip", screen: "#120e07" },
+  };
+  // 背景を流れる字
+  const AREA_TAGS = {
+    uke: ["[参加者 A]", "[記入中]", "[同意：済]", "[閲覧者：（　）]", "[目的：終了後]", "[撤回：可]", "[時間：適宜]"],
+    danwa: ["[ご自由に]", "[照明]", "[空調]", "[音量]", "[呼び出し]", "[記録のため]"],
+    rouka: ["[押]", "[引]", "[浴室？]", "[非常口]", "[表示≠取っ手]", "[足跡]"],
+    kan: ["[REC]", "A：", "B：", "C：", "[閲覧者：（　）]", "[記録計]", "[所見]"],
+    kaidan: ["[↑ 地上]", "[↓ B2]", "[非常口]", "[出てもよい]"],
+    deguchi: ["[出てもよい]", "[緑]", "[開]", "[募集中]"],
+    b2: ["[B2]", "[合図]", "[揺れ]", "[消去：なし]", "[1920]"],
+    an: ["[暗]", "[光点]", "[三寸]", "[二寸]", "[収束]"],
+    anl: ["[静止]", "[穴]", "[椅子 3]", "[声：録音]"],
+    sousa: ["[目盛り]", "[続けてください]", "[回答：まちがい]", "[回答なし]"],
+    chou: ["[右]", "[左]", "[＊＊＊さん]", "[夜]", "[夢]", "[毛布]", "[枕]"],
+    booth: ["A：", "B：", "C：", "[注目]", "[逃避]", "[要求]", "[感覚]", "[維持]", "[修正]", "[保留]"],
+    kanshi: ["[監視中]", "[誤]", "[跳躍]", "[交代：なし]"],
+    shiryou: ["[減少]", "[穏やか]", "[用途：選別]", "[穏やかに過ごされた]", "[閲覧：同意なし]"],
+  };
+  const TRUISMS = [
+    ["YOU MAY STOP AT ANY TIME", "いつでも、やめてよい", "同意書"],
+    ["ASK WHAT IT IS FOR", "何のためか、尋ねよ", "?"],
+    ["A FACT IS NOT A REASON", "事実は、理由ではない", "記録"],
+    ["SILENCE IS NOT CONSENT", "沈黙は、同意ではない", "?"],
+    ["A QUIET ROOM IS NOT A BETTER ROOM", "静かな部屋が、よい部屋とは限らない", "資料室"],
+    ["CHANGE ONE THING AT A TIME", "一度に、ひとつだけ変えよ", "ブースの前"],
+    ["WRITE WHAT YOU SAW, NOT WHAT YOU THINK", "考えたことではなく、見たことを書け", "記録用紙"],
+    ["EVERY BEHAVIOR IS TRYING TO SAY SOMETHING", "どの行動も、何かを伝えようとしている", "?"],
+    ["NO ONE HAS WRITTEN WHY YOU ARE HERE", "あなたがここにいる理由は、誰も書いていない", "?"],
+    ["CHECK BEFORE YOU BELIEVE", "信じる前に、確かめよ", "?"],
+  ];
+  const END_TRU = {
+    tekkai: ["YOUR NAME GOES HOME WITH YOU", "名前は、あなたが持って帰る", "撤回"],
+    taishutsu: ["THE NEEDLE KEEPS MOVING", "針は、動きつづける", "退出"],
+    jigo: ["AN EXPLANATION IS ALSO A REPORT", "説明もまた、報告のひとつだ", "事後説明"],
+    kansatsu: ["THE CHAIR FACES AWAY. THAT IS ITS FRONT", "椅子は背を向けている。それが正面だ", "観察者"],
+    kiroku: ["NO NAME WILL BE CALLED", "呼ばれる名前は、もうない", "記録"],
+    kakutei: ["A CERTAIN ANSWER STOPS ALL LOOKING", "確かな答えは、見ることを止める", "確定"],
+    iru: ["YOU DO NOT HAVE TO DECIDE YET", "まだ、決めなくていい", "居る"],
+  };
+  const EV = {
+    pen: o => snd(o, S_("scratch")),
+    stage: (o, k) => { snd(o, S_("stinger")); if (k >= 2) { snd(o + 60, () => fx("shock", 2)); vis(o + AFTER_TAP + 380, () => fx("flash")); } else snd(o + 60, () => fx("flicker", 2)); tru(o + 900, k >= 2 ? ["EVERYTHING YOU DO HAS ANOTHER NAME NOW", "何をしても、もう別の名前で書かれる", "記録"] : ["YOUR NAME IS NOT A FIELD", "名前は、欄ではない", "記録"]); },
+    smoke: o => { snd(o, S_("static")); snd(o + 200, () => fx("flicker", 1)); },
+    cough: o => { snd(o, S_("breath")); vis(o + AFTER_TAP, () => fx("glitch", false)); },
+    fail: o => { snd(o, S_("heart")); snd(o + 300, () => fx("shock", 2)); snd(o + 700, () => fx("blackout", 1700)); },
+    reveal: o => { snd(o, S_("stinger")); snd(o + 60, () => fx("shock", 1)); vis(o + AFTER_TAP + 380, () => fx("flash")); },
+    open: o => snd(o, S_("door")),
+    notice: o => { snd(o, S_("chime")); vis(o + AFTER_TAP, () => fx("flash")); },
+    still: o => { snd(o, S_("hum")); vis(o + AFTER_TAP, () => fx("glitch", false)); },
+    swap: o => { snd(o, S_("thud")); vis(o + AFTER_TAP + 200, () => fx("glitch", false)); },
+    tone: o => snd(o, () => fx("tone", 1318.5, 0.28, "sine", 0.07)),
+    quake: o => { snd(o + 420, () => fx("shock", 1)); snd(o + 440, S_("clang")); },
+    calm: o => snd(o, S_("chime")),
+    lighton: o => { snd(o, S_("spark")); vis(o + AFTER_TAP, () => fx("flash")); },
+    dizzy: o => { snd(o, S_("whisper")); vis(o + AFTER_TAP, () => fx("glitch", false)); },
+    dread: o => snd(o, S_("heart")),
+    panelOff: o => { snd(o, S_("hum")); snd(o + 300, () => fx("flicker", 2)); },
+    whisper: o => snd(o, S_("whisper")),
+    named: o => { snd(o, S_("chime")); vis(o + AFTER_TAP, () => fx("flash")); },
+    drowsy: o => snd(o, S_("breath")),
+    knock: o => { snd(o, S_("knock")); vis(o + AFTER_TAP, () => fx("glitch", false)); },
+    bang: o => { snd(o, S_("knock")); snd(o + 260, S_("knock")); snd(o + 300, () => fx("shock", 1)); },
+    calmknock: o => snd(o, S_("drip")),
+    owari: o => { snd(o, S_("drip")); snd(o + 900, S_("door")); snd(o + 2200, S_("chime")); },
+    stinger: o => { snd(o, S_("stinger")); snd(o + 60, () => fx("shock", 1)); },
+    dark: o => { snd(o, S_("thud")); snd(o + 200, () => fx("flicker", 2)); },
+    nijimi: o => { snd(o, S_("scratch")); snd(o + 200, S_("stinger")); snd(o + 260, () => fx("shock", 1)); },
+    rewrite: o => vis(o + 100, () => fx("glitch", false)),
+    frag: o => snd(o, S_("chime")),
+    fragGet: () => { /* 拾うのはタップそのもの。音はつけない */ },
+    exit: o => snd(o, S_("door")),
+    unlock: o => snd(o, S_("clang")),
+    stroke: o => vis(o + 200, () => fx("vibrate", [18, 70, 18, 70, 18, 70, 18])),
+    truism: (o, t) => tru(o, t),
+  };
+  const END_FX = {
+    tekkai: o => { snd(o, S_("bell")); vis(o + AFTER_TAP, () => fx("flash")); snd(o + 1500, S_("chime")); },
+    taishutsu: o => { snd(o, S_("door")); snd(o + 2600, S_("scratch")); },
+    jigo: o => { snd(o, S_("chime")); snd(o + 1400, S_("chime")); vis(o + AFTER_TAP, () => fx("flash")); },
+    kansatsu: o => { snd(o, S_("whisper")); snd(o + 600, () => fx("shock", 1)); snd(o + 900, () => fx("blackout", 1500)); },
+    kiroku: o => { snd(o, S_("stinger")); snd(o + 60, () => fx("shock", 2)); snd(o + 900, () => fx("blackout", 2200)); },
+    kakutei: o => { snd(o, S_("stinger")); snd(o + 60, () => fx("shock", 2)); vis(o + AFTER_TAP + 400, () => fx("flash")); },
+    iru: o => { snd(o, S_("chime")); },
+  };
+  // はじめて着いたところ（足音は、ここぞという場所でだけ）
+  const ARRIVE = { kaidan: "step", booth: "step", deguchi: "step", kansatsu: null };
+  let curArea = null, curBed = null, curVhs = null, lastLoc = null, lastMetaLoc = null;
+  const seenArrive = {};
+  function applyArea(s) {
+    const A = AREA_FX[s.area] || AREA_FX.uke;
+    document.body.dataset.lv = s.area;
+    if (themeMeta) themeMeta.setAttribute("content", A.screen);
+    if (s.area !== curArea) {
+      curArea = s.area; curBed = s.bed;
+      // opt を渡すときは、環境音（bed）も必ず書く（hum: 0 だけだと無音になるため）
+      fx("level", A.key, { a: A.a, b: A.b, mode: A.mode, bed: s.bed });
+      fx("tags", AREA_TAGS[s.area] || AREA_TAGS.uke);
+      barFlicker();
+    } else if (s.bed !== curBed) { curBed = s.bed; fx("bed", s.bed); }
+  }
+  function runFx(list, s, before) {
+    applyArea(s);
+    fx("stress", s.stress);
+    if (s.vhs !== curVhs) { curVhs = s.vhs; fx("vhs", s.vhs); }
+    let at = 0;
+    for (const e of list) {
+      if (e.type === "end") { const h = END_FX[e.k]; if (h) h(at); tru(at + 1600, END_TRU[e.k]); fx("vibrate", [80, 60, 80, 60, 240]); at += 600; continue; }
+      if (e.type === "fail") { EV.fail(at); fx("vibrate", [60, 40, 120]); at += 600; continue; }
+      const h = EV[e.type];
+      if (!h) continue;
+      h(at, e.k);
+      if (e.type !== "truism" && e.type !== "fragGet") at += 450;
+    }
+    if (before && s.loc !== before && !seenArrive[s.loc] && ARRIVE[s.loc]) { seenArrive[s.loc] = true; snd(at, S_(ARRIVE[s.loc])); }
+  }
+  // 起動画面に見せる要約（場所が変わったとき・結末のとき）
+  function writeMeta(s, list) {
+    if (s.loc === lastMetaLoc && !list.some(e => e.type === "end")) return;
+    lastMetaLoc = s.loc;
+    try { localStorage.setItem(META_KEY, JSON.stringify(Object.assign(G.meta(), { updated: Date.now() }))); } catch (e) { /* 残らなくても遊べる */ }
+  }
+
+  // ---- 表示 ----
+  function rowEl(r) {
+    if (r.t === "gap") { const d = document.createElement("div"); d.className = "gap"; return d; }
+    const p = document.createElement("p");
+    if (r.t === "cmd") {
+      p.className = "row cmd";
+      p.textContent = "> " + r.ja;
+      if (r.en && r.en !== r.ja) { const sp = document.createElement("span"); sp.className = "sent"; sp.textContent = r.en; p.append(sp); }
+      return p;
+    }
+    p.className = "row" + (r.cls ? " " + r.cls : "");
+    p.textContent = r.ja;
+    return p;
+  }
+  function render() {
+    const all = G.rows(), from = G.turnStart();
+    logEl.textContent = "";
+    const frag = document.createDocumentFragment();
+    all.forEach((r, i) => { const el = rowEl(r); if (i >= from) el.classList.add("fresh"); frag.append(el); });
+    logEl.append(frag);
+    setStatus();
+    requestAnimationFrame(() => { screenEl.scrollTop = screenEl.scrollHeight; });
+  }
+  function setStatus() {
+    const s = G.status();
+    $("room").textContent = s.room;
+    const sc = $("score");
+    sc.textContent = "";
+    const rv = document.createElement("span");
+    rv.textContent = "記録 " + s.rec;
+    if (s.rec >= 8) rv.className = "hot";
+    sc.append(rv);
+    for (const b of document.querySelectorAll("[data-go]")) b.classList.toggle("open", s.exits.includes(b.dataset.go));
+    const tag = $("tag");
+    const showTag = !s.done && s.stage >= 1 && !/あなたの字/.test(s.name);
+    tag.textContent = s.stage >= 2 && s.label ? "Ａ：" + s.label : "Ａ";
+    tag.classList.toggle("on", showTag);
+    document.body.dataset.stage = String(s.done ? 0 : s.stage);
+    document.body.dataset.dim = String(s.dim || 0);
+    return s;
+  }
+  function submit(label, en) {
+    const before = G.status().loc;
+    G.submit(label, en);
+    render();
+    const s = G.status(), list = G.fx();
+    runFx(list, s, before);
+    writeMeta(s, list);
+    lastLoc = s.loc;
+  }
+
+  // ---- 入力 ----
+  $("prompt").addEventListener("submit", e => {
+    e.preventDefault();
+    const v = cmdEl.value;
+    cmdEl.value = "";
+    if (v.trim()) submit(v);
+  });
+  $("pad").addEventListener("click", e => {
+    const b = e.target.closest("[data-go],[data-cmd]");
+    if (!b) return;
+    if (b.dataset.go) submit(b.textContent, { n: "north", s: "south", e: "east", w: "west", u: "up", d: "down" }[b.dataset.go]);
+    else submit(b.textContent, b.dataset.cmd);
+  });
+  cmdEl.addEventListener("focus", () => { document.body.classList.add("typing"); requestAnimationFrame(() => { screenEl.scrollTop = screenEl.scrollHeight; }); });
+  cmdEl.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== cmdEl) document.body.classList.remove("typing"); }, 120));
+
+  // ---- 命令を作る ----
+  const builder = $("builder");
+  const bs = { step: "verb", verb: null, obj1: null };
+  const fill = (t, a, b) => t.replace("%", a).replace("#", b);
+  function bButton(label, onClick, cls) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "bk" + (cls ? " " + cls : ""); b.textContent = label;
+    b.addEventListener("click", onClick);
+    return b;
+  }
+  function emptyNote(list, msg) { const p = document.createElement("p"); p.className = "empty"; p.textContent = msg; list.append(p); }
+  function renderBuilder() {
+    const list = $("b-list");
+    list.textContent = ""; list.scrollTop = 0;
+    if (bs.step === "verb") {
+      $("b-title").textContent = "何をする？"; $("b-preview").textContent = "";
+      list.className = "verbs";
+      for (const v of G.VERBS) list.append(bButton(v[0], () => {
+        if (!v[1].includes("%")) { closeBuilder(); submit(v[2], v[1]); return; }
+        bs.verb = v; bs.step = "obj"; renderBuilder();
+      }));
+      $("b-back").hidden = true;
+      return;
+    }
+    $("b-back").hidden = false;
+    list.className = "";
+    const v = bs.verb, second = bs.step === "obj2";
+    if (v[1].startsWith("say") || v[1].startsWith("write")) {
+      const kind = v[1].startsWith("say") ? "say" : "write";
+      $("b-title").textContent = kind === "say" ? "何と言う？" : "何と書く？";
+      $("b-preview").textContent = kind === "say" ? "「…」と言う" : "「…」と書く";
+      const ws = G.wordsHere(kind);
+      for (const w of ws) list.append(bButton("「" + w.ja + "」", () => { closeBuilder(); submit(kind === "say" ? `「${w.ja}」と言う` : `「${w.ja}」と書く`, `${kind} ${w.en}`); }));
+      if (!ws.length) emptyNote(list, kind === "say" ? "口にできることばが、思いつかない。" : "書くことが、思いつかない。");
+      return;
+    }
+    $("b-title").textContent = second ? "どこに？" : "何を？";
+    $("b-preview").textContent = second ? fill(v[2], bs.obj1.name, "…") : fill(v[2], "…", "…");
+    let items = G.visible();
+    if (second) items = items.filter(o => o.id !== bs.obj1.id);
+    items.sort((x, y) => (y.held ? 1 : 0) - (x.held ? 1 : 0));
+    for (const o of items) {
+      list.append(bButton(o.name + (o.held ? "（持）" : ""), () => {
+        if (!second) {
+          bs.obj1 = o;
+          if (v[1].includes("#")) { bs.step = "obj2"; renderBuilder(); return; }
+          closeBuilder();
+          submit(fill(v[2], o.name, ""), fill(v[1], o.en, ""));
+        } else {
+          closeBuilder();
+          submit(fill(v[2], bs.obj1.name, o.name), fill(v[1], bs.obj1.en, o.en));
+        }
+      }, o.held ? "held" : ""));
+    }
+    if (!items.length) emptyNote(list, "選べる物がない。");
+  }
+  function openBuilder() {
+    if (G.status().done) return;
+    bs.step = "verb"; bs.verb = null; bs.obj1 = null;
+    builder.hidden = false;
+    renderBuilder();
+  }
+  function closeBuilder() { builder.hidden = true; }
+  $("build-btn").addEventListener("click", openBuilder);
+  $("b-close").addEventListener("click", closeBuilder);
+  builder.addEventListener("click", e => { if (e.target === builder) closeBuilder(); });
+  $("b-back").addEventListener("click", () => { bs.step = bs.step === "obj2" ? "obj" : "verb"; renderBuilder(); });
+
+  // ---- メニュー ----
+  const sheet = $("sheet");
+  function openSheet(open) {
+    sheet.hidden = !open;
+    $("menu-btn").setAttribute("aria-expanded", String(open));
+    $("restart-yes").hidden = $("restart-no").hidden = true;
+    $("restart-btn").hidden = false;
+  }
+  $("menu-btn").addEventListener("click", () => openSheet(sheet.hidden));
+  $("close-sheet").addEventListener("click", () => openSheet(false));
+  sheet.addEventListener("click", e => { if (e.target === sheet) openSheet(false); });
+  $("restart-btn").addEventListener("click", () => { $("restart-btn").hidden = true; $("restart-yes").hidden = $("restart-no").hidden = false; });
+  $("restart-no").addEventListener("click", () => openSheet(false));
+  $("restart-yes").addEventListener("click", () => { openSheet(false); start(true); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") { closeBuilder(); openSheet(false); } });
+  $("home-btn").addEventListener("click", () => { window.FX ? FX.home() : (location.href = "../index.html"); });
+  function optLabels() {
+    const st = window.FX ? window.FX.settings : null;
+    $("snd-btn").hidden = $("vib-btn").hidden = !st;
+    if (!st) return;
+    $("snd-btn").textContent = "音：" + (st.sound ? "入" : "切");
+    $("vib-btn").textContent = "振動：" + (st.vibe ? "入" : "切");
+  }
+  $("snd-btn").addEventListener("click", () => { if (window.FX) { window.FX.set("sound", !window.FX.settings.sound); optLabels(); } });
+  $("vib-btn").addEventListener("click", () => { if (window.FX) { window.FX.set("vibe", !window.FX.settings.vibe); optLabels(); } });
+  optLabels();
+
+  // ---- 起動 ----
+  function start(fresh) {
+    while (timers.length) clearTimeout(timers.pop());
+    G.start(fresh);
+    curArea = null; curBed = null; curVhs = null; lastMetaLoc = null;
+    fx("truisms", TRUISMS);
+    render();
+    const s = G.status();
+    runFx([], s, null);
+    writeMeta(s, []);
+    lastLoc = s.loc;
+  }
+  start(false);
+  // テスト用（画面の外からは使わない）
+  window.__hikae = { G, submit };
+})();
+</script>
+
+</body>
+</html>

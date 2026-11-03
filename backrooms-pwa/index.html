@@ -162,6 +162,7 @@ body #fx-truism { top: auto; bottom: calc(1em + env(safe-area-inset-bottom, 0px)
     <p>記録 01・02・04 は、共同創作 The Backrooms と Backrooms Wiki（https://backrooms-wiki.wikidot.com/ ）の設定・記事をもとにした二次創作です。wiki の記事は CC BY-SA 3.0 で公開されており、記事をもとにした部分もそれに従います（https://creativecommons.org/licenses/by-sa/3.0/ ）。</p>
     <p>記録 03「未定稿」は、利用者が書いてきた物語の中身を言い換えて組み、テキストアドベンチャー Zork I の骨組み（郵便受け・家・飾り棚・跳ね上げ戸・迷路・灯り・泥棒）に倣ったものです。Zork の文章は使っていません。黄色い部屋だけは Backrooms Wiki「Level 0」の設定を借りています。</p>
     <p>記録 05「蔵守」は、書き下ろしの和風ホラー（「夜の書庫」から移したもの）です。Backrooms Wiki の記事や、ほかの作品の文章は使っていません。</p>
+    <p>記録 06「控室」は、利用者の Vault にある心理学のノート（実験・理論・心理療法）と、行動支援の資料と、利用者が書いてきた物語の像を、言い換えて混ぜて組んだ新作です。題名・名前・投稿先の名前は出していません。心理学史の実験は、ノートに書かれているとおりの年と手続きで出しています。</p>
     <p>使った記事と作者の一覧は、リポジトリの <code>backrooms-pwa/README.md</code> にあります。</p>
     <ul id="credit-list"></ul>
   </details>
@@ -186,6 +187,8 @@ body #fx-truism { top: auto; bottom: calc(1em + env(safe-area-inset-bottom, 0px)
       p: "白い部屋。欄を埋めるのは、誰の字か。" },
     { id: "kuramori", file: "games/kuramori.html", no: "記録 05", ja: "蔵守", en: "KURAMORI", lv: 9, c: "#b38cff",
       p: "山あいの旧家で、三晩。どこかで、水が数をかぞえている。" },
+    { id: "hikae", file: "games/hikae.html", no: "記録 06", ja: "控室", en: "ANTEROOM", lv: 4, c: "#bfe8d0",
+      p: "署名した覚えのない同意書の、控えが一枚。" }
   ];
   const read = k => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } };
   const has = k => { try { return localStorage.getItem(k) != null; } catch (e) { return false; } };
@@ -348,7 +351,7 @@ body #fx-truism { top: auto; bottom: calc(1em + env(safe-area-inset-bottom, 0px)
 
   if (window.FX) {
     FX.level(0, { mode: "wire" });
-    FX.tags(["[記録 01]", "[記録 02]", "[記録 03]", "[記録 04]", "[記録 05]", "[目的：未記入]", "M.E.G.", "[クラス ?]", "[通信途絶]", "Lv.0 → Lv.?", "[到達者 0]"]);
+    FX.tags(["[記録 01]", "[記録 02]", "[記録 03]", "[記録 04]", "[記録 05]", "[記録 06]", "[目的：未記入]", "M.E.G.", "[クラス ?]", "[通信途絶]", "Lv.0 → Lv.?", "[到達者 0]"]);
   }
   render();
   scope();
