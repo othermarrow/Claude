@@ -294,6 +294,11 @@ body[data-ver="2026"] #input.ghost { font-family: var(--sans); }
 #mempanel .box { border-color: var(--line); font-family: "Noto Sans JP", system-ui, sans-serif; color: var(--text); }
 #mempanel ul { margin: .4em 0 1em; padding-left: 1.2em; max-height: 50vh; overflow-y: auto; font-size: .88em; }
 #mempanel .small { color: var(--dim); font-size: .78em; }
+#aipanel .box { border-color: var(--line); font-family: "Noto Sans JP", system-ui, sans-serif; color: var(--text); }
+#aipanel .small { color: var(--dim); font-size: .78em; }
+.aisel { background: #0d1513; color: var(--bright); border: 1px solid var(--line); border-radius: 4px; padding: .25em .3em;
+         font: inherit; font-size: .9em; max-width: 100%; min-width: 0; flex: 1; }
+#ai-btn { margin-right: .4em; }
 /* オンボーディング（2026 年版の起動） */
 #onboard { display: flex; align-items: safe center; justify-content: center; overflow-y: auto; background: #0b0d10;
   font-family: "Noto Sans JP", system-ui, sans-serif; color: #c9d1d9; }
@@ -436,6 +441,7 @@ body[data-calm] #lights, body[data-calm] #pal, body[data-calm] #pal-say, body[da
   <span id="title">SOMA 対話支援システム ver.0.9.7</span>
   <span id="wrist" hidden title="腕時計（minamo-watch）から届いた脈"></span>
   <span id="toast" aria-live="polite"></span>
+  <button id="ai-btn" type="button" hidden title="使う AI を選び直す">AI</button>
   <button id="quit" type="button" hidden>面接をやめる</button>
 </header>
 <div id="zstatus"><span id="zs-room">面接室</span><span id="zs-moves"></span></div>
@@ -463,6 +469,14 @@ body[data-calm] #lights, body[data-calm] #pal, body[data-calm] #pal-say, body[da
         <button type="button" data-v="0">自動</button><button type="button" data-v="1">端末内モデルだけ</button>
       </div>
     </div>
+    <div class="setting"><span>AI</span><select id="ai-pick" class="aisel" aria-label="使う AI"><option value="">自動（速い順）</option></select></div>
+    <p class="small" id="ai-note">起動したときの一括チェックで合格した AI から選べます。面接のあいだも、右上の「AI」から選び直せます。</p>
+    <div class="setting"><span>長さ</span>
+      <div class="seg" id="seg-length">
+        <button type="button" data-v="auto">おまかせ</button><button type="button" data-v="short">短く</button><button type="button" data-v="normal">ふつう</button><button type="button" data-v="long">長く</button>
+      </div>
+    </div>
+    <p class="small">「長さ」はミナモの返事の長さ（クラウド・端末の中の AI のとき）。おまかせは、ふだんは短く、大事な場面だけ長く語ります。</p>
     <div class="setting"><span>怖さ</span>
       <div class="seg" id="seg-horror">
         <button type="button" data-v="3">強</button><button type="button" data-v="2">中</button><button type="button" data-v="1">弱</button><button type="button" data-v="0">なし</button>
@@ -505,6 +519,19 @@ body[data-calm] #lights, body[data-calm] #pal, body[data-calm] #pal-say, body[da
 <div id="onboard" class="full" hidden></div>
 <div id="memtoast"><span class="t">◆ メモリを更新しました</span><span class="x" id="memtext"></span><button type="button" id="memopen">管理</button></div>
 <div id="notify"><div class="ic"></div><div><div class="hd"><span>ミナモ</span><span>たった今</span></div><div class="tx" id="notifytext"></div></div></div>
+<div id="aipanel" class="overlay" hidden>
+  <div class="box">
+    <p><b>使う AI</b></p>
+    <p class="small" id="ai-now"></p>
+    <div class="setting"><span>AI</span><select id="ai-pick2" class="aisel" aria-label="使う AI"><option value="">自動（速い順）</option></select></div>
+    <p class="small">回線が切れて端末内モデルになったときは「つなぎ直す」。合格した AI がどれも答えないときは「もう一度チェック」（少し待ちます）。</p>
+    <div class="btns">
+      <button id="ai-reconnect" type="button">つなぎ直す</button>
+      <button id="ai-reprobe" type="button">もう一度チェック</button>
+      <button id="ai-close" class="main" type="button">閉じる</button>
+    </div>
+  </div>
+</div>
 <div id="mempanel" class="overlay" hidden>
   <div class="box">
     <p><b>メモリ</b></p>
