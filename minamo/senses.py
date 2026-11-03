@@ -37,7 +37,7 @@ WEATHER_EVERY = 1800    # 天気を聞き直す間隔
 _LOCK = threading.Lock()
 D = {"events": [], "cal_at": 0.0, "cal_err": "", "cal_n": 0,
      "place": "", "ssid_ok": None, "dist": None, "loc": None, "loc_at": 0.0,
-     "weather": None, "weather_at": 0.0,
+     "cal_total": 0, "cal_names": [], "weather": None, "weather_at": 0.0,
      "notes": [], "notes_ok": None, "at": 0.0}
 _STARTED = {"on": False}
 
@@ -263,17 +263,22 @@ def _read_calendar():
     urls = _cal_urls()
     if not urls:
         return
-    events, err = [], ""
+    events, err, total, names = [], "", 0, []
     for u in urls:
         try:
             req = urllib.request.Request(u.replace("webcal://", "https://", 1), headers={"User-Agent": "minamo-calendar"})
             with urllib.request.urlopen(req, timeout=15) as res:
-                events += parse_ics(res.read().decode("utf-8", "replace"))
+                text = res.read().decode("utf-8", "replace")
+            events += parse_ics(text)
+            total += text.count("BEGIN:VEVENT")                  # 取り込んだ予定の総数（どのカレンダーのアドレスかを見分ける手がかり）
+            m = re.search(r"(?m)^X-WR-CALNAME:(.+)$", text)
+            names.append((m.group(1).strip() if m else "（名前なし）")[:30])
         except (OSError, ValueError) as e:
             err = str(e)[:80]
     events.sort(key=lambda x: (x["start"], x["title"]))
     with _LOCK:
-        D.update(events=events, cal_at=time.time(), cal_err=err if not events else "", cal_n=len(urls))
+        D.update(events=events, cal_at=time.time(), cal_err=err if not events else "", cal_n=len(urls),
+                 cal_total=total, cal_names=names)
 
 
 # ---------- 居場所・天気 ----------
@@ -537,6 +542,7 @@ def snapshot():
     """GET /api/senses。"""
     with _LOCK:
         st = {"calendar": bool(_cal_urls()), "cal_events": len(D["events"]), "cal_err": D["cal_err"],
+              "cal_read": bool(D["cal_at"]), "cal_total": D["cal_total"], "cal_names": list(D["cal_names"]),
               "place": D["place"], "ssid_ok": D["ssid_ok"], "loc": bool(D["loc"]), "weather": bool(D["weather"]),
               "notes_ok": D["notes_ok"], "at": int(D["at"] * 1000) or None}
     return {"words": words(True), "brief": words(False), "status": st}
@@ -550,8 +556,15 @@ def status_lines(s=None):
         L.append("予定：まだ読んでいません（~/.config/minamo/calendar_url に、Google カレンダーの iCal 形式の非公開アドレスを置く）")
     elif s["cal_err"]:
         L.append(f"予定：読めませんでした（{s['cal_err']}）")
+    elif not s.get("cal_read"):
+        L.append("予定：読み込み中です（起動して 10 秒ほどで読み終わります。もう一度 mo log）")
     else:
-        L.append(f"予定：きのう〜あさってに {s['cal_events']} 件")
+        names = "・".join(f"「{n}」" for n in s.get("cal_names", []))
+        L.append(f"予定：きのう〜あさってに {s['cal_events']} 件（取り込んだカレンダー {names}、予定は全部で {s.get('cal_total', 0)} 件）")
+        if not s["cal_events"] and s.get("cal_total"):
+            L.append("　　期間内に予定がない？ 予定の入っているカレンダーのアドレスか確かめてください（Google カレンダーは、カレンダーごとにアドレスが違います）")
+        elif not s["cal_events"]:
+            L.append("　　予定が 0 件で届いています。アドレスが、予定の入っていないカレンダーのものか、間違っているかもしれません")
     if not shutil.which("termux-wifi-connectioninfo") and not wrist_loc():
         L.append("居場所：読めません（Termux:API を入れるか、腕時計の minamo を外で開いて、時計の GPS で位置を送る）")
     elif not shutil.which("termux-wifi-connectioninfo"):
