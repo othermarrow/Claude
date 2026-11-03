@@ -7,6 +7,7 @@
 #   sh ~/Claude/minamo/open.sh restart    # 止めて、AI の一括チェックからやり直して開く
 #   sh ~/Claude/minamo/open.sh log        # 様子を見る（ログの最後の 20 行と、AI の一括チェックの結果と、腕時計の様子）
 #   sh ~/Claude/minamo/open.sh update     # GitHub から最新にして（git pull）、起動し直して開く
+#   sh ~/Claude/minamo/open.sh place home # いまの Wi-Fi を「家」として登録する（work なら「職場」。ミナモが居場所にふれる）
 #   sh ~/Claude/minamo/open.sh reset      # はじめからやり直す（ミナモのメモリ・手首の記録・書き置きの控えを消す。面接記録は残す）
 cd "$(dirname "$0")" || exit 1
 case "$1" in
@@ -17,6 +18,7 @@ case "$1" in
              exit 1
            fi
            echo "止めました。起動し直します。" ;;
+  place) python3 "$PWD/tools/senses_info.py" --place "$2"; exit $? ;;
   reset)
     echo "はじめからやり直します。消すもの：ミナモのメモリ（~/minamo/memory.json）・手首の記録（~/.config/minamo/wrist.json）・"
     echo "  書き置きの控え（~/minamo/outside.json）。面接記録（記録のフォルダ）と Vault のノートは消しません。"
@@ -32,7 +34,8 @@ case "$1" in
     exit 0 ;;
   log)  tail -20 "$HOME/minamo/server.log"; echo "AI の一括チェック："
         python3 "$PWD/tools/probe_info.py" 9090
-        python3 "$PWD/tools/watch_info.py" 9090; exit 0 ;;
+        python3 "$PWD/tools/watch_info.py" 9090
+        python3 "$PWD/tools/senses_info.py" 9090; exit 0 ;;
   update)
     # 端末の main に、GitHub で取り込んだもの（マージ）があっても止まらないように --no-rebase --no-edit
     ROOT=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || { echo "git のフォルダが見つかりません。"; exit 1; }
@@ -60,6 +63,7 @@ if curl -s -o /dev/null --max-time 2 http://127.0.0.1:9090/ 2>/dev/null; then
   echo "サーバーは、もう動いています。起動したときの AI の一括チェック："
   python3 "$PWD/tools/probe_info.py" 9090
   python3 "$PWD/tools/watch_info.py" 9090
+  python3 "$PWD/tools/senses_info.py" 9090
   sh "$PWD/start.sh" "$@" >/dev/null 2>&1
 else
   # 起動のあいだ、ログに増えた行（各モデルの一括チェックの進み具合など）を、そのまま見せる
@@ -102,6 +106,8 @@ else
   [ "$rc" = 0 ] && [ "$seen" = 0 ] && python3 "$PWD/tools/probe_info.py" 9090
   # 腕時計（minamo）の様子（前に届いたのはいつか。起動したことは、時計が次につながったときに伝わる）
   [ "$rc" = 0 ] && python3 "$PWD/tools/watch_info.py" 9090
+  # スマホの感覚（予定・居場所・天気・通知）が読めているか（足りない設定も出す）
+  [ "$rc" = 0 ] && python3 "$PWD/tools/senses_info.py" 9090
   if [ "$rc" != 0 ]; then
     echo "開けませんでした。上の表示か、mo log で様子を見てください。"
     exit 1

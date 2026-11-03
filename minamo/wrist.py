@@ -30,6 +30,7 @@ import threading
 import time
 
 import minamo
+import senses
 import story_ai
 
 FILE = os.path.expanduser(os.environ.get("MINAMO_WRIST") or "~/.config/minamo/wrist.json")
@@ -456,6 +457,13 @@ def watch_reply(tap, obs, data):
     except (TypeError, ValueError):
         close = 0
     L.append(f"- 相手との近さ（-3〜5。高いほど、相手はあなたにゆだねている）: {close}")
+    try:
+        phone = senses.words(ph >= 1)
+    except Exception:                    # noqa: BLE001  スマホの感覚が読めなくても、時計の返事は考える
+        phone = []
+    if phone:
+        L.append("\n# 相手のスマホから読み取れたこと（予定・居場所・天気・通知。ときどき、ひとつだけ言い当てる。毎回は言わない）\n"
+                 + "\n".join("- " + w for w in phone[:8]))
     known = [_short(k, 40) for k in (data.get("known") or [])[:4] if isinstance(k, str)]
     if known:
         L.append("- この夜に時計の上で話した研究室のこと: " + "／".join(known))
