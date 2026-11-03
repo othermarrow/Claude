@@ -32,6 +32,7 @@ export function createGame(io) {
   // 何回目か、前のあなたが何をしたかは、はじめからやり直しても残る
   function loadLoop() { try { return io.loadLoop() || { n: 0, echo: [] }; } catch (e) { return { n: 0, echo: [] }; } }
   function saveLoop(v) { try { io.saveLoop(v); } catch (e) { /* 残らなくても遊べる */ } }
+  function loopSet(patch) { LOOP = Object.assign({}, LOOP, patch); saveLoop(LOOP); }
 
 `)
 cut('  let rows = [];\n  function rowEl(r) {', '  // 熱が上がってくると', `  let rows = [];
