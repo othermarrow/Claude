@@ -53,22 +53,17 @@ Page({
 
     for (const [id, no, ja, en, p, c] of CARDS) {
       const m = loadMeta(id)
-      const cardH = m ? 150 : 128
+      const cardH = m ? 168 : 146
       cv.add(hmUI.widget.FILL_RECT, { x: 24, y, w: W - 48, h: cardH, color: 0x10161a, radius: 18 })
-      cv.add(hmUI.widget.FILL_RECT, { x: 24, y, w: 8, h: cardH, color: c })
-      cv.add(hmUI.widget.TEXT, { x: 48, y: y + 8, w: CW, h: 24, text: no + '　' + en, text_size: 17, color: DIM })
-      cv.add(hmUI.widget.TEXT, { x: 48, y: y + 32, w: CW, h: 38, text: ja, text_size: 30, color: c })
-      cv.add(hmUI.widget.TEXT, { x: 48, y: y + 72, w: CW, h: 28, text: p, text_size: 19, color: TEXT })
+      // 題の行がそのままボタン（透明のボタンを札に重ねると、札が黒く塗られてしまう）
+      cv.button(24, y, W - 48, 62, ja + '　▶', () => this.open(id), { color: 0x10161a, textColor: c, size: 30, radius: 18 })
+      cv.add(hmUI.widget.TEXT, { x: 48, y: y + 62, w: CW, h: 24, text: no + '　' + en, text_size: 17, color: DIM })
+      cv.add(hmUI.widget.TEXT, { x: 48, y: y + 88, w: CW, h: 28, text: p, text_size: 19, color: TEXT })
       if (m) {
         const line = [m.total ? '結末 ' + m.endings + '/' + m.total : '', m.deepest ? '最深 ' + m.deepest : '', m.runs > 1 ? m.runs + '周目' : '']
           .filter(Boolean).join('　')
-        if (line) cv.add(hmUI.widget.TEXT, { x: 48, y: y + 104, w: CW, h: 26, text: line, text_size: 18, color: DIM })
+        if (line) cv.add(hmUI.widget.TEXT, { x: 48, y: y + 120, w: CW, h: 26, text: line, text_size: 18, color: DIM })
       }
-      // 札ぜんたいを押せるように、透明のボタンを重ねる
-      cv.add(hmUI.widget.BUTTON, {
-        x: 24, y, w: W - 48, h: cardH, radius: 18, normal_color: 0x000000, press_color: 0x1f2a30, alpha: 0, text: '',
-        click_func: () => this.open(id)
-      })
       y += cardH + 14
     }
     y = cv.text(y + 4, '記録 03「未定稿」と 05「蔵守」は、まだ時計にありません（スマホの階層目録で遊べます）。', { size: 17, color: DIM, center: true, gap: 8 })
