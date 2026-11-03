@@ -8,6 +8,7 @@ import {
   BloodOxygen, BodyTemperature, Barometer, Screen, Accelerometer, Weather, Geolocation
 } from '@zos/sensor'
 import { getProfile } from '@zos/user'
+import { readFileSync, writeFileSync, statSync } from '@zos/fs'
 
 const safe = (f) => { try { return f() } catch (e) { return null } }
 const num = (v, lo, hi) => (typeof v === 'number' && isFinite(v) && v >= lo && v <= hi ? v : null)
@@ -41,17 +42,31 @@ export function startSense() {
   tryFix()
 }
 
-// 時計の GPS：電池のため、15 分おきに、位置が取れるまで（最長 3 分）だけ測る。屋内では取れないので、最後の位置を使う。
+// 時計の GPS：電池のため、一度取れたら 6 時間おき。取れなかった（屋内など）ときだけ 15 分後に測り直す（一回は最長 3 分）。
+// 最後の位置は時計に残す（アプリを開き直しても、6 時間以内なら測らない）。
 // 位置は 3 桁（約 100 メートル）に丸める。スマホのミナモの外には出ない
+const GEO_FILE = 'minamo-geo.json', GEO_EVERY = 6 * 3600000, GEO_RETRY = 900000
+function loadFix() {
+  try {
+    if (!statSync({ path: GEO_FILE })) return null
+    const j = JSON.parse(readFileSync({ path: GEO_FILE, options: { encoding: 'utf8' } }))
+    return j && typeof j.lat === 'number' && typeof j.lon === 'number' && typeof j.at === 'number' ? j : null
+  } catch (e) { return null }
+}
 function tryFix() {
   if (!S.geo) return
   clearTimeout(geoT); clearTimeout(geoStop)
+  if (!fix) fix = loadFix()
+  if (fix && Date.now() - fix.at < GEO_EVERY) { geoT = setTimeout(tryFix, GEO_EVERY - (Date.now() - fix.at)); return }
   const done = () => { safe(() => S.geo.offChange(geoOn)); safe(() => S.geo.stop()); geoOn = null }
   geoOn = () => {
     if (safe(() => S.geo.getStatus()) !== 'A') return
     const la = safe(() => S.geo.getLatitude({ format: 'DD' })), lo = safe(() => S.geo.getLongitude({ format: 'DD' }))
     if (typeof la === 'number' && typeof lo === 'number' && Math.abs(la) <= 90 && Math.abs(lo) <= 180 && (la !== 0 || lo !== 0)) {
       fix = { lat: Math.round(la * 1000) / 1000, lon: Math.round(lo * 1000) / 1000, at: Date.now() }
+      try { writeFileSync({ path: GEO_FILE, data: JSON.stringify(fix), options: { encoding: 'utf8' } }) } catch (e) { /* 残せなくても続ける */ }
+      clearTimeout(geoStop); clearTimeout(geoT)
+      geoT = setTimeout(tryFix, GEO_EVERY)
       done()
     }
   }
@@ -59,7 +74,7 @@ function tryFix() {
   safe(() => S.geo.start())
   geoOn()
   geoStop = setTimeout(done, 180000)
-  geoT = setTimeout(tryFix, 900000)
+  geoT = setTimeout(tryFix, GEO_RETRY)          // 取れなければ、15 分後にもう一度（取れたら、上で 6 時間後に替わる）
 }
 
 export function stopSense() {
