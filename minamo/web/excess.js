@@ -120,6 +120,23 @@
   const lines = () => $("lines");
   const cur = () => (li >= 0 ? LV[li] : null);
   EX.levels = () => visited.slice();
+  // 面接の続き（app.js が端末に保存する）：いまの階層・周回・段階。つなぎ直したときに、同じ階層から続ける
+  EX.snapshot = () => ({ li, loops, visited: visited.slice(-60), registered, phase, palSaid });
+  EX.restore = snap => {
+    if (!snap || !on || !live()) return;
+    phase = snap.phase || 0; loops = snap.loops || 0; registered = !!snap.registered; palSaid = snap.palSaid || 0;
+    const b = document.body;
+    if (phase >= 1) b.classList.add("pal-on");
+    if (phase >= 2) b.classList.add("zs");
+    if (phase >= 3) b.classList.add("pal-wrong");
+    const seen = Array.isArray(snap.visited) ? snap.visited.slice() : [];
+    if (snap.li >= 0 && snap.li < LV.length) {
+      seen.pop();                       // enter() が、いまの階層を足す
+      visited = seen;
+      enter(snap.li);
+      if (phase >= 1) setTimeout(() => { if (live()) palSay(PAL.back); }, 1500);
+    } else visited = seen;
+  };
 
   // ---------- 始まりと終わり ----------
   EX.start = async (opts) => {

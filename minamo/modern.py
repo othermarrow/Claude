@@ -249,6 +249,8 @@ class Modern:
             return CRISIS
         if i["findings"]:
             return self.report(i, contents)
+        if i["resume"]:
+            return kaiwa.resume_line("2026", ph)     # 同じ面接の続き（最初からやり直さない）
         if i["start"]:
             self.talk.reset()
             self.pred, self.preds = "", []
