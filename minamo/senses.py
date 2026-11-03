@@ -317,7 +317,7 @@ def _location():
 
 # 時計の GPS（minamo-watch が送ってくる。Termux:API がなくても、居場所と天気が読める）
 LOC_FILE = os.path.join(CONF, "last_loc.json")
-WRIST_LOC_MAX = 6 * 3600        # これより古い位置は使わない（秒）
+WRIST_LOC_MAX = 12 * 3600       # これより古い位置は使わない（秒。時計は 6 時間おきに測る）
 NEAR_KM = 0.4                   # 家・職場の位置から、これより近ければ、そこにいることにする
 
 

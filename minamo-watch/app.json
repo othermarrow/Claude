@@ -5,8 +5,8 @@
     "appName": "minamo",
     "appType": "app",
     "version": {
-      "code": 12,
-      "name": "1.6.3"
+      "code": 13,
+      "name": "1.6.4"
     },
     "icon": "icon.png",
     "vender": "zepp",
