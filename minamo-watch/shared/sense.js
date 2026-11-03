@@ -5,7 +5,7 @@
 //   気圧・高度・周りの明るさ・手首の揺れ（加速度）・今日の天気（最高・最低）・年齢とニックネーム
 import {
   HeartRate, Step, Battery, Time, Wear, Calorie, Distance, Stand, Sleep, Stress,
-  BloodOxygen, BodyTemperature, Barometer, Screen, Accelerometer, Weather
+  BloodOxygen, BodyTemperature, Barometer, Screen, Accelerometer, Weather, Geolocation
 } from '@zos/sensor'
 import { getProfile } from '@zos/user'
 
@@ -14,6 +14,7 @@ const num = (v, lo, hi) => (typeof v === 'number' && isFinite(v) && v >= lo && v
 const S = {}
 let hrNow = null, shake = 0, shakeN = 0, shakeAt = 0, motion = null, lastAcc = null
 let onHr = null, onAcc = null, profile = null, sleepAt = 0, sleepCache = null
+let fix = null, geoT = 0, geoStop = 0, geoOn = null   // 時計の GPS の最後の位置（lat・lon・取れた時刻）
 
 export function startSense() {
   for (const [k, C] of [['hr', HeartRate], ['step', Step], ['bat', Battery], ['time', Time], ['wear', Wear],
@@ -36,9 +37,34 @@ export function startSense() {
   safe(() => S.acc.start())
   safe(() => S.sleep.updateInfo())
   profile = safe(() => getProfile())
+  S.geo = safe(() => new Geolocation())
+  tryFix()
+}
+
+// 時計の GPS：電池のため、15 分おきに、位置が取れるまで（最長 3 分）だけ測る。屋内では取れないので、最後の位置を使う。
+// 位置は 3 桁（約 100 メートル）に丸める。スマホのミナモの外には出ない
+function tryFix() {
+  if (!S.geo) return
+  clearTimeout(geoT); clearTimeout(geoStop)
+  const done = () => { safe(() => S.geo.offChange(geoOn)); safe(() => S.geo.stop()); geoOn = null }
+  geoOn = () => {
+    if (safe(() => S.geo.getStatus()) !== 'A') return
+    const la = safe(() => S.geo.getLatitude({ format: 'DD' })), lo = safe(() => S.geo.getLongitude({ format: 'DD' }))
+    if (typeof la === 'number' && typeof lo === 'number' && Math.abs(la) <= 90 && Math.abs(lo) <= 180 && (la !== 0 || lo !== 0)) {
+      fix = { lat: Math.round(la * 1000) / 1000, lon: Math.round(lo * 1000) / 1000, at: Date.now() }
+      done()
+    }
+  }
+  safe(() => S.geo.onChange(geoOn))
+  safe(() => S.geo.start())
+  geoOn()
+  geoStop = setTimeout(done, 180000)
+  geoT = setTimeout(tryFix, 900000)
 }
 
 export function stopSense() {
+  clearTimeout(geoT); clearTimeout(geoStop)
+  safe(() => S.geo.offChange(geoOn)); safe(() => S.geo.stop())
   safe(() => S.hr.offCurrentChange(onHr))
   safe(() => S.acc.offChange(onAcc))
   safe(() => S.acc.stop())
@@ -113,6 +139,7 @@ export function observe() {
     age: num(profile && profile.age, 1, 120),
     nick: profile && typeof profile.nickName === 'string' ? profile.nickName.slice(0, 12) : null
   }, sleepInfo(), stressPeak())
+  if (fix) { v.lat = fix.lat; v.lon = fix.lon; v.gpsAge = Math.min(1440, Math.round((Date.now() - fix.at) / 60000)) }
   if (v.hour == null) { v.hour = now.getHours(); v.minute = now.getMinutes() }
   if (v.worn !== 0 && v.worn !== 1 && v.worn !== 2 && v.worn !== 3) v.worn = null
   if (v.sleeping !== 0 && v.sleeping !== 1) v.sleeping = null

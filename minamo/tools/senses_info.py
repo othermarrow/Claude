@@ -16,16 +16,26 @@ if len(sys.argv) > 2 and sys.argv[1] == "--place":
         print("mo place home か mo place work で使います。")
         sys.exit(1)
     ssid = senses.current_ssid()
+    w = senses.wrist_loc()
+    if not ssid and w:                     # Wi-Fi の名前が読めない（Termux:API がない）：時計の GPS の位置を、家・職場にする
+        p = senses.load_places()
+        p[kind + "_loc"] = [w[0], w[1]]
+        senses.save_places(p)
+        print(f"腕時計の GPS の位置（約 100 メートルに丸めたもの）を、「{'家' if kind == 'home' else '職場'}」に登録しました。")
+        print("近く（400 メートル以内）にいると、そこにいることになります。位置は端末の中だけ。AI には渡しません。")
+        sys.exit(0)
     if ssid is None:
         print("いまは Wi-Fi につながっていません。登録したい場所の Wi-Fi につないでから、もう一度。")
         sys.exit(1)
     if not ssid:
-        print("Wi-Fi の名前が読めません。Android の設定 → アプリ → Termux:API → 権限 → 位置情報 を「許可」にしてから、もう一度。")
+        print("Wi-Fi の名前が読めません。Termux:API を入れて、位置情報を「許可」にするか、腕時計の minamo を外で開いて（時計の GPS で位置が届くと）、もう一度。")
         sys.exit(1)
     p = senses.load_places()
     p[kind] = sorted(set(p.get(kind, [])) | {ssid})
     other = "work" if kind == "home" else "home"
     p[other] = [x for x in p.get(other, []) if x != ssid]
+    if w:
+        p[kind + "_loc"] = [w[0], w[1]]
     senses.save_places(p)
     print(f"いまの Wi-Fi を「{'家' if kind == 'home' else '職場'}」に登録しました（名前は端末の中だけ。AI には渡しません）。")
     sys.exit(0)

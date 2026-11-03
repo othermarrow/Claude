@@ -181,7 +181,15 @@ def clean_obs(o):
            "light": _int(o.get("light"), 0, 200000), "high": _int(o.get("high"), -60, 60), "low": _int(o.get("low"), -60, 60),
            "age": _int(o.get("age"), 1, 120), "sleepTotal": _int(o.get("sleepTotal"), 1, 1440),
            "sleepDeep": _int(o.get("sleepDeep"), 0, 1440), "sleepScore": _int(o.get("sleepScore"), 1, 100),
-           "sleepWakes": _int(o.get("sleepWakes"), 0, 99), "nap": _int(o.get("nap"), 1, 1440)}
+           "sleepWakes": _int(o.get("sleepWakes"), 0, 99), "nap": _int(o.get("nap"), 1, 1440),
+           "gpsAge": _int(o.get("gpsAge"), 0, 1440)}
+    for k, hi in (("lat", 90.0), ("lon", 180.0)):          # 時計の GPS（約 100 メートルに丸めてある）。AI には渡さない
+        try:
+            v = round(float(o.get(k)), 3)
+        except (TypeError, ValueError):
+            continue
+        if abs(v) <= hi:
+            out[k] = v
     if o.get("shake") in ("still", "tremble", "move"):
         out["shake"] = o["shake"]
     if isinstance(o.get("sleepWakeAt"), str) and re.fullmatch(r"\d{1,2}時\d{2}分", o["sleepWakeAt"]):
@@ -279,6 +287,8 @@ def update(data):
     """POST /api/watch（時計 → Zepp アプリのサイドサービス から）。返事は時計に届く。"""
     ev = data.get("ev") if data.get("ev") in ("start", "tick", "tap", "end", "idle") else "tick"
     obs = clean_obs(data.get("obs"))
+    if obs.get("lat") is not None and obs.get("lon") is not None:
+        senses.set_wrist_loc(obs["lat"], obs["lon"], obs.get("gpsAge") or 0)       # 居場所・天気に使う（Termux:API がなくても）
     now = time.time()
     with _LOCK:
         if obs:
