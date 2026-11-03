@@ -16,6 +16,7 @@ const S = {}
 let hrNow = null, shake = 0, shakeN = 0, shakeAt = 0, motion = null, lastAcc = null
 let onHr = null, onAcc = null, profile = null, sleepAt = 0, sleepCache = null
 let fix = null, geoT = 0, geoStop = 0, geoOn = null   // 時計の GPS の最後の位置（lat・lon・取れた時刻）
+let geoSt = 'idle'                                    // 'on' 測定中・'none' 取れなかった・'off' 使えない（許可がない・時計に付いていない）
 
 export function startSense() {
   for (const [k, C] of [['hr', HeartRate], ['step', Step], ['bat', Battery], ['time', Time], ['wear', Wear],
@@ -42,7 +43,7 @@ export function startSense() {
   tryFix()
 }
 
-// 時計の GPS：電池のため、一度取れたら 6 時間おき。取れなかった（屋内など）ときだけ 15 分後に測り直す（一回は最長 3 分）。
+// 時計の GPS：電池のため、一度取れたら 6 時間おき。取れなかった（屋内など）ときだけ 15 分後に測り直す（一回は最長 5 分）。
 // 最後の位置は時計に残す（アプリを開き直しても、6 時間以内なら測らない）。
 // 位置は 3 桁（約 100 メートル）に丸める。スマホのミナモの外には出ない
 const GEO_FILE = 'minamo-geo.json', GEO_EVERY = 6 * 3600000, GEO_RETRY = 900000
@@ -58,7 +59,7 @@ function tryFix() {
   clearTimeout(geoT); clearTimeout(geoStop)
   if (!fix) fix = loadFix()
   if (fix && Date.now() - fix.at < GEO_EVERY) { geoT = setTimeout(tryFix, GEO_EVERY - (Date.now() - fix.at)); return }
-  const done = () => { safe(() => S.geo.offChange(geoOn)); safe(() => S.geo.stop()); geoOn = null }
+  const done = () => { safe(() => S.geo.offChange(geoOn)); safe(() => S.geo.stop()); geoOn = null; if (geoSt === 'on') geoSt = 'none' }
   geoOn = () => {
     if (safe(() => S.geo.getStatus()) !== 'A') return
     const la = safe(() => S.geo.getLatitude({ format: 'DD' })), lo = safe(() => S.geo.getLongitude({ format: 'DD' }))
@@ -70,11 +71,16 @@ function tryFix() {
       done()
     }
   }
-  safe(() => S.geo.onChange(geoOn))
-  safe(() => S.geo.start())
+  try { S.geo.onChange(geoOn); S.geo.start(); geoSt = 'on' } catch (e) { geoSt = 'off'; geoOn = null; geoT = setTimeout(tryFix, GEO_RETRY); return }
   geoOn()
-  geoStop = setTimeout(done, 180000)
+  geoStop = setTimeout(done, 300000)            // 冷えた状態からは、位置が取れるまで数分かかることがある
   geoT = setTimeout(tryFix, GEO_RETRY)          // 取れなければ、15 分後にもう一度（取れたら、上で 6 時間後に替わる）
+}
+
+// 時計の GPS の様子（画面の見出しと、スマホの mo log に出す）：fix 取れた・on 測定中・none 取れなかった・off 使えない
+export function geoState() {
+  if (fix && Date.now() - fix.at < 6 * 3600000) return 'fix'
+  return geoSt === 'idle' ? 'on' : geoSt
 }
 
 export function stopSense() {
@@ -154,6 +160,7 @@ export function observe() {
     age: num(profile && profile.age, 1, 120),
     nick: profile && typeof profile.nickName === 'string' ? profile.nickName.slice(0, 12) : null
   }, sleepInfo(), stressPeak())
+  v.geo = geoState()
   if (fix) { v.lat = fix.lat; v.lon = fix.lon; v.gpsAge = Math.min(1440, Math.round((Date.now() - fix.at) / 60000)) }
   if (v.hour == null) { v.hour = now.getHours(); v.minute = now.getMinutes() }
   if (v.worn !== 0 && v.worn !== 1 && v.worn !== 2 && v.worn !== 3) v.worn = null

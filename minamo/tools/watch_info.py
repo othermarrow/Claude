@@ -39,6 +39,14 @@ elif w.get("linked"):
 else:
     print(f"  腕時計（minamo）：前に届いたのは {dur(since)}前" + (f"（{vals}）" if vals else "") + "。"
           "時計で minamo を開くか、次の予約（独り言・毎時 59 分）で時計が起きたときに、つながります。")
+GEO = {"fix": "位置が取れています", "on": "いま測っています（外で、空が見える場所で、数分かかります）",
+       "none": "取れませんでした（屋内では取れません。外で時計の minamo を開いてください）",
+       "off": "使えません（時計の許可「位置情報」がない？ 時計に minamo を入れ直して、許可してください）"}
+if o.get("geo") in GEO:
+    age = f"（{o['gpsAge']}分前に測った位置）" if o.get("lat") is not None and o.get("gpsAge") is not None else ""
+    print(f"  腕時計の GPS：{GEO[o['geo']]}{age}")
+elif since is not None:
+    print("  腕時計の GPS：まだ届いていません（時計の minamo が 1.6.3 より古い？ 入れ直してください）")
 b = w.get("boot") or {}
 if b.get("first_at"):
     t = time.strftime("%H:%M", time.localtime(b["first_at"] / 1000))

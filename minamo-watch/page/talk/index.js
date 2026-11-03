@@ -272,7 +272,7 @@ Page(
     headText() {
       const st = this.state, obs = observe()
       if (st.who === 'nagi') return 'nagi' + (st.linked ? ' ⇄' : '')
-      return `minamo・${st.talk.phaseName()}` + (obs.hr ? ` ♡${obs.hr}` : '') + (obs.battery ? ` 電池${obs.battery}%` : '') + (st.linked ? ' ⇄' : '')
+      return `minamo・${st.talk.phaseName()}` + (obs.hr ? ` ♡${obs.hr}` : '') + (obs.battery ? ` 電池${obs.battery}%` : '') + (st.linked ? ' ⇄' : '') + ' GPS' + ({ fix: '◎', on: '…', none: '×', off: '禁' }[obs.geo] || '')
     },
     paintHead() {
       const st = this.state

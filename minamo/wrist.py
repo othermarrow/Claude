@@ -190,6 +190,8 @@ def clean_obs(o):
             continue
         if abs(v) <= hi:
             out[k] = v
+    if o.get("geo") in ("fix", "on", "none", "off"):       # 時計の GPS の様子（mo log に出す）
+        out["geo"] = o["geo"]
     if o.get("shake") in ("still", "tremble", "move"):
         out["shake"] = o["shake"]
     if isinstance(o.get("sleepWakeAt"), str) and re.fullmatch(r"\d{1,2}時\d{2}分", o["sleepWakeAt"]):
