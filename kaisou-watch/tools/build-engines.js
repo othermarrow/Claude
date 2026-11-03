@@ -5,7 +5,8 @@
 //  shared/engines/hikae.js   … games/hikae.html の ENGINE BEGIN〜END
 //  shared/engines/yacho.js   … games/yacho.html の ENGINE BEGIN〜END（野帳の時計版 yacho-watch と同じ言い換え）
 //  shared/engines/kuuran2.js … kuuran2-watch/shared/engine.js をそのまま写す（空欄_2 は、時計版の道具で作ったもの）
-//  shared/themes.js          … noclip と hikae の CSS（body[data-lv="…"]）の色を、時計用の表にしたもの
+//  shared/engines/miteiko.js … tools/build-miteiko.js で作る（未定稿は、切るところを一つずつ指定する）
+//  shared/themes.js          … noclip・hikae・miteiko の CSS（body[data-lv="…"]）の色を、時計用の表にしたもの
 const fs = require('fs')
 const path = require('path')
 const root = path.join(__dirname, '..', '..')
@@ -59,28 +60,31 @@ function colors(file, key) {
   const table = {}
   const grab = (block) => {
     const g = (n) => {
-      const m = block.match(new RegExp('--' + n + ':\\s*(#[0-9a-fA-F]{6})'))
-      return m ? m[1].slice(1) : null
+      const m = block.match(new RegExp('--' + n + ':\\s*#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\\b'))
+      if (!m) return null
+      return m[1].length === 3 ? m[1].split('').map((c) => c + c).join('') : m[1]
     }
     return { screen: g('screen'), wall: g('wall'), bright: g('bright'), dim: g('dim'), faint: g('faint'), key: g('key'), warn: g('warn') }
   }
   const root0 = html.match(/:root\s*\{([^}]*)\}/)
   table[''] = grab(root0[1])
-  const re = /body\[data-lv="([^"]+)"\]\s*\{([^}]*)\}/g
+  const re = /body(?:\[data-lv="([^"]+)"\]|\.(dark))\s*\{([^}]*)\}/g
   let m
   while ((m = re.exec(html))) {
-    const c = grab(m[2])
+    const key = m[1] || m[2]
+    const c = grab(m[3])
     // 一部の値だけ変える規則は、元の色の上に重ねる
-    const prev = table[m[1]] || table['']
-    table[m[1]] = Object.fromEntries(Object.entries(c).map(([k, v]) => [k, v || prev[k]]))
+    const prev = table[key] || table['']
+    table[key] = Object.fromEntries(Object.entries(c).map(([k, v]) => [k, v || prev[k]]))
   }
   return table
 }
 const toArr = (t) => Object.fromEntries(Object.entries(t).map(([k, c]) => [k, [c.screen, c.wall, c.bright, c.dim, c.faint, c.key, c.warn]]))
 fs.writeFileSync(path.join(out, 'themes.js'),
   `// 階層目録のゲームごとの配色。[背景, 文字, 明るい文字, 薄い文字, 枠, 方角キー, 警告]（16 進）。
-// noclip と hikae は、HTML 版の CSS から tools/build-engines.js で作る。直接は直さない。
+// noclip・hikae・miteiko は、HTML 版の CSS から tools/build-engines.js で作る。直接は直さない。
 export const NOCLIP = ${JSON.stringify(toArr(colors('noclip.html')))}
 export const HIKAE = ${JSON.stringify(toArr(colors('hikae.html')))}
+export const MITEIKO = ${JSON.stringify(toArr(colors('miteiko.html')))}
 `)
 console.log('themes: noclip', Object.keys(colors('noclip.html')).length, 'hikae', Object.keys(colors('hikae.html')).length)

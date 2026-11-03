@@ -76,3 +76,5 @@ zeus preview
 ```bash
 node kuuran2-watch/tools/build-engine.js
 ```
+
+- 周回の記録を書く関数（`loopSet`）が本体に抜けていて、結末の近くで「loopSet is not defined」で止まる不具合があった（階層目録の時計版の試験で見つかった）。`tools/build-engine.js` を直して作り直した。送り直すと直る。

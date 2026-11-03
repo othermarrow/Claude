@@ -4,10 +4,10 @@
     "appId": 1098790,
     "appName": "Kaisou",
     "appType": "app",
-    "version": { "code": 2, "name": "1.0.1" },
+    "version": { "code": 4, "name": "1.2.0" },
     "icon": "icon.png",
     "vender": "zepp",
-    "description": "Catalogue of floors: four text adventures on your wrist"
+    "description": "Catalogue of floors: six text adventures on your wrist"
   },
   "permissions": ["data:os.device.info"],
   "runtime": {
@@ -16,7 +16,7 @@
   "targets": {
     "common": {
       "module": {
-        "page": { "pages": ["page/index", "page/noclip/index", "page/yacho/index", "page/kuuran2/index", "page/hikae/index"] }
+        "page": { "pages": ["page/index", "page/noclip/index", "page/yacho/index", "page/miteiko/index", "page/kuuran2/index", "page/kuramori/index", "page/hikae/index"] }
       },
       "platforms": [{ "st": "r", "dw": 480 }]
     }
