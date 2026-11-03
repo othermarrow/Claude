@@ -481,7 +481,7 @@
     await respond(text);
     setBusy(false);
     refresh();
-    // 信頼がいちばん高く、水野さんの記録（#012）を読んだあと：一度だけ、お願いをされる
+    // 信頼がいちばん高く、真賀田さんの記録（#012）を読んだあと：一度だけ、お願いをされる
     if (S.trust >= 5 && S.read.l9 && !S.carryAsked) {
       S.carryAsked = true; save();
       await sleep(900);

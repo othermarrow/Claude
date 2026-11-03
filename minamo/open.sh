@@ -7,6 +7,7 @@
 #   sh ~/Claude/minamo/open.sh restart    # 止めて、AI の一括チェックからやり直して開く
 #   sh ~/Claude/minamo/open.sh log        # 様子を見る（ログの最後の 20 行と、AI の一括チェックの結果と、腕時計の様子）
 #   sh ~/Claude/minamo/open.sh update     # GitHub から最新にして（git pull）、起動し直して開く
+#   sh ~/Claude/minamo/open.sh reset      # はじめからやり直す（ミナモのメモリ・手首の記録・書き置きの控えを消す。面接記録は残す）
 cd "$(dirname "$0")" || exit 1
 case "$1" in
   stop) sh "$PWD/stop.sh"; echo "止めました。"; exit 0 ;;
@@ -16,6 +17,19 @@ case "$1" in
              exit 1
            fi
            echo "止めました。起動し直します。" ;;
+  reset)
+    echo "はじめからやり直します。消すもの：ミナモのメモリ（~/minamo/memory.json）・手首の記録（~/.config/minamo/wrist.json）・"
+    echo "  書き置きの控え（~/minamo/outside.json）。面接記録（記録のフォルダ）と Vault のノートは消しません。"
+    printf "消してよければ yes と打ってください: "
+    read ans
+    [ "$ans" = "yes" ] || { echo "やめました。"; exit 0; }
+    sh "$PWD/stop.sh" >/dev/null 2>&1
+    rm -f "$HOME/minamo/memory.json" "$HOME/.config/minamo/wrist.json" "$HOME/minamo/outside.json"
+    echo "消しました。あと二つ、画面の側で消してください："
+    echo "  1. 物語「水面の記録」：最初の画面のいちばん下の「記録を消す」（掲示板・チャット・夜の数）"
+    echo "  2. 時計の minamo：「終わる」→「はじめから」を二度押す"
+    echo "起動し直すときは：mo"
+    exit 0 ;;
   log)  tail -20 "$HOME/minamo/server.log"; echo "AI の一括チェック："
         python3 "$PWD/tools/probe_info.py" 9090
         python3 "$PWD/tools/watch_info.py" 9090; exit 0 ;;

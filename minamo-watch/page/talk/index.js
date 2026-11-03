@@ -465,7 +465,26 @@ Page(
         this.say(greet, false)
         this.link('start', { said: greet })
       }, { color: KEY, size: 24, textColor: DIM })
-      return y + 66
+      y += 66
+      // はじめから：時計の記録（会った回数・ゆめ・近さ・十三人目・生まれた日）を消して、初めて会うところから。二度押す
+      let sure = false
+      const rb = c.button(MARGIN + CW / 6, y, (CW * 2) / 3, 50, 'はじめから', () => {
+        st.lastTouch = Date.now()
+        if (!sure) {
+          sure = true
+          try { rb.setProperty(hmUI.prop.TEXT, 'もう一度押すと消えます') } catch (e) { /* 消えた部品 */ }
+          return
+        }
+        save({ h59: st.talk.state.h59 })
+        st.ended = false; st.idles = 0; st.hist = []; st.mode = 'new'; st.booted = false
+        keepAwake(true)
+        st.talk = createTalk(load())
+        const greet = st.talk.start(observe(), 'new')
+        save(st.talk.state)
+        this.say(greet, false)
+        this.link('start', { said: greet })
+      }, { color: 0x221414, size: 20, textColor: WARN })
+      return y + 60
     }
   })
 )
