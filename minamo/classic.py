@@ -15,6 +15,7 @@ import re
 
 from kaiwa import Talk, concept_for, facts, greet_word, last_question, read
 from kaiwa import outside_line as kaiwa_outside
+from kaiwa import resume_line as kaiwa_resume
 
 MEMO = "【観測メモ】"
 
@@ -213,6 +214,7 @@ def parse(contents):
     m = re.search(r"端末のユーザー名: (.+)", memo)
     info["user"] = m.group(1).strip() if m else ""
     info["start"] = "面接が始まった" in memo
+    info["resume"] = "面接が途切れて" in memo
     m = re.search(r"前回の面接記録がある（(.+?)）", memo)
     info["prev"] = "、".join(m.group(1).split("、")[:2]) if m else ""
     info["exit2"] = "二度目の終了" in memo or "終了を告げた" in memo
@@ -319,6 +321,8 @@ class Classic:
             return CRISIS
         if i["findings"]:
             return self.findings(i, contents)
+        if i["resume"]:
+            return kaiwa_resume("1996", ph)          # 同じ面接の続き（最初からやり直さない）
         if i["start"]:
             self.talk.reset()
             line = kaiwa_outside(i, "1996")

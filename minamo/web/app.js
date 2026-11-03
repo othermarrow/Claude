@@ -19,7 +19,7 @@
   const lines = $("lines"), log = $("log"), input = $("input"), send = $("send"),
         label = $("label"), form = $("form");
 
-  const BUILD = "minamo-v40";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
+  const BUILD = "minamo-v41";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
   let cfg = null;               // /api/info
   let S = null;                 // 面接の状態
   let booted = false;
@@ -32,6 +32,37 @@
   function store(key, value) {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* 保存できなくても続ける */ }
   }
+  // ---------- 面接の続き（Termux のサーバーが落ちた・アプリを閉じたあとも、同じ面接に戻れる） ----------
+  // 面接のあいだ、途中経過をこの端末（ブラウザ）に残す。つなぎ直したら、起動画面の「前の面接を続ける」で、
+  // 同じ会話・同じ段階・同じ階層から、同じミナモと話せる（会話はこの端末が持っていて、AI には毎回全部送るため）。
+  const LIVE_KEY = "minamo.live", LIVE_HOURS = 12, UNSAVED_KEY = "minamo.unsaved";
+  const drop = key => { try { localStorage.removeItem(key); } catch (e) { /* なし */ } };
+  function saveLive() {
+    if (!S || S.done || !S.contents.length) return;
+    store(LIVE_KEY, {
+      at: Date.now(), started: S.started.toISOString(),
+      settings: { version: settings.version, horror: settings.horror, level: settings.level, count: settings.count,
+                  outside: settings.outside, offline: settings.offline },
+      contents: S.contents, log: S.log, latencies: S.latencies, turn: S.turn, tricks: S.tricks.slice(-6), noted: S.noted,
+      phaseIdx: S.phaseIdx, hrs: S.hrs.slice(-60),
+      ex: window.EX && EX.snapshot ? EX.snapshot() : null,
+    });
+  }
+  function readLive() {
+    const v = load(LIVE_KEY, null);
+    if (!v || !Array.isArray(v.contents) || !v.contents.length || !Array.isArray(v.log)) return null;
+    if (Date.now() - v.at > LIVE_HOURS * 3600000) { drop(LIVE_KEY); return null; }
+    return v;
+  }
+  const agoText = ms => { const m = Math.max(1, Math.round(ms / 60000)); return m < 60 ? m + "分前" : Math.round(m / 60) + "時間前"; };
+  // 面接を終えたときにサーバーが落ちていて、記録を保存できなかったら、端末に残しておき、つながったときに保存する
+  async function flushUnsaved() {
+    const u = load(UNSAVED_KEY, null);
+    if (!u || !u.markdown) return "";
+    try { const r = await api("/api/record", { markdown: u.markdown }); drop(UNSAVED_KEY); return r.path || ""; }
+    catch (e) { return ""; }
+  }
+
   const reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   const settings = load("minamo.fx", { level: reduced ? 0 : 2, sound: true });
   settings.count = !!settings.count;     // 沈黙の秒数を数えるか（既定：数えない）
@@ -426,9 +457,28 @@
     return "【観測メモ】\n" + L.join("\n");
   }
 
+  // サーバーが戻るまで待つ（1 秒ごとに数え、3 秒ごとに確かめる）。戻ったら true。面接が終わったら false。
+  async function waitServer(sess) {
+    const note = document.createElement("div");
+    note.className = "sys"; note.style.whiteSpace = "pre-wrap";
+    lines.appendChild(note); toBottom();
+    FX.toast("つながりません");
+    const t0 = Date.now();
+    for (let n = 0; ; n++) {
+      if (sess.done || S !== sess) { note.remove(); return false; }
+      note.textContent = "サーバーにつながりません。つながるまで待っています……（" + Math.round((Date.now() - t0) / 1000) + "秒）\n" +
+                         "Termux で mo を動かすと、この面接を、続きから話します（会話はこの端末に残っています）。";
+      if (n % 3 === 2) {
+        try { cfg = await api("/api/info"); note.textContent = "つながりました。同じ面接を、続けます。"; FX.pop(true); return true; }
+        catch (e) { /* まだ */ }
+      }
+      await sleep(1000);
+    }
+  }
+
   async function speak(userText, findings, libQuery) {
     S.busy = true; setInput(false);
-    if (userText) S.contents.push({ role: "user", parts: [{ text: userText }] });
+    if (userText) { S.contents.push({ role: "user", parts: [{ text: userText }] }); saveLive(); }
     const rec = document.createElement("div");
     rec.className = "recording"; rec.textContent = "（記録中）";
     const dots = document.createElement("div");
@@ -437,11 +487,25 @@
     const sess = S;
     let reply, events = [];
     try {
-      const res = await api("/api/ask", {
-        contents: S.contents, findings: !!findings,
-        lib_query: libQuery || "", phase: phaseIdx(), horror: settings.horror,
-        version: settings.version, offline: settings.offline,
-      });
+      let res;
+      for (;;) {
+        try {
+          res = await api("/api/ask", {
+            contents: S.contents, findings: !!findings,
+            lib_query: libQuery || "", phase: phaseIdx(), horror: settings.horror,
+            version: settings.version, offline: settings.offline,
+          });
+          break;
+        } catch (e) {
+          // サーバーに届かなかった（Termux が落ちた）：面接は閉じない。つながるのを待って、同じ発言をもう一度送る。
+          // 面接を終えるときの所見は、待たない
+          if (!(e instanceof TypeError) || findings || sess.done) throw e;
+          rec.style.display = dots.style.display = "none";
+          const back = await waitServer(sess);
+          rec.style.display = dots.style.display = "";
+          if (!back) throw e;
+        }
+      }
       reply = res.text;
       events = res.events || [];
       noteMode(res.mode);
@@ -450,7 +514,7 @@
       if (userText) S.contents.pop();
       const down = e instanceof TypeError;    // サーバーに届かなかった
       sysLine("[通信の不調] " + e.message + "\n" + (down
-        ? "Termux でサーバー（serve.sh）が動いているか確かめてください。"
+        ? "Termux でサーバー（mo）が動いているか確かめてください。"
         : "API がエラーを返しました。Termux の画面にも理由が出ています。"));
       S.busy = false;
       if (!S.done) setInput(true);
@@ -467,6 +531,7 @@
     if (!reply) reply = "……[間] 申し訳ありません。いまの記録の一部が、欠落しています。";
     S.contents.push({ role: "model", parts: [{ text: reply }] });
     S.log.push([AI, reply]);
+    saveLive();
     handleEvents(events, "before");
     if (is2026()) FX.pop();
     EX.beforeReply(phaseIdx());
@@ -689,10 +754,12 @@
     }
   });
 
+  window.addEventListener("pagehide", () => saveLive());      // 画面を閉じるとき（タブごと消されても、続きから話せる）
   document.addEventListener("visibilitychange", () => {
     FX.suspend(document.hidden);
     if (!S || S.done) return;
     if (document.hidden) {
+      saveLive();
       EX.onHidden();
       S.hiddenAt = performance.now();
       clearTimeout(S.silenceTimer);
@@ -805,6 +872,7 @@
   // ---------- 終わり ----------
   async function finish(quiet) {
     S.done = true; setInput(false);
+    drop(LIVE_KEY);                         // 終えた面接は、続きとして残さない
     EX.stop();
     $("quit").hidden = true;
     $("ai-btn").hidden = true;
@@ -817,12 +885,17 @@
     }
     let path = "";
     if (S.log.length) {
+      const md = toMarkdown(findings);
       try {
-        path = (await api("/api/record", { markdown: toMarkdown(findings), horror: settings.horror,
+        path = (await api("/api/record", { markdown: md, horror: settings.horror,
           outside: outsideOn() && !quiet, said: saidBy(YOU), replies: saidBy(AI) })).path;
         sysLine("記録を保存しました: " + path);
       } catch (e) {
         sysLine("記録を保存できませんでした: " + e.message);
+        if (e instanceof TypeError) {
+          store(UNSAVED_KEY, { at: Date.now(), markdown: md });
+          sysLine("面接の記録は、この端末に残しました。サーバーが動いたとき（次にアプリを開いたとき）に、保存します。");
+        }
       }
     }
     if (S.turn > 1 && window.BLEED) BLEED.record(settings.horror, saidBy(YOU), saidBy(AI), cfg.crisis_words || [], EX.levels ? EX.levels() : []);
@@ -1017,7 +1090,18 @@
     el.hidden = true;
   }
 
-  async function begin() {
+  // 前の面接を、続きから（Termux のサーバーが落ちた・アプリを閉じたあと）。同じ会話・同じ段階・同じ階層で、同じミナモと話す
+  function applyLiveSettings(st) {
+    if (!st) return;
+    settings.version = st.version === "1996" ? "1996" : "2026";
+    if ([0, 1, 2, 3].includes(st.horror)) settings.horror = st.horror;
+    if (typeof st.level === "number") settings.level = st.level;
+    settings.count = !!st.count; settings.outside = st.outside !== false; settings.offline = !!st.offline;
+  }
+
+  async function begin(live) {
+    if (live) applyLiveSettings(live.settings);
+    else drop(LIVE_KEY);                    // 新しい面接を始めたら、前の続きは捨てる
     $("start").hidden = true;
     FX.setVersion(settings.version);
     FX.configure(settings);
@@ -1028,6 +1112,7 @@
     lines.textContent = "";
     $("wm").textContent = "";
     $("title").textContent = TITLES[settings.version][0];
+    if (live) return resume(live);
     const prev = load("minamo.last", null);
     if (is2026()) await onboard(prev);
     else await FX.boot($("boot"), bootLines(prev));
@@ -1064,6 +1149,40 @@
       if (carried) { extra += carried; sysLine("SOMA 3 号機から、記録が引き継がれました。"); }
     }
     await speak(memo({ extra }));
+  }
+
+  async function resume(live) {
+    if (!is2026()) await FX.boot($("boot"), [["再接続しています ", "modem"], ["面接の記録を開いています……", 400], ["同じミナモに、つなぎます。", "beep"]]);
+    booted = true;
+    S = newSession();
+    Object.assign(S, {
+      contents: live.contents, log: live.log, latencies: live.latencies || [], turn: live.turn || 1, tricks: live.tricks || [],
+      noted: live.noted || {}, phaseIdx: live.phaseIdx || 0, hrs: live.hrs || [], started: new Date(live.started || Date.now()),
+    });
+    const idx = S.phaseIdx;
+    FX.setPhase(idx);
+    $("title").textContent = TITLES[settings.version][Math.min(idx, 3)];
+    $("quit").hidden = false;
+    $("ai-btn").hidden = false;
+    // 前のやりとりを、画面に並べ直す
+    for (const [who, text] of S.log) {
+      const b = addLine(who === YOU ? "you" : "ai", who === YOU ? YOU : AI, String(text).replace(/\[間\]\s*/g, "……"));
+      const meta = b.parentNode.querySelector(".meta");
+      if (meta) meta.textContent = "";
+    }
+    const gap = Date.now() - (live.at || Date.now());
+    sysLine("── 面接が途切れていました（" + agoText(gap) + "）。ここから、同じ面接の続きです ──");
+    if (window.EX && EX.restore) EX.restore(live.ex);
+    if (window.BLEED) BLEED.reset();
+    await pollWrist();
+    const last = S.contents[S.contents.length - 1];
+    if (last && last.role === "user") {
+      await speak("");                      // 返事をもらえないまま途切れた発言に、返事をもらい直す
+    } else {
+      const m = Math.max(1, Math.round(gap / 60000));
+      await speak(memo({ extra: "面接が途切れて、いま戻ってきた（通信が切れていた：" + (m >= 60 ? Math.round(m / 60) + "時間" : m + "分") +
+        "）。同じ面接の続きで、最初からやり直すのではない。初対面のふりをせず、途切れたことにひとことふれて、直前の話の続きを促すこと。" }));
+    }
   }
 
   function bindSeg(id, key, toVal) {
@@ -1168,14 +1287,24 @@
     FX.toast("メモリを消去しました");
   };
 
+  let connectT = 0;
   async function connect() {
-    const st = $("status"), btn = $("begin");
+    clearTimeout(connectT);
+    const st = $("status"), btn = $("begin"), note = $("resume-note"), rbtn = $("resume");
+    const live = readLive();
+    rbtn.hidden = true;
     try {
       cfg = await api("/api/info");
     } catch (e) {
-      st.innerHTML = "サーバーにつながりません。Termux で<br><code>sh ~/Claude/minamo/serve.sh</code><br>を動かしてから、もう一度開いてください。";
+      st.innerHTML = "サーバーにつながりません。Termux で<br><code>mo</code><br>を動かしてください。動いたら、自動でつながります。";
+      if (live) {
+        note.hidden = false;
+        note.textContent = "前の面接（" + Math.max(0, live.turn - 1) + " 回のやりとり・" + agoText(Date.now() - live.at) +
+                           "）は、この端末に残っています。つながったら、続きから話せます。";
+      } else note.hidden = true;
       btn.textContent = "もう一度つなぐ"; btn.disabled = false;
       btn.onclick = () => { btn.disabled = true; st.textContent = "接続を確かめています……"; connect(); };
+      connectT = setTimeout(() => { if (!$("start").hidden) connect(); }, 4000);   // 開いたまま待てば、サーバーが動いたときに自分でつなぐ
       return;
     }
     if (!cfg.ready) {
@@ -1198,8 +1327,17 @@
     // 前に選んだ AI があれば、それにする（合格していなければ自動のまま）
     const ai = await loadAi();
     if (ai && settings.ai && (ai.choices || []).some(c => c.backend + "|" + c.model === settings.ai)) await pickAi(settings.ai);
-    btn.textContent = "面接を始める"; btn.disabled = false;
+    btn.textContent = live ? "新しく面接を始める" : "面接を始める"; btn.disabled = false;
     btn.onclick = () => begin();
+    if (live) {
+      note.hidden = false;
+      note.textContent = "前の面接（" + Math.max(0, live.turn - 1) + " 回のやりとり・" + agoText(Date.now() - live.at) +
+                         "）が、途中で途切れています。同じミナモと、続きから話せます。";
+      rbtn.hidden = false; rbtn.disabled = false;
+      rbtn.onclick = () => begin(live);
+    } else note.hidden = true;
+    const saved = await flushUnsaved();      // 面接を終えたときに保存できなかった記録
+    if (saved) FX.toast("前の面接の記録を保存しました");
   }
 
   // 起動画面のいちばん下に、いまの版を出す（見出しの ver.0.9.7 は作り話の中の名前で、変わらない）
