@@ -717,8 +717,14 @@
   // ---------- 手首（腕時計 minamo-watch。Zepp アプリを通って、サーバーに届く。wrist.py） ----------
   // つながっていなければ、何も起きない
   const WR = { linked: false, obs: {}, taps: {}, words: [], prevHr: null, offSaid: false };
+  // スマホの感覚（予定・居場所・天気・通知。senses.py）。登場人物の AI に渡す
+  let PHONE = [];
+  async function pollPhone() {
+    try { PHONE = ((await (await fetch("/api/senses", { headers: { "X-Minamo": "1" } })).json()).words) || []; } catch (e) { PHONE = []; }
+  }
   async function pollWrist() {
     if (document.hidden) return;
+    pollPhone();
     try {
       const w = await (await fetch("/api/watch", { headers: { "X-Minamo": "1" } })).json();
       const was = WR.obs;
@@ -827,7 +833,7 @@
       visits: S.visits.slice(-3).map(hhmm),
       threads: threads().filter(t => open(t) && !S.archived[t.id]).slice(-14).map(t => `${t.id}: ${t.title}`),
       endings: S.endings.slice(-5).map(e => e.title), own: ownOn() ? ownLines.slice(0, 2) : [],
-      interview: bl ? (bl.said || []).slice(-3) : [], wrist: wristWords(),
+      interview: bl ? (bl.said || []).slice(-3) : [], wrist: wristWords(), phone: PHONE.slice(0, 8),
     };
   }
   function historyOf(who) {

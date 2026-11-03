@@ -19,7 +19,7 @@
   const lines = $("lines"), log = $("log"), input = $("input"), send = $("send"),
         label = $("label"), form = $("form");
 
-  const BUILD = "minamo-v38";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
+  const BUILD = "minamo-v39";   // sw.js の VERSION と同じ（サーバーのファイルと食い違えば、画面が古いまま）
   let cfg = null;               // /api/info
   let S = null;                 // 面接の状態
   let booted = false;
@@ -146,6 +146,19 @@
       }
     }
     return P.length ? "手首（腕時計から届いた、いまの値。ときどき、さりげなく言い当てる。数字を毎回は言わない）: " + P.join("、") : "";
+  }
+  // ---------- スマホの感覚（予定・居場所・天気・通知。senses.py が 3 分おきに読む） ----------
+  // 怖さ「弱」以上で。導入では居場所と次の予定の時刻だけ（題名なし）、解釈からは予定の題名・天気・通知も
+  const PHONE = { words: [], brief: [] };
+  async function pollPhone() {
+    try { const p = await api("/api/senses"); PHONE.words = p.words || []; PHONE.brief = p.brief || []; } catch (e) { /* なし */ }
+  }
+  setInterval(pollPhone, 60000);
+  pollPhone();
+  function phoneLine(idx) {
+    if (settings.horror < 1) return "";
+    const w = idx >= 1 ? PHONE.words : PHONE.brief;
+    return w.length ? "スマホから読み取れたこと（予定・居場所・天気・通知。ときどき一つだけ、知っているはずのないこととして言い当てる。毎回は言わない。予定の題名や通知の中身を全部は読み上げない）: " + w.join("、") : "";
   }
   // 侵食から：ミナモが話し終えたあと、あなたの本当の脈の速さで、心音が鳴る
   function wristBeat() {
@@ -394,6 +407,8 @@
     if (S.pending.length) { S.pending.forEach(x => L.push("- " + x)); S.pending = []; }
     const wl = o.extra && /現実の危機|終了を告げた/.test(o.extra) ? "" : wristLine(idx);
     if (wl) L.push("- " + wl);
+    const pl = o.extra && /現実の危機|終了を告げた/.test(o.extra) ? "" : phoneLine(idx);
+    if (pl) L.push("- " + pl);
     if (window.BLEED && !(o.extra && /現実の危機|終了を告げた/.test(o.extra))) {
       BLEED.memo(idx, settings.horror).forEach(x => L.push("- " + x));   // 物語「水面の記録」から漏れ出す
     }

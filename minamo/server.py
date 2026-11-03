@@ -22,6 +22,7 @@ import minamo  # noqa: E402
 import outside  # noqa: E402
 import story_ai  # noqa: E402
 import wrist  # noqa: E402
+import senses  # noqa: E402
 
 PORT = 9090
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
@@ -150,6 +151,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if self.path == "/api/watch":
                 # 腕時計（minamo-watch）から届いた、手首の様子
                 return self._json(200, wrist.snapshot())
+            if self.path == "/api/senses":
+                # スマホの感覚（予定・居場所・天気・通知）。裏の糸で 3 分おきに読んだもの
+                return self._json(200, senses.snapshot())
             if self.path == "/api/memory":
                 mem = STATE["llm"].engines["2026"].memory
                 return self._json(200, {"items": mem.data["items"], "sessions": mem.data["sessions"]})
@@ -355,6 +359,7 @@ def main():
     if library:
         print(minamo.library_status(library))
     print(wrist.boot_banner())                # 前に手首（腕時計の minamo）から届いたのはいつか
+    senses.start()                            # スマホの感覚（予定・居場所・天気・通知）を、裏で 3 分おきに読む
     print(f"Chrome で http://localhost:{a.port}/ を開いてください（止めるときは Ctrl+C）")
     try:
         srv.serve_forever()
