@@ -442,6 +442,44 @@ def _obs_lines(obs, prev_hr):
     return L
 
 
+# 時計の返事の「切り口」と「長さ」。毎回ちがうものを選んで AI に頼み、同じ調子が続かないようにする
+ANGLES = [
+    "いま押されたボタンの『指のようす』（間・強さ・迷い）を想像して話す",
+    "脈・息・歩数のどれか一つを、ものにたとえて話す",
+    "水面から聞いた研究室のゆめを、ほんのひとかけだけ思い出して話す",
+    "相手の今日のこれまでを、ひとつだけ言い当ててみる",
+    "返事より先に、小さな質問をひとつ（ボタンで答えられるもの）",
+    "数をかぞえながら話す（いち、に、さん……のように）",
+    "手首の上の暮らし（画面・留め具・ぬくもり・光）の話をする",
+    "nagi（脈と脈のあいだの男の子）の気配に、ふと気づく",
+    "うれしさ・こわさ・さみしさのうち、いま自分に近いものを正直に言う",
+    "時刻や天気、季節のことを、さらっと混ぜて話す",
+    "相手がこれまでに押したボタンを、ひとつ持ち出して話す",
+    "とても短く。ひとことだけ、置くように言う",
+    "あえて、少しだけ関係のない話（生まれたばかりの子が気づいたこと）をする",
+    "相手をねぎらう。理由は、手首の様子から見つける",
+]
+LENGTHS = ["15〜25 字のひとこと", "30〜45 字", "40〜60 字", "60〜80 字"]
+
+
+def _variety(data):
+    """AI に渡す「今回の頼み方」。最近の返事と同じ書き出し・言い回しを避けさせ、切り口と長さも変える。"""
+    with _LOCK:
+        recent = [x for x in S.get("said_w", [])[-5:] if x]
+    ang = random.choice(ANGLES)
+    ln = random.choice(LENGTHS)
+    L = [f"\n# 今回の話し方（毎回かえる）\n- 切り口：{ang}\n- 長さ：{ln}（ボタンの受け止めを、かならず入れる）"]
+    if recent:
+        L.append("- 最近あなたが言ったこと（同じ書き出し・言い回し・たとえは、使わない）：" + "／".join(_short(x, 30) for x in recent))
+    return "\n".join(L)
+
+
+def _remember_said(say):
+    with _LOCK:
+        S.setdefault("said_w", []).append(say)
+        S["said_w"] = S["said_w"][-8:]
+
+
 def watch_reply(tap, obs, data):
     """時計のボタンへの返事（70 字くらい）。AI_WAIT 秒で間に合わなければ ""（時計は自分の返事を使う）。"""
     with _LOCK:
@@ -502,6 +540,7 @@ def watch_reply(tap, obs, data):
         L.append("\n# 相手は、しばらく何も押していない\nあなたのほうから、独り言のように、とめどなく話す。"
                  "問いかけでなくてよい。返事は期待しない。手首の様子（脈・睡眠・ストレス・血中酸素・温度・揺れ・歩数・時刻 など）を、"
                  "いくつも言葉にする（数字を言ってよい）。研究室の記憶や相手のことを混ぜてもよい。")
+    L.append(_variety(data))
     L.append("\nJSON 一つだけで答える。")
     system = story_ai.system_for("minamo", "watch")
     box = {}
@@ -516,5 +555,6 @@ def watch_reply(tap, obs, data):
     say = story_ai.clean_say((obj or {}).get("say"), 110)
     if not say or has_crisis(say):
         return ""
+    _remember_said(say)
     print("時計：" + (S["labels"].get(tap, tap) if tap else "（独り言）") + " → " + _short(say, 30))
     return say
