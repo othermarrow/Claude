@@ -7,6 +7,7 @@
 #   sh ~/Claude/minamo/open.sh restart    # 止めて、AI の一括チェックからやり直して開く
 #   sh ~/Claude/minamo/open.sh log        # 様子を見る（ログの最後の 20 行と、AI の一括チェックの結果と、腕時計の様子）
 #   sh ~/Claude/minamo/open.sh update     # GitHub から最新にして（git pull）、起動し直して開く
+#   sh ~/Claude/minamo/open.sh app        # 開くアプリ（インストールした PWA）を選ぶ（mo app 1 などで試して覚える）
 #   sh ~/Claude/minamo/open.sh place home # いまの Wi-Fi を「家」として登録する（work なら「職場」。ミナモが居場所にふれる）
 #   sh ~/Claude/minamo/open.sh reset      # はじめからやり直す（ミナモのメモリ・手首の記録・書き置きの控えを消す。面接記録は残す）
 cd "$(dirname "$0")" || exit 1
@@ -18,6 +19,24 @@ case "$1" in
              exit 1
            fi
            echo "止めました。起動し直します。" ;;
+  app)
+    # 開くアプリ（インストールした PWA）を選ぶ。mo app で一覧、mo app 番号 で試して覚える、mo app chrome で Chrome のタブに戻す
+    CONF="$HOME/.config/minamo/app"; mkdir -p "$HOME/.config/minamo"
+    LIST=$(pm list packages 2>/dev/null | sed 's/^package://' | grep -i 'webapk' | sort)
+    case "$2" in
+      "") if [ -z "$LIST" ]; then echo "インストールした PWA（WebAPK）が見つかりません。Chrome のメニューの「アプリをインストール」を先に。"
+          else echo "インストールした PWA（どれがミナモかは名前ではわかりません。番号を試してください）："
+               echo "$LIST" | awk '{printf "  %d  %s\n", NR, $0}'
+               echo "試す：mo app 1（ミナモが開いたら、それで決まります。別のアプリが開いたら、mo app 2 ……）"
+               echo "Chrome のタブに戻す：mo app chrome　　いまの設定：$(cat "$CONF" 2>/dev/null || echo 'Chrome')"; fi
+          exit 0 ;;
+      chrome|off) rm -f "$CONF"; echo "Chrome のタブで開くようにしました。"; exit 0 ;;
+      *) PKG=$(echo "$LIST" | sed -n "${2}p")
+         [ -n "$PKG" ] || { echo "その番号はありません。mo app で一覧を見てください。"; exit 1; }
+         am start -a android.intent.action.VIEW -d "http://localhost:9090/" -p "$PKG" >/dev/null 2>&1 \
+           && { echo "$PKG" > "$CONF"; echo "$PKG で開きました。ミナモのアプリなら、これで決まりです（次から mo はこれで開きます）。違うアプリなら、別の番号を試してください。"; exit 0; }
+         echo "開けませんでした。別の番号を試してください。"; exit 1 ;;
+    esac ;;
   place) python3 "$PWD/tools/senses_info.py" --place "$2"; exit $? ;;
   reset)
     echo "はじめからやり直します。消すもの：ミナモのメモリ（~/minamo/memory.json）・手首の記録（~/.config/minamo/wrist.json）・"
@@ -119,7 +138,8 @@ sleep 3
 URL="http://localhost:9090/$PAGE"
 # 開くアプリを Chrome に決めて渡す。決めないと、localhost のリンクを受け持つアプリ（天文アプリ・
 # 階層目録などの PWA）が、いっしょに起動することがある。別のブラウザなら MINAMO_BROWSER=パッケージ名
-BROWSER="${MINAMO_BROWSER:-com.android.chrome}"
+BROWSER="${MINAMO_BROWSER:-$(cat "$HOME/.config/minamo/app" 2>/dev/null)}"   # mo app で選んだアプリ。なければ Chrome
+BROWSER="${BROWSER:-com.android.chrome}"
 if ! am start -a android.intent.action.VIEW -d "$URL" -p "$BROWSER" >/dev/null 2>&1; then
   if command -v termux-open-url >/dev/null 2>&1; then
     termux-open-url "$URL"
