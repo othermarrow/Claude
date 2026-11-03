@@ -315,6 +315,38 @@ def _location():
     return None
 
 
+# 時計の GPS（minamo-watch が送ってくる。Termux:API がなくても、居場所と天気が読める）
+LOC_FILE = os.path.join(CONF, "last_loc.json")
+WRIST_LOC_MAX = 6 * 3600        # これより古い位置は使わない（秒）
+NEAR_KM = 0.4                   # 家・職場の位置から、これより近ければ、そこにいることにする
+
+
+def set_wrist_loc(lat, lon, age_min=0):
+    at = time.time() - max(0, age_min) * 60
+    with _LOCK:
+        D["wloc"] = (lat, lon, at)
+    try:
+        os.makedirs(CONF, exist_ok=True)
+        with open(LOC_FILE, "w", encoding="utf-8") as f:
+            json.dump({"lat": lat, "lon": lon, "at": at}, f)
+    except OSError:
+        pass
+
+
+def wrist_loc():
+    """時計の最後の位置 (lat, lon)。古い・なければ None。サーバーを起こし直したあとは、ファイルから。"""
+    with _LOCK:
+        w = D.get("wloc")
+    if not w:
+        try:
+            with open(LOC_FILE, encoding="utf-8") as f:
+                j = json.load(f)
+            w = (float(j["lat"]), float(j["lon"]), float(j["at"]))
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+    return (w[0], w[1]) if time.time() - w[2] <= WRIST_LOC_MAX else None
+
+
 def _km(a, b):
     la1, lo1, la2, lo2 = map(math.radians, (a[0], a[1], b[0], b[1]))
     h = math.sin((la2 - la1) / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2
@@ -346,8 +378,16 @@ def _read_place():
                 save_places(places)
             except OSError:
                 pass
-        if loc and places.get("home_loc"):
-            dist = round(_km(loc, places["home_loc"]), 1)
+    if loc is None:
+        loc = wrist_loc()                  # Termux:API がなければ、時計の GPS
+    if loc and places.get("home_loc"):
+        dist = round(_km(loc, places["home_loc"]), 1)
+    if place == "" and loc:                # Wi-Fi の名前が読めないときは、位置で、家・職場にいるかを見る
+        place = "外"
+        for key, name in (("home_loc", "家"), ("work_loc", "職場")):
+            if places.get(key) and _km(loc, places[key]) <= NEAR_KM:
+                place = name
+                break
     with _LOCK:
         D.update(place=place, ssid_ok=ok)
         if loc:
@@ -512,8 +552,12 @@ def status_lines(s=None):
         L.append(f"予定：読めませんでした（{s['cal_err']}）")
     else:
         L.append(f"予定：きのう〜あさってに {s['cal_events']} 件")
-    if not shutil.which("termux-wifi-connectioninfo"):
-        L.append("居場所：Termux:API がありません（pkg install termux-api）")
+    if not shutil.which("termux-wifi-connectioninfo") and not wrist_loc():
+        L.append("居場所：読めません（Termux:API を入れるか、腕時計の minamo を外で開いて、時計の GPS で位置を送る）")
+    elif not shutil.which("termux-wifi-connectioninfo"):
+        places = load_places()
+        reg = "・".join(name for k, name in (("home_loc", "家"), ("work_loc", "職場")) if places.get(k)) or "なし"
+        L.append(f"居場所：{s['place'] or 'まだ'}（時計の GPS。登録した場所：{reg}。いまの場所を登録するなら mo place home／mo place work）")
     elif s["ssid_ok"] is False:
         L.append("居場所：Wi-Fi の名前が読めません（Android の設定 → アプリ → Termux:API → 位置情報を「許可」）")
     else:

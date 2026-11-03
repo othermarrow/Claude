@@ -5,8 +5,8 @@
     "appName": "minamo",
     "appType": "app",
     "version": {
-      "code": 11,
-      "name": "1.6.2"
+      "code": 12,
+      "name": "1.6.3"
     },
     "icon": "icon.png",
     "vender": "zepp",
@@ -26,7 +26,8 @@
     "device:os.barometer",
     "device:os.accelerometer",
     "data:user.info",
-    "device:os.alarm"
+    "device:os.alarm",
+    "device:os.geolocation"
   ],
   "runtime": {
     "apiVersion": {
