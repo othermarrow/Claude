@@ -70,7 +70,7 @@
 
 `mo`（と、面接のあとにミナモが自分で画面を開くとき）は、開くアプリを **Chrome に決めて** 渡す。決めないと、Android が「localhost のリンクを受け持つアプリ」をまとめて起こすことがある（天文アプリ・階層目録などの PWA が、いっしょに出る）。別のブラウザで開きたいときは、`export MINAMO_BROWSER=パッケージ名`（例：`org.mozilla.firefox`）を `~/.bashrc` に書く。Chrome を起こせなかったときだけ、前の開き方（`termux-open-url`）に戻る。**実機では、まだ確かめていない。**
 
-インストールした**アプリ（PWA）**で開きたいときは、`mo app` で入れてある PWA（WebAPK）の一覧を出し、`mo app 1`（番号）で試す。ミナモのアプリが開いたら、それが `~/.config/minamo/app` に残り、次から `mo` はそれで開く（違うアプリが開いたら、`mo app 2` ……）。`mo app chrome` で、Chrome のタブに戻す。
+インストールした**アプリ（PWA）**で開きたいときは、`mo app` を動かす。Termux から一覧が読めれば、番号が出るので `mo app 1` で試す。読めなければ、手順が出る：Chrome で `chrome://webapks` を開き、ミナモ（開始 URL が `http://localhost:9090/`）の Package name（`org.chromium.webapk.…`）をコピーして、`mo app org.chromium.webapk.…` と貼る。ミナモのアプリが開いたら、それが `~/.config/minamo/app` に残り、次から `mo` はそれで開く（違うアプリが開いたら、`mo app 2` ……）。`mo app chrome` で、Chrome のタブに戻す。
 
 ### 面接の続き（Termux のサーバーが落ちたとき）
 

@@ -24,19 +24,29 @@ case "$1" in
     CONF="$HOME/.config/minamo/app"; mkdir -p "$HOME/.config/minamo"
     LIST=$(pm list packages 2>/dev/null | sed 's/^package://' | grep -i 'webapk' | sort)
     case "$2" in
-      "") if [ -z "$LIST" ]; then echo "インストールした PWA（WebAPK）が見つかりません。Chrome のメニューの「アプリをインストール」を先に。"
+      "") if [ -z "$LIST" ]; then
+            echo "Termux からは、インストールしたアプリの一覧が読めません。アプリの名前（パッケージ名）は、Chrome で調べます："
+            echo "  1. Chrome のアドレス欄に  chrome://webapks  と入れて開く"
+            echo "  2. ミナモ（開始 URL が http://localhost:9090/ のもの）の「Package name」（org.chromium.webapk.…）をコピー"
+            echo "  3. Termux で  mo app org.chromium.webapk.…  （コピーした名前を貼る）"
+            echo "ミナモのアプリは、Chrome のメニューの「アプリをインストール」で入れてあるもの。入れていなければ先に。"
+            echo "いまの設定：$(cat "$CONF" 2>/dev/null || echo 'Chrome')"
           else echo "インストールした PWA（どれがミナモかは名前ではわかりません。番号を試してください）："
                echo "$LIST" | awk '{printf "  %d  %s\n", NR, $0}'
                echo "試す：mo app 1（ミナモが開いたら、それで決まります。別のアプリが開いたら、mo app 2 ……）"
                echo "Chrome のタブに戻す：mo app chrome　　いまの設定：$(cat "$CONF" 2>/dev/null || echo 'Chrome')"; fi
           exit 0 ;;
       chrome|off) rm -f "$CONF"; echo "Chrome のタブで開くようにしました。"; exit 0 ;;
+      *.*) PKG="$2" ;;
       *) PKG=$(echo "$LIST" | sed -n "${2}p")
-         [ -n "$PKG" ] || { echo "その番号はありません。mo app で一覧を見てください。"; exit 1; }
-         am start -a android.intent.action.VIEW -d "http://localhost:9090/" -p "$PKG" >/dev/null 2>&1 \
-           && { echo "$PKG" > "$CONF"; echo "$PKG で開きました。ミナモのアプリなら、これで決まりです（次から mo はこれで開きます）。違うアプリなら、別の番号を試してください。"; exit 0; }
-         echo "開けませんでした。別の番号を試してください。"; exit 1 ;;
-    esac ;;
+         ;;
+    esac
+    [ -n "$PKG" ] || { echo "その番号はありません。mo app で一覧を見てください。"; exit 1; }
+    OUT=$(am start -a android.intent.action.VIEW -d "http://localhost:9090/" -p "$PKG" 2>&1)
+    if echo "$OUT" | grep -qi "error\|exception"; then echo "開けませんでした：$OUT"; echo "名前（番号）を確かめてください。"; exit 1; fi
+    echo "$PKG" > "$CONF"
+    echo "$PKG で開きました。ミナモのアプリなら、これで決まりです（次から mo はこれで開きます）。違うアプリなら、別の番号か名前を試してください。"
+    exit 0 ;;
   place) python3 "$PWD/tools/senses_info.py" --place "$2"; exit $? ;;
   reset)
     echo "はじめからやり直します。消すもの：ミナモのメモリ（~/minamo/memory.json）・手首の記録（~/.config/minamo/wrist.json）・"
@@ -140,7 +150,7 @@ URL="http://localhost:9090/$PAGE"
 # 階層目録などの PWA）が、いっしょに起動することがある。別のブラウザなら MINAMO_BROWSER=パッケージ名
 BROWSER="${MINAMO_BROWSER:-$(cat "$HOME/.config/minamo/app" 2>/dev/null)}"   # mo app で選んだアプリ。なければ Chrome
 BROWSER="${BROWSER:-com.android.chrome}"
-if ! am start -a android.intent.action.VIEW -d "$URL" -p "$BROWSER" >/dev/null 2>&1; then
+if am start -a android.intent.action.VIEW -d "$URL" -p "$BROWSER" 2>&1 | grep -qi "error\|exception"; then
   if command -v termux-open-url >/dev/null 2>&1; then
     termux-open-url "$URL"
   else
