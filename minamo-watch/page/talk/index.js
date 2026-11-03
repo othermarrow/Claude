@@ -47,7 +47,26 @@ Page(
   BasePage({
     state: {},
 
+    // 起動で止まったら、真っ暗のままにせず、理由を画面に出す（1.6.0 で、時計が真っ暗になった報告があったため）。
+    // 保存が原因かもしれないので、一度だけ、保存を使わずに開き直す
     onInit(params) {
+      try { this.init(params, false) } catch (e) {
+        console.log('minamo onInit error: ' + ((e && e.stack) || e))
+        try { this.init(params, true) } catch (e2) { this.fatal(e, e2) }
+      }
+    },
+    fatal(e, e2) {
+      const msg = (x) => String((x && (x.stack || x.message)) || x).slice(0, 260)
+      try {
+        hmUI.createWidget(hmUI.widget.FILL_RECT, { x: 0, y: 0, w: W, h: W, color: 0x000000 })
+        hmUI.createWidget(hmUI.widget.TEXT, {
+          x: 30, y: 60, w: W - 60, h: W - 100, color: WARN, text_size: 20, text_style: hmUI.text_style.WRAP,
+          text: 'minamo：起動できませんでした。この画面を Claude に見せてください。\n' + msg(e) + (e2 ? '\n---\n' + msg(e2) : '')
+        })
+      } catch (x) { /* 描けなければ、どうにもならない */ }
+    },
+
+    init(params, fresh) {
       const st = this.state
       // 時計の予約で起こされたか（'59'：毎時の合図、'mono'：独り言）
       const g = this.globalData || {}
@@ -80,7 +99,7 @@ Page(
       try { setWakeUpRelaunch({ relaunch: true }) } catch (e) { /* なくてもよい */ }
       keepAwake(true)
       startSense()
-      st.talk = createTalk(load())
+      st.talk = createTalk(fresh ? null : load())
       const obs0 = observe()
       const greet = st.talk.start(obs0, st.mode)
       if (st.mode === '59') { const p = clockParts(); st.sig59 = String(p.h) }
