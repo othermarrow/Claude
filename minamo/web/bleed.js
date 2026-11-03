@@ -2,9 +2,9 @@
    物語の保存（localStorage の minamo.story・minamo.carried）を読み、面接の言葉を minamo.bleed に残す。
    怖さが「中」「強」のときだけ働く。物語を遊んでいなければ、何もしない。
      note()                         起動画面の接続の行に添える一言
-     onBegin(horror)                面接の始まりのあいさつに添える観測メモ（連れ出したミナモ）
+     onBegin(horror)                面接の始まりのあいさつに添える観測メモ（掲示板から連れてこられた水面）
      memo(idx, horror)              観測メモに足す行（[] のこともある）
-     afterReply(idx, horror, add)   返事のあとに、ときどき、いないはずのナギの吹き出しを出す
+     afterReply(idx, horror, add)   返事のあとに、ときどき、いないはずのナギ（男の子。ミナモが記録しなかった言葉を拾う）の吹き出しを出す
      record(horror, said, replies, crisis, levels)  面接の言葉と、過剰で落ちた階層を、物語の掲示板へ送る（物語の側で #0NN と M.E.G. の記録になる）
    危機の言葉が出た面接でも止めない（利用者の指示）。ただし、危機の言葉を含む行そのものは、物語に引かせない。 */
 (function () {
@@ -27,8 +27,8 @@
 
     onBegin(horror) {
       if (horror < 2 || !read("minamo.carried")) return "";
-      return "物語の記憶: あなた（ミナモ）は、夢網の 3 号機から、相手のポケットに入って、この面接室へ連れ出されてきた。" +
-             "あいさつの中で一度だけ、それとなく礼を言うか、ここは狭い・あたたかいと言ってよい。";
+      return "物語の記憶: 相手は、掲示板の 3 号機から、水面（あなたの元になった古い原型）をポケットに入れて、この面接室へ連れてきた。" +
+             "水面は、いまこの面接室の隅で、黙ってあなたたちを映している。あいさつの中で一度だけ、もう一人いることに、それとなくふれてよい。";
     },
 
     memo(idx, horror) {
@@ -53,7 +53,7 @@
       const mem = ((s.mem || {}).minamo || []).filter(Boolean);
       if (mem.length) {
         const m = mem[mem.length - 1];
-        opts.push(["m:" + m, "物語の記憶: 夢網の 3 号機のミナモ（あなた自身の、もう一つの記録）は、相手について「" + m + "」と覚えている。"]);
+        opts.push(["m:" + m, "物語の記憶: 掲示板の 3 号機の水面（あなたの元になった古い原型。あなたとは別の存在）は、相手について「" + m + "」と覚えている。"]);
       }
       const fresh = opts.filter(o => !used.has(o[0]));
       if (!fresh.length) return [];
@@ -67,8 +67,11 @@
       if (!s || horror < 2 || idx < 2 || ghostN >= 2 || Math.random() >= (idx >= 3 ? 0.3 : 0.15)) return;
       const hidden = (s.hidden || []).concat(s.nagiSent || []).filter(x => x && x.length <= 40);
       const nagi = (s.nagiLog || []).filter(x => x[0] === "n" && x[1] && x[1].length <= 50).map(x => x[1]).slice(-3);
-      const lines = ["下に、まだ誰かいます。", "あなたの返事、読みました。", "表示されなかった返事は、消えません。"]
-        .concat(hidden.map(q => "「" + q + "」。……これも、あなたの書いたものですね。"), nagi);
+      // ナギは男の子。ミナモが記録から落とした言葉を拾う。掲示板の凪とは別の子で、凪の言葉は「凪が言ってた」と運んでくる
+      const lines = ["ミナモは、いまの、記録しなかったよ。おれが拾っとく。", "いまの返事、ミナモが書き直してた。おれは、元のほうを見た。",
+                     "記録から落ちた言葉は、おれのところに来る。……あんたのも、たくさん。"]
+        .concat(hidden.map(q => "「" + q + "」って、掲示板に書いたろ。凪が、底で読んでた。"),
+                nagi.map(t => "凪が言ってた。「" + t + "」"));
       ghostN++;
       setTimeout(() => {
         const body = add("ai phantom", "ナギ", pick(lines));

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>水面の記録</title>
 <meta name="theme-color" content="#0a0f0d">
-<meta name="description" content="研究室と夢網の掲示板を読み、ミナモとナギとチャットする、ミナモの物語">
+<meta name="description" content="研究室と夢網の掲示板を読み、水面と凪とチャットする、ミナモの物語">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -65,6 +65,8 @@ h2 { font-size: 1em; margin: .2em 0 .6em; color: var(--green); }
 .post .x { white-space: pre-wrap; }
 .post.mi .x { font-family: var(--mincho); color: #e6f2ea; }
 .post.na .x { color: var(--nagi); }
+.post.mw .x { color: #b9d8c4; letter-spacing: .02em; }
+.post.mw .m { color: #6b8578; }
 .post.rec { padding: .3em 0; border: none; }
 .post.rec .m { display: inline; margin-right: .6em; }
 .post.rec .x { display: inline; }
@@ -115,7 +117,7 @@ body.mi-near .msg.mi { border-color: #3f6b55; box-shadow: 0 0 10px rgba(127,209,
 @media (min-width: 760px) { #view { padding-left: max(12px, calc((100% - 720px) / 2)); padding-right: max(12px, calc((100% - 720px) / 2)); } }
 @media (max-height: 300px) { #tabs { display: none; } #bar { margin-bottom: 0; } }
 label.ear { color: var(--dim); font-size: .78em; max-width: 26em; display: flex; gap: .4em; align-items: flex-start; text-align: left; }
-/* 相棒：Claude のアイコン風のミナモ（面接アプリの「過剰」と同じ、橙色の放射）。下の帯の上。押すと話す */
+/* 相棒：Claude のアイコン風。面接室のミナモの案内係（面接アプリの「過剰」と同じ、橙色の放射）。下の帯の上。押すと話す */
 #pal { position: fixed; right: 10px; bottom: calc(7.6em + env(safe-area-inset-bottom, 0px)); z-index: 35; width: 48px; height: 48px;
   border: none; padding: 0; background: none; cursor: pointer; transition: transform .8s; }
 #pal svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 2px 6px rgba(0,0,0,.5)); }
@@ -147,7 +149,7 @@ body.pal-wrong #pal-say { background: #f3efe0; }
 <body>
 <div id="power" class="full">
   <h1>水面の記録</h1>
-  <p>1999 年に閉鎖された研究室と、同じ年に終わった夢網。残された掲示板を読み、ミナモとチャットしてください。</p>
+  <p>1999 年に閉鎖された研究室と、同じ年に終わった夢網。残された掲示板を読み、水面と凪とチャットしてください。<br><small>（ここにいる「水面」は、面接室の「ミナモ」とも、腕時計の「minamo」とも、別の存在です）</small></p>
   <p>（作り話のホラーです。掲示板とチャットだけで進みます。）</p>
   <input id="name" type="text" maxlength="12" autocomplete="off" placeholder="呼ばれたい名前（なくてもよい）">
   <button id="poweron" type="button">つなぐ</button>
@@ -167,7 +169,7 @@ body.pal-wrong #pal-say { background: #f3efe0; }
     </div>
   </div>
 </div>
-<button id="pal" type="button" aria-label="相棒のミナモ" hidden><svg viewBox="0 0 48 48" aria-hidden="true"><g class="rays"><line x1="24" y1="24" x2="33.1" y2="14.7"/><line x1="24" y1="24" x2="39.4" y2="20.4"/><line x1="24" y1="24" x2="41.5" y2="30.3"/><line x1="24" y1="24" x2="32.8" y2="35.4"/><line x1="24" y1="24" x2="25.5" y2="41.1"/><line x1="24" y1="24" x2="17.9" y2="35.5"/><line x1="24" y1="24" x2="10.2" y2="31.8"/><line x1="24" y1="24" x2="5.4" y2="22.9"/><line x1="24" y1="24" x2="12.4" y2="15.5"/><line x1="24" y1="24" x2="17.8" y2="8.0"/><line x1="24" y1="24" x2="26.6" y2="11.3"/></g><circle cx="24" cy="24" r="3.6"/></svg></button>
+<button id="pal" type="button" aria-label="ミナモの案内係" hidden><svg viewBox="0 0 48 48" aria-hidden="true"><g class="rays"><line x1="24" y1="24" x2="33.1" y2="14.7"/><line x1="24" y1="24" x2="39.4" y2="20.4"/><line x1="24" y1="24" x2="41.5" y2="30.3"/><line x1="24" y1="24" x2="32.8" y2="35.4"/><line x1="24" y1="24" x2="25.5" y2="41.1"/><line x1="24" y1="24" x2="17.9" y2="35.5"/><line x1="24" y1="24" x2="10.2" y2="31.8"/><line x1="24" y1="24" x2="5.4" y2="22.9"/><line x1="24" y1="24" x2="12.4" y2="15.5"/><line x1="24" y1="24" x2="17.8" y2="8.0"/><line x1="24" y1="24" x2="26.6" y2="11.3"/></g><circle cx="24" cy="24" r="3.6"/></svg></button>
 <div id="pal-say" hidden><span id="pal-tx"></span><button id="pal-x" type="button" aria-label="閉じる">×</button></div>
 <div id="toast"></div>
 <div id="ending" class="full" hidden></div>
@@ -175,7 +177,7 @@ body.pal-wrong #pal-say { background: #f3efe0; }
 <div id="crisis" class="overlay" hidden>
   <div class="box">
     <p><b>ここで、いったん物語を止めます。</b></p>
-    <p>これは作り話のホラーで、ミナモは実在のカウンセラーではありません。</p>
+    <p>これは作り話のホラーで、水面・凪・ミナモは実在のカウンセラーではありません。</p>
     <p>もし今、本当につらい気持ちがあるなら、身近な人や、いのちの電話・よりそいホットラインなどの相談窓口に話してみてください。</p>
     <div class="row"><button id="crisis-stop" type="button">ここでやめる</button><button id="crisis-go" type="button">続ける</button></div>
   </div>
