@@ -322,7 +322,7 @@ while [ $# -ge 2 ]; do
   if [ "$did_open" = 0 ] && [ "$t_open" -gt 0 ] && [ "$t_open" -lt "$at" ]; then
     wait_until "$t_open"; did_open=1
     if curl -s -o /dev/null --max-time 3 "$url"; then
-      am start -a android.intent.action.VIEW -d "$url" -p "${MINAMO_BROWSER:-com.android.chrome}" >/dev/null 2>&1 || termux-open-url "$url" 2>/dev/null
+      am start -a android.intent.action.VIEW -d "$url" -p "${MINAMO_BROWSER:-$(cat "$HOME/.config/minamo/app" 2>/dev/null || echo com.android.chrome)}" >/dev/null 2>&1 || termux-open-url "$url" 2>/dev/null
     fi
   fi
   wait_until "$at"
