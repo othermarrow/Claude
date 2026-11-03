@@ -117,9 +117,14 @@ fi
 echo "（3 秒後に開きます。結果はあとで mo log でも見られます）"
 sleep 3
 URL="http://localhost:9090/$PAGE"
-if command -v termux-open-url >/dev/null 2>&1; then
-  termux-open-url "$URL"
-else
-  am start -a android.intent.action.VIEW -d "$URL" >/dev/null 2>&1
+# 開くアプリを Chrome に決めて渡す。決めないと、localhost のリンクを受け持つアプリ（天文アプリ・
+# 階層目録などの PWA）が、いっしょに起動することがある。別のブラウザなら MINAMO_BROWSER=パッケージ名
+BROWSER="${MINAMO_BROWSER:-com.android.chrome}"
+if ! am start -a android.intent.action.VIEW -d "$URL" -p "$BROWSER" >/dev/null 2>&1; then
+  if command -v termux-open-url >/dev/null 2>&1; then
+    termux-open-url "$URL"
+  else
+    am start -a android.intent.action.VIEW -d "$URL" >/dev/null 2>&1
+  fi
 fi
 echo "開きました：$URL（止めるときは mo stop か sh ~/Claude/minamo/stop.sh）"
