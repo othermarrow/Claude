@@ -6,7 +6,7 @@ import {
 } from '@zos/display'
 import { BasePage } from '@zeppos/zml/base-page'
 import { W, MARGIN, CW, Canvas, textHeight } from '../../shared/ui'
-import { createTalk, GROUPS, labelOf } from '../../shared/talk'
+import { createTalk, GROUPS, labelOf, customId } from '../../shared/talk'
 import { startSense, stopSense, observe, clockLines, clockParts, screenOff } from '../../shared/sense'
 import { cancelAll, rearm } from '../../shared/alarm'
 import { load, save } from '../../shared/store'
@@ -138,6 +138,12 @@ Page(
     // ---------- スマホのミナモ（mo）とのつながり ----------
     // 届かなかったあいだに押したボタン（away）は、つながったときにまとめて渡す。
     // サーバーが起きてから初めてつながったときは、boot が返ってくる（minamo が、ひとこと言う）
+    // スマホの AI が返したボタン案を、[id, 表示] にして、つぎの say に持たせる
+    takeChoices(res) {
+      const st = this.state
+      const list = res && Array.isArray(res.choices) ? res.choices.filter((x) => typeof x === 'string' && x && x.length <= 8).slice(0, 4) : []
+      st.nextChoices = list.length >= 2 ? list.map((x) => [customId(x), x]) : null
+    },
     link(ev, extra, timeout) {
       const st = this.state
       const away = st.talk.awayList()
@@ -282,6 +288,9 @@ Page(
     say(text, knockIt, who) {
       const st = this.state
       st.who = who === 'nagi' ? 'nagi' : 'minamo'
+      // 会話の流れのボタン：スマホの AI が考えたものがあればそれ、なければ時計の案
+      st.choices = st.nextChoices || (st.who === 'minamo' ? st.talk.suggest() : st.choices || [])
+      st.nextChoices = null
       st.hist.push([st.who === 'nagi' ? 'n' : 'm', text.replace(/\[間\]\s*/g, '')])
       if (st.hist.length > 12) st.hist.shift()
       if (st.who === 'minamo') st.talk.heard(text)
@@ -323,6 +332,22 @@ Page(
     replyButtons(y, ph) {
       const c = this.state.canvas
       const bw = Math.floor((CW - 12) / 2), bh = 56
+      // いまの流れ：返事のすぐ下に、押しやすい 2〜4 個（下の組はそのまま）
+      const ch = (this.state.choices || []).slice(0, 4)
+      if (ch.length) {
+        c.add(hmUI.widget.TEXT, { x: MARGIN, y, w: CW, h: 26, text: '─ いまの流れ ─', text_size: 18, color: DIM, align_h: hmUI.align.CENTER_H })
+        y += 32
+        let col = 0
+        for (const [id, label] of ch) {
+          const wide = label.length >= 7
+          if (wide && col) { col = 0; y += bh + 10 }
+          const x = MARGIN + (wide ? 0 : col * (bw + 12))
+          c.button(x, y, wide ? CW : bw, bh, label, () => this.tap(id), { color: KEY, size: label.length >= 6 ? 22 : 24, textColor: DIM })
+          if (wide || col === 1) { col = 0; y += bh + 10 } else col = 1
+        }
+        if (col) y += bh + 10
+        y += 10
+      }
       for (const g of GROUPS) {
         c.add(hmUI.widget.TEXT, { x: MARGIN, y, w: CW, h: 26, text: `─ ${g.title} ─`, text_size: 18, color: DIM, align_h: hmUI.align.CENTER_H })
         y += 32
@@ -396,6 +421,7 @@ Page(
         const ask = ++st.askId
         this.link('idle', { want: 1, local: r.text, history: st.hist.slice(-6) }, 14000).then((res) => {
           if (ask !== st.askId || st.busy || st.ended || st.gone) return
+          if (res && res.say) this.takeChoices(res)
           this.say(res && res.say ? res.say : r.text, r.pulse)
           if (r.nagi) this.queueEcho(r.nagi, 'nagi')
         })
@@ -429,6 +455,7 @@ Page(
         st.waiting = false
         st.busy = false
         if (!res) { st.talk.keepAway(id, label); save(st.talk.state) }   // 届かなかった：あとで、まとめて渡す
+        if (res && res.say) this.takeChoices(res)
         this.say(res && res.say ? res.say : r.text, r.pulse)
         if (r.nagi) this.queueEcho(r.nagi, 'nagi')
       })

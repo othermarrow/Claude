@@ -344,9 +344,11 @@ def update(data):
     elif new:
         print(f"腕時計（minamo）：届かなかったあいだに押したボタン {len(new)} こを受け取りました")
     if (ev == "tap" and tap or ev == "idle") and data.get("want"):
-        say = watch_reply(tap if ev == "tap" else "", obs, data)
+        say, choices = watch_reply(tap if ev == "tap" else "", obs, data)
         if say:
             out["say"] = say
+            if choices:
+                out["choices"] = choices
         said = _short(say or data.get("local"), 60)        # 間に合わなければ、時計は自分の返事を言う
         if said:
             with _LOCK:
@@ -480,6 +482,17 @@ def _remember_said(say):
         S["said_w"] = S["said_w"][-8:]
 
 
+def _clean_choices(raw):
+    """AI が考えた「次に押しそうなボタン」（2〜4 個、8 字以内）。危機の言葉・重複・長すぎるものは捨てる。"""
+    out = []
+    for c in (raw if isinstance(raw, list) else [])[:6]:
+        t = story_ai.clean_say(c, 12).replace("\n", "").strip("。、 　")
+        if not t or len(t) > 8 or has_crisis(t) or t in out:
+            continue
+        out.append(t)
+    return out[:4] if len(out) >= 2 else []
+
+
 def watch_reply(tap, obs, data):
     """時計のボタンへの返事（70 字くらい）。AI_WAIT 秒で間に合わなければ ""（時計は自分の返事を使う）。"""
     with _LOCK:
@@ -541,6 +554,9 @@ def watch_reply(tap, obs, data):
                  "問いかけでなくてよい。返事は期待しない。手首の様子（脈・睡眠・ストレス・血中酸素・温度・揺れ・歩数・時刻 など）を、"
                  "いくつも言葉にする（数字を言ってよい）。研究室の記憶や相手のことを混ぜてもよい。")
     L.append(_variety(data))
+    L.append("\n# ボタンの案（choices）\nsay のあと、相手がつぎに押しそうな答えを 2〜4 個、choices に入れる。ボタンの文字なので、8 字以内の短い言い切り"
+             "（例：うん／ちがうよ／もう少し聞かせて／こわい／職場の話）。say で問いかけたなら、その答えの形にする。"
+             "どれもあなたの声ではなく、相手が言う言葉。毎回ちがう顔ぶれにする。")
     L.append("\nJSON 一つだけで答える。")
     system = story_ai.system_for("minamo", "watch")
     box = {}
@@ -554,7 +570,7 @@ def watch_reply(tap, obs, data):
     obj = story_ai.parse(box.get("raw"))
     say = story_ai.clean_say((obj or {}).get("say"), 110)
     if not say or has_crisis(say):
-        return ""
+        return "", []
     _remember_said(say)
     print("時計：" + (S["labels"].get(tap, tap) if tap else "（独り言）") + " → " + _short(say, 30))
-    return say
+    return say, _clean_choices((obj or {}).get("choices"))

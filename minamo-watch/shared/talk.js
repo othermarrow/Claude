@@ -26,7 +26,16 @@ export const GROUPS = [
 export const REPLIES = []
 const KIND = {}
 for (const g of GROUPS) for (const [id, label] of g.items) { REPLIES.push({ id, label, kind: g.kind }); KIND[id] = g.kind }
-export const labelOf = (id) => (REPLIES.find((x) => x.id === id) || {}).label || ''
+// 会話の流れで生まれるボタン（スマホの AI が考えた言葉）。名前は ASCII（c_ + 文字から作った印）、表示は言葉そのまま
+const CUSTOM = {}
+export function customId(label) {
+  let h = 0
+  for (const ch of String(label)) h = (h * 31 + ch.codePointAt(0)) % 1679616      // 36^4
+  const id = 'c_' + h.toString(36)
+  CUSTOM[id] = String(label)
+  return id
+}
+export const labelOf = (id) => (REPLIES.find((x) => x.id === id) || {}).label || CUSTOM[id] || ''
 export const PHASES = ['導入', '解釈', '侵食', '融合']
 
 const pick = (a, r) => a[Math.floor(r() * a.length)]
@@ -434,7 +443,7 @@ export function createTalk(saved, r = Math.random) {
     live: null, mono: 0, h59: true, recent: [], born: null, away: [] }, saved || {})
   if (!s.born) s.born = Date.now()                  // 初めて開いた日が、minamo の生まれた日
   if (!Array.isArray(s.away)) s.away = []
-  let prev = null, turn = 0, fearNow = 0, lastAsk = '', lastLine = '', told = new Set(), known = [], lastTap = '', resumed = false
+  let prev = null, turn = 0, fearNow = 0, lastAsk = '', askNow = false, lastId = '', lastLine = '', told = new Set(), known = [], lastTap = '', resumed = false
   let nagiNow = 0
   const phase = () => (turn < 3 ? 0 : turn < 7 ? 1 : turn < 12 ? 2 : 3)
   const say = (parts) => parts.filter(Boolean).join(' ')
@@ -538,10 +547,26 @@ export function createTalk(saved, r = Math.random) {
     return t
   }
 
+  // 会話の流れに合わせた、つぎのボタン案（時計だけのとき）。問いかけには答えの形、そうでなければ直前のボタンの種類で。
+  const NEXT = {
+    answer: ['go', 'wait', 'unknown', 'fear', 'near'], feel: ['near', 'go', 'wait', 'stay', 'ok', 'fear'],
+    work: ['tough', 'good', 'rest', 'record', 'gohome', 'go'], ask: ['go', 'who', 'lab', 'want', 'how', 'wait'],
+    act: ['go', 'look', 'breathe', 'stay', 'wait'], refuse: ['wait', 'ok', 'stay', 'unknown', 'sad'],
+    accept: ['go', 'near', 'name', 'together', 'ok', 'lonely']
+  }
+  function suggest() {
+    const pool = askNow ? ['yes', 'no', 'unknown', 'maybe'] : NEXT[KIND[lastId]] || ['go', 'wait', 'yes', 'no', 'fear']
+    const left = pool.filter((id) => id !== lastId)
+    const out = []
+    while (out.length < 3 && left.length) out.push(left.splice(Math.floor(r() * left.length), 1)[0])
+    return out.map((id) => [id, labelOf(id)])
+  }
+
   function remember(text) { lastLine = text.replace(/\[間\]\s*/g, ''); return text }
 
   return {
     state: s,
+    suggest,
     phase,
     turn: () => turn,
     phaseName: () => PHASES[phase()],
@@ -604,7 +629,7 @@ export function createTalk(saved, r = Math.random) {
     // ボタンを押したとき。hint は「物語の事実」（スマホの AI に、言い換えて伝えてもらう）。nagi は、あとから出てくる男の子のひとこと
     reply(id, obs) {
       const o = obs || {}
-      turn++; s.total++; s.mono = 0; lastTap = labelOf(id)
+      turn++; s.total++; s.mono = 0; lastTap = labelOf(id); lastId = id
       if (o.hour != null) tod = todOf(o.hour)
       s.counts[id] = (s.counts[id] || 0) + 1
       if (id === 'fear') fearNow++
@@ -630,6 +655,7 @@ export function createTalk(saved, r = Math.random) {
       const ask = special || (kind === 'ask' && r() < 0.6) ? '' : nextAsk(ph)
       // つなぎの一言：ときどき（返事が短いほど出やすい）。直近に言ったものは避ける
       const tail = special || id === 'quiet' || (kind === 'ask' && ack.length > 40) ? '' : tailLine(ph, ack.length)
+      askNow = !!ask
       const text = say([ack].concat(tail ? [tail] : [], notes.map((n) => n.text), [ask]))
       return { text: id === 'again' ? text : remember(text), phase: ph, pulse: ph >= 2 || !!off || id === 'notyou' || id === 'become',
                hint: kind === 'ask' || id === 'become' || id === 'notyou' ? ack : '', kind, nagi: nagiAfter(id, ph0, o) }
@@ -638,6 +664,7 @@ export function createTalk(saved, r = Math.random) {
     // chain：時計の予約で起こされたとき（閉じているあいだ）。返事のないまま MONO_MAX 回で止める。開いているあいだは、止めない
     idle(obs, chain) {
       const ph = phase(), o = obs || {}, c = ctx(o)
+      askNow = false
       if (o.hour != null) tod = todOf(o.hour)
       if (chain && s.mono >= MONO_MAX) return { text: remember(MONO_LAST.replace('{tw}', TOD_WORD[tod])), phase: ph, pulse: false, last: true }
       // 外しているとき・深夜：ときどき、nagi のほうが先にしゃべる
