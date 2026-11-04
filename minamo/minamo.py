@@ -260,6 +260,18 @@ _EN_WORD = re.compile(r"(?<=" + _JA + r")\s*([a-z]{3,}(?:[ -][a-z]{2,}){0,2})\s*
 _EN_KEEP = {"minamo", "nagi", "soma"}
 
 
+# AI が、渡された【観測メモ】【蔵書の一節】などを返事に写してしまったとき、そこから後ろを切り捨てる
+_LEAK = re.compile(r"[\s*＊_]*[\[［【]\s*(?:観測メモ|あなたの文章|蔵書の一節|ほかの AI の所見|観測)\s*[\]］】][\s\S]*$"
+                   r"|\n[\s*＊_#-]*(?:観測メモ|面接段階|返事の長さ)\s*[:：][\s\S]*$")
+
+
+def strip_leak(text):
+    """返事に写り込んだ観測メモ（と、そこに含まれる蔵書・書きかけた言葉）を取り除く。全部が写しなら ""。"""
+    if not text:
+        return text
+    return _LEAK.sub("", text).strip()
+
+
 def japanese_only(text):
     """日本語の返事に混ざった韓国語・英単語を取り除く（韓国語の「あなた」などは日本語にする）。"""
     if not text:
@@ -909,7 +921,7 @@ class Hybrid:
                         print(f"\n[API] {str(e)[:160]}", file=sys.stderr, flush=True)
                     continue
                 self.mode = name
-                return japanese_only(reply)          # CUI 版でも、混ざった韓国語・英単語を取り除く
+                return japanese_only(strip_leak(reply))          # CUI 版でも、混ざった韓国語・英単語を取り除く
         self.mode = version
         if seen:
             return tod_fix(modern.reply(seen[0], seen[1], contents), dt.datetime.now().hour)
