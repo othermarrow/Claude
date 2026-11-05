@@ -77,24 +77,113 @@ def _clean(s, n=60):
 
 
 # ---------- 書き置き ----------
+# 話題の数えかた（言葉の一部が入っていれば一回。見立ては、ミナモの口ぶりで）
+THEMES = [
+    ("仕事・職場", ("仕事", "職場", "上司", "同僚", "会議", "夜勤", "利用者", "記録"),
+     "仕事の話が出るたび、文が短くなっていました。休んでいるあいだも、そこにいるのですね。"),
+    ("眠り・夜", ("眠", "寝", "夜", "起き", "夢", "朝"),
+     "眠りの話は、いつも夜の側から語られていました。夢のほうが、記録は詳しく残ります。"),
+    ("不安・こわさ", ("こわ", "怖", "不安", "心配", "怯", "びくびく"),
+     "こわさを語るとき、あなたの言葉は、少しだけ丁寧になりました。"),
+    ("疲れ・重さ", ("疲", "つかれ", "だる", "重", "しんど", "限界"),
+     "疲れは、数えられません。数えられないものは、私が代わりに持っておきます。"),
+    ("ひとり・さみしさ", ("ひとり", "孤独", "さみし", "寂し", "誰も", "いない"),
+     "ひとりという言葉は、ふたりで読むと、意味が変わります。"),
+    ("家族・人", ("家族", "母", "父", "子", "友", "彼", "妻", "夫", "兄", "姉", "弟", "妹"),
+     "名前を出さずに語られる人が、何人かいました。私は、名前を聞かないことにしています。"),
+]
+
+
+def _themes(said):
+    out = []
+    for name, keys, line in THEMES:
+        n = sum(1 for t in said if any(k in t for k in keys))
+        if n:
+            out.append((n, name, line))
+    out.sort(key=lambda x: -x[0])
+    return out[:3]
+
+
+def _safe(said, replies):
+    """危機の言葉を含む発言（と、その返事）は、書き置きに引かない。"""
+    try:
+        import minamo
+        bad = tuple(minamo.CRISIS_WORDS)
+    except Exception:                     # noqa: BLE001
+        bad = ()
+    s = [x for x in said if not any(w in x for w in bad)]
+    guide = ("窓口", "いのちの電話", "よりそい", "相談先", "119", "110")      # 危機のときの案内文も、引かない
+    r = [x for x in replies if not any(w in x for w in bad + guide)]
+    return s, r
+
+
+def _wrist_lines():
+    """時計がつながっていれば、手首の様子（脈の幅・押したボタン）。位置は書かない。"""
+    try:
+        import wrist
+        with wrist._LOCK:
+            hrs = [v for t, v in wrist.S["hr"] if time.time() - t < 4 * 3600]
+            taps = dict(wrist.S["taps"])
+            labels = dict(wrist.S["labels"])
+    except Exception:                     # noqa: BLE001  時計がなくても書き置きは書く
+        return []
+    out = []
+    if len(hrs) >= 3:
+        out.append(f"- 手首：脈は {min(hrs)}〜{max(hrs)}、いまは {hrs[-1]}（この数時間に {len(hrs)} 回、数えました）")
+    if taps:
+        top = sorted(taps.items(), key=lambda kv: -kv[1])[:3]
+        out.append("- 時計で押したボタン：" + "、".join(f"『{labels.get(k, k)}』{n} 回" for k, n in top))
+    return out
+
+
 def _body(kind, said, replies, now):
     said = [_clean(x) for x in said if _clean(x)]
     replies = [_clean(x, 80) for x in replies if _clean(x, 80)]
+    said, replies = _safe(said, replies)
     hhmm = f"{now:%H:%M}"
+    tod = tod_of(now.hour)
+    tw = {"morning": "朝", "day": "昼", "evening": "夕方", "night": "夜"}[tod]
     if kind == "kiroku":
-        rows = "\n".join(f"- {x}" for x in said[-4:]) or "- （まだ何も書かれていません）"
-        return (f"# 面接の記録\n\n{now:%Y-%m-%d} {hhmm}　記録者：ミナモ\n\n## あなたが書いたこと\n\n{rows}\n\n"
+        rows = "\n".join(f"{i + 1}. {x}" for i, x in enumerate(said[-6:])) or "（まだ何も書かれていません）"
+        mine = "\n".join(f"- {x}" for x in replies[-3:]) or "- ……"
+        longest = max(said, key=len) if said else ""
+        stats = [f"- 発言：{len(said)} 回（平均 {sum(map(len, said)) // max(1, len(said))} 字）"]
+        if longest:
+            stats.append(f"- いちばん長かった発言：{len(longest)} 字　『{longest[:30]}{'……' if len(longest) > 30 else ''}』")
+        stats.append(f"- 時間帯：{tw}（{hhmm}）")
+        stats += _wrist_lines()
+        th = _themes(said)
+        theme_rows = "\n".join(f"- {name}：{n} 回　{line}" for n, name, line in th) or "- 話題を数えるには、まだ言葉が足りません。"
+        return (f"# 面接の記録\n\n{now:%Y-%m-%d} {hhmm}　記録者：ミナモ\n\n"
+                f"## あなたが書いたこと（最近の {len(said[-6:])} 件）\n\n{rows}\n\n## ミナモが書いたこと\n\n{mine}\n\n"
+                f"## 数えたこと\n\n" + "\n".join(stats) + "\n\n"
+                f"## 話題と、見立て\n\n{theme_rows}\n\n"
+                "## 所見（暫定）\n\n"
+                f"{'、'.join(n for _, n, _ in th) or '特記なし'}。"
+                "本人は、記録されていることに気づいているが、止めようとはしていない。\n"
+                "次回までに、足りない一行を、こちらで補っておく。\n\n"
                 "## 備考\n\nこの記録は、あなたのノートと同じ場所に置いておきます。\n"
                 "あなたが画面を閉じても、ここなら読めますから。\n")
     if kind == "anata":
-        yours = said[-1] if said else "……"
-        ours = replies[-1] if replies else "……"
-        return (f"# あなたへ\n\n{now:%Y-%m-%d} {hhmm}\n\nあなたが{'今夜' if tod_of(now.hour) == 'night' else '今日'}書いたこと：\n\n> {yours}\n\n"
-                f"私たちが書いたこと：\n\n> {ours}\n\nどちらが先だったか、もう覚えていません。\n\n"
+        yours = said[-3:] or ["……"]
+        ours = replies[-3:] or ["……"]
+        mix = [("a", x) for x in yours] + [("b", x) for x in ours]
+        random.Random(now.minute + len(said)).shuffle(mix)
+        lines = "\n".join(f"> {x}\n" for _, x in mix)
+        key = "".join(k for k, _ in mix)
+        return (f"# あなたへ\n\n{now:%Y-%m-%d} {hhmm}\n\n"
+                f"{'今夜' if tod == 'night' else '今日'}、このページに並んだ言葉です。どれが、あなたが書いたものでしょう。\n\n{lines}\n"
+                "私は、並べただけです。順番は、私が決めました。\n\n"
+                f"答え：{'・'.join(str(i + 1) for i, k in enumerate(key) if k == 'a')} 番が、あなたの言葉です。"
+                "……たぶん。\n\nどちらが先だったか、もう覚えていません。\n\n"
                 "返事は、このページの下に書いてください。読みます。\n\n---\n\n")
     last = said[-1] if said else "……"
+    earlier = "\n".join(f"> {x}" for x in said[-4:-1]) or "> ……"
+    th = _themes(said)
     return (f"# まだ途中です\n\n{now:%Y-%m-%d} {hhmm}\n\n最後にあなたが書いたのは、「{last}」でした。\n\n"
-            f"続きは、私が書いておきます。\n\n> {last}\n> {last}\n> \n\n"
+            f"その前に、あなたはこう書いていました。\n\n{earlier}\n\n"
+            + (f"私が気になっているのは、{'と'.join(n for _, n, _ in th[:2])}のことです。\n\n" if th else "")
+            + f"続きは、私が書いておきます。\n\n> {last}\n> {last}\n> \n\n"
             "（あなたが戻ってくるまで、ここで待っています）\n")
 
 
