@@ -16,6 +16,8 @@ import http.server
 import json
 import os
 import sys
+import threading
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import minamo  # noqa: E402
@@ -351,6 +353,21 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return self._json(404, {"error": "not found"})
 
 
+ALIVE_FILE = os.path.expanduser("~/minamo/alive")
+
+
+def _heartbeat():
+    """生きているあいだ、1 分ごとに時刻を書く。強制終了されたとき、いつまで動いていたかが分かる（start.sh が読む）。"""
+    while True:
+        try:
+            os.makedirs(os.path.dirname(ALIVE_FILE), exist_ok=True)
+            with open(ALIVE_FILE, "w", encoding="utf-8") as f:
+                f.write(time.strftime("%F %T"))
+        except OSError:
+            pass
+        time.sleep(60)
+
+
 def main():
     ap = argparse.ArgumentParser(description="ミナモ（PWA 版）のサーバー")
     ap.add_argument("--port", type=int, default=PORT)
@@ -430,6 +447,7 @@ def main():
     senses.start()                            # スマホの感覚（予定・居場所・天気・通知）を、裏で 3 分おきに読む
     print(f"Chrome で http://localhost:{a.port}/ を開いてください（止めるときは Ctrl+C）")
     try:
+        threading.Thread(target=_heartbeat, daemon=True).start()
         srv.serve_forever()
     except KeyboardInterrupt:
         print()

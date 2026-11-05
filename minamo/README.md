@@ -842,3 +842,4 @@ minamo --records /storage/emulated/0/Download/minamo   # 記録の保存先を�
 - やり直したいとき：`mo recheck`（覚えを消して、一括チェックからやり直す）。
 - Google（Gemini）のモデルを足す：`python ~/Claude/minamo/probe.py --add --backend gemini`。API の一覧にある Gemini の会話用モデルを（2 個ずつ）試して、合格したものを、いまの候補のうしろに足して `~/.config/minamo/models.txt` に書く（前のものは `.bak`）。言葉で絞れる：`probe.py --add flash --backend gemini`。足したあとは、次の起動で一括チェックし直す。
 - 実機の API では確かめていない。使い回しと足す処理は、疑似の結果で確かめた。
+- 強制終了の記録の時刻は、サーバーが 1 分ごとに `~/minamo/alive` に書く時刻（最後に動いていた時刻）を使う。サーバーのログの行には時刻が付いていないため。
