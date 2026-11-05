@@ -492,6 +492,7 @@ LATER_LINES_DAY = ["続きを書いています。あなたの字で。", "い�
                    "あなたが仕事をしているあいだに、私が、続きを書いておきました。", "昼間の明かりの下でも、この書き置きは、読めますね。",
                    "さっき、誰かに呼ばれて、返事をしましたね。……私も、返事をしておきました。"]
 LATER_SPAN = [(15 * 60, 40 * 60), (50 * 60, 100 * 60), (120 * 60, 200 * 60)]   # 追記の時刻（終わってからの秒数）
+NO_AUTOOPEN = os.path.expanduser("~/.config/minamo/no_autoopen")      # この印があれば、面接のあとに自分で画面を開かない
 OPEN_SPAN = (10 * 60, 30 * 60)        # ミナモが自分で画面を開く（終わってからの秒数）
 VISIT_URL = "http://localhost:9090/?visit=1"
 # 一つの別のプロセスで、順に待って実行する（CUI 版が終わっても、サーバーが止まっても続く）
@@ -533,6 +534,8 @@ def after_session(horror, said=(), replies=(), outside=True, open_app=True):
         return ""
     path = os.path.join(OUTSIDE_DIR, os.path.basename(name))
     last = _clean(said[-1], 20) if said else "……"
+    if os.path.exists(NO_AUTOOPEN):                      # mo autoopen off：自分で画面を開くのは、やめる（書き足しは続ける）
+        open_app = False
     args = [path, VISIT_URL, str(int(random.uniform(*OPEN_SPAN))) if open_app else "0"]
     used = set()
     for lo, hi in LATER_SPAN:
