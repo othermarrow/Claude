@@ -95,6 +95,7 @@ def _load_models_file():
 
 PROBE_MODELS = _load_models_file() or PROBE_MODELS
 PROBE_ON_START = True     # 起動時に一括チェックするか（--no-probe で止める。--model を指定したときもしない）
+PROBE_CACHE_HOURS = 6     # 前回の一括チェックの結果を使い回す時間（起こし直しのたびに、API の回数を使わないため。0 で毎回やり直す）
 PROBE_TIMEOUT = 5         # 一括チェックで待つ秒数（これより遅いものは使わない）
 KEYS_FILE = os.path.expanduser("~/.config/minamo/keys.env")
 KEYS_FILES = [KEYS_FILE, os.path.expanduser("~/.config/research_bot/keys.env")]
@@ -1215,6 +1216,12 @@ def library_status(library):
 def probe_models(backend=None, no_karte=False):
     """起動時の一括チェック。合格したものを速い順に [(backend, model, sec)] で返す（なければ []）。"""
     import probe
+    cached = probe.fresh_results(backend, PROBE_CACHE_HOURS)
+    if cached is not None:
+        print(f"AI の一括チェック：前回（{cached[0]}）の結果を使います（{PROBE_CACHE_HOURS} 時間以内。"
+              "やり直すなら mo recheck）", flush=True)
+        results = cached[1]
+        return [(r["backend"], r["model"], r["sec"]) for r in results if r["ok"]], results
     karte = "" if no_karte else load_karte()
     system = SYSTEM_PROMPT + (KARTE_PROMPT.format(karte=karte) if karte else "")
     results = probe.run(backend, timeout=PROBE_TIMEOUT, system=system)   # minamo.py を直接動かしたときも、この値で
