@@ -10,8 +10,9 @@ LOG="$HOME/minamo/server.log"
 # 前回、止めた印（stop）もなく、サーバーも動いていなければ、Android に強制終了されたらしい。時刻を残す（mo log で見える）
 if [ -f "$LOG" ] && [ ! -f "$HOME/minamo/stop" ] && ! pgrep -f "minamo/[s]erver.py" >/dev/null \
    && ! tail -n 1 "$LOG" | grep -q "止めました"; then
-  last=$(grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]{8} ' "$LOG" | tail -n 1 | cut -c1-19)
-  echo "$(date '+%F %T') 前回は、止めていないのに止まっていました（強制終了のおそれ。ログの最後の時刻 ${last:-不明}）" >> "$LOG"
+  last=$(cat "$HOME/minamo/alive" 2>/dev/null)          # サーバーが最後に生きていた時刻（1 分ごとに書く）
+  [ -n "$last" ] || last=$(grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]{8} ' "$LOG" | tail -n 1 | cut -c1-19)
+  echo "$(date '+%F %T') 前回は、止めていないのに止まっていました（強制終了のおそれ。最後に動いていた時刻 ${last:-不明}）" >> "$LOG"
   echo "$(date '+%F %T') ${last:-不明}" >> "$HOME/minamo/kills.log"
 fi
 rm -f "$HOME/minamo/stop"
