@@ -7,14 +7,7 @@
 cd "$(dirname "$0")" || exit 1
 mkdir -p "$HOME/minamo"
 LOG="$HOME/minamo/server.log"
-# 前回、止めた印（stop）もなく、サーバーも動いていなければ、Android に強制終了されたらしい。時刻を残す（mo log で見える）
-if [ -f "$LOG" ] && [ ! -f "$HOME/minamo/stop" ] && ! pgrep -f "minamo/[s]erver.py" >/dev/null \
-   && ! tail -n 1 "$LOG" | grep -q "止めました"; then
-  last=$(cat "$HOME/minamo/alive" 2>/dev/null)          # サーバーが最後に生きていた時刻（1 分ごとに書く）
-  [ -n "$last" ] || last=$(grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]{8} ' "$LOG" | tail -n 1 | cut -c1-19)
-  echo "$(date '+%F %T') 前回は、止めていないのに止まっていました（強制終了のおそれ。最後に動いていた時刻 ${last:-不明}）" >> "$LOG"
-  echo "$(date '+%F %T') ${last:-不明}" >> "$HOME/minamo/kills.log"
-fi
+. "$(dirname "$0")/killcheck.sh"        # 強制終了の記録（mo update・mo restart のときは stop.sh のほうで取る）
 rm -f "$HOME/minamo/stop"
 MODEL="${MINAMO_MODEL:-$HOME/models/qwen2.5-3b-instruct-q4_k_m.gguf}"
 # mo local off で作る印があれば、端末の中の AI（llama-server）は起動せず、サーバーにも使わせない（メモリを空けるため）
