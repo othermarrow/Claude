@@ -17,13 +17,16 @@ if [ -f "$LOG" ] && [ ! -f "$HOME/minamo/stop" ] && ! pgrep -f "minamo/[s]erver.
 fi
 rm -f "$HOME/minamo/stop"
 MODEL="${MINAMO_MODEL:-$HOME/models/qwen2.5-3b-instruct-q4_k_m.gguf}"
+# mo local off で作る印があれば、端末の中の AI（llama-server）は起動せず、サーバーにも使わせない（メモリを空けるため）
+NOLOCAL="$HOME/.config/minamo/no_local"
+[ -f "$NOLOCAL" ] && set -- "$@" --no-local
 
 up() { curl -s -o /dev/null --max-time 2 "$1" 2>/dev/null; }
 
 # 画面が消えても止まらないように（termux-wake-unlock で外す。stop.sh が外す）
 command -v termux-wake-lock >/dev/null 2>&1 && termux-wake-lock
 
-if [ -f "$MODEL" ] && command -v llama-server >/dev/null 2>&1 && ! up http://127.0.0.1:8090/health; then
+if [ ! -f "$NOLOCAL" ] && [ -f "$MODEL" ] && command -v llama-server >/dev/null 2>&1 && ! up http://127.0.0.1:8090/health; then
   nohup sh "$PWD/local.sh" "$MODEL" > "$HOME/minamo/llama.log" 2>&1 &
 fi
 

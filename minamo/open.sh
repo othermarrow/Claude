@@ -5,6 +5,7 @@
 #   sh ~/Claude/minamo/open.sh story      # 物語「水面の記録」（archive・mina でも開く）
 #   sh ~/Claude/minamo/open.sh stop       # 止める（stop.sh と同じ）
 #   sh ~/Claude/minamo/open.sh restart    # 止めて、AI の一括チェックからやり直して開く
+#   sh ~/Claude/minamo/open.sh local off  # 端末の中の AI（llama-server）を使わない（メモリ不足で落ちるとき。on で戻す）
 #   sh ~/Claude/minamo/open.sh recheck    # AI の一括チェックの覚えを消して、やり直して起動する（mo recheck）
 #   sh ~/Claude/minamo/open.sh log        # 様子を見る（ログの最後の 20 行と、AI の一括チェックの結果と、腕時計の様子）
 #   sh ~/Claude/minamo/open.sh update     # GitHub から最新にして（git pull）、起動し直して開く
@@ -14,6 +15,14 @@
 cd "$(dirname "$0")" || exit 1
 case "$1" in
   stop) sh "$PWD/stop.sh"; echo "止めました。"; exit 0 ;;
+  local)
+    NL="$HOME/.config/minamo/no_local"; mkdir -p "$HOME/.config/minamo"
+    case "$2" in
+      off) touch "$NL"; sh "$PWD/stop.sh" >/dev/null 2>&1; echo "端末の中の AI は使わないようにしました（メモリを空けます。クラウドの AI と端末内のエンジンで話します）。mo で起動し直してください。" ;;
+      on)  rm -f "$NL"; echo "端末の中の AI を、また使うようにしました。mo restart で起動し直してください。" ;;
+      *)   if [ -f "$NL" ]; then echo "いま：使わない（mo local on で戻す）"; else echo "いま：使う（モデルがあれば。メモリが足りないときは mo local off）"; fi ;;
+    esac
+    exit 0 ;;
   recheck) rm -f "$HOME/.cache/minamo/probe.json"; echo "AI の一括チェックを、はじめからやり直します。"; shift
            exec sh "$PWD/open.sh" restart "$@" ;;
   restart) sh "$PWD/stop.sh"; sleep 1; shift; PAGE=""
