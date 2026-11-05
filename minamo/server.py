@@ -356,13 +356,41 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 ALIVE_FILE = os.path.expanduser("~/minamo/alive")
 
 
+MEM_LOG = os.path.expanduser("~/minamo/mem.log")
+
+
+def _mem_mb():
+    """(空きメモリ MB, スワップの空き MB)。読めなければ (None, None)。"""
+    try:
+        d = {}
+        with open("/proc/meminfo", encoding="utf-8") as f:
+            for line in f:
+                k, _, v = line.partition(":")
+                d[k] = int(v.split()[0]) // 1024
+        return d.get("MemAvailable"), d.get("SwapFree")
+    except (OSError, ValueError, IndexError):
+        return None, None
+
+
 def _heartbeat():
-    """生きているあいだ、1 分ごとに時刻を書く。強制終了されたとき、いつまで動いていたかが分かる（start.sh が読む）。"""
+    """生きているあいだ、1 分ごとに時刻を書く（alive）。あわせて、そのときの空きメモリを mem.log に足す（直近 40 行）。
+    強制終了されたとき、いつまで動いていたか・直前のメモリがどうだったかが分かる（killcheck.sh が読む）。"""
     while True:
         try:
             os.makedirs(os.path.dirname(ALIVE_FILE), exist_ok=True)
+            now = time.strftime("%F %T")
             with open(ALIVE_FILE, "w", encoding="utf-8") as f:
-                f.write(time.strftime("%F %T"))
+                f.write(now)
+            avail, swap = _mem_mb()
+            if avail is not None:
+                try:
+                    with open(MEM_LOG, encoding="utf-8") as f:
+                        rows = f.read().splitlines()[-39:]
+                except OSError:
+                    rows = []
+                rows.append(f"{now[11:16]} 空き{avail}MB スワップ空き{swap}MB")
+                with open(MEM_LOG, "w", encoding="utf-8") as f:
+                    f.write("\n".join(rows) + "\n")
         except OSError:
             pass
         time.sleep(60)
