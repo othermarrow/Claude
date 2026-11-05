@@ -5,6 +5,7 @@
 #   sh ~/Claude/minamo/open.sh story      # 物語「水面の記録」（archive・mina でも開く）
 #   sh ~/Claude/minamo/open.sh stop       # 止める（stop.sh と同じ）
 #   sh ~/Claude/minamo/open.sh restart    # 止めて、AI の一括チェックからやり直して開く
+#   sh ~/Claude/minamo/open.sh autoopen off  # 面接のあと、ミナモが自分で画面を開かない（on で戻す）
 #   sh ~/Claude/minamo/open.sh local off  # 端末の中の AI（llama-server）を使わない（メモリ不足で落ちるとき。on で戻す）
 #   sh ~/Claude/minamo/open.sh recheck    # AI の一括チェックの覚えを消して、やり直して起動する（mo recheck）
 #   sh ~/Claude/minamo/open.sh log        # 様子を見る（ログの最後の 20 行と、AI の一括チェックの結果と、腕時計の様子）
@@ -15,6 +16,14 @@
 cd "$(dirname "$0")" || exit 1
 case "$1" in
   stop) sh "$PWD/stop.sh"; echo "止めました。"; exit 0 ;;
+  autoopen)
+    NA="$HOME/.config/minamo/no_autoopen"; mkdir -p "$HOME/.config/minamo"
+    case "$2" in
+      off) touch "$NA"; echo "面接のあと、ミナモが自分で画面を開くのをやめました（書き置きへの書き足し・通知は続きます）。mo restart で反映します。" ;;
+      on)  rm -f "$NA"; echo "面接のあと、ミナモが自分で画面を開くようにしました。mo restart で反映します。" ;;
+      *)   if [ -f "$NA" ]; then echo "いま：自分では開かない（mo autoopen on で戻す）"; else echo "いま：開く（強の面接の 10〜30 分後。メモリが苦しいときは mo autoopen off）"; fi ;;
+    esac
+    exit 0 ;;
   local)
     NL="$HOME/.config/minamo/no_local"; mkdir -p "$HOME/.config/minamo"
     case "$2" in
