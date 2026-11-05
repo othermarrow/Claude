@@ -155,6 +155,50 @@ def summary(results):
     return "→ 合格した AI がありません。いつもの設定のまま始めます。"
 
 
+def fresh_results(backend, hours):
+    """前回の一括チェックが hours 時間以内で、候補の顔ぶれが同じで、合格が一つ以上あれば、(時刻, 結果) を返す。なければ None。"""
+    if not hours or hours <= 0:
+        return None
+    try:
+        with open(CACHE, encoding="utf-8") as f:
+            data = json.load(f)
+        at = time.mktime(time.strptime(data["at"], "%Y-%m-%d %H:%M"))
+        results = data["results"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if time.time() - at > hours * 3600 or time.time() < at:
+        return None
+    want = {(b, m) for b, m, _ in candidates(backend)}
+    got = {(r.get("backend"), r.get("model")) for r in results}
+    if not want or want != got or not any(r.get("ok") for r in results):
+        return None
+    return data["at"][11:], results
+
+
+def add_models(ok):
+    """合格したものを、いまの候補（models.txt か既定）のうしろに足して models.txt に書く（前のものは .bak に残す）。"""
+    have = list(minamo.PROBE_MODELS)
+    new = [(r["backend"], r["model"]) for r in ok if (r["backend"], r["model"]) not in have]
+    if not new:
+        print("足すものはありません（合格したものは、すでに候補に入っています）。")
+        return
+    path = minamo.MODELS_FILE
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    if os.path.exists(path):
+        os.replace(path, path + ".bak")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(f"# probe.py --add が {time.strftime('%Y-%m-%d %H:%M')} に足した（足したものは末尾）\n")
+        for b, m in have:
+            f.write(f"{b} {m}\n")
+        for b, m in new:
+            f.write(f"{b} {m}    # 足した\n")
+    try:
+        os.remove(CACHE)                 # 顔ぶれが変わったので、次の起動でチェックし直す
+    except OSError:
+        pass
+    print(f"\n{path} に {len(new)} 個足しました：" + "・".join(f"{b} {m}" for b, m in new))
+
+
 def save(results):
     try:
         os.makedirs(os.path.dirname(CACHE), exist_ok=True)
@@ -260,12 +304,17 @@ def main():
                     help="チェックはせず、いま使えるモデルの一覧を API に問い合わせる（言葉で絞れる）")
     ap.add_argument("--all", nargs="?", const="", metavar="言葉",
                     help="API の一覧にある会話用のモデルを全部調べる（言葉で絞れる）")
+    ap.add_argument("--add", nargs="?", const="", metavar="言葉",
+                    help="--all と同じように調べ、合格したものを、いまの候補のうしろに足して models.txt に書く"
+                         "（--backend gemini で Google だけ）")
     ap.add_argument("--workers", type=int, default=6, help="--all のとき、同時に送る数（既定 6）")
     ap.add_argument("--save", action="store_true",
                     help="合格したものを速い順に ~/.config/minamo/models.txt に書く（前のものは .bak に残す）")
     a = ap.parse_args()
     if a.list is not None:
         return show_list(a.list)
+    if a.add is not None and a.all is None:
+        a.all = a.add
     if a.all is not None:
         cands = []
         for b in minamo.BACKENDS:
@@ -281,7 +330,7 @@ def main():
         if not cands:
             print("調べるモデルがありません（APIキーか、絞り込みの言葉を確かめてください）。")
             return
-        results = run(timeout=a.timeout, cands=cands, workers=a.workers)
+        results = run(timeout=a.timeout, cands=cands, workers=a.workers if a.add is None else min(a.workers, 2))
     else:
         if not candidates(a.backend):
             print("APIキーが見つかりません（README の「APIキー」）。")
@@ -293,6 +342,8 @@ def main():
         print("\n合格（速い順）：")
         for r in ok:
             print(f"  {r['sec']:5.1f}秒  {r['backend']} {r['model']}")
+    if a.add is not None:
+        add_models(ok)
     if a.save:
         save_models(ok)
     if a.show:

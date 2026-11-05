@@ -5,6 +5,7 @@
 #   sh ~/Claude/minamo/open.sh story      # 物語「水面の記録」（archive・mina でも開く）
 #   sh ~/Claude/minamo/open.sh stop       # 止める（stop.sh と同じ）
 #   sh ~/Claude/minamo/open.sh restart    # 止めて、AI の一括チェックからやり直して開く
+#   sh ~/Claude/minamo/open.sh recheck    # AI の一括チェックの覚えを消して、やり直して起動する（mo recheck）
 #   sh ~/Claude/minamo/open.sh log        # 様子を見る（ログの最後の 20 行と、AI の一括チェックの結果と、腕時計の様子）
 #   sh ~/Claude/minamo/open.sh update     # GitHub から最新にして（git pull）、起動し直して開く
 #   sh ~/Claude/minamo/open.sh app        # 開くアプリ（インストールした PWA）を選ぶ（mo app 1 などで試して覚える）
@@ -13,6 +14,8 @@
 cd "$(dirname "$0")" || exit 1
 case "$1" in
   stop) sh "$PWD/stop.sh"; echo "止めました。"; exit 0 ;;
+  recheck) rm -f "$HOME/.cache/minamo/probe.json"; echo "AI の一括チェックを、はじめからやり直します。"; shift
+           exec sh "$PWD/open.sh" restart "$@" ;;
   restart) sh "$PWD/stop.sh"; sleep 1; shift; PAGE=""
            if curl -s -o /dev/null --max-time 2 http://127.0.0.1:9090/ 2>/dev/null; then
              echo "止められないサーバーが動いています（start.sh 以外の方法で起動したもの？）。そのサーバーの画面で Ctrl+C を押してから、もう一度 mo restart"
