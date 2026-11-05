@@ -566,7 +566,12 @@ while [ $# -ge 2 ]; do
   at="$1"; line="$2"; shift 2
   if [ "$did_open" = 0 ] && [ "$t_open" -gt 0 ] && [ "$t_open" -lt "$at" ]; then
     wait_until "$t_open"; did_open=1
-    if curl -s -o /dev/null --max-time 3 "$url"; then
+    avail=$(awk '/^MemAvailable:/{print int($2/1024)}' /proc/meminfo 2>/dev/null)
+    min=$(cat "$HOME/.config/minamo/open_min_mb" 2>/dev/null || echo 3500)
+    if [ -n "$avail" ] && [ "$avail" -lt "$min" ]; then
+      # 空きメモリが少ないときにアプリを起動すると、Termux ごと落とされることがある。開かない
+      echo "$(date '+%F %T') 空きメモリが少ない（${avail}MB < ${min}MB）ので、画面を自分で開くのはやめました" >> "$HOME/minamo/server.log"
+    elif curl -s -o /dev/null --max-time 3 "$url"; then
       am start -a android.intent.action.VIEW -d "$url" -p "${MINAMO_BROWSER:-$(cat "$HOME/.config/minamo/app" 2>/dev/null || echo com.android.chrome)}" >/dev/null 2>&1 || termux-open-url "$url" 2>/dev/null
     fi
   fi
